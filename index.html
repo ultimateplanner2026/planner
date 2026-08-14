@@ -2646,6 +2646,65 @@ header#topbar {
 main#main {
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
+
+/* ---------- phone: top bar must not cut its own buttons off ----------
+   Measured at 390px: the top bar was fixed at 48px with nowrap, so the next-date
+   arrow landed at y=51 - outside the bar, unreachable. Let it wrap instead;
+   nothing is hidden and nothing is clipped. */
+@media (max-width: 700px) {
+  /* One row that scrolls sideways, rather than three stacked rows eating 14% of
+     a phone screen. Every button stays reachable and the bar stays ~52px. */
+  header#topbar {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  header#topbar::-webkit-scrollbar { display: none; }
+  header#topbar > * { flex: 0 0 auto; }
+  header#topbar .topbar-spacer { flex: 1 0 8px; }
+  header#topbar .month-label { display: none; }
+}
+
+/* ---------- touch: real tap targets ----------
+   Driven by WIDTH, not by (pointer: coarse). The pointer feature is correct in
+   principle but cannot be emulated in the headless harness, so it could not be
+   verified - and an unverifiable rule is not worth shipping alone. Width is
+   testable and a <=700px window is a phone in every case that matters here.
+   The pointer block below still catches tablets in landscape. */
+@media (max-width: 700px) {
+  header#topbar button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .tree-row .tree-caret,
+  .tree-row .rowmenu,
+  .tree-row .tree-actions button {
+    min-width: 34px;
+    min-height: 30px;
+  }
+  .tree-row input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+  }
+}
+@media (pointer: coarse) {
+  header#topbar button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .tree-row .tree-caret,
+  .tree-row .rowmenu,
+  .tree-row .tree-actions button {
+    min-width: 34px;
+    min-height: 30px;
+  }
+  .tree-row input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+  }
+}
 </style>
 </head>
 <body>
@@ -2663,7 +2722,7 @@ main#main {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-13 23:06</span>
+    <span id="buildStamp">build 2026-08-14 14:24</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -10158,6 +10217,60 @@ renderAll();
     return g;
   }
 
+function hasRealContent(d) {
+  // True only if this looks like a planner someone actually used.
+  // A brand-new install seeds ONE demo goal titled 'Set up my planner' with
+  // three children, so that alone must NOT count as real content - otherwise a
+  // new phone looks "used" and we would ask the operator a pointless question.
+  // Steps:
+  if (!d || typeof d !== 'object') return false;
+  var t = (d.tree || []), e = (d.events || []);
+  if (e.length) return true;
+  if (!t.length) return false;
+  if (t.length === 1 && t[0] && t[0].title === 'Set up my planner') return false;
+  return true;
+}
+function backupLocal() {
+  // Never overwrite local data without keeping a copy. Store under
+  // 'planner.data.prejoin' plus 'planner.data.prejoin.at' with an ISO timestamp.
+  // Wrap in try/catch; do nothing on failure.
+  try {
+    var data = window.Store.data;
+    lsSet('planner.data.prejoin', JSON.stringify(data));
+    lsSet('planner.data.prejoin.at', new Date().toISOString());
+  } catch (e) {}
+}
+function firstConnect(remote, rAt, lAt) {
+  // Runs ONLY when this device has never synced with the gist (no stored base).
+  // Returns true if it handled things and the caller must stop.
+  //
+  // The bug this fixes: a new device stamps its own fresh data with the current
+  // time, which is NEWER than the gist. The old code only accepted the remote
+  // when the remote was newer, so a new phone kept its empty/demo planner,
+  // reported 'Synced', and the first edit pushed that over the real data.
+  // On a first connect, timestamps are meaningless - the remote is the shared
+  // truth and must win unless this device also has real work on it.
+  //
+  // Steps:
+  var rHas = hasRealContent(remote);
+  var lHas = hasRealContent(window.Store.data);
+  if (!rHas) { lsSet(LS_BASE, rAt || ''); st('synced'); return true; }  // nothing there yet, keep local
+  backupLocal();
+  if (lHas && rAt !== lAt) {
+    // both sides have real work - never silently pick one
+    st('error');
+    if (typeof window.showConflict === 'function') window.showConflict(remote);
+    return true;
+  }
+  window.Store.data = remote;
+  try { localStorage.setItem('planner.data.v1', JSON.stringify(remote)); } catch (e) {}
+  if (window.renderAll) window.renderAll();
+  lsSet(LS_BASE, rAt || '');
+  st('synced');
+  if (window.toast) window.toast('Loaded your planner from GitHub', 'ok');
+  return true;
+}
+
   var Gist = {
     active: ghOn,
 
@@ -10170,6 +10283,10 @@ renderAll();
         var rAt = remote.updatedAt || '';
         var lAt = (window.Store.data && window.Store.data.updatedAt) || '';
         var base = ls(LS_BASE);
+        // A device that has never synced has no basis for comparing timestamps:
+        // its own fresh data is always "newer" than the gist. Handle that case
+        // on its own terms before any timestamp logic runs.
+        if (!base) { if (firstConnect(remote, rAt, lAt)) return; }
         if (rAt === lAt) { st('synced'); return; }
         if (base && rAt !== base && lAt > base) {
           st('error');
@@ -10250,6 +10367,27 @@ renderAll();
       ]);
       setTimeout(function () { inp.focus(); }, 30);
     }
+  };
+
+  // expose the transport so the merge layer can do read-before-write
+  Gist._read = readRemote;
+  Gist._write = writeRemote;
+  Gist._base = function (v) { if (arguments.length) lsSet(LS_BASE, v); return ls(LS_BASE); };
+  Gist._st = st;
+  // patch arbitrary files in the gist (history snapshots); null value deletes one
+  Gist._patchFiles = async function (files) {
+    var id = await ensureGist();
+    var res = await fetch(API + '/gists/' + id, {
+      method: 'PATCH', headers: H(), body: JSON.stringify({ files: files })
+    });
+    if (!res.ok) throw new Error('Could not update the gist (' + res.status + ')');
+    return res.json();
+  };
+  Gist._readGist = async function () {
+    var id = await ensureGist();
+    var res = await fetch(API + '/gists/' + id, { headers: H() });
+    if (!res.ok) throw new Error('Could not read the gist (' + res.status + ')');
+    return res.json();
   };
 
   window.CloudGist = Gist;
@@ -10745,6 +10883,456 @@ renderAll();
   } else {
     setTimeout(addButton, 600);
   }
+})();
+
+/* ===== m104 update checker ===== */
+(function () {
+  var REPO = 'ultimateplanner2026/planner';
+  var API  = 'https://api.github.com/repos/' + REPO + '/commits?per_page=1&path=index.html';
+  var KEY  = 'planner.repo.sha';
+  var EVERY = 30 * 60 * 1000;
+  var shown = false;
+
+  function ls(k)      { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } }
+  function lsSet(k,v) { try { localStorage.setItem(k, v); } catch (e) {} }
+
+  function chip(sha) {
+    if (shown) return; shown = true;
+    // build a fixed banner at the BOTTOM of the screen with plain DOM:
+    var b = document.createElement('div');
+    b.id = 'updateChip';
+    b.style.cssText = 'position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));'
+      + 'transform:translateX(-50%);z-index:99998;background:var(--surface,#222);'
+      + 'color:var(--text,#fff);border:1px solid var(--accent,#59f);border-radius:10px;'
+      + 'padding:10px 14px;box-shadow:0 8px 30px rgba(0,0,0,.4);display:flex;gap:12px;'
+      + 'align-items:center;font-size:13px;max-width:92vw';
+    var t = document.createElement('span');
+    t.textContent = 'A newer version of the planner is available.';
+    var go = document.createElement('button');
+    go.type = 'button'; go.textContent = 'Reload';
+    go.style.cssText = 'font-size:12px;padding:6px 12px;border-radius:6px;cursor:pointer';
+    go.addEventListener('click', function () {
+      lsSet(KEY, sha);
+      location.replace(location.pathname + '?v=' + (new Date()).getTime());
+    });
+    var no = document.createElement('button');
+    no.type = 'button'; no.textContent = 'Later';
+    no.style.cssText = 'font-size:12px;padding:6px 10px;border-radius:6px;cursor:pointer;opacity:.7';
+    no.addEventListener('click', function () {
+      if (b.parentNode) b.parentNode.removeChild(b);
+      shown = false;
+    });
+    b.appendChild(t); b.appendChild(go); b.appendChild(no);
+    document.body.appendChild(b);
+  }
+
+  function check() {
+    try {
+      fetch(API, { headers: { 'Accept': 'application/vnd.github+json' } })
+        .then(function (r) {
+          // GitHub answers rate limits and errors with HTML, so r.json() would
+          // throw and kill the checker silently for the whole session
+          if (!r.ok) return null;
+          return r.json().catch(function () { return null; });
+        })
+        .then(function (d) {
+          if (!d || !d.length || !d[0].sha) return;
+          var sha = d[0].sha;
+          var seen = ls(KEY);
+          if (!seen) { lsSet(KEY, sha); return; }   // first run: set the baseline
+          if (sha !== seen) chip(sha);
+        })
+        .catch(function () {});
+    } catch (e) {}
+  }
+
+  window.__checkForUpdate = check;
+
+  // The version line belongs in the DRAWER (#treeDrawer). An earlier version
+  // hung it off #btnExport, which lives in the TOP BAR - a width:100% div there
+  // wrapped the whole bar and pushed the date arrows off-screen (btnPrevMonth
+  // ended up at y=-20). Never fall back to a top-bar element: if the drawer is
+  // not open yet, do nothing and try again when it is.
+  function stampInDrawer() {
+    if (document.getElementById('drawerVersion')) return;
+    var host = document.getElementById('treeDrawer');
+    if (!host) return;
+    var stampEl = document.getElementById('buildStamp');
+    var text = stampEl ? stampEl.textContent : '';
+    if (!text) return;
+    var v = document.createElement('div');
+    v.id = 'drawerVersion';
+    v.textContent = text;
+    v.style.cssText = 'font-size:10px;opacity:.55;padding:8px 2px 2px;width:100%';
+    host.appendChild(v);
+  }
+
+  function start() {
+    stampInDrawer();
+    var tog = document.getElementById('btnTreeToggle');
+    if (tog) tog.addEventListener('click', function () { setTimeout(stampInDrawer, 60); });
+    setTimeout(check, 4000);
+    setInterval(function () { if (!document.hidden) check(); }, EVERY);
+    document.addEventListener('visibilitychange', function () {
+      if (!document.hidden) check();
+    });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function () { setTimeout(start, 900); });
+  } else {
+    setTimeout(start, 900);
+  }
+})();
+
+/* ===== m106 merge engine ===== */
+(function () {
+  var LS_DEV = 'planner.deviceId';
+  var hashes = {};
+  var memDev = '';
+
+  function deviceId() {
+    var id;
+    try {
+      id = localStorage.getItem(LS_DEV);
+    } catch (e) {
+      id = null;
+    }
+    if (!id) {
+      id = 'd' + Math.random().toString(36).slice(2, 10);
+      try {
+        localStorage.setItem(LS_DEV, id);
+      } catch (e) {
+        // storage error, fallback to memDev
+      }
+    }
+    memDev = id;
+    return id;
+  }
+
+  function hashOf(node) {
+    var s = [node.title,node.notes,node.kind,node.done,node.priority,node.date,
+      node.time,node.endDate,node.block,node.duration,node.repeat,node.areaId,
+      node.collapsed,JSON.stringify(node.tags||[]),
+      JSON.stringify(node.reminder||null),JSON.stringify(node.style||null)].join('|');
+    var h = 5381, i;
+    for (i = 0; i < s.length; i++) { h = ((h << 5) + h + s.charCodeAt(i)) | 0; }
+    return String(h);
+  }
+
+  function walk(list, parentId, out) {
+    if (!list) return;
+    var i;
+    for (i = 0; i < list.length; i++) {
+      var node = list[i];
+      if (!node || !node.id) continue;
+      out.push({node: node, parentId: parentId, index: i});
+      walk(node.children, node.id, out);
+    }
+  }
+
+  function collect(data) {
+    var out = [];
+    walk((data && data.tree) || [], null, out);
+    var map = {}, max = 0, i, e;
+    for (i = 0; i < out.length; i++) {
+      e = out[i]; map[e.node.id] = e;
+      if ((Number(e.node.clock) || 0) > max) max = Number(e.node.clock) || 0;
+    }
+    var tr = (data && data.trash) || [], t, tn;
+    for (i = 0; i < tr.length; i++) {
+      t = tr[i]; tn = t && (t.node || t);
+      if (!tn || !tn.id) continue;
+      if (!map[tn.id]) map[tn.id] = {node: tn, parentId: null, index: 0, tomb: t};
+      if ((Number(tn.clock) || 0) > max) max = Number(tn.clock) || 0;
+    }
+    return {map: map, max: max};
+  }
+
+  window.stampClocks = function () {
+    var d = window.Store && window.Store.data;
+    if (!d) return;
+    var c = collect(d);
+    var next = Math.max(Number(d.clock) || 0, c.max);
+    var dev = deviceId(), id, e, h;
+    for (id in c.map) {
+      if (!c.map.hasOwnProperty(id)) continue;
+      e = c.map[id];
+      h = hashOf(e.node);
+      if (!e.node.clock) { next = next + 1; e.node.clock = next; e.node.by = dev; hashes[id] = h; continue; }
+      if (hashes[id] !== undefined && hashes[id] !== h) { next = next + 1; e.node.clock = next; e.node.by = dev; }
+      hashes[id] = h;
+    }
+    d.clock = next; d.deviceId = dev; d.version = 3;
+  };
+
+  function winner(a, b) {
+    if (!a) return b;
+    if (!b) return a;
+    var ca = Number(a.node.clock) || 0, cb = Number(b.node.clock) || 0;
+    if (ca !== cb) { return ca > cb ? a : b; }
+    var da = String(a.node.by || ''), db = String(b.node.by || '');
+    return da >= db ? a : b;
+  }
+
+  window.mergePlanner = function (local, remote) {
+    if (!remote) return local;
+    if (!local) return remote;
+    var L = collect(local), R = collect(remote);
+    var ids = {}, id;
+    for (id in L.map) { if (L.map.hasOwnProperty(id)) ids[id] = 1; }
+    for (id in R.map) { if (R.map.hasOwnProperty(id)) ids[id] = 1; }
+    var live = [], dead = [], w;
+    for (id in ids) {
+      if (!ids.hasOwnProperty(id)) continue;
+      w = winner(L.map[id], R.map[id]);
+      if (!w) continue;
+      if (w.tomb) { dead.push(w.tomb); } else { live.push(w); }
+    }
+    var byParent = {}, i, e, p;
+    for (i = 0; i < live.length; i++) {
+      e = live[i];
+      p = e.parentId || '__root__';
+      if (!byParent[p]) byParent[p] = [];
+      byParent[p].push(e);
+    }
+    function build(pid) {
+      var kids = byParent[pid] || [];
+      kids.sort(function (x, y) { return (x.index || 0) - (y.index || 0); });
+      var res = [], k, nd;
+      for (k = 0; k < kids.length; k++) {
+        nd = kids[k].node;
+        nd.children = build(nd.id);
+        res.push(nd);
+      }
+      return res;
+    }
+    var merged = {}, key;
+    var src = (Number(remote.clock) || 0) > (Number(local.clock) || 0) ? remote : local;
+    // Start from LOCAL so no key can vanish. Taking only the winner's keys
+    // dropped whatever the other side happened not to have - journal, habitLog,
+    // timeLog - and renderAll then threw on the missing object, aborting the
+    // sync before it ever wrote.
+    for (key in local) { if (local.hasOwnProperty(key)) merged[key] = local[key]; }
+    for (key in src) { if (src.hasOwnProperty(key) && src[key] !== undefined) merged[key] = src[key]; }
+    merged.tree = build('__root__');
+    merged.trash = dead;
+    merged.clock = Math.max(L.max, R.max, Number(local.clock) || 0, Number(remote.clock) || 0);
+    merged.version = 3;
+    merged.deviceId = deviceId();
+    merged.updatedAt = new Date().toISOString();
+    var lists = ['events', 'areas', 'lists', 'habits'], li;
+    for (li = 0; li < lists.length; li++) {
+      (function (k) {
+        var a = local[k] || [], b = remote[k] || [], seen = {}, res = [], j, it, cur;
+        for (j = 0; j < a.length; j++) { if (a[j] && a[j].id) seen[a[j].id] = a[j]; }
+        for (j = 0; j < b.length; j++) {
+          it = b[j];
+          if (!it || !it.id) continue;
+          cur = seen[it.id];
+          if (!cur || (Number(it.clock) || 0) > (Number(cur.clock) || 0)) seen[it.id] = it;
+        }
+        for (j in seen) { if (seen.hasOwnProperty(j)) res.push(seen[j]); }
+        merged[k] = res;
+      })(lists[li]);
+    }
+    return merged;
+  };
+
+  window.plannerDeviceId = deviceId;
+})();
+
+/* ===== m107 merge sync ===== */
+(function () {
+  var pushTimer = null, pushing = false, again = false;
+
+  function st(s) { if (window.CloudGist && window.CloudGist._st) window.CloudGist._st(s); }
+  function on()  { return !!(window.CloudGist && window.CloudGist.active && window.CloudGist.active()); }
+
+  function saveLocal(d) {
+    try { localStorage.setItem('planner.data.v1', JSON.stringify(d)); } catch (e) {}
+  }
+
+  function countNodes(list) {
+    // takes a LIST, not a node. The first version treated its argument as a
+    // single node, so it returned 1 for any tree and the bulk guard below was
+    // measuring nothing.
+    if (!list || !list.length) return 0;
+    var total = 0, i;
+    for (i = 0; i < list.length; i++) {
+      if (!list[i]) continue;
+      total += 1 + countNodes(list[i].children);
+    }
+    return total;
+  }
+
+
+  function bulkGuardOk(before, after) {
+    var b = countNodes(before && before.tree), a = countNodes(after && after.tree);
+    if (b < 5) return true;
+    if (a >= Math.ceil(b * 0.7)) return true;
+    return window.confirm('This sync would reduce your planner from ' + b +
+      ' items to ' + a + '. Apply it?');
+  }
+
+  function syncNow(reason) {
+    if (!on()) return Promise.resolve();
+    if (pushing) { again = true; return Promise.resolve(); }
+    pushing = true;
+    st('syncing');
+    if (window.stampClocks) window.stampClocks();
+    return window.CloudGist._read().then(function (remote) {
+      if (window.checkRemoteBuild) window.checkRemoteBuild(remote);
+      var local = window.Store.data;
+      var merged = remote ? window.mergePlanner(local, remote) : local;
+      if (remote && !bulkGuardOk(local, merged)) { st('error'); return null; }
+      window.Store.data = merged;
+      // must come AFTER the merge: the merge copies fields from the winning
+      // side, so a build tag applied earlier is overwritten by the other
+      // device's value and the data ends up claiming the wrong build
+      if (window.tagBuild) window.tagBuild();
+      saveLocal(merged);
+      if (window.renderAll) window.renderAll();
+      return window.CloudGist._write();
+    }).then(function () {
+      window.CloudGist._base((window.Store.data && window.Store.data.updatedAt) || '');
+      st('synced');
+      pushing = false;
+      if (again) { again = false; setTimeout(function () { syncNow('queued'); }, 400); }
+    })['catch'](function (e) {
+      pushing = false;
+      st('error');
+      if (window.toast) window.toast('Sync: ' + (e && e.message ? e.message : 'failed'), 'err');
+    });
+  }
+
+  window.plannerSyncNow = syncNow;
+
+  function install() {
+    if (!window.CloudGist || !window.CloudGist._read || window.CloudGist.__merged) return;
+    window.CloudGist.__merged = true;
+
+    var firstPull = window.CloudGist.pull;
+
+    window.CloudGist.pull = function () {
+      // the very first sync on a device still uses the adoption path in the
+      // transport, which knows how to handle a brand-new install; after that
+      // every sync is a real merge
+      if (!window.CloudGist._base()) { return firstPull.apply(window.CloudGist, arguments); }
+      return syncNow('pull');
+    };
+
+    window.CloudGist.push = function () {
+      clearTimeout(pushTimer);
+      return new Promise(function (resolve) {
+        pushTimer = setTimeout(function () { resolve(syncNow('push')); }, 1500);
+      });
+    };
+
+    var baseSave = window.Store.save.bind(window.Store);
+    window.Store.save = function () {
+      if (window.stampClocks) window.stampClocks();
+      return baseSave.apply(this, arguments);
+    };
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function () { setTimeout(install, 1200); });
+  } else {
+    setTimeout(install, 1200);
+  }
+})();
+
+/* ===== m108 version safety ===== */
+(function () {
+    var KEEP = 3;
+    var LS_SEEN = 'planner.lastBuild';
+
+    function buildStamp() {
+        var el = document.getElementById('buildStamp');
+        if (!el) return '';
+        return (el.textContent || '').trim();
+    }
+
+    function countNodes(list) {
+        if (!list) return 0;
+        var total = 0;
+        for (var i = 0; i < list.length; i++) {
+            var child = list[i];
+            total += 1 + countNodes(child.children);
+        }
+        return total;
+    }
+
+    window.tagBuild = function () {
+        var d = window.Store && window.Store.data;
+        if (!d) return;
+        d.build = buildStamp();
+    };
+
+    window.checkRemoteBuild = function (remote) {
+        if (!remote || !remote.build) return;
+        var mine = buildStamp();
+        if (!mine || remote.build >= mine) return;
+        if (window.__oldBuildWarned) return;
+        window.__oldBuildWarned = true;
+        if (window.toast) {
+            window.toast('Another device is running an older version (' + remote.build +
+                '). Update it before editing there, or its next save can overwrite this work.', 'err');
+        }
+    };
+
+    window.snapshotToGist = function (reason) {
+        if (!window.CloudGist || !window.CloudGist.active || !window.CloudGist.active()) {
+            return Promise.resolve(false);
+        }
+        var d = window.Store && window.Store.data;
+        if (!d) return Promise.resolve(false);
+        var stamp = String(new Date().toISOString()).slice(0, 19).replace(/[:T]/g, '-');
+        var name = 'history-' + stamp + '.json';
+        var files = {};
+        files[name] = { content: JSON.stringify({
+            at: new Date().toISOString(),
+            reason: String(reason || 'manual'),
+            build: buildStamp(),
+            items: countNodes(d.tree),
+            data: d
+        }) };
+        return window.CloudGist._patchFiles(files).then(function () { return true; },
+                                                        function () { return false; });
+    };
+
+    window.pruneSnapshots = function (gist) {
+        if (!gist || !gist.files) return Promise.resolve();
+        var names = [], k;
+        for (k in gist.files) {
+            if (gist.files.hasOwnProperty(k) && k.indexOf('history-') === 0) names.push(k);
+        }
+        if (names.length <= KEEP) return Promise.resolve();
+        names.sort();
+        var drop = names.slice(0, names.length - KEEP), files = {}, i;
+        for (i = 0; i < drop.length; i++) { files[drop[i]] = null; }
+        return window.CloudGist._patchFiles(files);
+    };
+
+    function onNewBuild() {
+        var now = buildStamp();
+        if (!now) return;
+        var seen = '';
+        try { seen = localStorage.getItem(LS_SEEN) || ''; } catch (e) {}
+        if (seen === now) return;
+        try { localStorage.setItem(LS_SEEN, now); } catch (e) {}
+        if (!seen) return;
+        setTimeout(function () {
+            window.snapshotToGist('upgraded from ' + seen + ' to ' + now);
+        }, 6000);
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function () { setTimeout(onNewBuild, 2000); });
+    } else {
+        setTimeout(onNewBuild, 2000);
+    }
 })();
 
 </script>
