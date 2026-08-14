@@ -2663,7 +2663,7 @@ main#main {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-07 15:39</span>
+    <span id="buildStamp">build 2026-08-13 23:06</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -10297,6 +10297,453 @@ renderAll();
     document.addEventListener('DOMContentLoaded', function () { setTimeout(install, 400); });
   } else {
     setTimeout(install, 400);
+  }
+})();
+
+/* ===== m99 weekStart hardening ===== */
+(function () {
+  // 0 = Sunday .. 6 = Saturday. Anything else is not a week start.
+  function safeStart() {
+    var s = window.Store && window.Store.data && window.Store.data.settings;
+    var v = s ? s.weekStart : undefined;
+    return (typeof v === 'number' && isFinite(v) && v >= 0 && v <= 6) ? v : 0;
+  }
+
+  var orig = window.weekStartOf;
+  if (typeof orig !== 'function') {
+    // Load-order guard: say so rather than silently wrapping undefined.
+    if (window.console) console.warn('m99: weekStartOf missing, not hardened');
+    return;
+  }
+
+  window.weekStartOf = function (iso) {
+    var d = window.parseISO(iso);
+    if (!d || isNaN(d.getTime())) {
+      if (window.console) console.warn('weekStartOf: bad date', iso);
+      return typeof iso === 'string' ? iso : window.todayISO();
+    }
+    var diff = (d.getDay() - safeStart() + 7) % 7;
+    d.setDate(d.getDate() - diff);
+    var out = window.isoOf(d);
+    if (!out || out.indexOf('NaN') >= 0) {
+      if (window.console) console.warn('weekStartOf: produced', out, 'for', iso);
+      return typeof iso === 'string' ? iso : window.todayISO();
+    }
+    return out;
+  };
+
+  // Belt and braces at the LOAD boundary: data arriving from the gist, an
+  // import, or a hand-edited file gets its missing settings keys filled in.
+  // Only fills what is ABSENT - never overwrites a value the operator chose.
+  window.fillMissingSettings = function (data) {
+    if (!data || typeof data !== 'object') return data;
+    if (!data.settings || typeof data.settings !== 'object') data.settings = {};
+    var s = data.settings;
+    if (!(typeof s.weekStart === 'number' && s.weekStart >= 0 && s.weekStart <= 6)) s.weekStart = 0;
+    if (!s.filters || typeof s.filters !== 'object') s.filters = {areas: [], tags: []};
+    if (!Array.isArray(s.filters.areas)) s.filters.areas = [];
+    if (!Array.isArray(s.filters.tags)) s.filters.tags = [];
+    if (!Array.isArray(s.revealed)) s.revealed = [];
+    if (typeof s.hideFuture !== 'boolean') s.hideFuture = true;
+    return data;
+  };
+
+  // renderAll runs after every load, import and gist pull, so this is the
+  // cheapest place to catch freshly-arrived data without editing the sync module.
+  var baseRender = window.renderAll;
+  if (typeof baseRender === 'function') {
+    window.renderAll = function () {
+      try { window.fillMissingSettings(window.Store && window.Store.data); } catch (e) {}
+      return baseRender.apply(this, arguments);
+    };
+  }
+})();
+
+/* ===== m100 reminders ===== */
+(function () {
+  var LEADS = [[0,'At the time'],[5,'5 min before'],[10,'10 min before'],
+               [15,'15 min before'],[30,'30 min before'],[60,'1 hour before'],
+               [120,'2 hours before'],[1440,'1 day before']];
+  var MODES = [['off','No reminder'],
+               ['sound','Alarm sound + alert'],
+               ['quiet','Silent alert only']];
+  var WINDOW_MS = 10 * 60 * 1000;
+  var pending = null;
+
+  function rem(n) { return (n && n.reminder) || null; }
+
+  function fireAt(node) {
+    if (!node || !node.date || !node.time) return 0;
+    var r = rem(node); if (!r || r.mode === 'off') return 0;
+    var d = window.parseISO(node.date);
+    if (!d || isNaN(d.getTime())) return 0;
+    var hm = String(node.time).split(':');
+    d.setHours(parseInt(hm[0],10) || 0, parseInt(hm[1],10) || 0, 0, 0);
+    return d.getTime() - (Number(r.lead) || 0) * 60000;
+  }
+
+  function claim(id, at) {
+    var k = 'planner.rem.' + id + '.' + at;
+    try { if (localStorage.getItem(k)) return false; localStorage.setItem(k, '1'); return true; }
+    catch (e) { return true; }
+  }
+
+  function beep() {
+    try {
+        var AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) return;
+        var ctx = new AC();
+        var t0 = ctx.currentTime;
+        for (var i = 0; i < 3; i++) {
+          var o = ctx.createOscillator(), g = ctx.createGain();
+          o.type = 'sine';
+          o.frequency.value = 880;
+          var s = t0 + i * 0.45;
+          g.gain.setValueAtTime(0.0001, s);
+          g.gain.exponentialRampToValueAtTime(0.6, s + 0.03);
+          g.gain.exponentialRampToValueAtTime(0.0001, s + 0.35);
+          o.connect(g); g.connect(ctx.destination);
+          o.start(s); o.stop(s + 0.4);
+        }
+        setTimeout(function () { try { ctx.close(); } catch (e) {} }, 2500);
+      } catch (e) {}
+  }
+
+  function deliver(node) {
+    var r = rem(node) || {};
+    var title = node.title || 'Reminder';
+    var when = (node.time || '') + ' ' + (node.date || '');
+    if (document.hidden && window.Notification && Notification.permission === 'granted') {
+      try { new Notification(title, { body: when, tag: 'planner-' + node.id }); return; } catch (e) {}
+    }
+    if (r.mode === 'sound') beep();
+    if (navigator.vibrate) { try { navigator.vibrate([300,150,300]); } catch (e) {} }
+    banner(node);
+  }
+
+  function banner(node) {
+    var b = document.createElement('div'); b.className = 'rem-banner';
+    b.style.cssText = 'position:fixed;left:50%;top:16px;transform:translateX(-50%);z-index:99999;'
+      + 'background:var(--surface,#222);color:var(--text,#fff);border:1px solid var(--accent,#59f);'
+      + 'border-radius:10px;padding:12px 16px;box-shadow:0 8px 30px rgba(0,0,0,.4);'
+      + 'display:flex;gap:12px;align-items:center;max-width:90vw';
+    var t = document.createElement('div');
+    t.style.cssText = 'font-size:13px;line-height:1.35';
+    var strong = document.createElement('div');
+    strong.style.cssText = 'font-weight:600';
+    strong.textContent = node.title || 'Reminder';
+    var sub = document.createElement('div');
+    sub.style.cssText = 'font-size:11px;opacity:.75';
+    sub.textContent = (node.time || '') + '  ' + (node.date || '');
+    t.appendChild(strong); t.appendChild(sub);
+    var x = document.createElement('button');
+    x.type = 'button'; x.textContent = 'Dismiss';
+    x.style.cssText = 'font-size:11px;padding:6px 10px;border-radius:6px;cursor:pointer';
+    x.addEventListener('click', function () { if (b.parentNode) b.parentNode.removeChild(b); });
+    b.appendChild(t); b.appendChild(x);
+    document.body.appendChild(b);
+    setTimeout(function () { if (b.parentNode) b.parentNode.removeChild(b); }, 60000);
+  }
+
+  function walk(list, out) {
+    if (!list) return;
+    for (var i = 0; i < list.length; i++) {
+      var n = list[i];
+      out.push(n);
+      if (n.children) walk(n.children, out);
+    }
+  }
+
+  function scan() {
+    if (!window.Store || !window.Store.data) return;
+    var all = []; walk(window.Store.data.tree || [], all);
+    var now = Date.now();
+    for (var i = 0; i < all.length; i++) {
+      var n = all[i];
+      if (n.done) continue;
+      var at = fireAt(n);
+      if (!at) continue;
+      if (now >= at && now - at < WINDOW_MS) {
+        if (claim(n.id, at)) deliver(n);
+      }
+    }
+  }
+
+  setInterval(scan, 15000);
+  document.addEventListener('visibilitychange', scan);
+  window.__remScan = scan;
+
+  function patch(id) {
+  if (document.querySelector('.ea-remctl')) return;
+  var rows = document.querySelectorAll('.ea .ea-row');
+  var row = null;
+  for (var i = 0; i < rows.length; i++) {
+    var label = rows[i].querySelector('.ea-label');
+    if (label && label.textContent === 'Reminder') {
+      row = rows[i];
+      break;
+    }
+  }
+  if (!row) return;
+  var f = window.findNode(id);
+  var node = f && f.node;
+  if (!node) return;
+  var cur = rem(node);
+  if (!cur || typeof cur !== 'object' || !cur.mode) {
+    cur = { lead: 10, mode: node.reminder ? 'sound' : 'off' };
+  }
+  pending = { id: id, lead: cur.lead, mode: cur.mode };
+  var cb = row.querySelector('input[type=checkbox]');
+  if (cb) { cb.style.display = 'none'; }
+  var container = document.createElement('div');
+  container.className = 'ea-remctl';
+  container.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;align-items:center';
+  var selMode = document.createElement('select');
+  for (var j = 0; j < MODES.length; j++) {
+    var opt = document.createElement('option');
+    opt.value = MODES[j][0];
+    opt.textContent = MODES[j][1];
+    if (MODES[j][0] === cur.mode) opt.selected = true;
+    selMode.appendChild(opt);
+  }
+  var selLead = document.createElement('select');
+  for (var k = 0; k < LEADS.length; k++) {
+    var opt2 = document.createElement('option');
+    opt2.value = LEADS[k][0];
+    opt2.textContent = LEADS[k][1];
+    if (LEADS[k][0] === cur.lead) opt2.selected = true;
+    selLead.appendChild(opt2);
+  }
+  selLead.disabled = (cur.mode === 'off');
+  var note = document.createElement('div');
+  note.style.cssText = 'font-size:11px;opacity:.7;flex-basis:100%';
+  container.appendChild(selMode);
+  container.appendChild(selLead);
+  container.appendChild(note);
+  row.appendChild(container);
+  selMode.addEventListener('change', function () {
+    pending.mode = selMode.value;
+    selLead.disabled = (selMode.value === 'off');
+    if (cb) cb.checked = (selMode.value !== 'off');
+    askPermission();
+    updateNote(note);
+  });
+  selLead.addEventListener('change', function () {
+    pending.lead = Number(selLead.value);
+  });
+  if (cb) cb.checked = (cur.mode !== 'off');
+  updateNote(note);
+  wireSave(id);
+}
+
+  function updateNote(note) {
+    if (!window.Notification) { note.textContent = 'This browser cannot show alerts when the app is in the background.'; return; }
+    if (Notification.permission === 'denied') {
+      note.textContent = 'Alerts are blocked. Turn notifications on for this site in your browser or iOS Settings.'; return; }
+    note.textContent = 'Fires while the planner is open. Closed apps cannot be woken on iPhone.';
+  }
+
+  function askPermission() {
+    if (window.Notification && Notification.permission === 'default') {
+      try { Notification.requestPermission(); } catch (e) {} }
+  }
+
+  function wireSave(id) {
+  var buttons = document.querySelectorAll('.modal-footer button');
+  for (var i = 0; i < buttons.length; i++) {
+    var btn = buttons[i];
+    if (btn.textContent.trim() === 'Save' && !btn.dataset.remWired) {
+      btn.dataset.remWired = '1';
+      btn.addEventListener('click', function () {
+        var want = pending;
+        if (!want || want.id !== id) return;
+        setTimeout(function () {
+          var g = window.findNode(id);
+          if (!g || !g.node) return;
+          if (want.mode === 'off') {
+            g.node.reminder = null;
+          } else {
+            g.node.reminder = { lead: Number(want.lead) || 0, mode: want.mode };
+          }
+          try { window.Store.save(); } catch (e) {}
+        }, 0);
+      });
+    }
+  }
+}
+
+  var base = window.editActivity;
+  if (typeof base === 'function') {
+    window.editActivity = function (id) {
+      var r = base.apply(this, arguments);
+      setTimeout(function () { patch(id); }, 30);
+      return r;
+    };
+  }
+})();
+
+/* ===== m102 calendar export ===== */
+(function () {
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+
+  // iCalendar escaping: backslash, semicolon, comma, newline. Miss one and the
+  // whole file silently fails to import.
+  function esc(s) {
+    return String(s == null ? '' : s)
+        .replace(/\\/g, '\\\\').replace(/;/g, '\\;')
+        .replace(/,/g, '\\,').replace(/\r?\n/g, '\\n');
+  }
+
+  // Lines over 75 octets must be folded or strict parsers reject the file.
+  function fold(line) {
+    if (line.length <= 74) return line;
+    var out = line.slice(0, 74), rest = line.slice(74);
+    while (rest.length > 73) { out += '\r\n ' + rest.slice(0, 73); rest = rest.slice(73); }
+    return out + (rest.length ? '\r\n ' + rest : '');
+  }
+
+  function stamp(d) {
+    return d.getUTCFullYear() + pad(d.getUTCMonth()+1) + pad(d.getUTCDate()) + 'T'
+         + pad(d.getUTCHours()) + pad(d.getUTCMinutes()) + pad(d.getUTCSeconds()) + 'Z';
+  }
+
+  // FLOATING local time - no Z, no TZID - so 09:00 means 09:00 wherever you are.
+  function localStamp(iso, hhmm) {
+    var d = window.parseISO(iso);
+    var p = String(hhmm || '00:00').split(':');
+    return String(iso).replace(/-/g, '') + 'T' + pad(parseInt(p[0],10)||0) + pad(parseInt(p[1],10)||0) + '00';
+  }
+
+  function dateOnly(iso) { return String(iso).replace(/-/g, ''); }
+
+  function walk(list, out) {
+    if (!list || !list.length) return;
+    for (var i = 0; i < list.length; i++) {
+      var n = list[i];
+      if (n) {
+        out.push(n);
+        if (n.children) walk(n.children, out);
+      }
+    }
+  }
+
+  // A task's signature: if any of this changed since the last export, the event
+  // must carry a higher SEQUENCE or the calendar treats the re-import as a
+  // duplicate rather than an update.
+  function sig(n) {
+    var r = n.reminder || {};
+    return [n.title, n.date, n.time, n.duration, n.notes, r.lead, r.mode].join('|');
+  }
+
+  window.buildICS = function () {
+    var all = [];
+    walk((window.Store.data && window.Store.data.tree) || [], all);
+    var now = new Date();
+    var L = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Planner//EN',
+             'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', 'X-WR-CALNAME:Planner'];
+    var count = 0;
+    for (var i = 0; i < all.length; i++) {
+      var n = all[i];
+      if (!n.date) continue;
+      if (n.done) continue;                     // finished work needs no alarm
+      var startMs = window.parseISO(n.date).getTime();
+      if (n.time) { var q = n.time.split(':');
+        startMs += ((parseInt(q[0],10)||0) * 60 + (parseInt(q[1],10)||0)) * 60000; }
+      else { startMs += 24 * 3600000; }         // an all-day task counts until day end
+      if (startMs < now.getTime()) continue;    // iOS cannot schedule a past alarm
+
+      // bump SEQUENCE only when something meaningful changed
+      var s = sig(n);
+      if (n.icsSig !== s) { n.icsSeq = (Number(n.icsSeq) || 0) + 1; n.icsSig = s; }
+
+      L.push('BEGIN:VEVENT');
+      L.push('UID:planner-' + esc(n.id) + '@ultimateplanner');
+      L.push('SEQUENCE:' + (n.icsSeq || 1));
+      L.push('DTSTAMP:' + stamp(now));
+      L.push('LAST-MODIFIED:' + stamp(now));
+      if (n.time) {
+        L.push('DTSTART:' + localStamp(n.date, n.time));
+        var endMin = ((parseInt(n.time.split(':')[0],10)||0) * 60
+                    + (parseInt(n.time.split(':')[1],10)||0)) + (Number(n.duration) || 60);
+        var ed = window.parseISO(n.date);
+        ed.setMinutes(ed.getMinutes() + endMin);
+        L.push('DTEND:' + window.isoOf(ed).replace(/-/g,'') + 'T'
+               + pad(ed.getHours()) + pad(ed.getMinutes()) + '00');
+      } else {
+        L.push('DTSTART;VALUE=DATE:' + dateOnly(n.date));
+        var nd = window.parseISO(n.date); nd.setDate(nd.getDate() + 1);
+        L.push('DTEND;VALUE=DATE:' + window.isoOf(nd).replace(/-/g,''));
+      }
+      L.push(fold('SUMMARY:' + esc(n.title || 'Task')));
+      if (n.notes) L.push(fold('DESCRIPTION:' + esc(n.notes)));
+      var rm = n.reminder;
+      if (rm && rm.mode && rm.mode !== 'off') {
+        L.push('BEGIN:VALARM');
+        L.push('ACTION:DISPLAY');
+        L.push(fold('DESCRIPTION:' + esc(n.title || 'Task')));
+        L.push('TRIGGER:-PT' + (Number(rm.lead) || 0) + 'M');
+        L.push('END:VALARM');
+      }
+      L.push('END:VEVENT');
+      count++;
+    }
+    L.push('END:VCALENDAR');
+    try { window.Store.save(); } catch (e) {}
+    window.__icsCount = count;
+    return L.join('\r\n');
+  };
+
+  window.exportICS = function () {
+    var text = window.buildICS();
+    var count = window.__icsCount || 0;
+    if (!count) {
+      if (window.toast) window.toast('Nothing to export - no upcoming dated tasks', 'err');
+      return;
+    }
+    var name = 'planner-' + window.todayISO() + '.ics';
+    var blob = new Blob([text], { type: 'text/calendar;charset=utf-8' });
+    // iOS home-screen apps cannot reliably download a file; the share sheet is
+    // the route that actually reaches Calendar there.
+    if (navigator.share && navigator.canShare) {
+      try {
+        var file = new File([blob], name, { type: 'text/calendar' });
+        if (navigator.canShare({ files: [file] })) {
+          navigator.share({ files: [file], title: 'Planner' })
+            .then(function(){}, function(){});
+          return;
+        }
+      } catch (e) {}
+    }
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click();
+    setTimeout(function () {
+      if (a.parentNode) a.parentNode.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 1000);
+    if (window.toast) window.toast(count + ' task' + (count===1?'':'s') + ' exported to calendar', 'ok');
+  };
+
+  // a button in the drawer, beside the other data actions
+  function addButton() {
+    if (document.getElementById('btnExportIcs')) return;
+    var host = document.getElementById('btnExport');
+    if (!host || !host.parentNode) return;
+    var b = document.createElement('button');
+    b.id = 'btnExportIcs';
+    b.type = 'button';
+    b.textContent = 'Calendar (.ics)';
+    b.title = 'Send upcoming tasks to your phone or computer calendar, so alarms ring even when the planner is closed';
+    b.addEventListener('click', function (e) { e.preventDefault(); window.exportICS(); });
+    if (host.nextSibling) host.parentNode.insertBefore(b, host.nextSibling);
+    else host.parentNode.appendChild(b);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function () { setTimeout(addButton, 600); });
+  } else {
+    setTimeout(addButton, 600);
   }
 })();
 
