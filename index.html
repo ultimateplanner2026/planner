@@ -2841,7 +2841,7 @@ button.al-x:hover { opacity: 1; color: var(--danger); }
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-14 17:38</span>
+    <span id="buildStamp">build 2026-08-14 18:13</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -10301,6 +10301,7 @@ renderAll();
     var res = await fetch(API + '/gists/' + id, { headers: H() });
     if (!res.ok) throw new Error('Could not read the gist (' + res.status + ')');
     var g = await res.json();
+    if (window.rememberGistOwner) window.rememberGistOwner(g);
     var f = g.files && g.files[FILE];
     if (!f) return null;
     var text = (f.truncated && f.raw_url) ? await (await fetch(f.raw_url)).text() : f.content;
@@ -10492,7 +10493,9 @@ function firstConnect(remote, rAt, lAt) {
     var id = await ensureGist();
     var res = await fetch(API + '/gists/' + id, { headers: H() });
     if (!res.ok) throw new Error('Could not read the gist (' + res.status + ')');
-    return res.json();
+    var g = await res.json();
+    if (window.rememberGistOwner) window.rememberGistOwner(g);
+    return g;
   };
 
   window.CloudGist = Gist;
@@ -10920,12 +10923,23 @@ function firstConnect(remote, rAt, lAt) {
       }
       L.push(fold('SUMMARY:' + esc(n.title || 'Task')));
       if (n.notes) L.push(fold('DESCRIPTION:' + esc(n.notes)));
-      var rm = n.reminder;
-      if (rm && rm.mode && rm.mode !== 'off') {
+      // Every alarm on the task becomes its own VALARM. This read the single
+      // n.reminder field, so once tasks gained a LIST of alarms the calendar
+      // silently carried none of them - which defeated the whole feature.
+      var alarms = window.alarmsOf ? window.alarmsOf(n) : (n.reminder && n.reminder.mode ? [n.reminder] : []);
+      var ai;
+      for (ai = 0; ai < alarms.length; ai++) {
+        var am = alarms[ai];
+        if (!am || am.mode === 'off') continue;
+        // expressed relative to the event start, so no timezone is ever written
+        var fireAt = window.alarmFireAt ? window.alarmFireAt(n, am) : 0;
+        if (!fireAt) continue;
+        var mins = Math.round((startMs - fireAt) / 60000);
+        var trig = mins >= 0 ? ('-PT' + mins + 'M') : ('PT' + Math.abs(mins) + 'M');
         L.push('BEGIN:VALARM');
         L.push('ACTION:DISPLAY');
         L.push(fold('DESCRIPTION:' + esc(n.title || 'Task')));
-        L.push('TRIGGER:-PT' + (Number(rm.lead) || 0) + 'M');
+        L.push('TRIGGER:' + trig);
         L.push('END:VALARM');
       }
       L.push('END:VEVENT');
@@ -10971,18 +10985,32 @@ function firstConnect(remote, rAt, lAt) {
 
   // a button in the drawer, beside the other data actions
   function addButton() {
+    // The drawer, not the top bar. On a phone the top bar scrolls sideways and
+    // this button sat off the end of it, where the operator could not find it.
     if (document.getElementById('btnExportIcs')) return;
-    var host = document.getElementById('btnExport');
-    if (!host || !host.parentNode) return;
+    var host = document.getElementById('treeDrawer');
+    if (!host) return;
+
     var b = document.createElement('button');
     b.id = 'btnExportIcs';
     b.type = 'button';
-    b.textContent = 'Calendar (.ics)';
-    b.title = 'Send upcoming tasks to your phone or computer calendar, so alarms ring even when the planner is closed';
+    b.className = 'drawer-btn';
+    b.textContent = 'Export calendar file (.ics)';
     b.addEventListener('click', function (e) { e.preventDefault(); window.exportICS(); });
-    if (host.nextSibling) host.parentNode.insertBefore(b, host.nextSibling);
-    else host.parentNode.appendChild(b);
+    host.appendChild(b);
+
+    var sub = document.createElement('button');
+    sub.id = 'btnCalSub';
+    sub.type = 'button';
+    sub.className = 'drawer-btn';
+    sub.textContent = 'Set up automatic calendar sync';
+    sub.addEventListener('click', function (e) {
+      e.preventDefault();
+      if (window.showCalendarSync) window.showCalendarSync();
+    });
+    host.appendChild(sub);
   }
+
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', function () { setTimeout(addButton, 600); });
@@ -12090,6 +12118,138 @@ function firstConnect(remote, rAt, lAt) {
       return r;
     };
   }
+})();
+
+/* ===== m115 calendar feed ===== */
+(function () {
+  var LS_ICS = 'planner.ics.hash';
+
+  function hash(s) {
+    var h = 5381, i;
+    for (i = 0; i < s.length; i++) { h = ((h << 5) + h + s.charCodeAt(i)) | 0; }
+    return String(h);
+  }
+
+  window.publishCalendar = function (force) {
+    if (!window.CloudGist || !window.CloudGist.active || !window.CloudGist.active()) {
+      return Promise.resolve(false);
+    }
+    if (!window.buildICS || !window.CloudGist._patchFiles) return Promise.resolve(false);
+    var text;
+    try { text = window.buildICS(); } catch (e) { return Promise.resolve(false); }
+    if (!text) return Promise.resolve(false);
+    var stable = text.replace(/DTSTAMP:[0-9TZ]+/g, '').replace(/LAST-MODIFIED:[0-9TZ]+/g, '');
+    var h = hash(stable), seen = '';
+    try { seen = localStorage.getItem(LS_ICS) || ''; } catch (e) {}
+    if (!force && seen === h) return Promise.resolve(false);
+    var files = { 'planner.ics': { content: text } };
+    return window.CloudGist._patchFiles(files).then(function () {
+      try { localStorage.setItem(LS_ICS, h); } catch (e) {}
+      return true;
+    }, function () { return false; });
+  };
+
+  window.calendarFeedUrl = function () {
+    var id = '';
+    try { id = localStorage.getItem('planner.gh.gist') || ''; } catch (e) {}
+    if (!id) return '';
+    return 'https://gist.githubusercontent.com/' + (window.plannerGistOwner || 'raw') +
+           '/' + id + '/raw/planner.ics';
+  };
+
+  window.rememberGistOwner = function (gist) {
+    if (!gist || !gist.owner || !gist.owner.login) return;
+    window.plannerGistOwner = gist.owner.login;
+    try { localStorage.setItem('planner.gh.owner', gist.owner.login); } catch (e) {}
+  };
+
+  try {
+    var o = localStorage.getItem('planner.gh.owner');
+    if (o) window.plannerGistOwner = o;
+  } catch (e) {}
+
+  var baseSync = window.plannerSyncNow;
+  if (typeof baseSync === 'function') {
+    window.plannerSyncNow = function () {
+      var r = baseSync.apply(this, arguments);
+      if (r && r.then) {
+        r.then(function () { setTimeout(function () { window.publishCalendar(false); }, 800); },
+               function () {});
+      }
+      return r;
+    };
+  }
+})();
+
+/* ===== m116 calendar sync ui ===== */
+(function () {
+  window.showCalendarSync = function () {
+    var body = document.createElement('div');
+    var url = window.calendarFeedUrl ? window.calendarFeedUrl() : '';
+    if (!url) {
+      var warn = document.createElement('p');
+      warn.textContent = 'Connect GitHub first - the calendar feed lives in the same private gist as your planner.';
+      body.appendChild(warn);
+      window.showModal('Automatic calendar sync', body, [{ label: 'Close' }]);
+      return;
+    }
+    var p1 = document.createElement('p');
+    p1.textContent = 'Subscribe once and your alarms keep arriving on their own. No exporting.';
+    var box = document.createElement('input');
+    box.type = 'text';
+    box.readOnly = true;
+    box.value = url;
+    box.style.cssText = 'width:100%;padding:8px;border-radius:6px;font-size:11px';
+    box.addEventListener('focus', function () { box.select(); });
+    var copy = document.createElement('button');
+    copy.type = 'button';
+    copy.textContent = 'Copy address';
+    copy.style.cssText = 'margin-top:8px;padding:8px 12px;border-radius:6px;cursor:pointer';
+    copy.addEventListener('click', function () {
+      box.select();
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(url);
+        } else { document.execCommand('copy'); }
+        copy.textContent = 'Copied';
+        setTimeout(function () { copy.textContent = 'Copy address'; }, 1500);
+      } catch (e) {}
+    });
+    var steps = document.createElement('ol');
+    steps.style.cssText = 'font-size:12px;line-height:1.5;padding-left:18px;margin-top:12px';
+    var lines = [
+      'Copy the address above.',
+      'On the iPhone open Settings, then Calendar, then Accounts.',
+      'Tap Add Account, then Other, then Add Subscribed Calendar.',
+      'Paste the address and tap Next, then Save.',
+      'In that account, set Refresh to every 15 minutes.'
+    ];
+    var i;
+    for (i = 0; i < lines.length; i++) {
+      var li = document.createElement('li');
+      li.textContent = lines[i];
+      steps.appendChild(li);
+    }
+    var note = document.createElement('p');
+    note.className = 'del-warn';
+    note.style.cssText = 'font-size:11px;margin-top:10px';
+    note.textContent = 'Anyone who has this exact address could read your task titles and times. It is a long unguessable link, never listed anywhere, but treat it like a password.';
+    body.appendChild(p1);
+    body.appendChild(box);
+    body.appendChild(copy);
+    body.appendChild(steps);
+    body.appendChild(note);
+    window.showModal('Automatic calendar sync', body, [
+      { label: 'Close' },
+      { label: 'Publish now', kind: 'primary', onClick: function () {
+        if (window.publishCalendar) {
+          window.publishCalendar(true).then(function (ok) {
+            if (window.toast) window.toast(ok ? 'Calendar published' : 'Could not publish', ok ? 'ok' : 'err');
+          });
+        }
+      } }
+    ]);
+  };
 })();
 
 </script>
