@@ -2841,7 +2841,7 @@ button.al-x:hover { opacity: 1; color: var(--danger); }
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-14 23:26</span>
+    <span id="buildStamp">build 2026-08-14 23:49</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -12279,90 +12279,120 @@ function firstConnect(remote, rAt, lAt) {
   }
 })();
 
+/* ===== m121 feed resolve ===== */
+(function () {
+  // Stop GUESSING the feed address. It used to be built by hand from a cached
+  // owner and gist id, substituting the literal word "raw" when the owner was
+  // unknown and returning an empty string when the id was - then showing that to
+  // the operator, who pasted it into Safari and got a search box.
+  // GitHub reports the real address for every file in a gist. Use that.
+  window.resolveFeedUrl = function () {
+    if (!window.CloudGist || !window.CloudGist._readGist) {
+      return Promise.resolve({ ok: false, why: 'Connect GitHub first.' });
+    }
+    return window.CloudGist._readGist().then(function (g) {
+      if (!g || !g.files) return { ok: false, why: 'Could not read your gist.' };
+      var f = g.files['planner.ics'];
+      if (!f || !f.raw_url) {
+        return { ok: false, why: 'The calendar has never been published. Press Publish now.' };
+      }
+      // GitHub's raw_url pins a specific revision:
+      //   .../<owner>/<id>/raw/<commit-sha>/planner.ics
+      // Strip the sha so the address always serves the latest, which is what
+      // a subscribed calendar needs.
+      var url = String(f.raw_url).replace(/\/raw\/[0-9a-f]{20,}\//, '/raw/');
+      return { ok: true, url: url };
+    }, function (e) {
+      return { ok: false, why: (e && e.message) || 'Could not reach GitHub.' };
+    });
+  };
+
+  // Publish first if needed, then hand back a working address - never a broken one.
+  window.feedUrlEnsured = function () {
+    return window.resolveFeedUrl().then(function (r) {
+      if (r.ok) return r;
+      if (!window.publishCalendar) return r;
+      return window.publishCalendar(true).then(function () {
+        return window.resolveFeedUrl();
+      }, function () { return r; });
+    });
+  };
+})();
+
 /* ===== m116 calendar sync ui ===== */
 (function () {
   window.showCalendarSync = function () {
     var body = document.createElement('div');
-    var url = window.calendarFeedUrl ? window.calendarFeedUrl() : '';
-    if (!url) {
-      var warn = document.createElement('p');
-      warn.textContent = 'Connect GitHub first - the calendar feed lives in the same private gist as your planner.';
-      body.appendChild(warn);
-      window.showModal('Automatic calendar sync', body, [{ label: 'Close' }]);
-      return;
-    }
-    var p1 = document.createElement('p');
-    p1.textContent = 'Subscribe once and your alarms keep arriving on their own. No exporting.';
-    var box = document.createElement('input');
-    box.type = 'text';
-    box.readOnly = true;
-    box.value = url;
-    box.style.cssText = 'width:100%;padding:8px;border-radius:6px;font-size:11px';
-    box.addEventListener('focus', function () { box.select(); });
-    var copy = document.createElement('button');
-    copy.type = 'button';
-    copy.textContent = 'Copy address';
-    copy.style.cssText = 'margin-top:8px;padding:8px 12px;border-radius:6px;cursor:pointer';
-    copy.addEventListener('click', function () {
-      box.select();
-      try {
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-          navigator.clipboard.writeText(url);
-        } else { document.execCommand('copy'); }
-        copy.textContent = 'Copied';
-        setTimeout(function () { copy.textContent = 'Copy address'; }, 1500);
-      } catch (e) {}
-    });
-    // One tap beats six Settings screens: iOS treats a webcal:// link as
-    // "subscribe to this calendar" and offers to add it directly.
-    var tapWrap = document.createElement('div');
-    tapWrap.style.cssText = 'margin-top:12px';
-    var tap = document.createElement('a');
-    tap.href = url.replace(/^https?:\/\//, 'webcal://');
-    tap.textContent = 'Tap here to subscribe (iPhone)';
-    tap.style.cssText = 'display:inline-block;padding:10px 14px;border-radius:8px;'
-      + 'background:var(--accent,#59f);color:#fff;text-decoration:none;font-size:13px';
-    var tapNote = document.createElement('div');
-    tapNote.style.cssText = 'font-size:11px;opacity:.7;margin-top:6px';
-    tapNote.textContent = 'On the iPhone this opens Calendar and offers to subscribe. If nothing happens, use the steps below.';
-    tapWrap.appendChild(tap); tapWrap.appendChild(tapNote);
-    body.appendChild(tapWrap);
+    var status = document.createElement('p');
+    status.textContent = 'Getting your calendar address from GitHub...';
+    body.appendChild(status);
+    var slot = document.createElement('div');
+    body.appendChild(slot);
+    window.showModal('Automatic calendar sync', body, [{ label: 'Close' }]);
 
-    var steps = document.createElement('ol');
-    steps.style.cssText = 'font-size:12px;line-height:1.5;padding-left:18px;margin-top:12px';
-    var lines = [
-      'Copy the address above.',
-      'iPhone Settings, then Apps, then Calendar, then Accounts. Or search Settings for Subscribed.',
-      'Tap Add Account at the BOTTOM of that list, then Other, then Add Subscribed Calendar. It is not on the Accounts screen itself.',
-      'Paste the address and tap Next, then Save.',
-      'In that account, set Refresh to every 15 minutes.'
-    ];
-    var i;
-    for (i = 0; i < lines.length; i++) {
-      var li = document.createElement('li');
-      li.textContent = lines[i];
-      steps.appendChild(li);
-    }
-    var note = document.createElement('p');
-    note.className = 'del-warn';
-    note.style.cssText = 'font-size:11px;margin-top:10px';
-    note.textContent = 'Anyone who has this exact address could read your task titles and times. It is a long unguessable link, never listed anywhere, but treat it like a password.';
-    body.appendChild(p1);
-    body.appendChild(box);
-    body.appendChild(copy);
-    body.appendChild(steps);
-    body.appendChild(note);
-    window.showModal('Automatic calendar sync', body, [
-      { label: 'Close' },
-      { label: 'Publish now', kind: 'primary', onClick: function () {
-        if (window.publishCalendar) {
-          window.publishCalendar(true).then(function (ok) {
-            if (window.toast) window.toast(ok ? 'Calendar published' : 'Could not publish', ok ? 'ok' : 'err');
-          });
-        }
-      } }
-    ]);
+    // Never render an address we invented. Ask GitHub for the real one, publish
+    // first if the file is not there yet, and show a plain reason on failure.
+    window.feedUrlEnsured().then(function (r) {
+      slot.textContent = '';
+      if (!r || !r.ok) {
+        status.textContent = 'No calendar address yet.';
+        var why = document.createElement('p');
+        why.className = 'del-warn';
+        why.textContent = (r && r.why) || 'Could not reach GitHub.';
+        slot.appendChild(why);
+        return;
+      }
+      status.textContent = 'Subscribe once and your alarms keep arriving on their own.';
+
+      var tap = document.createElement('a');
+      tap.href = r.url.replace(/^https?:\/\//, 'webcal://');
+      tap.textContent = 'Tap here to subscribe (iPhone)';
+      tap.style.cssText = 'display:inline-block;padding:12px 16px;border-radius:8px;'
+        + 'background:var(--accent,#59f);color:#fff;text-decoration:none;font-size:14px';
+      slot.appendChild(tap);
+
+      var or = document.createElement('p');
+      or.style.cssText = 'font-size:11px;opacity:.7;margin:10px 0 4px';
+      or.textContent = 'Or copy this address and add it in Settings:';
+      slot.appendChild(or);
+
+      var box = document.createElement('input');
+      box.type = 'text';
+      box.readOnly = true;
+      box.value = r.url;
+      box.style.cssText = 'width:100%;padding:8px;border-radius:6px;font-size:11px';
+      box.addEventListener('focus', function () { box.select(); });
+      slot.appendChild(box);
+
+      var copy = document.createElement('button');
+      copy.type = 'button';
+      copy.textContent = 'Copy address';
+      copy.style.cssText = 'margin-top:8px;padding:8px 12px;border-radius:6px;cursor:pointer';
+      copy.addEventListener('click', function () {
+        box.focus(); box.select();
+        try {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(box.value);
+          } else { document.execCommand('copy'); }
+          copy.textContent = 'Copied';
+          setTimeout(function () { copy.textContent = 'Copy address'; }, 1500);
+        } catch (e) {}
+      });
+      slot.appendChild(copy);
+
+      var steps = document.createElement('ol');
+      steps.style.cssText = 'font-size:12px;line-height:1.5;padding-left:18px;margin-top:12px';
+      ['iPhone Settings, then Apps, then Calendar, then Accounts. Or search Settings for Subscribed.',
+       'Tap Add Account at the BOTTOM of that list, then Other, then Add Subscribed Calendar.',
+       'Paste the address into Server, tap Next, leave username and password blank, tap Save.',
+       'Use SSL ON. Remove Alarms OFF - ON deletes every alarm.'
+      ].forEach(function (t) {
+        var li = document.createElement('li'); li.textContent = t; steps.appendChild(li);
+      });
+      slot.appendChild(steps);
+    });
   };
+
 })();
 
 /* ===== m118 sign-in link ui ===== */
@@ -12624,16 +12654,13 @@ function firstConnect(remote, rAt, lAt) {
 
 /* ===== m120 feed check ===== */
 (function () {
-  // Fetches the operator's OWN calendar feed and reports exactly what iOS would
-  // receive. Claude cannot reach their private gist, so the check runs on their
-  // device instead of being handed to them as homework.
   window.checkCalendarFeed = function () {
     var body = document.createElement('div');
+    var status = document.createElement('p');
+    status.textContent = 'Checking the address your iPhone reads...';
     var out = document.createElement('div');
     out.style.cssText = 'font-size:12px;line-height:1.6;margin-top:8px';
-    var p = document.createElement('p');
-    p.textContent = 'Checking the address your iPhone reads...';
-    body.appendChild(p);
+    body.appendChild(status);
     body.appendChild(out);
     window.showModal('Is my calendar feed working?', body, [{ label: 'Close' }]);
 
@@ -12645,40 +12672,46 @@ function firstConnect(remote, rAt, lAt) {
       out.appendChild(d);
     }
 
-    var url = window.calendarFeedUrl ? window.calendarFeedUrl() : '';
-    if (!url) {
-      p.textContent = 'No feed address yet.';
-      line('Connect GitHub first, then press Publish now', '-', false);
+    function inspect(url) {
+      status.textContent = 'Reading ' + url.slice(0, 55) + '...';
+      fetch(url, { cache: 'no-store' }).then(function (r) {
+        line('Address reachable', 'HTTP ' + r.status, r.ok);
+        line('Served as', r.headers.get('content-type') || 'unknown', null);
+        if (!r.ok) { line('What to do', 'Press Publish now, then check again', null); return null; }
+        return r.text();
+      }).then(function (text) {
+        if (text == null) return;
+        var events = (text.match(/BEGIN:VEVENT/g) || []).length;
+        var alarms = (text.match(/BEGIN:VALARM/g) || []).length;
+        line('Events in the feed', String(events), events > 0);
+        line('Alarms in the feed', String(alarms), alarms > 0);
+        if (events === 0) {
+          line('Why', 'No task has a date, or an alarm with its own date', null);
+          line('Fix', 'Give a task a date and time, or add an alarm with its own date, then Publish now', null);
+        } else {
+          var names = [], re = /SUMMARY:(.+)/g, m;
+          while ((m = re.exec(text)) !== null && names.length < 8) { names.push(m[1].trim()); }
+          line('In the feed', names.join(', '), true);
+          line('On the iPhone', 'Calendar refreshes on its own schedule, up to 15 minutes', null);
+        }
+      })['catch'](function (e) {
+        line('Could not read the address', (e && e.message) || 'network error', false);
+      });
+    }
+
+    if (!window.feedUrlEnsured) {
+      status.textContent = 'Not available.';
+      line('Reason', 'Connect GitHub first', false);
       return;
     }
-    p.textContent = 'Reading ' + url.slice(0, 60) + '...';
-    fetch(url, { cache: 'no-store' }).then(function (r) {
-      line('Address reachable', 'HTTP ' + r.status, r.ok);
-      line('Served as', r.headers.get('content-type') || 'unknown', null);
-      if (!r.ok) {
-        line('What to do', 'Press Publish now in the calendar sync screen, then check again', null);
-        return null;
+    window.feedUrlEnsured().then(function (r) {
+      if (!r || !r.ok) {
+        status.textContent = 'No calendar address yet.';
+        line('Reason', (r && r.why) || 'unknown', false);
+        return;
       }
-      return r.text();
-    }).then(function (text) {
-      if (text == null) return;
-      var events = (text.match(/BEGIN:VEVENT/g) || []).length;
-      var alarms = (text.match(/BEGIN:VALARM/g) || []).length;
-      line('Events in the feed', String(events), events > 0);
-      line('Alarms in the feed', String(alarms), alarms > 0);
-      if (events === 0) {
-        line('Why', 'No task has a date, or an alarm with its own date', null);
-        line('Fix', 'Give a task a date and time, or add an alarm with its own date, then Publish now', null);
-      } else {
-        var names = [];
-        var re = /SUMMARY:(.+)/g, m;
-        while ((m = re.exec(text)) !== null && names.length < 8) { names.push(m[1].replace(/\\\\,/g, ',').trim()); }
-        line('In the feed', names.join(', '), true);
-        line('On the iPhone', 'Calendar refreshes on its own schedule - up to 15 minutes', null);
-      }
-    })['catch'](function (e) {
-      line('Could not read the address', (e && e.message) || 'network error', false);
-      line('Most likely', 'The feed has never been published - press Publish now', null);
+      line('Address', r.url.slice(0, 70), true);
+      inspect(r.url);
     });
   };
 
