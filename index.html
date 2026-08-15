@@ -2841,7 +2841,7 @@ button.al-x:hover { opacity: 1; color: var(--danger); }
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-14 23:09</span>
+    <span id="buildStamp">build 2026-08-14 23:26</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -12619,6 +12619,86 @@ function firstConnect(remote, rAt, lAt) {
     document.addEventListener('DOMContentLoaded', function () { setTimeout(addButton, 750); });
   } else {
     setTimeout(addButton, 750);
+  }
+})();
+
+/* ===== m120 feed check ===== */
+(function () {
+  // Fetches the operator's OWN calendar feed and reports exactly what iOS would
+  // receive. Claude cannot reach their private gist, so the check runs on their
+  // device instead of being handed to them as homework.
+  window.checkCalendarFeed = function () {
+    var body = document.createElement('div');
+    var out = document.createElement('div');
+    out.style.cssText = 'font-size:12px;line-height:1.6;margin-top:8px';
+    var p = document.createElement('p');
+    p.textContent = 'Checking the address your iPhone reads...';
+    body.appendChild(p);
+    body.appendChild(out);
+    window.showModal('Is my calendar feed working?', body, [{ label: 'Close' }]);
+
+    function line(label, value, good) {
+      var d = document.createElement('div');
+      d.textContent = (good === true ? '✓ ' : (good === false ? '✗ ' : '• ')) + label + ': ' + value;
+      if (good === false) d.style.color = 'var(--danger,#e55)';
+      if (good === true) d.style.color = 'var(--ok,#5b5)';
+      out.appendChild(d);
+    }
+
+    var url = window.calendarFeedUrl ? window.calendarFeedUrl() : '';
+    if (!url) {
+      p.textContent = 'No feed address yet.';
+      line('Connect GitHub first, then press Publish now', '-', false);
+      return;
+    }
+    p.textContent = 'Reading ' + url.slice(0, 60) + '...';
+    fetch(url, { cache: 'no-store' }).then(function (r) {
+      line('Address reachable', 'HTTP ' + r.status, r.ok);
+      line('Served as', r.headers.get('content-type') || 'unknown', null);
+      if (!r.ok) {
+        line('What to do', 'Press Publish now in the calendar sync screen, then check again', null);
+        return null;
+      }
+      return r.text();
+    }).then(function (text) {
+      if (text == null) return;
+      var events = (text.match(/BEGIN:VEVENT/g) || []).length;
+      var alarms = (text.match(/BEGIN:VALARM/g) || []).length;
+      line('Events in the feed', String(events), events > 0);
+      line('Alarms in the feed', String(alarms), alarms > 0);
+      if (events === 0) {
+        line('Why', 'No task has a date, or an alarm with its own date', null);
+        line('Fix', 'Give a task a date and time, or add an alarm with its own date, then Publish now', null);
+      } else {
+        var names = [];
+        var re = /SUMMARY:(.+)/g, m;
+        while ((m = re.exec(text)) !== null && names.length < 8) { names.push(m[1].replace(/\\\\,/g, ',').trim()); }
+        line('In the feed', names.join(', '), true);
+        line('On the iPhone', 'Calendar refreshes on its own schedule - up to 15 minutes', null);
+      }
+    })['catch'](function (e) {
+      line('Could not read the address', (e && e.message) || 'network error', false);
+      line('Most likely', 'The feed has never been published - press Publish now', null);
+    });
+  };
+
+  function addButton() {
+    if (document.getElementById('btnFeedCheck')) return;
+    var host = document.getElementById('treeDrawer');
+    if (!host) return;
+    var b = document.createElement('button');
+    b.id = 'btnFeedCheck';
+    b.type = 'button';
+    b.className = 'drawer-btn';
+    b.textContent = 'Is my calendar feed working?';
+    b.addEventListener('click', function (e) { e.preventDefault(); window.checkCalendarFeed(); });
+    host.appendChild(b);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function () { setTimeout(addButton, 800); });
+  } else {
+    setTimeout(addButton, 800);
   }
 })();
 
