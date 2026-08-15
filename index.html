@@ -2841,7 +2841,7 @@ button.al-x:hover { opacity: 1; color: var(--danger); }
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-15 09:40</span>
+    <span id="buildStamp">build 2026-08-15 13:03</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -12271,16 +12271,36 @@ function firstConnect(remote, rAt, lAt) {
     if (o) window.plannerGistOwner = o;
   } catch (e) {}
 
-  var baseSync = window.plannerSyncNow;
-  if (typeof baseSync === 'function') {
-    window.plannerSyncNow = function () {
-      var r = baseSync.apply(this, arguments);
-      if (r && r.then) {
-        r.then(function () { setTimeout(function () { window.publishCalendar(false); }, 800); },
-               function () {});
-      }
-      return r;
-    };
+  // Wrap the PUBLIC sync entry points. Wrapping window.plannerSyncNow was
+  // useless: CloudGist.push/pull call the module's own internal syncNow
+  // reference, which never passes through the wrapper - so the calendar was
+  // never republished automatically and the operator had to press Publish now
+  // by hand after every single change.
+  function afterSync(r) {
+    if (r && r.then) {
+      r.then(function () { setTimeout(function () { window.publishCalendar(false); }, 900); },
+             function () {});
+    } else {
+      setTimeout(function () { window.publishCalendar(false); }, 900);
+    }
+    return r;
+  }
+
+  function wireAuto() {
+    if (!window.CloudGist || window.CloudGist.__autoIcs) return;
+    window.CloudGist.__autoIcs = true;
+    var bp = window.CloudGist.push, bl = window.CloudGist.pull;
+    if (typeof bp === 'function') {
+      window.CloudGist.push = function () { return afterSync(bp.apply(window.CloudGist, arguments)); };
+    }
+    if (typeof bl === 'function') {
+      window.CloudGist.pull = function () { return afterSync(bl.apply(window.CloudGist, arguments)); };
+    }
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function () { setTimeout(wireAuto, 2000); });
+  } else {
+    setTimeout(wireAuto, 2000);
   }
 })();
 
@@ -12333,7 +12353,15 @@ function firstConnect(remote, rAt, lAt) {
     body.appendChild(status);
     var slot = document.createElement('div');
     body.appendChild(slot);
-    window.showModal('Automatic calendar sync', body, [{ label: 'Close' }]);
+    window.showModal('Automatic calendar sync', body, [
+      { label: 'Close' },
+      { label: 'Publish now', kind: 'primary', onClick: function () {
+          if (!window.publishCalendar) return;
+          window.publishCalendar(true).then(function (ok) {
+            if (window.toast) window.toast(ok ? 'Calendar published' : 'Nothing to publish', ok ? 'ok' : 'err');
+          });
+        } }
+    ]);
 
     // Never render an address we invented. Ask GitHub for the real one, publish
     // first if the file is not there yet, and show a plain reason on failure.
