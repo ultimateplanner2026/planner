@@ -2841,7 +2841,7 @@ button.al-x:hover { opacity: 1; color: var(--danger); }
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-14 21:26</span>
+    <span id="buildStamp">build 2026-08-14 22:04</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -12454,6 +12454,120 @@ function firstConnect(remote, rAt, lAt) {
     document.addEventListener('DOMContentLoaded', function () { setTimeout(addButton, 700); });
   } else {
     setTimeout(addButton, 700);
+  }
+})();
+
+/* ===== m119 calendar preview ===== */
+(function () {
+  function walk(list, out) {
+    var i, len, node;
+    if (!list) return;
+    for (i = 0, len = list.length; i < len; i++) {
+      node = list[i];
+      out.push(node);
+      if (node.children) {
+        walk(node.children, out);
+      }
+    }
+  }
+
+  // Why a task is or is not in the calendar feed. The feed deliberately drops
+  // things, and until now there was no way to see WHICH, so "my alarm did not
+  // work" had no answer inside the app.
+  window.calendarReport = function () {
+    var all = [];
+    walk((window.Store && window.Store.data && window.Store.data.tree) || [], all);
+    var now = Date.now();
+    var included = [], excluded = [], i, n, why, startMs, q;
+    for (i = 0; i < all.length; i++) {
+      n = all[i];
+      why = '';
+      if (!n.date) { why = 'no date set'; }
+      else if (n.done) { why = 'marked done'; }
+      else {
+        startMs = window.parseISO(n.date).getTime();
+        if (n.time) {
+          q = String(n.time).split(':');
+          startMs += ((parseInt(q[0],10)||0) * 60 + (parseInt(q[1],10)||0)) * 60000;
+        } else {
+          startMs += 24 * 3600000;
+        }
+        if (startMs < now) { why = 'already in the past'; }
+      }
+      var alarms = window.alarmsOf ? window.alarmsOf(n).length : 0;
+      if (why) { excluded.push({ title: n.title || 'Untitled', why: why }); }
+      else { included.push({ title: n.title || 'Untitled', date: n.date, time: n.time || 'all day', alarms: alarms }); }
+    }
+    return { included: included, excluded: excluded };
+  };
+
+  window.showCalendarPreview = function () {
+    var body = document.createElement('div');
+    var r = window.calendarReport();
+    var head = document.createElement('p');
+    head.textContent = r.included.length
+      ? (r.included.length + ' task' + (r.included.length === 1 ? '' : 's') + ' will appear in your calendar:')
+      : 'Nothing will appear in your calendar yet.';
+    body.appendChild(head);
+
+    var ul = document.createElement('ul');
+    ul.style.cssText = 'font-size:12px;line-height:1.5;padding-left:18px;margin:6px 0 12px';
+    var i, li;
+    for (i = 0; i < r.included.length; i++) {
+      li = document.createElement('li');
+      li.textContent = r.included[i].title + ' - ' + r.included[i].date + ' ' + r.included[i].time
+                      + ' (' + r.included[i].alarms + ' alarm' + (r.included[i].alarms === 1 ? '' : 's') + ')';
+      ul.appendChild(li);
+    }
+    body.appendChild(ul);
+
+    if (r.excluded.length) {
+      var h2 = document.createElement('p');
+      h2.style.cssText = 'font-size:12px;font-weight:600;margin-top:10px';
+      h2.textContent = 'Left out (' + r.excluded.length + '):';
+      body.appendChild(h2);
+      var ul2 = document.createElement('ul');
+      ul2.style.cssText = 'font-size:12px;line-height:1.5;padding-left:18px;opacity:.8';
+      for (i = 0; i < r.excluded.length && i < 25; i++) {
+        li = document.createElement('li');
+        li.textContent = r.excluded[i].title + ' - ' + r.excluded[i].why;
+        ul2.appendChild(li);
+      }
+      body.appendChild(ul2);
+      var tip = document.createElement('p');
+      tip.style.cssText = 'font-size:11px;opacity:.75;margin-top:10px';
+      tip.textContent = 'A task only reaches the calendar if it has a date, is not done, and has not already passed. Give it a date and a time.';
+      body.appendChild(tip);
+    }
+    window.showModal('What the calendar will get', body, [
+      { label: 'Close' },
+      { label: 'Publish now', kind: 'primary', onClick: function () {
+          if (window.publishCalendar) {
+            window.publishCalendar(true).then(function (ok) {
+              if (window.toast) window.toast(ok ? 'Calendar published' : 'Could not publish', ok ? 'ok' : 'err');
+            });
+          }
+        } }
+    ]);
+  };
+
+  function addButton() {
+    if (document.getElementById('btnCalPreview')) return;
+    var host = document.getElementById('treeDrawer');
+    if (!host) return;
+    var b = document.createElement('button');
+    b.id = 'btnCalPreview';
+    b.type = 'button';
+    b.className = 'drawer-btn';
+    b.textContent = 'Why is my alarm not showing?';
+    b.addEventListener('click', function (e) { e.preventDefault(); window.showCalendarPreview(); });
+    host.appendChild(b);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function () { setTimeout(addButton, 750); });
+  } else {
+    setTimeout(addButton, 750);
   }
 })();
 
