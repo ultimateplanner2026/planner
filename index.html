@@ -2841,7 +2841,7 @@ button.al-x:hover { opacity: 1; color: var(--danger); }
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-14 22:04</span>
+    <span id="buildStamp">build 2026-08-14 23:09</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -3607,7 +3607,7 @@ window.Cloud = {
 
     const overlay = el("div", "modal-overlay");
     const dialog  = el("div",  "modal");
-    const title   = el("h2",   "", "OneDrive sync not configured");
+    const title   = el("h2",   "", "Cloud sync not configured");
     const intro   = el("p",    "",
       "To enable cloud sync, register an app in the Azure portal and paste its Application (client) ID into the source file where CLIENT_ID is defined.");
     const steps   = el("ol");
@@ -5735,10 +5735,10 @@ window.renderHabits = function () {
     var remoteTime = remoteData.updatedAt ? new Date(remoteData.updatedAt) : null;
     var newer = 'unknown';
     if (localTime && remoteTime) {
-      newer = remoteTime > localTime ? 'OneDrive' : 'this device';
+      newer = remoteTime > localTime ? 'the synced copy' : 'this device';
     }
 
-    var msg = 'Your local planner and the OneDrive copy have both been modified since the last sync. Please choose which version to keep.';
+    var msg = 'This device and your synced planner have both changed since the last sync. Choose which to keep, or close this and they will be merged.';
     var body = document.createElement('div');
     body.innerHTML = '<p>' + msg + '</p>';
     var table = document.createElement('table');
@@ -5748,7 +5748,7 @@ window.renderHabits = function () {
       '<thead><tr><th>Source</th><th>Last updated</th></tr></thead>' +
       '<tbody>' +
       '<tr><td>This device</td><td>' + localStamp + '</td></tr>' +
-      '<tr><td>OneDrive</td><td>' + remoteStamp + '</td></tr>' +
+      '<tr><td>Synced copy</td><td>' + remoteStamp + '</td></tr>' +
       '</tbody>';
     body.appendChild(table);
     body.insertAdjacentText('beforeend', '\nNewer: ' + newer + '.');
@@ -5764,7 +5764,7 @@ window.renderHabits = function () {
         }
       },
       {
-        label: 'Use OneDrive copy',
+        label: 'Use synced copy',
         kind: 'secondary',
         onClick: function () {
           Store.data = remoteData;
@@ -10418,8 +10418,26 @@ function firstConnect(remote, rAt, lAt) {
   var lHas = hasRealContent(window.Store.data);
   if (!rHas) { lsSet(LS_BASE, rAt || ''); st('synced'); return true; }  // nothing there yet, keep local
   backupLocal();
-  if (lHas && rAt !== lAt) {
-    // both sides have real work - never silently pick one
+  // Merge whenever BOTH sides have real work. The old condition also required
+  // the timestamps to differ - so when neither side carried an updatedAt (which
+  // happens with hand-edited or older data) it fell straight through and adopted
+  // the remote wholesale, silently discarding everything on this device.
+  // Timestamps have no business gating this now that a real merge exists.
+  if (lHas) {
+    // Both sides have real work. This used to STOP and make the operator pick
+    // one, discarding the other - in a dialog that still said "OneDrive", which
+    // has not existed in this app for a week. The merge engine keeps both, task
+    // by task, which is what every other sync already does.
+    if (typeof window.mergePlanner === 'function') {
+      var merged = window.mergePlanner(window.Store.data, remote);
+      window.Store.data = merged;
+      try { localStorage.setItem('planner.data.v1', JSON.stringify(merged)); } catch (e) {}
+      if (window.renderAll) window.renderAll();
+      lsSet(LS_BASE, merged.updatedAt || rAt || '');
+      st('synced');
+      if (window.toast) window.toast('Merged this device with your synced planner', 'ok');
+      return true;
+    }
     st('error');
     if (typeof window.showConflict === 'function') window.showConflict(remote);
     return true;
@@ -10451,6 +10469,17 @@ function firstConnect(remote, rAt, lAt) {
         if (!base) { if (firstConnect(remote, rAt, lAt)) return; }
         if (rAt === lAt) { st('synced'); return; }
         if (base && rAt !== base && lAt > base) {
+          // Diverged on both sides - merge rather than ask. Asking meant one
+          // side's work was thrown away by whichever button got pressed.
+          if (typeof window.mergePlanner === 'function') {
+            var m2 = window.mergePlanner(window.Store.data, remote);
+            window.Store.data = m2;
+            try { localStorage.setItem('planner.data.v1', JSON.stringify(m2)); } catch (e) {}
+            if (window.renderAll) window.renderAll();
+            lsSet(LS_BASE, m2.updatedAt || rAt || '');
+            st('synced');
+            return;
+          }
           st('error');
           if (typeof window.showConflict === 'function') window.showConflict(remote);
           return;
@@ -10947,10 +10976,23 @@ function firstConnect(remote, rAt, lAt) {
     var count = 0;
     for (var i = 0; i < all.length; i++) {
       var n = all[i];
-      if (!n.date) continue;
       if (n.done) continue;                     // finished work needs no alarm
-      var startMs = window.parseISO(n.date).getTime();
-      if (n.time) { var q = n.time.split(':');
+      // A task with no date of its own still deserves a calendar entry when one
+      // of its alarms carries its own date. Dropping the whole task meant an
+      // alarm set for "Aug 20, 09:00" on an undated task could never fire - and
+      // most tasks in a planner are undated.
+      var ownAlarms = window.alarmsOf ? window.alarmsOf(n) : [];
+      var datedAlarm = null, da;
+      for (da = 0; da < ownAlarms.length; da++) {
+        if (ownAlarms[da] && ownAlarms[da].kind === 'at' && ownAlarms[da].date) {
+          datedAlarm = ownAlarms[da]; break;
+        }
+      }
+      if (!n.date && !datedAlarm) continue;
+      var anchorDate = n.date || datedAlarm.date;
+      var anchorTime = n.date ? n.time : datedAlarm.time;
+      var startMs = window.parseISO(anchorDate).getTime();
+      if (anchorTime) { var q = anchorTime.split(':');
         startMs += ((parseInt(q[0],10)||0) * 60 + (parseInt(q[1],10)||0)) * 60000; }
       else { startMs += 24 * 3600000; }         // an all-day task counts until day end
       if (startMs < now.getTime()) continue;    // iOS cannot schedule a past alarm
@@ -10964,17 +11006,17 @@ function firstConnect(remote, rAt, lAt) {
       L.push('SEQUENCE:' + (n.icsSeq || 1));
       L.push('DTSTAMP:' + stamp(now));
       L.push('LAST-MODIFIED:' + stamp(now));
-      if (n.time) {
-        L.push('DTSTART:' + localStamp(n.date, n.time));
-        var endMin = ((parseInt(n.time.split(':')[0],10)||0) * 60
-                    + (parseInt(n.time.split(':')[1],10)||0)) + (Number(n.duration) || 60);
-        var ed = window.parseISO(n.date);
+      if (anchorTime) {
+        L.push('DTSTART:' + localStamp(anchorDate, anchorTime));
+        var endMin = ((parseInt(anchorTime.split(':')[0],10)||0) * 60
+                    + (parseInt(anchorTime.split(':')[1],10)||0)) + (Number(n.duration) || 60);
+        var ed = window.parseISO(anchorDate);
         ed.setMinutes(ed.getMinutes() + endMin);
         L.push('DTEND:' + window.isoOf(ed).replace(/-/g,'') + 'T'
                + pad(ed.getHours()) + pad(ed.getMinutes()) + '00');
       } else {
-        L.push('DTSTART;VALUE=DATE:' + dateOnly(n.date));
-        var nd = window.parseISO(n.date); nd.setDate(nd.getDate() + 1);
+        L.push('DTSTART;VALUE=DATE:' + dateOnly(anchorDate));
+        var nd = window.parseISO(anchorDate); nd.setDate(nd.getDate() + 1);
         L.push('DTEND;VALUE=DATE:' + window.isoOf(nd).replace(/-/g,''));
       }
       L.push(fold('SUMMARY:' + esc(n.title || 'Task')));
@@ -12482,12 +12524,21 @@ function firstConnect(remote, rAt, lAt) {
     for (i = 0; i < all.length; i++) {
       n = all[i];
       why = '';
-      if (!n.date) { why = 'no date set'; }
+      // Matches the export rule exactly: an undated task still counts if one of
+      // its alarms carries its own date.
+      var oa = window.alarmsOf ? window.alarmsOf(n) : [];
+      var dAl = null, z;
+      for (z = 0; z < oa.length; z++) {
+        if (oa[z] && oa[z].kind === 'at' && oa[z].date) { dAl = oa[z]; break; }
+      }
+      if (!n.date && !dAl) { why = 'no date, and no alarm with its own date'; }
       else if (n.done) { why = 'marked done'; }
       else {
-        startMs = window.parseISO(n.date).getTime();
-        if (n.time) {
-          q = String(n.time).split(':');
+        var aD = n.date || dAl.date;
+        var aT = n.date ? n.time : dAl.time;
+        startMs = window.parseISO(aD).getTime();
+        if (aT) {
+          q = String(aT).split(':');
           startMs += ((parseInt(q[0],10)||0) * 60 + (parseInt(q[1],10)||0)) * 60000;
         } else {
           startMs += 24 * 3600000;
