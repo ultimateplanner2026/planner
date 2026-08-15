@@ -2885,7 +2885,7 @@ button.al-x:hover { opacity: 1; color: var(--danger); }
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-15 18:59</span>
+    <span id="buildStamp">build 2026-08-15 19:40</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -12992,19 +12992,15 @@ function firstConnect(remote, rAt, lAt) {
   }
 
   window.gcalEnsureCalendar = function () {
-    var id = ls(LS_CAL);
-    if (id) return Promise.resolve(id);
-    return call('GET', '/users/me/calendarList').then(function (d) {
-      var items = (d && d.items) || [], i;
-      for (i = 0; i < items.length; i++) {
-        if (items[i].summary === CAL_NAME) { set(LS_CAL, items[i].id); return items[i].id; }
-      }
-      return call('POST', '/calendars', { summary: CAL_NAME }).then(function (c) {
-        set(LS_CAL, c.id);
-        return c.id;
-      });
-    });
+    // WRITE TO THE MAIN CALENDAR.
+    // A separate "Planner" calendar was tidier but it does not reach the phone:
+    // Google does not push secondary calendars to iOS unless they are ticked at
+    // calendar.google.com/calendar/syncselect, which nobody knows to do. The
+    // events existed and the phone never saw them. The main calendar always
+    // syncs, so alarms actually arrive - which matters more than tidiness.
+    return Promise.resolve('primary');
   };
+
 
   function walk(list, out) {
     if (!list) return;
