@@ -2885,7 +2885,7 @@ button.al-x:hover { opacity: 1; color: var(--danger); }
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-15 16:32</span>
+    <span id="buildStamp">build 2026-08-15 18:59</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -12921,6 +12921,251 @@ function firstConnect(remote, rAt, lAt) {
       if (t) t.style.display = '';
     }
   });
+})();
+
+/* ===== m126 google calendar ===== */
+(function () {
+  var CLIENT_ID = '1075525058690-i5ih4idohki0ddjp3ckkvkc9nld6f63f.apps.googleusercontent.com';
+  var SCOPE = 'https://www.googleapis.com/auth/calendar';
+  var API = 'https://www.googleapis.com/calendar/v3';
+  var LS_TOK = 'planner.gcal.token';
+  var LS_EXP = 'planner.gcal.exp';
+  var LS_CAL = 'planner.gcal.calendar';
+  var CAL_NAME = 'Planner';
+
+  function ls(k) { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } }
+  function set(k, v) { try { v ? localStorage.setItem(k, v) : localStorage.removeItem(k); } catch (e) {} }
+
+  window.gcalToken = function () {
+    var t = ls(LS_TOK), e = Number(ls(LS_EXP)) || 0;
+    if (!t) return '';
+    if (e && Date.now() > e - 60000) return '';
+    return t;
+  };
+
+  window.gcalConnected = function () { return !!window.gcalToken(); };
+
+  window.gcalConnect = function () {
+    var redirect = location.origin + location.pathname;
+    var url = 'https://accounts.google.com/o/oauth2/v2/auth'
+      + '?client_id=' + encodeURIComponent(CLIENT_ID)
+      + '&redirect_uri=' + encodeURIComponent(redirect)
+      + '&response_type=token'
+      + '&scope=' + encodeURIComponent(SCOPE)
+      + '&include_granted_scopes=true'
+      + '&state=gcal'
+      + '&prompt=consent';
+    location.href = url;
+  };
+
+  window.gcalDisconnect = function () {
+    set(LS_TOK, null);
+    set(LS_EXP, null);
+    set(LS_CAL, null);
+    return true;
+  };
+
+  (function consume() {
+    var h = String(location.hash || '');
+    if (h.indexOf('access_token=') < 0) return;
+    var m = h.match(/access_token=([^&]+)/);
+    var x = h.match(/expires_in=([0-9]+)/);
+    if (!m) return;
+    set(LS_TOK, decodeURIComponent(m[1]));
+    set(LS_EXP, String(Date.now() + ((x ? parseInt(x[1], 10) : 3600) * 1000)));
+    try { history.replaceState(null, '', location.pathname + location.search); }
+    catch (e) { location.hash = ''; }
+  })();
+
+  function call(method, path, body) {
+    var t = window.gcalToken();
+    if (!t) return Promise.reject(new Error('not connected'));
+    var opt = { method: method, headers: {
+      'Authorization': 'Bearer ' + t, 'Content-Type': 'application/json' } };
+    if (body) opt.body = JSON.stringify(body);
+    return fetch(API + path, opt).then(function (r) {
+      if (r.status === 401) { window.gcalDisconnect(); throw new Error('Google sign-in expired'); }
+      if (!r.ok) throw new Error('Google Calendar returned ' + r.status);
+      if (r.status === 204) return {};
+      return r.json();
+    });
+  }
+
+  window.gcalEnsureCalendar = function () {
+    var id = ls(LS_CAL);
+    if (id) return Promise.resolve(id);
+    return call('GET', '/users/me/calendarList').then(function (d) {
+      var items = (d && d.items) || [], i;
+      for (i = 0; i < items.length; i++) {
+        if (items[i].summary === CAL_NAME) { set(LS_CAL, items[i].id); return items[i].id; }
+      }
+      return call('POST', '/calendars', { summary: CAL_NAME }).then(function (c) {
+        set(LS_CAL, c.id);
+        return c.id;
+      });
+    });
+  };
+
+  function walk(list, out) {
+    if (!list) return;
+    var i;
+    for (i = 0; i < list.length; i++) {
+      var node = list[i];
+      out.push(node);
+      if (node.children) {
+        walk(node.children, out);
+      }
+    }
+  }
+
+  function eventFor(n, al) {
+    var startMs = window.alarmFireAt ? window.alarmFireAt(n, al) : 0;
+    if (!startMs) return null;
+    var anchorDate = n.date || al.date;
+    var anchorTime = n.date ? (n.time || '09:00') : (al.time || '09:00');
+    if (!anchorDate) return null;
+    var hm = String(anchorTime).split(':');
+    var s = window.parseISO(anchorDate);
+    s.setHours(parseInt(hm[0],10)||0, parseInt(hm[1],10)||0, 0, 0);
+    var e = new Date(s.getTime() + (Number(n.duration) || 30) * 60000);
+    var lead = Math.max(0, Math.round((s.getTime() - startMs) / 60000));
+    function iso(d) {
+      function p(v){ return (v<10?'0':'')+v; }
+      return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())
+           +'T'+p(d.getHours())+':'+p(d.getMinutes())+':00';
+    }
+    return {
+      summary: n.title || 'Task',
+      description: n.notes || '',
+      start: { dateTime: iso(s) },
+      end:   { dateTime: iso(e) },
+      reminders: { useDefault: false, overrides: [{ method: 'popup', minutes: lead }] }
+    };
+  }
+
+  window.gcalSync = function () {
+    if (!window.gcalConnected()) return Promise.resolve({ ok: false, why: 'not connected' });
+    var all = [];
+    walk((window.Store && window.Store.data && window.Store.data.tree) || [], all);
+    return window.gcalEnsureCalendar().then(function (cal) {
+      var jobs = [], made = 0, updated = 0, i;
+      for (i = 0; i < all.length; i++) {
+        (function (n) {
+          var alarms = window.alarmsOf ? window.alarmsOf(n) : [];
+          var al = alarms.length ? alarms[0] : null;
+          var wanted = (!n.done && al) ? eventFor(n, al) : null;
+          if (!wanted) {
+            if (n.googleEventId) {
+              jobs.push(call('DELETE', '/calendars/' + encodeURIComponent(cal) + '/events/' + n.googleEventId)
+                .then(function () { n.googleEventId = null; }, function () {}));
+            }
+            return;
+          }
+          if (n.googleEventId) {
+            jobs.push(call('PUT', '/calendars/' + encodeURIComponent(cal) + '/events/' + n.googleEventId, wanted)
+              .then(function () { updated++; },
+                    function () { n.googleEventId = null; }));
+          } else {
+            jobs.push(call('POST', '/calendars/' + encodeURIComponent(cal) + '/events', wanted)
+              .then(function (ev) { n.googleEventId = ev.id; made++; }, function () {}));
+          }
+        })(all[i]);
+      }
+      return Promise.all(jobs).then(function () {
+        try { window.Store.save(); } catch (e) {}
+        return { ok: true, created: made, updated: updated };
+      });
+    });
+  };
+})();
+
+/* ===== m127 google calendar ui ===== */
+(function () {
+  window.showGoogleCalendar = function () {
+    var body = document.createElement('div');
+    var on = window.gcalConnected && window.gcalConnected();
+    var p = document.createElement('p');
+    p.style.cssText = 'font-size:13px;line-height:1.5';
+    p.textContent = on
+      ? 'Connected. Every task with an alarm becomes a real event in a calendar called Planner, with a real reminder. Your phone rings on time, even with this app closed.'
+      : 'Connect your Google account and every task with an alarm becomes a real calendar event with a real reminder - the way every other app does it. Nothing to subscribe to, nothing to publish.';
+    body.appendChild(p);
+
+    if (!on) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = 'Connect Google Calendar';
+      b.style.cssText = 'margin-top:12px;padding:12px 16px;border-radius:8px;cursor:pointer;'
+        + 'background:var(--accent,#59f);color:#fff;border:0;font-size:14px';
+      b.addEventListener('click', function (e) { e.preventDefault(); window.gcalConnect(); });
+      body.appendChild(b);
+      var note = document.createElement('p');
+      note.style.cssText = 'font-size:11px;opacity:.7;margin-top:10px';
+      note.textContent = 'Google signs you in for an hour at a time. When it lapses the app will say so rather than quietly stopping.';
+      body.appendChild(note);
+      window.showModal('Google Calendar', body, [{ label: 'Close' }]);
+      return;
+    }
+
+    var status = document.createElement('div');
+    status.style.cssText = 'font-size:12px;margin-top:10px;opacity:.8';
+    body.appendChild(status);
+
+    var dis = document.createElement('button');
+    dis.type = 'button';
+    dis.textContent = 'Disconnect';
+    dis.style.cssText = 'margin-top:12px;padding:8px 12px;border-radius:6px;cursor:pointer';
+    dis.addEventListener('click', function (e) {
+      e.preventDefault();
+      window.gcalDisconnect();
+      if (window.toast) window.toast('Google Calendar disconnected', 'ok');
+    });
+    body.appendChild(dis);
+
+    window.showModal('Google Calendar', body, [
+      { label: 'Close' },
+      { label: 'Send my alarms now', kind: 'primary', onClick: function () {
+          status.textContent = 'Sending...';
+          window.gcalSync().then(function (r) {
+            if (!r || !r.ok) {
+              if (window.toast) window.toast('Could not reach Google: ' + ((r && r.why) || 'unknown'), 'err');
+              return;
+            }
+            if (window.toast) window.toast(r.created + ' added, ' + r.updated + ' updated in your calendar', 'ok');
+          }, function (e) {
+            if (window.toast) window.toast((e && e.message) || 'Google Calendar failed', 'err');
+          });
+        } }
+    ]);
+  };
+
+  function addButton() {
+    if (document.getElementById('btnGcal')) return;
+    var host = document.getElementById('treeDrawer');
+    if (!host) return;
+    var b = document.createElement('button');
+    b.id = 'btnGcal';
+    b.type = 'button';
+    b.className = 'drawer-btn';
+    b.textContent = 'Google Calendar (real alarms)';
+    b.addEventListener('click', function (e) { e.preventDefault(); window.showGoogleCalendar(); });
+    host.insertBefore(b, host.firstChild);
+  }
+
+  // keep the calendar in step whenever the planner syncs
+  function autoSync() {
+    if (!window.gcalConnected || !window.gcalConnected()) return;
+    if (!window.gcalSync) return;
+    window.gcalSync().then(function () {}, function () {});
+  }
+  window.__gcalAuto = autoSync;
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function () { setTimeout(addButton, 850); });
+  } else {
+    setTimeout(addButton, 850);
+  }
+  setInterval(function () { if (!document.hidden) autoSync(); }, 5 * 60 * 1000);
 })();
 
 </script>
