@@ -2841,7 +2841,7 @@ button.al-x:hover { opacity: 1; color: var(--danger); }
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-14 18:29</span>
+    <span id="buildStamp">build 2026-08-14 21:26</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -2903,6 +2903,57 @@ button.al-x:hover { opacity: 1; color: var(--danger); }
   <div id="toast" aria-live="polite" aria-atomic="true"></div>
   <div id="modalHost"></div>
 <script>
+/* ===== m117 sign-in link ===== */
+/* Sign-in link. The token travels in the URL FRAGMENT, which browsers never
+   send to any server - so it never reaches GitHub's logs or anyone else's.
+   It is read and wiped from the address bar on the first line of script that
+   runs, before anything async can widen the window. */
+(function () {
+  var LS = 'planner.gh.token';
+  var SS_ONLY = 'planner.gh.sessiononly';
+
+  // Runs FIRST, synchronously. Anything async here leaves the token sitting in
+  // the address bar for longer than it has to.
+  (function consume() {
+    var h = String(location.hash || '');
+    var m = h.match(/[#&]k=([^&]+)/);
+    if (!m) return;
+    var tok = '';
+    try { tok = decodeURIComponent(m[1]); } catch (e) { tok = m[1]; }
+    if (!tok) return;
+    var shared = /[#&]s=1/.test(h);
+    try {
+      if (shared) {
+        sessionStorage.setItem(LS, tok);
+        localStorage.setItem(SS_ONLY, '1');
+      } else {
+        localStorage.setItem(LS, tok);
+        localStorage.removeItem(SS_ONLY);
+      }
+    } catch (e) {}
+    try {
+      history.replaceState(null, '', location.pathname + location.search);
+    } catch (e) { location.hash = ''; }
+  })();
+
+  // A token put there by a sign-in link on a shared computer lives in
+  // sessionStorage and disappears when the tab closes.
+  window.plannerToken = function () {
+    try {
+      var s = sessionStorage.getItem(LS);
+      if (s) return s;
+    } catch (e) {}
+    try { return localStorage.getItem(LS) || ''; } catch (e) { return ''; }
+  };
+
+  window.plannerSignInLink = function (shared) {
+    var t = window.plannerToken ? window.plannerToken() : '';
+    if (!t) return '';
+    var base = location.origin + location.pathname;
+    return base + '#k=' + encodeURIComponent(t) + (shared ? '&s=1' : '');
+  };
+})();
+
 
 'use strict';
 
@@ -10226,7 +10277,12 @@ renderAll();
 
   function ls(k)      { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } }
   function lsSet(k,v) { try { v ? localStorage.setItem(k,v) : localStorage.removeItem(k); } catch (e) {} }
-  function tok()  { return ls(LS_TOKEN); }
+  function tok()  {
+    // plannerToken checks sessionStorage first, so a shared-computer sign-in
+    // link works and is forgotten when the tab closes.
+    if (window.plannerToken) { var t = window.plannerToken(); if (t) return t; }
+    return ls(LS_TOKEN);
+  }
   function ghOn() { return !!tok(); }
 
   function H(t) {
@@ -12265,6 +12321,140 @@ function firstConnect(remote, rAt, lAt) {
       } }
     ]);
   };
+})();
+
+/* ===== m118 sign-in link ui ===== */
+(function () {
+  window.showSignInLink = function () {
+    var body = document.createElement('div');
+    var link = window.plannerSignInLink ? window.plannerSignInLink(false) : '';
+    if (!link) {
+      var p0 = document.createElement('p');
+      p0.textContent = 'Connect GitHub first, then this becomes your sign-in link.';
+      body.appendChild(p0);
+      window.showModal('My sign-in link', body, [{ label: 'Close' }]);
+      return;
+    }
+    var p1 = document.createElement('p');
+    p1.textContent = 'Save this once. Opening it on any computer signs you in and loads your planner. Nothing to type.';
+    var box = document.createElement('input');
+    box.type = 'text';
+    box.readOnly = true;
+    box.value = link;
+    box.style.cssText = 'width:100%;padding:8px;border-radius:6px;font-size:11px';
+    box.addEventListener('focus', function () { box.select(); });
+
+    var row = document.createElement('div');
+    row.style.cssText = 'display:flex;gap:8px;margin-top:8px;flex-wrap:wrap';
+
+    var copy = document.createElement('button');
+    copy.type = 'button';
+    copy.textContent = 'Copy link';
+    copy.style.cssText = 'padding:8px 12px;border-radius:6px;cursor:pointer';
+    copy.addEventListener('click', function () {
+      box.focus(); box.select();
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(box.value);
+        } else { document.execCommand('copy'); }
+        copy.textContent = 'Copied';
+        setTimeout(function () { copy.textContent = 'Copy link'; }, 1500);
+      } catch (e) {}
+    });
+
+    var mail = document.createElement('a');
+    mail.textContent = 'Email it to myself';
+    mail.href = 'mailto:?subject=' + encodeURIComponent('My planner sign-in link')
+              + '&body=' + encodeURIComponent('Keep this private. Opening it signs me into my planner.\n\n' + link);
+    mail.style.cssText = 'padding:8px 12px;border-radius:6px;text-decoration:none;'
+      + 'border:1px solid var(--border);font-size:13px;display:inline-block';
+
+    row.appendChild(copy);
+    row.appendChild(mail);
+
+    var sharedWrap = document.createElement('label');
+    sharedWrap.style.cssText = 'display:flex;gap:8px;align-items:flex-start;margin-top:14px;font-size:12px';
+    var cb = document.createElement('input');
+    cb.type = 'checkbox';
+    var cbTxt = document.createElement('span');
+    cbTxt.textContent = 'Make a shared-computer version instead - signs in for that visit only, and is forgotten when the tab closes.';
+    cb.addEventListener('change', function () {
+      box.value = window.plannerSignInLink(cb.checked);
+      mail.href = 'mailto:?subject=' + encodeURIComponent('My planner sign-in link')
+                + '&body=' + encodeURIComponent('Keep this private.\n\n' + box.value);
+    });
+    sharedWrap.appendChild(cb);
+    sharedWrap.appendChild(cbTxt);
+
+    var warn = document.createElement('p');
+    warn.className = 'del-warn';
+    warn.style.cssText = 'font-size:11px;margin-top:14px';
+    warn.textContent = 'This link is your password. Anyone who opens it gets your planner. Do not post it anywhere. If it ever leaks, use Replace my token below.';
+
+    var rot = document.createElement('button');
+    rot.type = 'button';
+    rot.textContent = 'Replace my token';
+    rot.style.cssText = 'margin-top:8px;padding:8px 12px;border-radius:6px;cursor:pointer;font-size:12px';
+    rot.addEventListener('click', function (e) {
+      e.preventDefault();
+      if (window.showTokenRotate) window.showTokenRotate();
+    });
+
+    body.appendChild(p1);
+    body.appendChild(box);
+    body.appendChild(row);
+    body.appendChild(sharedWrap);
+    body.appendChild(warn);
+    body.appendChild(rot);
+    window.showModal('My sign-in link', body, [{ label: 'Close' }]);
+    setTimeout(function () { box.focus(); box.select(); }, 40);
+  };
+
+  window.showTokenRotate = function () {
+    var body = document.createElement('div');
+    var steps = ['Open github.com/settings/personal-access-tokens',
+                 'Delete the old token.',
+                 'Generate a new one: Account permissions, Gists, Read and write.',
+                 'Come back here, tap Sign out, then Connect GitHub and paste the new one.',
+                 'Open My sign-in link again and save the NEW link. The old one stops working.'];
+    var ol = document.createElement('ol');
+    ol.style.cssText = 'font-size:12px;line-height:1.6;padding-left:18px';
+    var i;
+    for (i = 0; i < steps.length; i++) {
+      var li = document.createElement('li');
+      li.textContent = steps[i];
+      ol.appendChild(li);
+    }
+    var a = document.createElement('a');
+    a.href = 'https://github.com/settings/personal-access-tokens';
+    a.target = '_blank';
+    a.rel = 'noopener';
+    a.textContent = 'Open GitHub token settings';
+    a.style.cssText = 'display:inline-block;margin-top:10px;padding:8px 12px;border-radius:6px;'
+      + 'background:var(--accent,#59f);color:#fff;text-decoration:none;font-size:13px';
+    body.appendChild(ol);
+    body.appendChild(a);
+    window.showModal('Replace my token', body, [{ label: 'Close' }]);
+  };
+
+  function addButton() {
+    if (document.getElementById('btnSignInLink')) return;
+    var host = document.getElementById('treeDrawer');
+    if (!host) return;
+    var b = document.createElement('button');
+    b.id = 'btnSignInLink';
+    b.type = 'button';
+    b.className = 'drawer-btn';
+    b.textContent = 'My sign-in link';
+    b.addEventListener('click', function (e) { e.preventDefault(); window.showSignInLink(); });
+    host.appendChild(b);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function () { setTimeout(addButton, 700); });
+  } else {
+    setTimeout(addButton, 700);
+  }
 })();
 
 </script>
