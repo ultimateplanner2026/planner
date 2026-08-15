@@ -2841,7 +2841,7 @@ button.al-x:hover { opacity: 1; color: var(--danger); }
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-15 01:02</span>
+    <span id="buildStamp">build 2026-08-15 09:40</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -12690,6 +12690,24 @@ function firstConnect(remote, rAt, lAt) {
         var alarms = (text.match(/BEGIN:VALARM/g) || []).length;
         line('Events in the feed', String(events), events > 0);
         line('Alarms in the feed', String(alarms), alarms > 0);
+        // "no tasks qualify" and "tasks qualify but none has an alarm" look
+        // identical in the feed and have completely different fixes.
+        if (events > 0 && alarms === 0) {
+          var withAlarms = 0, tot = 0;
+          try {
+            var rep = window.calendarReport ? window.calendarReport() : null;
+            if (rep) {
+              tot = rep.included.length;
+              for (var q = 0; q < rep.included.length; q++) {
+                if (rep.included[q].alarms > 0) withAlarms++;
+              }
+            }
+          } catch (e) {}
+          line('Why', 'The task is in your calendar but has NO alarm set on it', null);
+          line('Tasks with an alarm', withAlarms + ' of ' + tot, withAlarms > 0);
+          line('Fix', 'Open the task, press Edit, then + Add alarm, pick a date and time, Save', null);
+          line('Then', 'Press Publish now on the calendar sync screen', null);
+        }
         if (events === 0) {
           line('Why', 'No task has a date, or an alarm with its own date', null);
           line('Fix', 'Give a task a date and time, or add an alarm with its own date, then Publish now', null);
