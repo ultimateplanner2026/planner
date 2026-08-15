@@ -2841,7 +2841,7 @@ button.al-x:hover { opacity: 1; color: var(--danger); }
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-14 18:13</span>
+    <span id="buildStamp">build 2026-08-14 18:29</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -12215,12 +12215,27 @@ function firstConnect(remote, rAt, lAt) {
         setTimeout(function () { copy.textContent = 'Copy address'; }, 1500);
       } catch (e) {}
     });
+    // One tap beats six Settings screens: iOS treats a webcal:// link as
+    // "subscribe to this calendar" and offers to add it directly.
+    var tapWrap = document.createElement('div');
+    tapWrap.style.cssText = 'margin-top:12px';
+    var tap = document.createElement('a');
+    tap.href = url.replace(/^https?:\/\//, 'webcal://');
+    tap.textContent = 'Tap here to subscribe (iPhone)';
+    tap.style.cssText = 'display:inline-block;padding:10px 14px;border-radius:8px;'
+      + 'background:var(--accent,#59f);color:#fff;text-decoration:none;font-size:13px';
+    var tapNote = document.createElement('div');
+    tapNote.style.cssText = 'font-size:11px;opacity:.7;margin-top:6px';
+    tapNote.textContent = 'On the iPhone this opens Calendar and offers to subscribe. If nothing happens, use the steps below.';
+    tapWrap.appendChild(tap); tapWrap.appendChild(tapNote);
+    body.appendChild(tapWrap);
+
     var steps = document.createElement('ol');
     steps.style.cssText = 'font-size:12px;line-height:1.5;padding-left:18px;margin-top:12px';
     var lines = [
       'Copy the address above.',
-      'On the iPhone open Settings, then Calendar, then Accounts.',
-      'Tap Add Account, then Other, then Add Subscribed Calendar.',
+      'iPhone Settings, then Apps, then Calendar, then Accounts. Or search Settings for Subscribed.',
+      'Tap Add Account at the BOTTOM of that list, then Other, then Add Subscribed Calendar. It is not on the Accounts screen itself.',
       'Paste the address and tap Next, then Save.',
       'In that account, set Refresh to every 15 minutes.'
     ];
