@@ -2824,6 +2824,32 @@ button.al-x:hover { opacity: 1; color: var(--danger); }
 @media (max-width: 700px) {
   #modalHost .modal { max-height: calc(100vh - 16px); }
 }
+
+/* ---------- phone bottom bar ---------- */
+#bottomBar { display: none; }
+@media (max-width: 700px) {
+  #bottomBar {
+    display: flex;
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 9000;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  #bottomBar .bb-tab {
+    flex: 1 1 0; display: flex; flex-direction: column; align-items: center;
+    gap: 2px; padding: 8px 4px 6px; background: none; border: 0;
+    color: var(--text-dim, var(--text)); cursor: pointer; min-height: 52px;
+  }
+  #bottomBar .bb-tab.on { color: var(--accent); }
+  #bottomBar .bb-ic { font-size: 18px; line-height: 1; }
+  #bottomBar .bb-lb { font-size: 10px; letter-spacing: .2px; }
+  /* keep content clear of the bar */
+  main#main { padding-bottom: 64px; }
+  /* Plan shows tree + day; Settings shows the drawer; Alarms opens its dialog */
+  body[data-bb="settings"] aside#treePane,
+  body[data-bb="settings"] section#rightPane { display: none; }
+  body[data-bb="settings"] #treeDrawer { display: block; }
+}
 </style>
 </head>
 <body>
@@ -2841,7 +2867,7 @@ button.al-x:hover { opacity: 1; color: var(--danger); }
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-15 15:09</span>
+    <span id="buildStamp">build 2026-08-15 16:08</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -12798,6 +12824,85 @@ function firstConnect(remote, rAt, lAt) {
   } else {
     setTimeout(addButton, 800);
   }
+})();
+
+/* ===== m125 bottom bar ===== */
+(function () {
+  var TABS = [
+    { id: 'plan',     label: 'Plan',     icon: '☑' },
+    { id: 'alarms',   label: 'Alarms',   icon: '⏰' },
+    { id: 'settings', label: 'Settings', icon: '⚙' }
+  ];
+  var active = 'plan';
+
+  function isPhone() { return window.innerWidth <= 700; }
+
+  function build() {
+    if (document.getElementById('bottomBar')) return;
+    var bar = document.createElement('nav');
+    bar.id = 'bottomBar';
+    var i;
+    for (i = 0; i < TABS.length; i++) {
+      (function (t) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'bb-tab' + (t.id === active ? ' on' : '');
+        b.dataset.tab = t.id;
+        var ic = document.createElement('span');
+        ic.className = 'bb-ic';
+        ic.textContent = t.icon;
+        var lb = document.createElement('span');
+        lb.className = 'bb-lb';
+        lb.textContent = t.label;
+        b.appendChild(ic); b.appendChild(lb);
+        b.addEventListener('click', function (e) { e.preventDefault(); show(t.id); });
+        bar.appendChild(b);
+      })(TABS[i]);
+    }
+    document.body.appendChild(bar);
+  }
+
+  function show(id) {
+    active = id;
+    var tabs = document.querySelectorAll('#bottomBar .bb-tab'), i;
+    for (i = 0; i < tabs.length; i++) {
+      if (tabs[i].dataset.tab === id) tabs[i].classList.add('on');
+      else tabs[i].classList.remove('on');
+    }
+    document.body.setAttribute('data-bb', id);
+    if (id === 'settings') {
+      var d = document.getElementById('treeDrawer');
+      if (d) d.classList.remove('hidden');
+    }
+    if (id === 'alarms' && window.showAlarmsList) window.showAlarmsList();
+  }
+
+  window.__bbShow = show;
+
+  function start() {
+    if (!isPhone()) return;
+    build();
+    show('plan');
+    // the hamburger is redundant once the bar exists
+    var t = document.getElementById('btnTreeToggle');
+    if (t) t.style.display = 'none';
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function () { setTimeout(start, 900); });
+  } else {
+    setTimeout(start, 900);
+  }
+  window.addEventListener('resize', function () {
+    var bar = document.getElementById('bottomBar');
+    if (isPhone() && !bar) start();
+    if (!isPhone() && bar) {
+      bar.parentNode.removeChild(bar);
+      document.body.removeAttribute('data-bb');
+      var t = document.getElementById('btnTreeToggle');
+      if (t) t.style.display = '';
+    }
+  });
 })();
 
 </script>
