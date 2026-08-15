@@ -2841,7 +2841,7 @@ button.al-x:hover { opacity: 1; color: var(--danger); }
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-14 23:49</span>
+    <span id="buildStamp">build 2026-08-15 01:02</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -11790,10 +11790,15 @@ function firstConnect(remote, rAt, lAt) {
       d.setHours(parseInt(hm[0], 10) || 0, parseInt(hm[1], 10) || 0, 0, 0);
       return d.getTime();
     }
-    if (!node.date || !node.time) return 0;
+    if (!node.date) return 0;
+    // A dated task with NO time still deserves a working alarm. This returned 0,
+    // so "30 min before" on an all-day task produced nothing at all and the
+    // event reached the calendar carrying zero alarms. 09:00 is the anchor -
+    // the same convention Google Calendar uses for all-day reminders.
+    var anchorTime = node.time || '09:00';
     d = window.parseISO(node.date);
     if (!d || isNaN(d.getTime())) return 0;
-    hm = String(node.time).split(':');
+    hm = String(anchorTime).split(':');
     d.setHours(parseInt(hm[0], 10) || 0, parseInt(hm[1], 10) || 0, 0, 0);
     return d.getTime() - (Number(al.lead) || 0) * 60000;
   };
