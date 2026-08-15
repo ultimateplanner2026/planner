@@ -2846,9 +2846,27 @@ button.al-x:hover { opacity: 1; color: var(--danger); }
   /* keep content clear of the bar */
   main#main { padding-bottom: 64px; }
   /* Plan shows tree + day; Settings shows the drawer; Alarms opens its dialog */
-  body[data-bb="settings"] aside#treePane,
+  /* Settings: the drawer lives INSIDE #treePane, so hiding that pane hid the
+     menu too and left a blank screen. Keep the pane, hide the tree itself. */
   body[data-bb="settings"] section#rightPane { display: none; }
-  body[data-bb="settings"] #treeDrawer { display: block; }
+  body[data-bb="settings"] aside#treePane { display: flex; width: 100%; max-height: none; }
+  body[data-bb="settings"] #treeRoot,
+  body[data-bb="settings"] .tree-toolbar { display: none; }
+  body[data-bb="settings"] #treeDrawer {
+    display: block !important;
+    overflow-y: auto;
+    padding: 8px 10px 16px;
+  }
+  body[data-bb="settings"] #treeDrawer button { width: 100%; text-align: left; margin: 4px 0; }
+  /* Alarms tab: same shape, the list renders into the drawer area */
+  body[data-bb="alarms"] section#rightPane { display: none; }
+
+  /* Dialogs must clear the bottom bar - the Save and Delete buttons were
+     underneath it and could not be reached at all. */
+  #modalHost { z-index: 99999; }
+  #modalHost .modal { max-height: calc(100vh - 96px); }
+  #modalHost .modal-footer { padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px)); }
+  #modalHost .modal-backdrop { padding-bottom: 64px; }
 }
 </style>
 </head>
@@ -2867,7 +2885,7 @@ button.al-x:hover { opacity: 1; color: var(--danger); }
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-15 16:08</span>
+    <span id="buildStamp">build 2026-08-15 16:32</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
