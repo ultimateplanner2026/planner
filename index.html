@@ -3012,6 +3012,25 @@ button.al-x:hover { opacity: 1; color: var(--danger); }
 /* Measured: .tgbody is NOT the scroll host (scrollHeight == clientHeight).
    .tgscroll is. Left as a comment rather than a rule because the grid already
    scrolls correctly - the bug was never CSS, it was opening at 6am. */
+
+/* ===== o06 settings label + the looks read as one simple list ===== */
+.drawer-title {
+  font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--t-3); padding: 8px 10px 6px;
+}
+.drawer-hint { font-size: 11px; color: var(--t-3); padding: 0 10px 8px; line-height: 1.45; }
+#btnSettings { font-size: 12px; }
+
+/* "Simple, consistent throughout" - one type size for every drawer control, one
+   weight, one alignment. Six sizes in one tray is what made it feel unfinished. */
+#treeDrawer .drawer-btn {
+  font-size: 12px; font-weight: 500; text-align: left;
+  padding: 7px 10px; border-radius: 6px;
+}
+
+/* On the phone the bottom bar already has a Settings tab, so the top-bar one is
+   redundant and eats width from a bar that is already tight. */
+@media (max-width: 700px) { #btnSettings { display: none !important; } }
 </style>
 </head>
 <body>
@@ -3029,7 +3048,7 @@ button.al-x:hover { opacity: 1; color: var(--danger); }
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-17 11:20</span>
+    <span id="buildStamp">build 2026-08-17 12:05</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -13590,6 +13609,99 @@ function firstConnect(remote, rAt, lAt) {
   };
 
   setTimeout(function () { window.scrollGridToNow(); }, 1500);
+})();
+
+
+/* ===== m133 settings entry point ===== */
+/* Why this exists.
+   The operator could not find the Visual formats button "in the settings area".
+   They were right, and for a reason I had not checked: on DESKTOP there is no
+   settings area at all. The top bar holds only btnTreeToggle, btnPrevMonth,
+   btnToday, btnNextMonth, btnSignIn. Every secondary control lives in a drawer
+   behind the hamburger, which is not called Settings and does not look like it.
+   On the phone the bottom bar does have a Settings tab and the button IS there.
+   So: give desktop the same Settings, opened through ONE shared function, so the
+   two entry points cannot drift apart. */
+(function () {
+
+  // ONE mechanism. Both entry points call this, so they cannot behave differently.
+  window.plannerOpenSettings = function () {
+    var d = document.getElementById('treeDrawer');
+    if (!d) return false;
+    d.hidden = false;
+    d.classList.remove('hidden');
+    if (window.__bbShow && window.innerWidth <= 700) window.__bbShow('settings');
+    try { d.scrollIntoView({ block: 'nearest' }); } catch (e) {}
+    return true;
+  };
+
+  window.plannerCloseSettings = function () {
+    var d = document.getElementById('treeDrawer');
+    if (!d) return false;
+    d.hidden = true;
+    if (window.__bbShow && window.innerWidth <= 700) window.__bbShow('plan');
+    return true;
+  };
+
+  function isOpen() {
+    var d = document.getElementById('treeDrawer');
+    return !!(d && !d.hidden && d.getBoundingClientRect().height > 0);
+  }
+
+  // Desktop entry point, sitting next to the sign-in button.
+  function addGear() {
+    if (document.getElementById('btnSettings')) return;
+    var bar = document.getElementById('topbar');
+    if (!bar) return;
+    var b = document.createElement('button');
+    b.id = 'btnSettings';
+    b.type = 'button';
+    b.className = 'btn-icon';
+    b.title = 'Settings';
+    b.textContent = 'Settings';
+    b.addEventListener('click', function (e) {
+      e.preventDefault();
+      if (isOpen()) window.plannerCloseSettings();
+      else window.plannerOpenSettings();
+    });
+    var anchor = document.getElementById('btnSignIn');
+    if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(b, anchor);
+    else bar.appendChild(b);
+  }
+
+  /* Label the drawer so it reads as Settings rather than as a nameless tray, and
+     say what Visual formats does. "Visual formats" with no explanation is what
+     caused this round-trip in the first place. */
+  function labelDrawer() {
+    var d = document.getElementById('treeDrawer');
+    if (!d || document.getElementById('drawerTitle')) return;
+    var h = document.createElement('div');
+    h.id = 'drawerTitle';
+    h.className = 'drawer-title';
+    h.textContent = 'Settings';
+    d.insertBefore(h, d.firstChild);
+    var looks = document.getElementById('btnLooks');
+    if (looks) {
+      var hint = document.createElement('div');
+      hint.id = 'looksHint';
+      hint.className = 'drawer-hint';
+      hint.textContent = 'Choose how the whole app looks. Changes apply straight away.';
+      if (looks.nextSibling) d.insertBefore(hint, looks.nextSibling);
+      else d.appendChild(hint);
+    }
+  }
+
+  function start() {
+    addGear();
+    labelDrawer();
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function () { setTimeout(start, 1200); });
+  } else {
+    setTimeout(start, 1200);
+  }
+  setTimeout(start, 2200);
 })();
 
 </script>
