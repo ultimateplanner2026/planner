@@ -2868,6 +2868,150 @@ button.al-x:hover { opacity: 1; color: var(--danger); }
   #modalHost .modal-footer { padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px)); }
   #modalHost .modal-backdrop { padding-bottom: 64px; }
 }
+
+/* ================= VISUAL PASS 2026-08-17 =================
+   Three surface tones in one hue, restrained colour, weight-led hierarchy,
+   a 4px rhythm. Depth from tone, never from shadows or glow - that is what
+   separates a dark UI that reads as professional from one that reads as a
+   template. No gradients, no glass, no glow, deliberately. */
+:root {
+  --s-base:     #14161a;   /* the page */
+  --s-raised:   #191c21;   /* panels */
+  --s-elevated: #1f2329;   /* hover, dialogs, popovers */
+  --line:       #262a31;   /* hairlines, barely there */
+  --t-1: rgba(255,255,255,.92);   /* titles */
+  --t-2: rgba(255,255,255,.68);   /* secondary */
+  --t-3: rgba(255,255,255,.45);   /* times, counts, meta */
+  --accent-q:   #5b8def;   /* desaturated ~30% from a pure blue */
+}
+:root:not([data-theme="light"]) body,
+:root[data-theme="dark"] body { background: var(--s-base); }
+:root:not([data-theme="light"]) aside#treePane,
+:root:not([data-theme="light"]) section#rightPane { background: var(--s-raised); }
+:root:not([data-theme="light"]) header#topbar { background: var(--s-raised); border-bottom: 1px solid var(--line); }
+
+/* ---- tree rows: two sizes, weight does the hierarchy ---- */
+#treeRoot .tree-row { padding: 0 8px; border-radius: 6px; }
+#treeRoot .tree-row:hover { background: var(--s-elevated); }
+#treeRoot .tree-title { font-size: 13px; font-weight: 400; color: var(--t-1); letter-spacing: .1px; }
+/* TOP-LEVEL rows are the sections. Depth decides that, not whether a task
+   happens to have a subtask - "Run 10 minutes" is a task, not a heading. */
+#treeRoot .tree-row[data-depth="0"] .tree-title { font-weight: 600; letter-spacing: .2px; }
+/* One text size for every title. Weight alone carries the hierarchy, which
+   reads better than mixing sizes - and it keeps the 30px row honest. */
+#treeRoot .tree-row .tree-title { font-size: 13px; }
+/* icons match the secondary text size so the row has two sizes, not four */
+/* higher specificity: an earlier rule sets these to 12px and was winning,
+   which is why the row still showed three sizes instead of two */
+#treeRoot .tree-row button.btn-icon,
+#treeRoot .tree-row button.rowmenu,
+#treeRoot .tree-row button.rowquick,
+#treeRoot .tree-row .tree-caret { font-size: 11px; }
+/* the old green selection edge fights the accent - one colour, quietly */
+#treeRoot .tree-row.selected,
+#treeRoot .tree-row.sel {
+  background: var(--s-elevated);
+  box-shadow: inset 2px 0 0 0 var(--accent-q);
+  border-left-color: transparent !important;
+}
+#treeRoot .tag-chip,
+#treeRoot .tree-timechip,
+#treeRoot .tree-dateclear { font-size: 11px; font-weight: 500; color: var(--t-3); }
+#treeRoot .tag-chip { background: var(--s-elevated); border: 0; border-radius: 4px; padding: 1px 6px; }
+/* every icon the same size, in one aligned column */
+#treeRoot .btn-icon,
+#treeRoot .rowmenu,
+#treeRoot .rowquick { font-size: 12px; color: var(--t-3); }
+#treeRoot .btn-icon:hover,
+#treeRoot .rowmenu:hover { color: var(--t-1); background: transparent; }
+/* the older duplicate arrow pair is hidden but still shipped - keep it gone */
+#treeRoot .tree-outdent, #treeRoot .tree-indent { display: none !important; }
+
+/* ---- calendar: strips, not filled blocks ---- */
+.tgevent, .wchip, .tgchip {
+  background: var(--s-elevated) !important;
+  border: 0 !important;
+  border-left: 3px solid var(--accent-q) !important;
+  border-radius: 4px;
+  color: var(--t-1);
+}
+.tgevent .tgtime, .tgchip .tgtime { color: var(--t-3); font-size: 11px; }
+/* most grid lines go; keep the hour rules faint */
+.tgrow, .tgcell, .wcell { border-color: var(--line) !important; }
+.tghour, .wlabel { color: var(--t-3); font-size: 11px; font-variant-numeric: tabular-nums; }
+/* today: one bar along the top, not a filled cell */
+.tgalldaycell.today, .whead.wtoday, .mday.today {
+  background: transparent !important;
+  box-shadow: inset 0 2px 0 0 var(--accent-q);
+}
+
+/* ---- colour: one hue per branch, carried by the area it belongs to ----
+   The palette already existed in the data and was never shown. A goal takes its
+   area's colour; everything beneath inherits it, so a whole branch reads as one
+   thing. Colour on the EDGE, never as a fill - a filled row is the fastest way
+   to make a dark UI look cheap. */
+#treeRoot .tree-row { position: relative; }
+#treeRoot .tree-row[data-depth="0"] {
+  box-shadow: inset 3px 0 0 0 var(--row-colour, var(--accent-q));
+}
+#treeRoot .tree-row[data-depth="0"] .tree-title { color: var(--row-colour, var(--t-1)); }
+/* children: a quiet guide line in the same colour, so nesting is visible */
+#treeRoot .tree-row:not([data-depth="0"]) {
+  box-shadow: inset 3px 0 0 0 color-mix(in srgb, var(--row-colour, var(--accent-q)) 30%, transparent);
+}
+#treeRoot .tree-row[data-depth="2"],
+#treeRoot .tree-row[data-depth="3"] .tree-title { color: var(--t-2); }
+/* the checkbox picks up the branch colour when ticked */
+#treeRoot .tree-row input[type="checkbox"] { accent-color: var(--row-colour, var(--accent-q)); }
+/* calendar events take the same colour as their branch */
+.tgevent, .tgchip, .wchip { border-left-color: var(--row-colour, var(--accent-q)) !important; }
+/* kill the leftover green edge that fought the accent */
+#treeRoot .tree-row { border-left: 0 !important; }
+
+/* ===== o05 visual formats =====
+   One block of custom properties per look. No JS per preset: the picker only
+   writes data-look on <html>, so a new look is a CSS edit and nothing else.
+   The branch colours are not deleted - they are gated, so "Colour by area"
+   stays available for whoever wants it. */
+
+/* Quiet is the default: suppress the per-branch colour without touching the JS
+   that computes it. !important is required because that JS writes --row-colour
+   inline, and inline beats a plain stylesheet declaration. */
+:root:not([data-look="area"]) #treeRoot .tree-row { --row-colour: var(--accent-q) !important; }
+
+/* High contrast: brighter text, stronger lines, a louder accent. */
+:root[data-look="contrast"] {
+  --t-1: rgba(255,255,255,1);
+  --t-2: rgba(255,255,255,.86);
+  --t-3: rgba(255,255,255,.64);
+  --accent-q: #7aa5ff;
+  --line: rgba(255,255,255,.22);
+  --s-base: #0f1115; --s-raised: #171a20; --s-elevated: #232830;
+}
+:root[data-look="contrast"] #treeRoot .tree-row[data-depth="0"] .tree-title { font-weight: 700; }
+
+/* Compact: same palette, tighter rhythm - more rows on one screen. */
+:root[data-look="compact"] #treeRoot .tree-row { padding: 0 6px; min-height: 24px; }
+:root[data-look="compact"] #treeRoot .tree-row .tree-title { font-size: 12px; }
+:root[data-look="compact"] #treeRoot .tree-row .time-chip,
+:root[data-look="compact"] #treeRoot .tree-row .tag-chip { font-size: 10px; }
+:root[data-look="compact"] #treeRoot .tree-row button.btn-icon { font-size: 11px; }
+
+/* the picker itself */
+.look-row {
+  display: block; width: 100%; text-align: left; cursor: pointer;
+  background: var(--s-raised); color: var(--t-1);
+  border: 1px solid var(--line); border-radius: 8px;
+  padding: 9px 11px; margin-bottom: 7px;
+}
+.look-row:hover { background: var(--s-elevated); }
+.look-row.on { border-color: var(--accent-q); box-shadow: inset 3px 0 0 0 var(--accent-q); }
+.look-name { font-size: 13px; font-weight: 600; }
+.look-hint { font-size: 11px; color: var(--t-3); margin-top: 2px; }
+
+/* Measured: .tgbody is NOT the scroll host (scrollHeight == clientHeight).
+   .tgscroll is. Left as a comment rather than a rule because the grid already
+   scrolls correctly - the bug was never CSS, it was opening at 6am. */
 </style>
 </head>
 <body>
@@ -2885,7 +3029,7 @@ button.al-x:hover { opacity: 1; color: var(--danger); }
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-15 19:40</span>
+    <span id="buildStamp">build 2026-08-17 11:20</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -13162,6 +13306,290 @@ function firstConnect(remote, rAt, lAt) {
     setTimeout(addButton, 850);
   }
   setInterval(function () { if (!document.hidden) autoSync(); }, 5 * 60 * 1000);
+})();
+
+/* ===== m128 row kind ===== */
+(function () {
+  function stamp() {
+    var rows = document.querySelectorAll('#treeRoot .tree-row'), i, id, f, n;
+    for (i = 0; i < rows.length; i++) {
+      id = rows[i].dataset.id;
+      if (!id) continue;
+      f = window.findNode(id);
+      n = f && f.node;
+      if (!n) continue;
+      rows[i].dataset.kind = (n.children && n.children.length) ? 'goal' : (n.kind || 'task');
+      rows[i].dataset.depth = String(f.depth || 0);
+    }
+  }
+  window.__stampKinds = stamp;
+
+  var base = window.renderTree;
+  if (typeof base === 'function') {
+    window.renderTree = function () {
+      var r = base.apply(this, arguments);
+      try { stamp(); } catch (e) {}
+      return r;
+    };
+  }
+  var baseAll = window.renderAll;
+  if (typeof baseAll === 'function') {
+    window.renderAll = function () {
+      var r = baseAll.apply(this, arguments);
+      try { stamp(); } catch (e) {}
+      return r;
+    };
+  }
+  setTimeout(stamp, 1200);
+})();
+
+/* ===== m129 row colour ===== */
+(function () {
+  var FALLBACK = ['#2f6feb','#16a34a','#ea580c','#db2777','#7c3aed','#0891b2','#ca8a04','#64748b'];
+
+  function areaColour(id) {
+    var areas = (window.Store && window.Store.data && window.Store.data.areas) || [];
+    var i;
+    for (i = 0; i < areas.length; i++) {
+      if (areas[i].id === id && areas[i].color) return areas[i].color;
+    }
+    return '';
+  }
+
+  function colourFor(id, index) {
+    var f = window.findNode(id);
+    if (!f || !f.node) return '';
+    var node = f.node, guard = 0;
+    while (node && guard++ < 60) {
+      var c = areaColour(node.areaId);
+      if (c) return c;
+      var p = window.findNode(node.id);
+      if (!p || !p.parent) break;
+      node = p.parent;
+    }
+    return FALLBACK[index % FALLBACK.length];
+  }
+
+  function paint() {
+    var rows = document.querySelectorAll('#treeRoot .tree-row'), i, top = -1, id, c;
+    for (i = 0; i < rows.length; i++) {
+      id = rows[i].dataset.id;
+      if (!id) continue;
+      if (rows[i].dataset.depth === '0') top++;
+      c = colourFor(id, top < 0 ? 0 : top);
+      if (c) rows[i].style.setProperty('--row-colour', c);
+    }
+  }
+  window.__paintRows = paint;
+
+  var base = window.renderTree;
+  if (typeof base === 'function') {
+    window.renderTree = function () {
+      var r = base.apply(this, arguments);
+      try { if (window.__stampKinds) window.__stampKinds(); paint(); } catch (e) {}
+      return r;
+    };
+  }
+  var all = window.renderAll;
+  if (typeof all === 'function') {
+    window.renderAll = function () {
+      var r = all.apply(this, arguments);
+      try { if (window.__stampKinds) window.__stampKinds(); paint(); } catch (e) {}
+      return r;
+    };
+  }
+  setTimeout(function () { if (window.__stampKinds) window.__stampKinds(); paint(); }, 1400);
+})();
+
+
+/* ===== m130 visual formats + scroll to now ===== */
+(function () {
+  var LOOKS = {
+    quiet:    { label: 'Quiet',          hint: 'Monochrome, one accent' },
+    area:     { label: 'Colour by area', hint: 'A colour per branch' },
+    contrast: { label: 'High contrast',  hint: 'Brighter, stronger lines' },
+    compact:  { label: 'Compact',        hint: 'Tighter, more rows' }
+  };
+  var LS = 'planner.look';
+
+  window.plannerLook = function () {
+    var stored;
+    try {
+        stored = localStorage.getItem(LS);
+    } catch (e) {
+        stored = null;
+    }
+    return stored || 'quiet';
+  };
+
+  window.setPlannerLook = function (id) {
+    if (!LOOKS[id]) id = 'quiet';
+    try { localStorage.setItem(LS, id); } catch (e) {}
+    document.documentElement.setAttribute('data-look', id);
+    if (window.renderAll) window.renderAll();
+    return id;
+  };
+
+  window.showVisualFormats = function () {
+    var body = document.createElement('div');
+    var p = document.createElement('p');
+    p.style.cssText = 'font-size:12px;opacity:.75;margin-bottom:10px';
+    p.textContent = 'Pick a look. It changes immediately - try them and keep the one you like.';
+    body.appendChild(p);
+    var cur = window.plannerLook();
+    var ids = ['quiet','area','contrast','compact'], i;
+    for (i = 0; i < ids.length; i++) {
+        (function (id) {
+            var row = document.createElement('button');
+            row.type = 'button';
+            row.className = 'look-row' + (id === cur ? ' on' : '');
+            var t = document.createElement('div');
+            t.className = 'look-name';
+            t.textContent = LOOKS[id].label;
+            var h = document.createElement('div');
+            h.className = 'look-hint';
+            h.textContent = LOOKS[id].hint;
+            row.appendChild(t); row.appendChild(h);
+            row.addEventListener('click', function (e) {
+                e.preventDefault();
+                window.setPlannerLook(id);
+                var all = document.querySelectorAll('.look-row'), k;
+                for (k = 0; k < all.length; k++) all[k].classList.remove('on');
+                row.classList.add('on');
+            });
+            body.appendChild(row);
+        })(ids[i]);
+    }
+    window.showModal('Visual formats', body, [{ label: 'Done' }]);
+  };
+
+  window.scrollGridToNow = function () {
+    var host = document.querySelector('#dayView .tgbody')
+            || document.querySelector('#weekGrid .tgbody')
+            || document.querySelector('#dayView');
+    if (!host || !host.scrollHeight) return;
+    var d = new Date();
+    var mins = d.getHours() * 60 + d.getMinutes();
+    var frac = Math.max(0, Math.min(1, (mins - 6 * 60) / (18 * 60)));
+    var target = (host.scrollHeight - host.clientHeight) * frac - 60;
+    host.scrollTop = Math.max(0, target);
+  };
+
+  function addButton() {
+    if (document.getElementById('btnLooks')) return;
+    var host = document.getElementById('treeDrawer');
+    if (!host) return;
+    var b = document.createElement('button');
+    b.id = 'btnLooks';
+    b.type = 'button';
+    b.className = 'drawer-btn';
+    b.textContent = 'Visual formats';
+    b.addEventListener('click', function (e) { e.preventDefault(); window.showVisualFormats(); });
+    host.insertBefore(b, host.firstChild);
+  }
+
+  document.documentElement.setAttribute('data-look', window.plannerLook());
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function () {
+      setTimeout(function () { addButton(); window.scrollGridToNow(); }, 900);
+    });
+  } else {
+    setTimeout(function () { addButton(); window.scrollGridToNow(); }, 900);
+  }
+})();
+
+
+/* ===== m131 grid scroll host fix ===== */
+(function () {
+
+  function scroller(el) {
+    var p = el;
+    while (p && p !== document.body) {
+      if (p.scrollHeight > p.clientHeight + 2) {
+        var oy = getComputedStyle(p).overflowY;
+        if (oy === 'auto' || oy === 'scroll') return p;
+      }
+      p = p.parentElement;
+    }
+    return null;
+  }
+
+  window.scrollGridToNow = function () {
+    var view = document.querySelector('#dayView') || document.querySelector('#weekView');
+    if (!view || !view.offsetParent) return false;
+    var probe = view.querySelector('.tgcol') || view.querySelector('.tgbody') || view;
+    var host = scroller(probe);
+    if (!host) return false;
+    var d = new Date();
+    var mins = d.getHours() * 60 + d.getMinutes();
+    var range = host.scrollHeight - host.clientHeight;
+    var target = (range * (mins / 1440)) - (host.clientHeight / 3);
+    host.scrollTop = Math.max(0, Math.min(range, target));
+    return true;
+  };
+
+  var oldSetTab = window.setTab;
+  if (typeof oldSetTab === 'function') {
+    window.setTab = function (name) {
+      var r = oldSetTab.apply(this, arguments);
+      if (name === 'day' || name === 'week') {
+        setTimeout(function () { window.scrollGridToNow(); }, 260);
+      }
+      return r;
+    };
+  }
+
+  setTimeout(function () { window.scrollGridToNow(); }, 1600);
+})();
+
+
+/* ===== m132 open the grid at now ===== */
+/* The real cause, found by reading the source instead of guessing geometry.
+   The grid builder calls tgScrollToMorning, which for the default 6am-11pm grid
+   does exactly `scroll.scrollTop = 0`. So the grid always opened at 6 AM, and a
+   task at 18:30 sat 500px down a 495px-tall window: rendered perfectly and
+   completely invisible. My first two attempts guessed at the scroll host and at
+   pixels-per-hour. Both were wrong. The app already owns both facts - window.TG
+   holds startHour/endHour/HOUR_PX and window.tgToY(hhmm) returns the exact Y for
+   a time - so use them and stop inventing. */
+(function () {
+
+  function nowHHMM() {
+    var d = new Date();
+    function p(v) { return (v < 10 ? '0' : '') + v; }
+    return p(d.getHours()) + ':' + p(d.getMinutes());
+  }
+
+  function targetTop(host) {
+    if (!window.tgToY || !window.TG) return 0;
+    var y = window.tgToY(nowHHMM());
+    if (y === null || isNaN(y)) return 0;
+    var range = host.scrollHeight - host.clientHeight;
+    if (range <= 0) return 0;
+    var t = y - (host.clientHeight / 3);
+    if (t < 0) t = 0;
+    if (t > range) t = range;
+    return t;
+  }
+
+  var oldMorning = window.tgScrollToMorning;
+  window.tgScrollToMorning = function (scroll) {
+    if (!scroll) return;
+    try { scroll.scrollTop = targetTop(scroll); }
+    catch (e) { if (typeof oldMorning === 'function') oldMorning(scroll); }
+  };
+
+  window.scrollGridToNow = function () {
+    var hosts = document.querySelectorAll('.tgscroll'), i, did = false;
+    for (i = 0; i < hosts.length; i++) {
+      if (!hosts[i].clientHeight) continue;
+      hosts[i].scrollTop = targetTop(hosts[i]);
+      did = true;
+    }
+    return did;
+  };
+
+  setTimeout(function () { window.scrollGridToNow(); }, 1500);
 })();
 
 </script>
