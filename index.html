@@ -3429,6 +3429,15 @@ button.al-x:hover { opacity: 1; color: var(--danger); }
 /* The old modal path is gone; keep the wrapper harmless if anything still
    references it. */
 .vp-wrap { max-height: none; overflow: visible; }
+
+/* the row the arrow keys are pointing at */
+.vp-aspect.cur > .vp-head h4 { color: var(--accent-hi, #828fff); }
+.vp-aspect.cur {
+  box-shadow: inset 2px 0 0 0 var(--accent-q, #5e6ad2);
+  padding-left: 7px; margin-left: -9px;
+}
+/* a click that makes a row current must not also select its label text */
+.vp-aspect h4, .vp-num, .vp-note { user-select: none; }
 </style>
 </head>
 <body>
@@ -3446,7 +3455,7 @@ button.al-x:hover { opacity: 1; color: var(--danger); }
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-17 15:40</span>
+    <span id="buildStamp">build 2026-08-17 16:30</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -14356,6 +14365,15 @@ function firstConnect(remote, rAt, lAt) {
 
 
 /* ===== m137 floating visual-formats panel ===== */
+/* The picker was a MODAL, so it covered and blocked the very screen the
+   operator was trying to judge. Every choice applied instantly and they still
+   could not see it. This replaces it with a floating panel: no scrim, drag it
+   by the header, resize it from the corner, and the app keeps working
+   underneath while every tap changes it live.
+   Hardened where a floating panel usually goes wrong: it is mounted on
+   document.body so the tree re-rendering cannot move or bury it, and a stored
+   position is validated on load - an off-screen panel is unrecoverable
+   otherwise. */
 (function () {
   var ASPECTS = [
     { key: 'surface',  name: 'Background depth' },
@@ -14441,9 +14459,6 @@ function firstConnect(remote, rAt, lAt) {
     var mode = null, sx = 0, sy = 0, box = null;
     function down(m) {
       return function (e) {
-        // A pointerdown on the header preventDefaults, which cancels the
-        // click that would follow - so the reset and close buttons living
-        // INSIDE the header never fired. Let anything button-like through.
         var t = e.target;
         while (t && t !== handle && t !== grip) {
           if (t.tagName === 'BUTTON') return;
@@ -14523,6 +14538,8 @@ function firstConnect(remote, rAt, lAt) {
     }
     prev.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); pick(parseInt(num.textContent, 10) - 1); });
     next.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); pick(parseInt(num.textContent, 10) + 1); });
+    wrap.setAttribute('data-asp', asp.key);
+    wrap.addEventListener('click', function () { window.vpSetCurrent(asp.key); });
     wrap.appendChild(head); wrap.appendChild(opts);
     return wrap;
   }
@@ -14550,7 +14567,7 @@ function firstConnect(remote, rAt, lAt) {
     body.className = 'vp-body';
     var note = document.createElement('p');
     note.className = 'vp-note';
-    note.textContent = 'Drag the bar to move this. Drag the corner to resize. Every tap changes the app behind it straight away - there is nothing to confirm.';
+    note.textContent = 'Drag the bar to move this, the corner to resize. Arrow keys: \u2190 \u2192 change the highlighted row, \u2191 \u2193 pick a different row. Every change shows straight away.';
     body.appendChild(note);
     var i;
     for (i = 0; i < ASPECTS.length; i++) body.appendChild(row(ASPECTS[i], state));
@@ -14572,15 +14589,90 @@ function firstConnect(remote, rAt, lAt) {
 
     panel.appendChild(bar); panel.appendChild(body); panel.appendChild(foot); panel.appendChild(grip);
     document.body.appendChild(panel);
-    // The panel is opened from Settings, and Settings covers the very thing
-    // being judged - on the phone it fills the screen, so nothing of the tree
-    // is left behind the panel. The panel floats independently now, so drop
-    // back to Plan the moment it opens and there is something to look at.
     if (window.__bbShow) { try { window.__bbShow('plan'); } catch (e) {} }
+    current = 0;
+    paintCurrent();
     applyBox(readBox());
     wireDrag(bar, grip);
     return panel;
   };
+
+  /* Keyboard. Left/Right change the current aspect, Up/Down choose which aspect
+     is current, Home/End jump to 1 and 10. Wraparound rather than dead ends,
+     because these are ten siblings in a ring, not a quantity field - stopping
+     at the ends reads as broken. */
+  var current = 0;
+
+  window.vpSetCurrent = function (key) {
+    var i;
+    for (i = 0; i < ASPECTS.length; i++) {
+      if (ASPECTS[i].key === key) { current = i; break; }
+    }
+    paintCurrent();
+    return current;
+  };
+
+  function paintCurrent() {
+    if (!panel) return;
+    var rows = panel.querySelectorAll('.vp-aspect'), i;
+    for (i = 0; i < rows.length; i++) {
+      if (i === current) rows[i].classList.add('cur');
+      else rows[i].classList.remove('cur');
+    }
+  }
+
+  function step(delta) {
+    var key = ASPECTS[current].key;
+    var now = parseInt(window.plannerVariations()[key], 10) || 1;
+    var next = now + delta;
+    if (next < 1) next = 10;
+    if (next > 10) next = 1;
+    return setAndPaint(key, next);
+  }
+
+  function setAndPaint(key, n) {
+    window.setVariation(key, n);
+    if (!panel) return n;
+    var row = panel.querySelector('.vp-aspect[data-asp="' + key + '"]');
+    if (!row) return n;
+    var num = row.querySelector('.vp-num');
+    if (num) num.textContent = String(n);
+    var opts = row.querySelectorAll('.vp-opt'), i;
+    for (i = 0; i < opts.length; i++) {
+      if (i === n - 1) opts[i].classList.add('on');
+      else opts[i].classList.remove('on');
+    }
+    return n;
+  }
+
+  function typing(el) {
+    if (!el) return false;
+    if (el.isContentEditable) return true;
+    var t = (el.tagName || '').toLowerCase();
+    return t === 'input' || t === 'textarea' || t === 'select';
+  }
+
+  document.addEventListener('keydown', function (e) {
+    if (!panel) return;
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (typing(e.target)) return;
+    var k = e.key;
+    if (k === 'ArrowRight') { step(1); e.preventDefault(); return; }
+    if (k === 'ArrowLeft')  { step(-1); e.preventDefault(); return; }
+    if (k === 'Home') { setAndPaint(ASPECTS[current].key, 1); e.preventDefault(); return; }
+    if (k === 'End')  { setAndPaint(ASPECTS[current].key, 10); e.preventDefault(); return; }
+    if (k === 'ArrowDown' || k === 'ArrowUp') {
+      current += (k === 'ArrowDown') ? 1 : -1;
+      if (current < 0) current = ASPECTS.length - 1;
+      if (current >= ASPECTS.length) current = 0;
+      paintCurrent();
+      var row = panel.querySelector('.vp-aspect[data-asp="' + ASPECTS[current].key + '"]');
+      if (row && row.scrollIntoView) row.scrollIntoView({ block: 'nearest' });
+      e.preventDefault();
+      return;
+    }
+    if (k === 'Escape') { window.closeVisualFormats(); e.preventDefault(); }
+  }, false);
 
   window.addEventListener('resize', function () {
     if (panel) applyBox(readBox());
