@@ -3031,6 +3031,298 @@ button.al-x:hover { opacity: 1; color: var(--danger); }
 /* On the phone the bottom bar already has a Settings tab, so the top-bar one is
    redundant and eats width from a bar that is already tight. */
 @media (max-width: 700px) { #btnSettings { display: none !important; } }
+
+/* =====================================================================
+   o07  VISUAL VARIATIONS - 10 aspects x 10 variations
+   =====================================================================
+   The operator rejected four bundled "looks" and asked for ten variations of
+   each aspect so they can pick piece by piece instead of accepting a bundle.
+
+   Every variation here is built against measured values from a shipped
+   professional app (Linear's published dark tokens) rather than my taste,
+   because that is what the four rejected looks got wrong: the individual
+   choices were amateur, not the combinations. Specifically wrong before:
+   3 surfaces starting too light, text as white-alpha instead of blue-tinted
+   solids, an 11px chip below any real app's floor, POSITIVE letter-spacing,
+   and one 6px radius on everything.
+
+   Mechanism: one data attribute per aspect on <html>, e.g. data-v-surface="4".
+   No JavaScript per variation - the picker only writes attributes.
+   ===================================================================== */
+
+/* ---------------------------------------------------------------
+   ASPECT 1 - SURFACE LADDER  (data-v-surface)
+   The page, panels, and raised things. Depth without shadows.
+   --------------------------------------------------------------- */
+:root[data-v-surface="1"]  { --s-base:#010102; --s-raised:#0f1011; --s-elevated:#141516; --s-top:#18191a; }
+:root[data-v-surface="2"]  { --s-base:#0b0c0e; --s-raised:#121317; --s-elevated:#181a1f; --s-top:#1e2127; }
+:root[data-v-surface="3"]  { --s-base:#101114; --s-raised:#16181c; --s-elevated:#1c1f24; --s-top:#23272e; }
+:root[data-v-surface="4"]  { --s-base:#0d0f13; --s-raised:#14171d; --s-elevated:#1b1f26; --s-top:#232830; }
+:root[data-v-surface="5"]  { --s-base:#000000; --s-raised:#0c0c0d; --s-elevated:#131314; --s-top:#1a1a1c; }
+:root[data-v-surface="6"]  { --s-base:#12100f; --s-raised:#191614; --s-elevated:#201c19; --s-top:#28231f; }
+:root[data-v-surface="7"]  { --s-base:#0f1216; --s-raised:#151a20; --s-elevated:#1c222a; --s-top:#242c36; }
+:root[data-v-surface="8"]  { --s-base:#14161a; --s-raised:#191c21; --s-elevated:#1f2329; --s-top:#272c34; }
+:root[data-v-surface="9"]  { --s-base:#1a1a1d; --s-raised:#212125; --s-elevated:#28282d; --s-top:#313137; }
+:root[data-v-surface="10"] { --s-base:#0a0d0c; --s-raised:#111514; --s-elevated:#171c1b; --s-top:#1e2423; }
+
+:root[data-v-surface] body,
+:root[data-v-surface] { background: var(--s-base); }
+:root[data-v-surface] section#rightPane,
+:root[data-v-surface] header#topbar,
+:root[data-v-surface] aside#treePane { background: var(--s-raised); }
+:root[data-v-surface] #treeRoot .tree-row:hover { background: var(--s-elevated); }
+:root[data-v-surface] #treeDrawer { background: var(--s-elevated); }
+:root[data-v-surface] .modal, :root[data-v-surface] .sheet { background: var(--s-top); }
+
+/* ---------------------------------------------------------------
+   ASPECT 2 - TEXT RAMP  (data-v-text)
+   Four levels. Solid colours read cleaner than white-alpha on dark.
+   --------------------------------------------------------------- */
+:root[data-v-text="1"]  { --t-1:#f7f8f8; --t-2:#d0d6e0; --t-3:#8a8f98; --t-4:#62666d; }
+:root[data-v-text="2"]  { --t-1:#ffffff; --t-2:#c9ced6; --t-3:#868c95; --t-4:#5c6169; }
+:root[data-v-text="3"]  { --t-1:#f4f4f5; --t-2:#d4d4d8; --t-3:#a1a1aa; --t-4:#71717a; }
+:root[data-v-text="4"]  { --t-1:#fafaf9; --t-2:#d6d3d1; --t-3:#a8a29e; --t-4:#78716c; }
+:root[data-v-text="5"]  { --t-1:#f0f6fc; --t-2:#c9d1d9; --t-3:#8b949e; --t-4:#6e7681; }
+:root[data-v-text="6"]  { --t-1:#ecfdf5; --t-2:#c7d5cf; --t-3:#8b9a94; --t-4:#63706b; }
+:root[data-v-text="7"]  { --t-1:#fff7ed; --t-2:#e0d5c8; --t-3:#a09183; --t-4:#75695e; }
+:root[data-v-text="8"]  { --t-1:rgba(255,255,255,.92); --t-2:rgba(255,255,255,.68); --t-3:rgba(255,255,255,.45); --t-4:rgba(255,255,255,.32); }
+:root[data-v-text="9"]  { --t-1:#e8e8ea; --t-2:#b4b4bb; --t-3:#78787f; --t-4:#55555b; }
+:root[data-v-text="10"] { --t-1:#ffffff; --t-2:#e4e4e7; --t-3:#b8b8bf; --t-4:#8c8c93; }
+
+:root[data-v-text] #treeRoot .tree-title { color: var(--t-1); }
+:root[data-v-text] .time-chip, :root[data-v-text] .tgevent-time { color: var(--t-3); }
+:root[data-v-text] .drawer-title, :root[data-v-text] .drawer-hint { color: var(--t-3); }
+:root[data-v-text] .tree-row.done .tree-title { color: var(--t-4); }
+
+/* ---------------------------------------------------------------
+   ASPECT 3 - TYPE SCALE & WEIGHT  (data-v-type)
+   Hierarchy by weight, not by size. 12px is the floor.
+   --------------------------------------------------------------- */
+:root[data-v-type="1"]  { --f-title:14px; --f-meta:12px; --w-goal:590; --w-task:400; --ls:-0.05px; --lh:1.5; }
+:root[data-v-type="2"]  { --f-title:14px; --f-meta:12px; --w-goal:510; --w-task:400; --ls:-0.1px;  --lh:1.5; }
+:root[data-v-type="3"]  { --f-title:15px; --f-meta:12px; --w-goal:600; --w-task:400; --ls:-0.2px;  --lh:1.45; }
+:root[data-v-type="4"]  { --f-title:13px; --f-meta:12px; --w-goal:600; --w-task:450; --ls:0;       --lh:1.5; }
+:root[data-v-type="5"]  { --f-title:16px; --f-meta:13px; --w-goal:600; --w-task:400; --ls:-0.25px; --lh:1.4; }
+:root[data-v-type="6"]  { --f-title:14px; --f-meta:12px; --w-goal:700; --w-task:400; --ls:-0.1px;  --lh:1.5; }
+:root[data-v-type="7"]  { --f-title:14px; --f-meta:12px; --w-goal:500; --w-task:500; --ls:0;       --lh:1.55; }
+:root[data-v-type="8"]  { --f-title:13px; --f-meta:11px; --w-goal:600; --w-task:400; --ls:0.1px;   --lh:1.4; }
+:root[data-v-type="9"]  { --f-title:15px; --f-meta:13px; --w-goal:510; --w-task:400; --ls:-0.15px; --lh:1.5; }
+:root[data-v-type="10"] { --f-title:14px; --f-meta:12px; --w-goal:400; --w-task:400; --ls:-0.05px; --lh:1.5; }
+
+:root[data-v-type] #treeRoot .tree-row .tree-title {
+  font-size: var(--f-title); letter-spacing: var(--ls); line-height: var(--lh);
+  font-weight: var(--w-task);
+}
+:root[data-v-type] #treeRoot .tree-row[data-depth="0"] .tree-title { font-weight: var(--w-goal); }
+:root[data-v-type] #treeRoot .tree-row .time-chip,
+:root[data-v-type] #treeRoot .tree-row .tag-chip,
+:root[data-v-type] #treeRoot .tree-row button.btn-icon { font-size: var(--f-meta); }
+:root[data-v-type] .tgevent-time, :root[data-v-type] .tgevent-title { font-size: var(--f-meta); }
+
+/* ---------------------------------------------------------------
+   ASPECT 4 - ROW DENSITY  (data-v-density)
+   All 4px multiples.
+   --------------------------------------------------------------- */
+:root[data-v-density="1"]  { --row-h:24px; --row-px:6px;  --row-gap:0px; }
+:root[data-v-density="2"]  { --row-h:28px; --row-px:8px;  --row-gap:0px; }
+:root[data-v-density="3"]  { --row-h:32px; --row-px:8px;  --row-gap:0px; }
+:root[data-v-density="4"]  { --row-h:32px; --row-px:12px; --row-gap:2px; }
+:root[data-v-density="5"]  { --row-h:36px; --row-px:12px; --row-gap:2px; }
+:root[data-v-density="6"]  { --row-h:40px; --row-px:16px; --row-gap:4px; }
+:root[data-v-density="7"]  { --row-h:28px; --row-px:12px; --row-gap:4px; }
+:root[data-v-density="8"]  { --row-h:44px; --row-px:16px; --row-gap:4px; }
+:root[data-v-density="9"]  { --row-h:36px; --row-px:8px;  --row-gap:0px; }
+:root[data-v-density="10"] { --row-h:26px; --row-px:10px; --row-gap:1px; }
+
+/* Measured: an earlier rule sets `#treeRoot .tree-row { height: 30px }`. A fixed
+   height makes min-height inert, so the height itself has to be set here. */
+:root[data-v-density] #treeRoot .tree-row {
+  height: var(--row-h) !important; min-height: var(--row-h) !important;
+  padding-left: var(--row-px); padding-right: var(--row-px);
+  margin-bottom: var(--row-gap);
+}
+
+/* ---------------------------------------------------------------
+   ASPECT 5 - CORNER RADIUS  (data-v-radius)
+   Radius should scale with the element, not be one number everywhere.
+   --------------------------------------------------------------- */
+:root[data-v-radius="1"]  { --r-chip:4px;  --r-row:6px;  --r-btn:8px;  --r-card:12px; }
+:root[data-v-radius="2"]  { --r-chip:2px;  --r-row:4px;  --r-btn:6px;  --r-card:8px;  }
+:root[data-v-radius="3"]  { --r-chip:0px;  --r-row:0px;  --r-btn:0px;  --r-card:0px;  }
+:root[data-v-radius="4"]  { --r-chip:6px;  --r-row:8px;  --r-btn:10px; --r-card:14px; }
+:root[data-v-radius="5"]  { --r-chip:9999px; --r-row:9999px; --r-btn:9999px; --r-card:16px; }
+:root[data-v-radius="6"]  { --r-chip:4px;  --r-row:10px; --r-btn:10px; --r-card:16px; }
+:root[data-v-radius="7"]  { --r-chip:9999px; --r-row:8px; --r-btn:9999px; --r-card:12px; }
+:root[data-v-radius="8"]  { --r-chip:3px;  --r-row:5px;  --r-btn:5px;  --r-card:7px;  }
+:root[data-v-radius="9"]  { --r-chip:6px;  --r-row:6px;  --r-btn:6px;  --r-card:6px;  }
+:root[data-v-radius="10"] { --r-chip:4px;  --r-row:12px; --r-btn:8px;  --r-card:20px; }
+
+:root[data-v-radius] #treeRoot .tree-row { border-radius: var(--r-row); }
+:root[data-v-radius] .time-chip, :root[data-v-radius] .tag-chip { border-radius: var(--r-chip); }
+:root[data-v-radius] .drawer-btn, :root[data-v-radius] .look-row,
+:root[data-v-radius] button.btn-icon { border-radius: var(--r-btn); }
+:root[data-v-radius] .tgevent, :root[data-v-radius] .modal { border-radius: var(--r-card); }
+
+/* ---------------------------------------------------------------
+   ASPECT 6 - ACCENT COLOUR  (data-v-accent)
+   One accent. Desaturated enough to sit on a dark surface.
+   --------------------------------------------------------------- */
+:root[data-v-accent="1"]  { --accent-q:#5e6ad2; --accent-hi:#828fff; }  /* lavender-blue */
+:root[data-v-accent="2"]  { --accent-q:#3b82f6; --accent-hi:#60a5fa; }  /* clean blue */
+:root[data-v-accent="3"]  { --accent-q:#10b981; --accent-hi:#34d399; }  /* emerald */
+:root[data-v-accent="4"]  { --accent-q:#f59e0b; --accent-hi:#fbbf24; }  /* amber */
+:root[data-v-accent="5"]  { --accent-q:#ef4444; --accent-hi:#f87171; }  /* red */
+:root[data-v-accent="6"]  { --accent-q:#8b5cf6; --accent-hi:#a78bfa; }  /* violet */
+:root[data-v-accent="7"]  { --accent-q:#06b6d4; --accent-hi:#22d3ee; }  /* cyan */
+:root[data-v-accent="8"]  { --accent-q:#ec4899; --accent-hi:#f472b6; }  /* pink */
+:root[data-v-accent="9"]  { --accent-q:#a3a3a3; --accent-hi:#e5e5e5; }  /* no colour at all */
+:root[data-v-accent="10"] { --accent-q:#d97757; --accent-hi:#e89b82; }  /* terracotta */
+
+:root[data-v-accent] #treeRoot .tree-row input[type="checkbox"] { accent-color: var(--accent-q); }
+:root[data-v-accent] .look-row.on { border-color: var(--accent-q); }
+:root[data-v-accent] [data-tab].on { color: var(--accent-hi); }
+
+/* ---------------------------------------------------------------
+   ASPECT 7 - GOAL EMPHASIS  (data-v-emphasis)
+   What tells you a top-level goal apart from a subtask.
+   --------------------------------------------------------------- */
+:root[data-v-emphasis="1"]  #treeRoot .tree-row[data-depth="0"] { box-shadow: inset 3px 0 0 0 var(--accent-q) !important; }
+:root[data-v-emphasis]:not([data-v-emphasis="1"]):not([data-v-emphasis="9"]) #treeRoot .tree-row[data-depth="0"] { box-shadow: none; }
+:root[data-v-emphasis="2"]  #treeRoot .tree-row[data-depth="0"] { background: var(--s-elevated); }
+:root[data-v-emphasis="3"]  #treeRoot .tree-row[data-depth="0"] .tree-title { text-transform: uppercase; letter-spacing: .06em; font-size: 12px; }
+:root[data-v-emphasis="4"]  #treeRoot .tree-row[data-depth="0"] { border-top: 1px solid var(--line); padding-top: 6px; margin-top: 8px; }
+:root[data-v-emphasis="5"]  #treeRoot .tree-row[data-depth="0"] .tree-title { color: var(--accent-hi); }
+:root[data-v-emphasis="6"]  #treeRoot .tree-row[data-depth="0"] .tree-title::before { content:''; display:inline-block; width:6px; height:6px; border-radius:9999px; background:var(--accent-q); margin-right:8px; vertical-align:middle; }
+:root[data-v-emphasis="7"]  #treeRoot .tree-row:not([data-depth="0"]) .tree-title { color: var(--t-2); }
+:root[data-v-emphasis="8"]  #treeRoot .tree-row:not([data-depth="0"]) { padding-left: calc(var(--row-px, 8px) + 18px) !important; }
+:root[data-v-emphasis="9"]  #treeRoot .tree-row[data-depth="0"] { box-shadow: inset 0 -1px 0 0 var(--line); }
+:root[data-v-emphasis="10"] #treeRoot .tree-row[data-depth="0"] .tree-title { font-style: normal; }
+:root[data-v-emphasis="10"] #treeRoot .tree-row:not([data-depth="0"]) .tree-title { opacity: .78; }
+
+/* ---------------------------------------------------------------
+   ASPECT 8 - DIVIDERS / HAIRLINES  (data-v-line)
+   --------------------------------------------------------------- */
+:root[data-v-line="1"]  { --line:#23252a; }
+:root[data-v-line="2"]  { --line:#34343a; }
+:root[data-v-line="3"]  { --line:transparent; }
+:root[data-v-line="4"]  { --line:rgba(255,255,255,.06); }
+:root[data-v-line="5"]  { --line:rgba(255,255,255,.14); }
+:root[data-v-line="6"]  { --line:rgba(255,255,255,.24); }
+:root[data-v-line="7"]  { --line:#1a1c20; }
+:root[data-v-line="8"]  { --line:#3e3e44; }
+:root[data-v-line="9"]  { --line:color-mix(in srgb, var(--accent-q) 26%, transparent); }
+:root[data-v-line="10"] { --line:#2b2f36; }
+
+:root[data-v-line] header#topbar { border-bottom: 1px solid var(--line); }
+:root[data-v-line] #treeDrawer { border-bottom: 1px solid var(--line); }
+:root[data-v-line] .drawer-btn { border: 1px solid var(--line); }
+
+/* ---------------------------------------------------------------
+   ASPECT 9 - CALENDAR EVENT BLOCK  (data-v-event)
+   Custom properties, then one rule specific enough to win. The direct-styling
+   version lost to `#dayView .tgevent` and to an existing !important on
+   border-left-color - measured, not assumed.
+   --------------------------------------------------------------- */
+:root[data-v-event="1"]  { --ev-bg:var(--s-elevated); --ev-bd:0; --ev-lw:3px; --ev-lc:var(--accent-q); --ev-fg:var(--t-1); }
+:root[data-v-event="2"]  { --ev-bg:color-mix(in srgb, var(--accent-q) 16%, var(--s-raised)); --ev-bd:1px solid color-mix(in srgb, var(--accent-q) 40%, transparent); --ev-lw:1px; --ev-lc:color-mix(in srgb, var(--accent-q) 40%, transparent); --ev-fg:var(--t-1); }
+:root[data-v-event="3"]  { --ev-bg:transparent; --ev-bd:1px solid var(--line); --ev-lw:1px; --ev-lc:var(--line); --ev-fg:var(--t-2); }
+:root[data-v-event="4"]  { --ev-bg:var(--accent-q); --ev-bd:0; --ev-lw:0px; --ev-lc:transparent; --ev-fg:#fff; }
+:root[data-v-event="5"]  { --ev-bg:var(--s-top); --ev-bd:1px solid var(--line); --ev-lw:0px; --ev-lc:transparent; --ev-fg:var(--t-1); }
+:root[data-v-event="6"]  { --ev-bg:var(--s-raised); --ev-bd:0; --ev-lw:2px; --ev-lc:var(--accent-hi); --ev-fg:var(--t-1); }
+:root[data-v-event="7"]  { --ev-bg:color-mix(in srgb, var(--accent-q) 10%, transparent); --ev-bd:0; --ev-lw:4px; --ev-lc:var(--accent-q); --ev-fg:var(--t-1); }
+:root[data-v-event="8"]  { --ev-bg:var(--s-base); --ev-bd:1px solid var(--accent-q); --ev-lw:1px; --ev-lc:var(--accent-q); --ev-fg:var(--t-2); }
+:root[data-v-event="9"]  { --ev-bg:transparent; --ev-bd:0; --ev-lw:0px; --ev-lc:transparent; --ev-fg:var(--t-1); }
+:root[data-v-event="10"] { --ev-bg:var(--s-elevated); --ev-bd:1px solid var(--line); --ev-lw:6px; --ev-lc:var(--accent-hi); --ev-fg:var(--t-1); }
+
+:root[data-v-event] #dayView .tgevent,
+:root[data-v-event] #weekView .tgevent,
+:root[data-v-event] .tgevent {
+  background: var(--ev-bg) !important;
+  border: var(--ev-bd) !important;
+  border-left: var(--ev-lw) solid var(--ev-lc) !important;
+  color: var(--ev-fg) !important;
+}
+
+/* ---------------------------------------------------------------
+   ASPECT 10 - CHIPS & BADGES  (data-v-chip)
+   Same story: `#treeRoot .tag-chip` carries an ID and beat the plain
+   attribute selector, so the values go through custom properties.
+   --------------------------------------------------------------- */
+:root[data-v-chip="1"]  { --ch-bg:transparent; --ch-bd:0; --ch-fg:var(--t-3); --ch-pad:0 4px;  --ch-w:400; }
+:root[data-v-chip="2"]  { --ch-bg:var(--s-elevated); --ch-bd:0; --ch-fg:var(--t-2); --ch-pad:2px 8px; --ch-w:400; }
+:root[data-v-chip="3"]  { --ch-bg:transparent; --ch-bd:1px solid var(--line); --ch-fg:var(--t-2); --ch-pad:1px 7px; --ch-w:400; }
+:root[data-v-chip="4"]  { --ch-bg:color-mix(in srgb, var(--accent-q) 18%, transparent); --ch-bd:0; --ch-fg:var(--accent-hi); --ch-pad:2px 8px; --ch-w:500; }
+:root[data-v-chip="5"]  { --ch-bg:var(--s-top); --ch-bd:1px solid var(--line); --ch-fg:var(--t-2); --ch-pad:3px 9px; --ch-w:400; }
+:root[data-v-chip="6"]  { --ch-bg:transparent; --ch-bd:0; --ch-fg:var(--t-4); --ch-pad:0 3px;  --ch-w:400; }
+:root[data-v-chip="7"]  { --ch-bg:#ffffff; --ch-bd:0; --ch-fg:#111111; --ch-pad:1px 7px; --ch-w:500; }
+:root[data-v-chip="8"]  { --ch-bg:transparent; --ch-bd:0; --ch-fg:var(--t-3); --ch-pad:0 2px;  --ch-w:600; }
+:root[data-v-chip="9"]  { --ch-bg:var(--s-raised); --ch-bd:0; --ch-fg:var(--t-3); --ch-pad:2px 6px; --ch-w:400; }
+:root[data-v-chip="10"] { --ch-bg:transparent; --ch-bd:0; --ch-fg:var(--accent-q); --ch-pad:0 5px;  --ch-w:500; }
+
+:root[data-v-chip] #treeRoot .tag-chip,
+:root[data-v-chip] #treeRoot .time-chip,
+:root[data-v-chip] .tag-chip,
+:root[data-v-chip] .time-chip {
+  background: var(--ch-bg) !important;
+  border: var(--ch-bd) !important;
+  color: var(--ch-fg) !important;
+  padding: var(--ch-pad) !important;
+  font-weight: var(--ch-w) !important;
+}
+
+/* ---------------------------------------------------------------
+   THE PICKER ITSELF
+   --------------------------------------------------------------- */
+.vp-wrap { max-height: 62vh; overflow-y: auto; }
+.vp-aspect { margin-bottom: 14px; }
+.vp-aspect h4 {
+  font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--t-3, #8a8f98); margin: 0 0 2px;
+}
+.vp-aspect p { font-size: 11px; color: var(--t-4, #62666d); margin: 0 0 6px; line-height: 1.45; }
+.vp-opts { display: flex; flex-wrap: wrap; gap: 5px; }
+.vp-opt {
+  min-width: 30px; padding: 5px 0; cursor: pointer;
+  background: var(--s-elevated, #1f2329); color: var(--t-2, #d0d6e0);
+  border: 1px solid var(--line, #23252a); border-radius: 6px;
+  font-size: 12px; font-weight: 500; text-align: center; flex: 1 1 30px;
+}
+.vp-opt:hover { color: var(--t-1, #fff); }
+.vp-opt.on {
+  border-color: var(--accent-q, #5e6ad2);
+  box-shadow: inset 0 0 0 1px var(--accent-q, #5e6ad2);
+  color: var(--t-1, #fff);
+}
+.vp-actions { display: flex; gap: 6px; margin-top: 4px; }
+.vp-actions button { flex: 1 1 auto; font-size: 12px; padding: 7px 10px; border-radius: 8px; }
+
+/* ---------------------------------------------------------------
+   BOTTOM BAR ON DESKTOP  (asked for twice)
+   Same shape as the phone app: Plan / Alarms / Settings along the bottom.
+   --------------------------------------------------------------- */
+:root[data-chrome="bottom"] #bottomBar {
+  display: flex !important;
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 60;
+  background: var(--s-raised, #191c21);
+  border-top: 1px solid var(--line, #23252a);
+  padding: 4px 0 6px;
+}
+:root[data-chrome="bottom"] #bottomBar [data-tab] {
+  flex: 1 1 0; display: flex; flex-direction: column; align-items: center; gap: 2px;
+  background: none; border: 0; cursor: pointer;
+  color: var(--t-3, #8a8f98); font-size: 11px; font-weight: 500; padding: 5px 0;
+}
+:root[data-chrome="bottom"] #bottomBar [data-tab] span:first-child { font-size: 17px; line-height: 1; }
+:root[data-chrome="bottom"] #bottomBar [data-tab].on { color: var(--accent-hi, #828fff); }
+:root[data-chrome="bottom"] #main { padding-bottom: 58px; }
+:root[data-chrome="bottom"] #btnTreeToggle,
+:root[data-chrome="bottom"] #btnSettings { display: none !important; }
+
+/* The hidden ATTRIBUTE on #treeDrawer was inert: an author `display` rule beats
+   the UA stylesheet's [hidden]{display:none}. That is why three separate code
+   paths all "closed" the drawer and it stayed on screen. Make the attribute
+   authoritative once, here, instead of patching a fourth caller. */
+#treeDrawer[hidden] { display: none !important; }
 </style>
 </head>
 <body>
@@ -3048,7 +3340,7 @@ button.al-x:hover { opacity: 1; color: var(--danger); }
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-17 12:05</span>
+    <span id="buildStamp">build 2026-08-17 14:20</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -13702,6 +13994,258 @@ function firstConnect(remote, rAt, lAt) {
     setTimeout(start, 1200);
   }
   setTimeout(start, 2200);
+})();
+
+
+/* ===== m134 visual variations - 10 aspects x 10 ===== */
+(function () {
+  var ASPECTS = [
+    { key: 'surface',  name: 'Background depth', hint: 'How dark the page is and how far panels lift off it' },
+    { key: 'text',     name: 'Text shades',      hint: 'Four levels, from titles down to faint detail' },
+    { key: 'type',     name: 'Type size & weight', hint: 'Bigger vs bolder. 1 and 2 match a shipped pro app' },
+    { key: 'density',  name: 'Row height',       hint: 'How much air each task gets' },
+    { key: 'radius',   name: 'Corner rounding',  hint: '3 is square, 5 is fully rounded pills' },
+    { key: 'accent',   name: 'Accent colour',    hint: 'The one colour. 9 removes colour entirely' },
+    { key: 'emphasis', name: 'Goal vs subtask',  hint: 'What makes a top-level goal stand out' },
+    { key: 'line',     name: 'Divider lines',    hint: '3 removes every line' },
+    { key: 'event',    name: 'Calendar blocks',  hint: 'How an event looks on the day grid' },
+    { key: 'chip',     name: 'Time & tag pills', hint: 'The small labels on a row' }
+  ];
+  var DEFAULTS = { surface:'1', text:'1', type:'2', density:'3', radius:'1',
+                   accent:'1', emphasis:'1', line:'1', event:'1', chip:'1' };
+  var LS = 'planner.variations';
+
+  function load() {
+    var out = {}, k, saved = null;
+    try { saved = JSON.parse(localStorage.getItem(LS) || 'null'); } catch (e) { saved = null; }
+    for (k in DEFAULTS) { if (DEFAULTS.hasOwnProperty(k)) out[k] = DEFAULTS[k]; }
+    if (saved) { for (k in saved) { if (saved.hasOwnProperty(k) && DEFAULTS.hasOwnProperty(k)) out[k] = String(saved[k]); } }
+    return out;
+  }
+
+  function save(state) {
+    try { localStorage.setItem(LS, JSON.stringify(state)); } catch (e) {}
+  }
+
+  window.plannerVariations = function () { return load(); };
+
+  window.applyVariations = function (state) {
+    var s = state || load(), i, k;
+    for (i = 0; i < ASPECTS.length; i++) {
+      k = ASPECTS[i].key;
+      document.documentElement.setAttribute('data-v-' + k, s[k] || DEFAULTS[k]);
+    }
+    return s;
+  };
+
+  window.setVariation = function (key, value) {
+    if (!DEFAULTS.hasOwnProperty(key)) return false;
+    var s = load();
+    s[key] = String(value);
+    save(s);
+    window.applyVariations(s);
+    return true;
+  };
+
+  window.resetVariations = function () {
+    try { localStorage.removeItem(LS); } catch (e) {}
+    window.applyVariations(load());
+    return true;
+  };
+
+  window.showVisualFormats = function () {
+    var body = document.createElement('div');
+    var state = load();
+    var intro = document.createElement('p');
+    intro.style.cssText = 'font-size:12px;margin:0 0 10px;line-height:1.5';
+    intro.textContent = 'Ten aspects, ten variations each. Tap a number and the app changes behind this box. Nothing is saved until you tap it, and every tap is remembered.';
+    body.appendChild(intro);
+    var wrap = document.createElement('div');
+    wrap.className = 'vp-wrap';
+    var i, j;
+    for (i = 0; i < ASPECTS.length; i++) {
+      (function (asp) {
+        var sec = document.createElement('div');
+        sec.className = 'vp-aspect';
+        var h = document.createElement('h4');
+        h.textContent = (ASPECTS.indexOf(asp) + 1) + '. ' + asp.name;
+        var p = document.createElement('p');
+        p.textContent = asp.hint;
+        var opts = document.createElement('div');
+        opts.className = 'vp-opts';
+        for (j = 1; j <= 10; j++) {
+          (function (n) {
+            var b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'vp-opt' + (String(state[asp.key]) === String(n) ? ' on' : '');
+            b.textContent = String(n);
+            b.setAttribute('data-asp', asp.key);
+            b.addEventListener('click', function (e) {
+              e.preventDefault();
+              window.setVariation(asp.key, n);
+              var sib = opts.querySelectorAll('.vp-opt'), q;
+              for (q = 0; q < sib.length; q++) sib[q].classList.remove('on');
+              b.classList.add('on');
+            });
+            opts.appendChild(b);
+          })(j);
+        }
+        sec.appendChild(h); sec.appendChild(p); sec.appendChild(opts);
+        wrap.appendChild(sec);
+      })(ASPECTS[i]);
+    }
+    body.appendChild(wrap);
+    var acts = document.createElement('div');
+    acts.className = 'vp-actions';
+    var rb = document.createElement('button');
+    rb.type = 'button';
+    rb.className = 'drawer-btn';
+    rb.textContent = 'Back to the researched default';
+    rb.addEventListener('click', function (e) { e.preventDefault(); window.resetVariations(); window.showVisualFormats(); });
+    acts.appendChild(rb);
+    body.appendChild(acts);
+    window.showModal('Visual formats', body, [{ label: 'Done' }]);
+  };
+
+  window.setChrome = function (mode) {
+    var m = (mode === 'bottom') ? 'bottom' : 'top';
+    try { localStorage.setItem('planner.chrome', m); } catch (e) {}
+    document.documentElement.setAttribute('data-chrome', m);
+    if (m === 'bottom' && !document.getElementById('bottomBar') && window.__bbBuild) window.__bbBuild();
+    return m;
+  };
+
+  window.plannerChrome = function () {
+    var v = '';
+    try { v = localStorage.getItem('planner.chrome') || ''; } catch (e) {}
+    return v === 'top' ? 'top' : 'bottom';
+  };
+
+  function start() {
+    window.applyVariations(load());
+    window.setChrome(window.plannerChrome());
+  }
+
+  window.applyVariations(load());
+  document.documentElement.setAttribute('data-chrome', window.plannerChrome());
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function () { setTimeout(start, 1300); });
+  } else {
+    setTimeout(start, 1300);
+  }
+  setTimeout(start, 2400);
+})();
+
+/* ===== m135 bottom bar on desktop ===== */
+/* The bottom bar on the computer.
+   The existing bottom-bar module (m125) builds the bar ONLY when the window is
+   700px or narrower, and actively tears it down again when it is wider. It
+   exposes __bbShow but never a build function, so the newer code that tried to
+   call window.__bbBuild was calling nothing - checked, it does not exist.
+   So build the bar here, independently, and wire each tab to the same __bbShow
+   the phone uses, so both sizes share one code path. */
+(function () {
+  var TABS = [
+    { id: 'plan',     label: 'Plan',     icon: '☑' },
+    { id: 'alarms',   label: 'Alarms',   icon: '⏰' },
+    { id: 'settings', label: 'Settings', icon: '⚙' }
+  ];
+
+  function buildBar() {
+    var existing = document.getElementById('bottomBar');
+    if (existing) return existing;
+    var nav = document.createElement('nav');
+    nav.id = 'bottomBar';
+    var i;
+    for (i = 0; i < TABS.length; i++) {
+      (function (t) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.setAttribute('data-tab', t.id);
+        var ic = document.createElement('span');
+        ic.textContent = t.icon;
+        var lb = document.createElement('span');
+        lb.textContent = t.label;
+        b.appendChild(ic);
+        b.appendChild(lb);
+        b.addEventListener('click', function (e) {
+          e.preventDefault();
+          if (window.__bbShow) window.__bbShow(t.id);
+          else if (t.id === 'settings' && window.plannerOpenSettings) window.plannerOpenSettings();
+          mark(t.id);
+        });
+        nav.appendChild(b);
+      })(TABS[i]);
+    }
+    document.body.appendChild(nav);
+    return nav;
+  }
+
+  function mark(id) {
+    var all = document.querySelectorAll('#bottomBar [data-tab]'), i;
+    for (i = 0; i < all.length; i++) {
+      if (all[i].getAttribute('data-tab') === id) all[i].classList.add('on');
+      else all[i].classList.remove('on');
+    }
+  }
+
+  window.__bbBuild = function () {
+    var n = buildBar();
+    mark('plan');
+    return !!n;
+  };
+
+  function guard() {
+    if (document.documentElement.getAttribute('data-chrome') !== 'bottom') return;
+    if (!document.getElementById('bottomBar')) window.__bbBuild();
+  }
+
+  function start() {
+    if (document.documentElement.getAttribute('data-chrome') === 'bottom') window.__bbBuild();
+    window.addEventListener('resize', guard);
+    setInterval(guard, 2000);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function () { setTimeout(start, 1500); });
+  } else {
+    setTimeout(start, 1500);
+  }
+  setTimeout(start, 2600);
+})();
+
+
+/* ===== m136 one choke point for showing Settings ===== */
+/* One choke point for "show Settings".
+   Third time this exact bug has bitten: #treeDrawer is created with the hidden
+   ATTRIBUTE, and __bbShow clears a CLASS of the same name that is never set. It
+   happened to work on the phone because a body[data-bb="settings"] CSS rule
+   forced the pane visible anyway; on the computer there is no such rule, so the
+   drawer stayed empty. Rather than fix the third caller, wrap __bbShow itself so
+   every present and future caller goes through one place. */
+(function () {
+  var inner = window.__bbShow;
+
+  window.__bbShow = function (id) {
+    var r;
+    if (typeof inner === 'function') { try { r = inner.apply(this, arguments); } catch (e) {} }
+    var d = document.getElementById('treeDrawer');
+    if (d) {
+      if (id === 'settings') { d.hidden = false; d.classList.remove('hidden'); }
+      else { d.hidden = true; }
+    }
+    var all = document.querySelectorAll('#bottomBar [data-tab]'), i;
+    for (i = 0; i < all.length; i++) {
+      if (all[i].getAttribute('data-tab') === id) all[i].classList.add('on');
+      else all[i].classList.remove('on');
+    }
+    return r;
+  };
+
+  window.plannerShowTab = function (id) {
+    document.body.setAttribute('data-bb', id);
+    return window.__bbShow(id);
+  };
 })();
 
 </script>
