@@ -3323,6 +3323,112 @@ button.al-x:hover { opacity: 1; color: var(--danger); }
    paths all "closed" the drawer and it stayed on screen. Make the attribute
    authoritative once, here, instead of patching a fourth caller. */
 #treeDrawer[hidden] { display: none !important; }
+
+/* =====================================================================
+   o08  THE FLOATING VISUAL-FORMATS PANEL
+   =====================================================================
+   No scrim and no overlay: the app behind stays visible AND usable, which was
+   the whole complaint - every choice applied instantly and the modal hid the
+   result. Fixed positioning on document.body so a tree re-render cannot move
+   or bury it.
+   ===================================================================== */
+
+#vpPanel {
+  position: fixed;
+  z-index: 90;
+  display: flex;
+  flex-direction: column;
+  background: var(--s-raised, #191c21);
+  border: 1px solid var(--line, #23252a);
+  border-radius: 12px;
+  box-shadow: 0 10px 34px rgba(0, 0, 0, .55);
+  overflow: hidden;
+  color: var(--t-1, #f7f8f8);
+}
+
+/* the drag handle */
+.vp-bar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 8px 8px 12px;
+  background: var(--s-elevated, #1f2329);
+  border-bottom: 1px solid var(--line, #23252a);
+  cursor: move;
+  touch-action: none;          /* or the phone scrolls instead of dragging */
+  user-select: none;
+}
+.vp-title { flex: 1 1 auto; font-size: 12px; font-weight: 600; letter-spacing: .01em; }
+.vp-x {
+  flex: 0 0 auto; width: 24px; height: 24px; line-height: 1;
+  background: transparent; border: 1px solid var(--line, #23252a); border-radius: 6px;
+  color: var(--t-2, #d0d6e0); font-size: 13px; cursor: pointer;
+}
+.vp-x:hover { color: var(--t-1, #fff); background: var(--s-top, #272c34); }
+
+.vp-body { flex: 1 1 auto; overflow-y: auto; padding: 10px 12px 4px; }
+.vp-note { font-size: 11px; line-height: 1.5; color: var(--t-3, #8a8f98); margin: 0 0 10px; }
+
+.vp-aspect { margin-bottom: 11px; }
+.vp-head { display: flex; align-items: center; gap: 6px; margin-bottom: 5px; }
+.vp-head h4 {
+  flex: 1 1 auto; margin: 0;
+  font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--t-3, #8a8f98);
+}
+.vp-nav { flex: 0 0 auto; display: flex; align-items: center; gap: 2px; }
+.vp-step {
+  width: 22px; height: 22px; line-height: 1; padding: 0;
+  background: var(--s-elevated, #1f2329); color: var(--t-2, #d0d6e0);
+  border: 1px solid var(--line, #23252a); border-radius: 5px;
+  font-size: 13px; cursor: pointer;
+}
+.vp-step:hover { color: var(--t-1, #fff); }
+.vp-num {
+  min-width: 20px; text-align: center;
+  font-size: 11px; font-weight: 600; color: var(--t-2, #d0d6e0);
+  font-variant-numeric: tabular-nums;
+}
+
+.vp-opts { display: flex; flex-wrap: wrap; gap: 4px; }
+.vp-opt {
+  flex: 1 1 26px; min-width: 26px; padding: 5px 0;
+  background: var(--s-elevated, #1f2329); color: var(--t-2, #d0d6e0);
+  border: 1px solid var(--line, #23252a); border-radius: 6px;
+  font-size: 11px; font-weight: 500; text-align: center; cursor: pointer;
+}
+.vp-opt:hover { color: var(--t-1, #fff); }
+.vp-opt.on {
+  border-color: var(--accent-q, #5e6ad2);
+  box-shadow: inset 0 0 0 1px var(--accent-q, #5e6ad2);
+  color: var(--t-1, #fff);
+}
+
+.vp-foot {
+  flex: 0 0 auto; padding: 8px 12px 12px;
+  border-top: 1px solid var(--line, #23252a);
+}
+.vp-reset {
+  width: 100%; padding: 7px 10px;
+  background: var(--s-elevated, #1f2329); color: var(--t-2, #d0d6e0);
+  border: 1px solid var(--line, #23252a); border-radius: 8px;
+  font-size: 12px; cursor: pointer;
+}
+.vp-reset:hover { color: var(--t-1, #fff); }
+
+/* the resize corner */
+.vp-grip {
+  position: absolute; right: 0; bottom: 0; width: 18px; height: 18px;
+  cursor: nwse-resize; touch-action: none;
+  background:
+    linear-gradient(135deg, transparent 0 46%, var(--t-4, #62666d) 46% 54%, transparent 54% 100%),
+    linear-gradient(135deg, transparent 0 66%, var(--t-4, #62666d) 66% 74%, transparent 74% 100%);
+}
+
+/* The old modal path is gone; keep the wrapper harmless if anything still
+   references it. */
+.vp-wrap { max-height: none; overflow: visible; }
 </style>
 </head>
 <body>
@@ -3340,7 +3446,7 @@ button.al-x:hover { opacity: 1; color: var(--danger); }
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-17 14:20</span>
+    <span id="buildStamp">build 2026-08-17 15:40</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -14246,6 +14352,239 @@ function firstConnect(remote, rAt, lAt) {
     document.body.setAttribute('data-bb', id);
     return window.__bbShow(id);
   };
+})();
+
+
+/* ===== m137 floating visual-formats panel ===== */
+(function () {
+  var ASPECTS = [
+    { key: 'surface',  name: 'Background depth' },
+    { key: 'text',     name: 'Text shades' },
+    { key: 'type',     name: 'Type size & weight' },
+    { key: 'density',  name: 'Row height' },
+    { key: 'radius',   name: 'Corner rounding' },
+    { key: 'accent',   name: 'Accent colour' },
+    { key: 'emphasis', name: 'Goal vs subtask' },
+    { key: 'line',     name: 'Divider lines' },
+    { key: 'event',    name: 'Calendar blocks' },
+    { key: 'chip',     name: 'Time & tag pills' }
+  ];
+  var LS_BOX = 'planner.vp.box';
+  var panel = null;
+
+  function phone() { return window.innerWidth <= 700; }
+
+  function defaultBox() {
+    if (phone()) {
+      return { x: 8, y: Math.round(window.innerHeight * 0.42),
+               w: window.innerWidth - 16, h: Math.round(window.innerHeight * 0.46) };
+    }
+    return { x: Math.max(8, window.innerWidth - 380), y: 70, w: 340, h: 430 };
+  }
+
+  /* A stored box from a bigger monitor, or from before a rotation, can put the
+     panel completely off-screen - and then it can never be dragged back. Clamp
+     it every time it is read. */
+  function readBox() {
+    var b = null;
+    try { b = JSON.parse(localStorage.getItem(LS_BOX) || 'null'); } catch (e) { b = null; }
+    var d = defaultBox();
+    if (!b || typeof b.x !== 'number' || typeof b.w !== 'number') return d;
+    return clamp(b);
+  }
+
+  /* Keep the WHOLE panel on screen, not just its top-left corner. Clamping only
+     x and y let the panel be widened until its right edge - and therefore the
+     resize grip - sat past the edge of the display, at which point it could
+     never be grabbed and shrunk again. Measured, not theorised: enlarging to
+     490px wide at x=900 on a 1280px screen put the grip at x=1390. */
+  function clamp(b) {
+    b.w = Math.max(220, Math.min(b.w, window.innerWidth - 8));
+    b.h = Math.max(160, Math.min(b.h, window.innerHeight - 8));
+    if (b.x < 0) b.x = 0;
+    if (b.y < 0) b.y = 0;
+    if (b.x + b.w > window.innerWidth - 4) b.x = window.innerWidth - 4 - b.w;
+    if (b.y + b.h > window.innerHeight - 4) b.y = window.innerHeight - 4 - b.h;
+    if (b.x < 0) b.x = 0;
+    if (b.y < 0) b.y = 0;
+    return b;
+  }
+
+  function writeBox(b) {
+    try { localStorage.setItem(LS_BOX, JSON.stringify(b)); } catch (e) {}
+  }
+
+  function applyBox(b) {
+    if (!panel) return;
+    panel.style.left = Math.round(b.x) + 'px';
+    panel.style.top = Math.round(b.y) + 'px';
+    panel.style.width = Math.round(b.w) + 'px';
+    panel.style.height = Math.round(b.h) + 'px';
+  }
+
+  window.resetVisualPanel = function () {
+    try { localStorage.removeItem(LS_BOX); } catch (e) {}
+    var d = defaultBox();
+    applyBox(d);
+    writeBox(d);
+    return d;
+  };
+
+  window.closeVisualFormats = function () {
+    if (panel && panel.parentNode) panel.parentNode.removeChild(panel);
+    panel = null;
+    return true;
+  };
+
+  // Drag by the header, resize by the corner grip. One pointer path for both.
+  function wireDrag(handle, grip) {
+    var mode = null, sx = 0, sy = 0, box = null;
+    function down(m) {
+      return function (e) {
+        // A pointerdown on the header preventDefaults, which cancels the
+        // click that would follow - so the reset and close buttons living
+        // INSIDE the header never fired. Let anything button-like through.
+        var t = e.target;
+        while (t && t !== handle && t !== grip) {
+          if (t.tagName === 'BUTTON') return;
+          t = t.parentElement;
+        }
+        mode = m;
+        sx = e.clientX; sy = e.clientY;
+        box = { x: panel.offsetLeft, y: panel.offsetTop, w: panel.offsetWidth, h: panel.offsetHeight };
+        e.preventDefault();
+        e.stopPropagation();
+        document.addEventListener('pointermove', move, true);
+        document.addEventListener('pointerup', up, true);
+      };
+    }
+    function move(e) {
+      if (!mode || !panel) return;
+      var dx = e.clientX - sx, dy = e.clientY - sy, b;
+      if (mode === 'drag') {
+        b = { x: box.x + dx, y: box.y + dy, w: box.w, h: box.h };
+      } else {
+        b = { x: box.x, y: box.y, w: box.w + dx, h: box.h + dy };
+      }
+      applyBox(clamp(b));
+      e.preventDefault();
+    }
+    function up() {
+      mode = null;
+      document.removeEventListener('pointermove', move, true);
+      document.removeEventListener('pointerup', up, true);
+      writeBox({ x: panel.offsetLeft, y: panel.offsetTop, w: panel.offsetWidth, h: panel.offsetHeight });
+    }
+    handle.addEventListener('pointerdown', down('drag'));
+    grip.addEventListener('pointerdown', down('size'));
+  }
+
+  function row(asp, state) {
+    var wrap = document.createElement('div');
+    wrap.className = 'vp-aspect';
+    var head = document.createElement('div');
+    head.className = 'vp-head';
+    var h = document.createElement('h4');
+    h.textContent = asp.name;
+    var nav = document.createElement('div');
+    nav.className = 'vp-nav';
+    var prev = document.createElement('button');
+    prev.type = 'button'; prev.className = 'vp-step'; prev.textContent = '‹';
+    var num = document.createElement('span');
+    num.className = 'vp-num'; num.textContent = String(state[asp.key]);
+    var next = document.createElement('button');
+    next.type = 'button'; next.className = 'vp-step'; next.textContent = '›';
+    nav.appendChild(prev); nav.appendChild(num); nav.appendChild(next);
+    head.appendChild(h); head.appendChild(nav);
+    var opts = document.createElement('div');
+    opts.className = 'vp-opts';
+    var btns = [], j;
+    function pick(n) {
+      if (n < 1) n = 10;
+      if (n > 10) n = 1;
+      window.setVariation(asp.key, n);
+      num.textContent = String(n);
+      var q;
+      for (q = 0; q < btns.length; q++) {
+        if (q === n - 1) btns[q].classList.add('on');
+        else btns[q].classList.remove('on');
+      }
+    }
+    for (j = 1; j <= 10; j++) {
+      (function (nn) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'vp-opt' + (String(state[asp.key]) === String(nn) ? ' on' : '');
+        b.textContent = String(nn);
+        b.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); pick(nn); });
+        btns.push(b);
+        opts.appendChild(b);
+      })(j);
+    }
+    prev.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); pick(parseInt(num.textContent, 10) - 1); });
+    next.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); pick(parseInt(num.textContent, 10) + 1); });
+    wrap.appendChild(head); wrap.appendChild(opts);
+    return wrap;
+  }
+
+  window.showVisualFormats = function () {
+    window.closeVisualFormats();
+    var state = window.plannerVariations();
+    panel = document.createElement('div');
+    panel.id = 'vpPanel';
+
+    var bar = document.createElement('div');
+    bar.className = 'vp-bar';
+    var title = document.createElement('span');
+    title.className = 'vp-title';
+    title.textContent = 'Visual formats';
+    var rst = document.createElement('button');
+    rst.type = 'button'; rst.className = 'vp-x'; rst.title = 'Put the panel back'; rst.textContent = '↺';
+    rst.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); window.resetVisualPanel(); });
+    var x = document.createElement('button');
+    x.type = 'button'; x.className = 'vp-x'; x.title = 'Close'; x.textContent = '×';
+    x.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); window.closeVisualFormats(); });
+    bar.appendChild(title); bar.appendChild(rst); bar.appendChild(x);
+
+    var body = document.createElement('div');
+    body.className = 'vp-body';
+    var note = document.createElement('p');
+    note.className = 'vp-note';
+    note.textContent = 'Drag the bar to move this. Drag the corner to resize. Every tap changes the app behind it straight away - there is nothing to confirm.';
+    body.appendChild(note);
+    var i;
+    for (i = 0; i < ASPECTS.length; i++) body.appendChild(row(ASPECTS[i], state));
+
+    var foot = document.createElement('div');
+    foot.className = 'vp-foot';
+    var def = document.createElement('button');
+    def.type = 'button'; def.className = 'vp-reset';
+    def.textContent = 'Back to the researched default';
+    def.addEventListener('click', function (e) {
+      e.preventDefault(); e.stopPropagation();
+      window.resetVariations();
+      window.showVisualFormats();
+    });
+    foot.appendChild(def);
+
+    var grip = document.createElement('div');
+    grip.className = 'vp-grip';
+
+    panel.appendChild(bar); panel.appendChild(body); panel.appendChild(foot); panel.appendChild(grip);
+    document.body.appendChild(panel);
+    // The panel is opened from Settings, and Settings covers the very thing
+    // being judged - on the phone it fills the screen, so nothing of the tree
+    // is left behind the panel. The panel floats independently now, so drop
+    // back to Plan the moment it opens and there is something to look at.
+    if (window.__bbShow) { try { window.__bbShow('plan'); } catch (e) {} }
+    applyBox(readBox());
+    wireDrag(bar, grip);
+    return panel;
+  };
+
+  window.addEventListener('resize', function () {
+    if (panel) applyBox(readBox());
+  });
 })();
 
 </script>
