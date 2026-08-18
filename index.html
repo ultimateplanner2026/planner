@@ -3469,6 +3469,138 @@ button.al-x:hover { opacity: 1; color: var(--danger); }
   flex: 0 0 auto; letter-spacing: -2px;
   color: var(--t-4, #62666d); font-size: 13px; margin-right: 2px;
 }
+
+/* =====================================================================
+   o10  REFERENCE PALETTE
+   =====================================================================
+   Colours and shapes taken from the app the operator likes. Structure is NOT
+   copied - the priority tree stays exactly as it is. Operator 2026-08-18:
+   "I don't want the task set up, I want the priority tree. When I meant the
+   layout, I meant the coloring and shapes of things."
+
+   These carry !important because the 10x10 variation blocks are attribute
+   selectors and would otherwise outrank a plain :root. The variation picker is
+   on hold, so this is the single source of colour for now.
+   ===================================================================== */
+:root {
+  --s-base:      #1c1f26 !important;   /* the page */
+  --s-raised:    #262a33 !important;   /* cards, panels, the tree side */
+  --s-elevated:  #2f343e !important;   /* hover, dropdown rows */
+  --s-top:       #333844 !important;   /* dialogs above everything */
+
+  --t-1:         #e8eaed !important;   /* titles */
+  --t-2:         #9aa0a8 !important;   /* the detail line under a title */
+  --t-3:         #6b7280 !important;   /* times, counts */
+  --t-4:         #565d68 !important;   /* the faintest text */
+
+  --accent-q:    #4c9aff !important;   /* today, focus, tick boxes */
+  --accent-hi:   #6fb0ff !important;
+  --accent-warm: #f0a933 !important;   /* used sparingly, like their gold */
+
+  --line:        #333844 !important;   /* card edges */
+  --grid-line:   #2c313a !important;   /* calendar hour lines */
+  --past-tint:   #3a2529 !important;   /* the wash over days already gone */
+
+  --r-card:      8px !important;
+  --r-chip:      4px !important;
+  --r-input:     6px !important;
+  --r-box:       4px !important;
+}
+
+/* ---- surfaces ---- */
+body, html { background: var(--s-base); }
+aside#treePane, section#rightPane, header#topbar { background: var(--s-raised); }
+#treeDrawer { background: var(--s-raised); }
+
+/* ---- the tree rows as cards, the shape from the reference ---- */
+#treeRoot .tree-row {
+  background: var(--s-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card) !important;
+  margin: 3px 6px;
+}
+#treeRoot .tree-row:hover { background: var(--s-elevated); }
+#treeRoot .tree-title { color: var(--t-1); }
+#treeRoot .tree-row[data-depth="0"] .tree-title { font-weight: 600; }
+
+/* ---- controls ---- */
+#treeRoot .tree-row input[type="checkbox"] {
+  accent-color: var(--accent-q);
+  border-radius: var(--r-box);
+  width: 15px; height: 15px;
+}
+input[type="text"], input[type="date"], input[type="time"], textarea, select {
+  background: var(--s-base);
+  color: var(--t-1);
+  border: 1px solid var(--line);
+  border-radius: var(--r-input);
+}
+input:focus, textarea:focus, select:focus {
+  outline: 2px solid var(--accent-q);
+  outline-offset: -1px;
+  border-color: transparent;
+}
+
+/* ---- calendar ---- */
+.tghour-line, .tghalf-line { border-color: var(--grid-line) !important; }
+.tgevent {
+  background: var(--s-raised) !important;
+  border: 1px solid var(--line) !important;
+  border-left: 3px solid var(--accent-q) !important;
+  border-radius: var(--r-chip) !important;
+  color: var(--t-1) !important;
+}
+.tgcol.past, .tgcol[data-past="1"] { background: var(--past-tint); }
+.tgnow { border-top-color: var(--accent-q); }
+
+/* ---- small labels ---- */
+.time-chip, .tag-chip {
+  background: transparent !important;
+  border: 1px solid var(--line) !important;
+  color: var(--t-3) !important;
+  border-radius: var(--r-chip) !important;
+  padding: 1px 6px !important;
+}
+
+/* ---- buttons and the bottom bar ---- */
+.drawer-btn, button.btn-icon {
+  background: var(--s-elevated);
+  color: var(--t-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-input);
+}
+.drawer-btn:hover, button.btn-icon:hover { color: var(--t-1); }
+#bottomBar { background: var(--s-raised); border-top: 1px solid var(--line); }
+#bottomBar [data-tab] { color: var(--t-3); }
+#bottomBar [data-tab].on { color: var(--accent-q); }
+
+/* The note lines are textareas now, not single-line inputs. A textarea that
+   still looks like a line of a notepad: no resize grip, no scrollbar, wraps,
+   and grows to fit what is in it. */
+.note-line {
+  display: block; width: 100%;
+  background: transparent !important;
+  border: 0 !important; outline: none !important;
+  padding: 2px 4px; margin: 0;
+  color: var(--t-1);
+  font-family: inherit; line-height: 1.5;
+  resize: none; overflow: hidden;
+  white-space: pre-wrap; word-wrap: break-word;
+  min-height: 1.5em;
+}
+.note-line:focus { background: rgba(76,154,255,.07) !important; border-radius: 3px; }
+.note-box { background: var(--s-base); border: 1px solid var(--line); border-radius: var(--r-input); }
+.note-lines { padding: 6px 4px; max-height: 320px; overflow-y: auto; }
+.note-bar {
+  display: flex; gap: 4px; padding: 5px 6px;
+  border-top: 1px solid var(--line); background: var(--s-raised);
+}
+.note-btn {
+  min-width: 26px; padding: 3px 7px; cursor: pointer;
+  background: var(--s-elevated); color: var(--t-2);
+  border: 1px solid var(--line); border-radius: 5px; font-size: 12px;
+}
+.note-btn.on { color: var(--accent-q); border-color: var(--accent-q); }
 </style>
 </head>
 <body>
@@ -3486,7 +3618,7 @@ button.al-x:hover { opacity: 1; color: var(--danger); }
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-17 17:55</span>
+    <span id="buildStamp">build 2026-08-18 13:15</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -14755,6 +14887,380 @@ function firstConnect(remote, rAt, lAt) {
   window.addEventListener('resize', function () {
     if (panel) applyBox(readBox());
   });
+})();
+
+
+/* ===== m138 keep focus across renders ===== */
+/* Two bugs, one cause.
+   addNodeAt does: Store.save(); renderTree(); focusNode(id). Store.save()
+   kicks off a cloud push, the push triggers a sync, and the sync calls
+   renderAll a moment LATER - after focusNode has already run. That late render
+   rebuilds the row being typed into, so the box loses focus and anything typed
+   but not yet committed is gone. The same late render is why starting a new
+   goal can jump to a different goal: focus lands wherever the rebuilt DOM puts
+   it.
+   Fixing it at each caller would be whack-a-mole. Fix it at the render: before
+   any render, remember exactly what was focused and where the caret was; after
+   the render, put it back. And commit every keystroke straight to the node, so
+   a rebuild can never lose characters. */
+(function () {
+
+  function describe(el) {
+    if (!el || !el.tagName) return null;
+    var t = el.tagName.toLowerCase();
+    var editable = !!el.isContentEditable;
+    if (t !== 'input' && t !== 'textarea' && !editable) return null;
+    if (editable) {
+      var caret = -1;
+      try {
+        var sel = window.getSelection();
+        if (sel && sel.rangeCount) {
+          var rg = sel.getRangeAt(0).cloneRange();
+          rg.selectNodeContents(el);
+          rg.setEnd(sel.getRangeAt(0).endContainer, sel.getRangeAt(0).endOffset);
+          caret = rg.toString().length;
+        }
+      } catch (e) { caret = -1; }
+      var erow = el.closest ? el.closest('[data-id]') : null;
+      return {
+        id: erow ? erow.getAttribute('data-id') : null,
+        cls: String(el.className || '').split(' ')[0],
+        type: 'editable',
+        start: caret, end: caret,
+        value: el.textContent
+      };
+    }
+    var row = el.closest ? el.closest('[data-id]') : null;
+    var id = row ? row.getAttribute('data-id') : null;
+    var cls = el.className || '';
+    var type = el.getAttribute('type') || t;
+    return {
+      id: id,
+      cls: String(cls).split(' ')[0],
+      type: type,
+      start: (el.selectionStart == null ? -1 : el.selectionStart),
+      end: (el.selectionEnd == null ? -1 : el.selectionEnd),
+      value: el.value
+    };
+  }
+
+  function restore(d) {
+    if (!d) return false;
+    var el = null;
+    if (d.id) {
+      var row = document.querySelector('[data-id="' + d.id + '"]');
+      if (row) {
+        el = d.cls ? row.querySelector('.' + d.cls) : null;
+        if (!el) el = row.querySelector('[contenteditable], input[type="text"], textarea');
+      }
+    }
+    if (!el) return false;
+    try {
+      el.focus({ preventScroll: true });
+      if (d.type === 'editable') {
+        if (d.start >= 0) {
+          var sel = window.getSelection();
+          var rg = document.createRange();
+          var left = d.start, done = false;
+          (function walk(node) {
+            if (done) return;
+            if (node.nodeType === 3) {
+              if (left <= node.length) { rg.setStart(node, left); done = true; }
+              else left -= node.length;
+              return;
+            }
+            var k;
+            for (k = 0; k < node.childNodes.length; k++) walk(node.childNodes[k]);
+          })(el);
+          if (!done) rg.selectNodeContents(el), rg.collapse(false);
+          else rg.collapse(true);
+          sel.removeAllRanges();
+          sel.addRange(rg);
+        }
+      } else if (d.start >= 0 && el.setSelectionRange) {
+        el.setSelectionRange(d.start, d.end);
+      }
+    } catch (e) { return false; }
+    return true;
+  }
+
+  window.__focusSnapshot = function () { return describe(document.activeElement); };
+  window.__focusRestore = restore;
+
+  function guard(name) {
+    var inner = window[name];
+    if (typeof inner !== 'function') return false;
+    window[name] = function () {
+      var snap = describe(document.activeElement);
+      var r = inner.apply(this, arguments);
+      if (snap) {
+        if (!restore(snap)) {
+          setTimeout(function () { restore(snap); }, 0);
+        }
+      }
+      return r;
+    };
+    return true;
+  }
+
+  guard('renderTree');
+  guard('renderAll');
+
+  function liveCommit() {
+    document.addEventListener('input', function (e) {
+      var el = e.target;
+      if (!el || !el.tagName) return;
+      var t = el.tagName.toLowerCase();
+      if (t !== 'input' && t !== 'textarea' && !el.isContentEditable) return;
+      var row = el.closest ? el.closest('[data-id]') : null;
+      if (!row) return;
+      var id = row.getAttribute('data-id');
+      if (!id || !window.findNode) return;
+      var f = window.findNode(id);
+      if (!f || !f.node) return;
+      var cls = String(el.className || '');
+      if (cls.indexOf('tree-title') >= 0 || el.getAttribute('data-field') === 'title') {
+        f.node.title = el.isContentEditable ? el.textContent : el.value;
+      }
+    }, true);
+  }
+  liveCommit();
+
+  window.__deferRenderWhileTyping = function () {
+    var el = document.activeElement;
+    if (!el || !el.tagName) return false;
+    var t = el.tagName.toLowerCase();
+    return (t === 'input' || t === 'textarea' || !!el.isContentEditable);
+  };
+})();
+
+
+/* ===== m139 notes as a real notepad ===== */
+(function () {
+  function linesOf(node) {
+    var out = [], raw = node && node.noteLines, i;
+    if (raw && raw.length) {
+      for (i = 0; i < raw.length; i++) {
+        out.push({ t: raw[i].t || '', b: !!raw[i].b, i: !!raw[i].i, s: raw[i].s || 'normal' });
+      }
+    } else if (node && node.notes) {
+      var parts = String(node.notes).split('\n');
+      for (i = 0; i < parts.length; i++) out.push({ t: parts[i], b: false, i: false, s: 'normal' });
+    }
+    if (!out.length) out.push({ t: '', b: false, i: false, s: 'normal' });
+    return out;
+  }
+
+  function syncPlain(node, lines) {
+    var parts = [], i;
+    for (i = 0; i < lines.length; i++) parts.push(lines[i].t || '');
+    node.noteLines = lines;
+    node.notes = parts.join('\n');
+  }
+
+  function styleLine(el, ln) {
+    el.style.fontWeight = ln.b ? '600' : '400';
+    el.style.fontStyle = ln.i ? 'italic' : 'normal';
+    el.style.fontSize = ln.s === 'small' ? '11px' : (ln.s === 'large' ? '16px' : '13px');
+  }
+
+  // A textarea only shows one row until it is told how tall its content is.
+  function grow(el) {
+    el.style.height = 'auto';
+    el.style.height = (el.scrollHeight) + 'px';
+  }
+
+  window.buildNoteBox = function (node) {
+    var lines = linesOf(node);
+    var focused = 0;
+    var box = document.createElement('div');
+    box.className = 'note-box';
+    var list = document.createElement('div');
+    list.className = 'note-lines';
+    var bar = document.createElement('div');
+    bar.className = 'note-bar';
+
+    function commit() { syncPlain(node, lines); }
+
+    function render(focusIndex, caretPos) {
+      list.textContent = '';
+      var i;
+      for (i = 0; i < lines.length; i++) {
+        (function (idx) {
+          var ta = document.createElement('textarea');
+          ta.className = 'note-line';
+          ta.rows = 1;
+          ta.value = lines[idx].t || '';
+          styleLine(ta, lines[idx]);
+          ta.addEventListener('focus', function () { focused = idx; paintBar(); });
+          ta.addEventListener('input', function () {
+            lines[idx].t = ta.value;
+            commit();
+            grow(ta);
+          });
+          ta.addEventListener('paste', function (e) {
+            var txt = '';
+            try { txt = (e.clipboardData || window.clipboardData).getData('text'); } catch (err) { txt = ''; }
+            if (txt.indexOf('\n') < 0) { setTimeout(function () { grow(ta); }, 0); return; }
+            // Pasted line breaks become real lines instead of being flattened.
+            e.preventDefault();
+            var pos = ta.selectionStart == null ? ta.value.length : ta.selectionStart;
+            var head = ta.value.slice(0, pos), tail = ta.value.slice(ta.selectionEnd == null ? pos : ta.selectionEnd);
+            var chunks = txt.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+            lines[idx].t = head + chunks[0];
+            var k, at = idx;
+            for (k = 1; k < chunks.length; k++) {
+              at++;
+              lines.splice(at, 0, { t: chunks[k], b: lines[idx].b, i: lines[idx].i, s: lines[idx].s });
+            }
+            lines[at].t = (lines[at].t || '') + tail;
+            commit();
+            render(at, (chunks[chunks.length - 1] || '').length);
+          });
+          ta.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              var pos = ta.selectionStart == null ? ta.value.length : ta.selectionStart;
+              var head = ta.value.slice(0, pos), tail = ta.value.slice(pos);
+              lines[idx].t = head;
+              lines.splice(idx + 1, 0, { t: tail, b: lines[idx].b, i: lines[idx].i, s: lines[idx].s });
+              commit();
+              render(idx + 1, 0);
+              return;
+            }
+            if (e.key === 'Backspace' && ta.selectionStart === 0 && ta.selectionEnd === 0 && idx > 0) {
+              e.preventDefault();
+              var prevLen = (lines[idx - 1].t || '').length;
+              lines[idx - 1].t = (lines[idx - 1].t || '') + (ta.value || '');
+              lines.splice(idx, 1);
+              commit();
+              render(idx - 1, prevLen);
+              return;
+            }
+            if (e.key === 'ArrowDown' && idx < lines.length - 1) {
+              var all = list.querySelectorAll('.note-line');
+              if (all[idx + 1]) { all[idx + 1].focus(); e.preventDefault(); }
+            }
+            if (e.key === 'ArrowUp' && idx > 0) {
+              var up = list.querySelectorAll('.note-line');
+              if (up[idx - 1]) { up[idx - 1].focus(); e.preventDefault(); }
+            }
+          });
+          list.appendChild(ta);
+          grow(ta);
+        })(i);
+      }
+      if (focusIndex != null) {
+        var els = list.querySelectorAll('.note-line');
+        var el = els[focusIndex];
+        if (el) {
+          el.focus();
+          var p = (caretPos == null) ? el.value.length : caretPos;
+          if (el.setSelectionRange) el.setSelectionRange(p, p);
+          focused = focusIndex;
+        }
+      }
+      paintBar();
+    }
+
+    function paintBar() {
+      bar.textContent = '';
+      var ln = lines[focused] || lines[0];
+      function btn(label, on, fn) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'note-btn' + (on ? ' on' : '');
+        b.textContent = label;
+        b.addEventListener('mousedown', function (e) { e.preventDefault(); });
+        b.addEventListener('click', function (e) { e.preventDefault(); fn(); });
+        bar.appendChild(b);
+      }
+      btn('B', ln.b, function () { ln.b = !ln.b; commit(); render(focused, null); });
+      btn('I', ln.i, function () { ln.i = !ln.i; commit(); render(focused, null); });
+      btn('S', ln.s === 'small', function () { ln.s = (ln.s === 'small') ? 'normal' : 'small'; commit(); render(focused, null); });
+      btn('L', ln.s === 'large', function () { ln.s = (ln.s === 'large') ? 'normal' : 'large'; commit(); render(focused, null); });
+    }
+
+    render(null, null);
+    box.appendChild(list);
+    box.appendChild(bar);
+    return box;
+  };
+})();
+
+
+/* ===== m140 mark arrivals whose row appears late ===== */
+/* An arriving task nested under COLLAPSED ancestors never got its "due today"
+   marker. The arrivals code adds the class immediately after the render:
+     var el = document.querySelector('.tree-row[data-id="'+n.id+'"]');
+     if (el) el.classList.add('just-arrived');
+   but when the task sits inside collapsed parents its row does not exist yet at
+   that moment - the expand happens in a later pass. querySelector returns null,
+   the arrival is already consumed, and the marker is lost for good. Proven: the
+   marker works for a top-level task and is missing for a nested one.
+   This re-applies the marker once the row actually exists. */
+(function () {
+  var PENDING = {};
+
+  window.__markArrived = function (id) {
+    if (!id) return false;
+    PENDING[id] = Date.now();
+    var tries = 0;
+    function attempt() {
+      var el = document.querySelector('.tree-row[data-id="' + id + '"]');
+      if (el) {
+        el.classList.add('just-arrived');
+        setTimeout(function () { el.classList.remove('just-arrived'); }, 3000);
+        delete PENDING[id];
+        return;
+      }
+      tries++;
+      if (tries < 12) setTimeout(attempt, 60);
+      else delete PENDING[id];
+    }
+    attempt();
+    return true;
+  };
+
+  /* Watch for arrivals the same way the app does - a dated task whose day is
+     today and which was not already known - and make sure each one gets marked
+     even if its row appears late. */
+  var seen = null;
+
+  function todayIds() {
+    var out = [], today = window.todayISO ? window.todayISO() : null;
+    if (!today) return out;
+    (function walk(list) {
+      if (!list) return;
+      var i;
+      for (i = 0; i < list.length; i++) {
+        if (!list[i]) continue;
+        if (list[i].date === today && !list[i].done) out.push(list[i].id);
+        if (list[i].children) walk(list[i].children);
+      }
+    })(window.Store && window.Store.data ? window.Store.data.tree : []);
+    return out;
+  }
+
+  function sweep() {
+    var ids = todayIds(), i;
+    if (seen === null) { seen = {}; for (i = 0; i < ids.length; i++) seen[ids[i]] = 1; return; }
+    for (i = 0; i < ids.length; i++) {
+      if (!seen[ids[i]]) {
+        seen[ids[i]] = 1;
+        window.__markArrived(ids[i]);
+      }
+    }
+  }
+
+  var base = window.renderAll;
+  if (typeof base === 'function') {
+    window.renderAll = function () {
+      var r = base.apply(this, arguments);
+      try { sweep(); } catch (e) {}
+      return r;
+    };
+  }
 })();
 
 </script>
