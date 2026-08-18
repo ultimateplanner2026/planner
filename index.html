@@ -3601,6 +3601,81 @@ input:focus, textarea:focus, select:focus {
   border: 1px solid var(--line); border-radius: 5px; font-size: 12px;
 }
 .note-btn.on { color: var(--accent-q); border-color: var(--accent-q); }
+
+/* =====================================================================
+   o11  CALENDAR GEOMETRY + THE BAR UNDER THE TREE
+   ===================================================================== */
+
+/* BUG 1 - an event spanning several day columns.
+   Events are position:absolute inside .tgcol and are given a PIXEL width
+   (el.style.width = Math.round(b.w)+'px') computed against the wrong container,
+   so in week view - where each column is a seventh of the grid - the box runs
+   across the following days. The column is position:relative, so clamping to
+   its own box is enough and keeps side-by-side overlapping events working. */
+.tgcol > .tgevent,
+#weekGrid .tgevent,
+#dayView .tgevent {
+  max-width: calc(100% - 2px) !important;
+  box-sizing: border-box;
+}
+
+/* BUG 2 - hour lines running straight through the day separators, so several
+   days read as one block. The separators exist but were drawn in --border,
+   which is invisible against the new palette, and sat under the lines. Give
+   them the palette colour, full height, and put them above. */
+.tgcols { z-index: 2 !important; }
+.tglines { z-index: 0 !important; }
+.tgcol {
+  border-left: 1px solid var(--line, #333844) !important;
+  position: relative;
+}
+.tgcol:first-child { border-left: 0 !important; }
+/* the separator itself, drawn over the hour lines for the full height */
+.tgcol::before {
+  content: '';
+  position: absolute; left: -1px; top: 0; bottom: 0; width: 1px;
+  background: var(--line, #333844);
+  pointer-events: none;
+  z-index: 3;
+}
+.tgcol:first-child::before { display: none; }
+
+/* BUG 3 - day columns you can widen or narrow.
+   The grid was a hard repeat(7, 1fr). Driving it from a variable lets the
+   column width be changed and remembered without touching the markup. */
+:root { --tg-cols: 7; --tg-colw: 1fr; }
+.tgcols { grid-template-columns: repeat(var(--tg-cols), var(--tg-colw)) !important; }
+:root[data-colw="narrow"] .tgcols { --tg-colw: minmax(64px, 1fr); }
+:root[data-colw="wide"]   .tgcols { --tg-colw: minmax(180px, 1fr); }
+:root[data-colw="wide"]   .tgscroll { overflow-x: auto; }
+
+/* THE BOTTOM BAR BELONGS UNDER THE PRIORITY TREE ONLY.
+   It spanned the whole window and butted against the calendar. It must sit
+   inside the left pane and stop at the splitter. */
+:root[data-chrome="bottom"] #bottomBar {
+  position: absolute !important;
+  left: 0 !important;
+  right: auto !important;
+  bottom: 0 !important;
+  width: 100% !important;
+  border-top: 1px solid var(--line, #333844);
+  border-right: 1px solid var(--line, #333844);
+}
+:root[data-chrome="bottom"] aside#treePane {
+  position: relative;
+  padding-bottom: 58px;
+}
+:root[data-chrome="bottom"] #main { padding-bottom: 0 !important; }
+:root[data-chrome="bottom"] section#rightPane { padding-bottom: 0 !important; }
+
+/* BUG 9 (operator) - the typing fix flickers.
+   Restoring the caret after a redraw repaints the row, which reads as a flash.
+   Suppress the row's transition/animation while a field inside it has focus. */
+#treeRoot .tree-row:focus-within,
+#treeRoot .tree-row:focus-within * {
+  animation: none !important;
+  transition: none !important;
+}
 </style>
 </head>
 <body>
@@ -3618,7 +3693,7 @@ input:focus, textarea:focus, select:focus {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-18 13:15</span>
+    <span id="buildStamp">build 2026-08-18 16:40</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -15261,6 +15336,41 @@ function firstConnect(remote, rAt, lAt) {
       return r;
     };
   }
+})();
+
+
+/* ===== m141 bottom bar lives inside the tree pane ===== */
+/* The bottom bar must sit under the PRIORITY TREE only, not across the whole
+   window. CSS alone could not do it: the bar is appended to document.body, so
+   position:absolute resolves against the window and it stretched the full
+   width, ending up over the calendar. Measured: bar right edge 1300px, tree
+   ends at 429px, calendar starts at 434px.
+   So move the element itself into the tree pane, where absolute positioning
+   means what we want, and keep it there if anything rebuilds it. */
+(function () {
+  function place() {
+    var bar = document.getElementById('bottomBar');
+    var pane = document.getElementById('treePane');
+    if (!bar || !pane) return false;
+    if (bar.parentElement === pane) return true;
+    pane.appendChild(bar);
+    return true;
+  }
+
+  window.__placeBottomBar = place;
+
+  function start() {
+    place();
+    setInterval(place, 1500);
+    window.addEventListener('resize', place);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function () { setTimeout(start, 1800); });
+  } else {
+    setTimeout(start, 1800);
+  }
+  setTimeout(start, 3000);
 })();
 
 </script>
