@@ -3857,6 +3857,30 @@ input:focus, textarea:focus, select:focus {
    solved. Tasks now stay exactly where they are placed. Nothing is lost: the
    Unbranched branch is still there and still permanent, it just no longer
    pulls things into itself. */
+
+/* Day separators you can actually SEE.
+   Measured: the lines were rgb(51,56,68) on a rgb(28,31,38) page - about twenty
+   units of contrast, which reads as no line at all, so the week ran together as
+   one block. Each day now owns a clearly visible full-height edge drawn above
+   the hour lines and above the events. */
+:root { --day-edge: #4d566b; }
+#weekGrid .tgcol, .tgcols .tgcol {
+  border-left: 1px solid var(--day-edge) !important;
+  position: relative;
+}
+#weekGrid .tgcol::before, .tgcols .tgcol::before {
+  content: '' !important;
+  position: absolute !important;
+  left: -1px; top: 0; bottom: 0;
+  width: 1px !important;
+  background: var(--day-edge) !important;
+  z-index: 6 !important;
+  pointer-events: none;
+}
+.tgcols .tgcol:first-child::before { display: none !important; }
+/* the hour lines stay quiet so the day edges dominate */
+.tghour-line { border-top-color: #262b34 !important; }
+.tghalf-line { border-top-color: #21252c !important; }
 </style>
 </head>
 <body>
@@ -3874,7 +3898,7 @@ input:focus, textarea:focus, select:focus {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-19 15:14</span>
+    <span id="buildStamp">build 2026-08-19 15:26</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
