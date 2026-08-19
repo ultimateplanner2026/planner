@@ -3724,6 +3724,46 @@ input:focus, textarea:focus, select:focus {
 /* anything the tree renders after the list - the "3 hidden / Show them /
    3 overdue" strip - belongs ABOVE the bar, not below it */
 :root[data-chrome="bottom"] #treePane > *:not(#bottomBar) { order: 1; }
+
+/* =====================================================================
+   o13  YOU CAN SEE WHAT BELONGS TO WHAT
+   =====================================================================
+   Indentation alone was too subtle to tell a child from a top-level item.
+   A vertical guide runs down each level, so a branch and everything inside it
+   read as one group.
+   ===================================================================== */
+
+#treeRoot .tree-row { position: relative; }
+
+/* the guide for this row's own level */
+#treeRoot .tree-row[data-depth]:not([data-depth="0"])::after {
+  content: '';
+  position: absolute;
+  top: 0; bottom: 0;
+  width: 1px;
+  background: var(--line, #333844);
+  pointer-events: none;
+}
+#treeRoot .tree-row[data-depth="1"]::after { left: 15px; }
+#treeRoot .tree-row[data-depth="2"]::after { left: 33px; }
+#treeRoot .tree-row[data-depth="3"]::after { left: 51px; }
+#treeRoot .tree-row[data-depth="4"]::after { left: 69px; }
+
+/* a top-level item gets clear air above it, so groups separate */
+#treeRoot .tree-row[data-depth="0"] { margin-top: 8px; }
+#treeRoot .tree-row[data-depth="0"]:first-child { margin-top: 2px; }
+
+/* a branch that is folded says how much is hidden inside it */
+#treeRoot .tree-row.is-collapsed > .tree-title::after {
+  content: attr(data-kids);
+  margin-left: 8px;
+  font-size: 10px;
+  color: var(--t-3, #6b7280);
+  background: var(--s-elevated, #2f343e);
+  border-radius: 9px;
+  padding: 1px 6px;
+  vertical-align: middle;
+}
 </style>
 </head>
 <body>
@@ -3741,7 +3781,7 @@ input:focus, textarea:focus, select:focus {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-19 12:10</span>
+    <span id="buildStamp">build 2026-08-19 13:40</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -15513,6 +15553,58 @@ function firstConnect(remote, rAt, lAt) {
 
   setTimeout(function () { apply(); wire(); }, 1200);
   setTimeout(function () { apply(); wire(); }, 2600);
+})();
+
+
+/* ===== m143 folded-branch counts ===== */
+(function () {
+  function countAll(node) {
+    var n = 0, i;
+    if (!node || !node.children) return 0;
+    for (i = 0; i < node.children.length; i++) {
+      n += 1 + countAll(node.children[i]);
+    }
+    return n;
+  }
+
+  function stamp() {
+    var rows = document.querySelectorAll('#treeRoot .tree-row'), i;
+    for (i = 0; i < rows.length; i++) {
+      var id = rows[i].getAttribute('data-id');
+      if (!id || !window.findNode) continue;
+      var f = window.findNode(id);
+      if (!f || !f.node) continue;
+      var kids = countAll(f.node);
+      var title = rows[i].querySelector('.tree-title');
+      if (f.node.collapsed && kids > 0) {
+        rows[i].classList.add('is-collapsed');
+        if (title) title.setAttribute('data-kids', kids);
+      } else {
+        rows[i].classList.remove('is-collapsed');
+        if (title) title.removeAttribute('data-kids');
+      }
+    }
+    return true;
+  }
+
+  var base = window.renderTree;
+  if (typeof base === 'function') {
+    window.renderTree = function () {
+      var r = base.apply(this, arguments);
+      try { stamp(); } catch (e) {}
+      return r;
+    };
+  }
+  var baseAll = window.renderAll;
+  if (typeof baseAll === 'function') {
+    window.renderAll = function () {
+      var r = baseAll.apply(this, arguments);
+      try { stamp(); } catch (e) {}
+      return r;
+    };
+  }
+  setTimeout(stamp, 1400);
+  setTimeout(stamp, 2800);
 })();
 
 </script>
