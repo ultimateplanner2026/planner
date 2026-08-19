@@ -3851,6 +3851,12 @@ input:focus, textarea:focus, select:focus {
    for one already gone - the task simply vanished from the branch it lives in.
    .overdue is stamped on exactly those rows, so force them visible. */
 #treeRoot .tree-row.overdue { display: flex !important; }
+
+/* The calendar-housing rule is parked. It moved a dated task out of the branch
+   the operator had put it in - twice - which is worse than the problem it
+   solved. Tasks now stay exactly where they are placed. Nothing is lost: the
+   Unbranched branch is still there and still permanent, it just no longer
+   pulls things into itself. */
 </style>
 </head>
 <body>
@@ -3868,7 +3874,7 @@ input:focus, textarea:focus, select:focus {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-19 15:08</span>
+    <span id="buildStamp">build 2026-08-19 15:14</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -15984,18 +15990,18 @@ function firstConnect(remote, rAt, lAt) {
   var baseA = window.renderAll;
   if (typeof baseA === 'function') {
     window.renderAll = function () {
-      try { house(); } catch (e) {}
+      /* housing parked - it moved tasks out of their branch */
       return baseA.apply(this, arguments);
     };
   }
   var baseT = window.renderTree;
   if (typeof baseT === 'function') {
     window.renderTree = function () {
-      try { house(); } catch (e) {}
+      /* housing parked - it moved tasks out of their branch */
       return baseT.apply(this, arguments);
     };
   }
-  setTimeout(house, 1800);
+  /* housing parked */
 })();
 
 
