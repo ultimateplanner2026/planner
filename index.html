@@ -3845,6 +3845,12 @@ input:focus, textarea:focus, select:focus {
 #treeRoot input[type="checkbox"].tree-check,
 #treeRoot .tree-row > input[type="checkbox"],
 .ea-body input[type="checkbox"].tree-check { display: none !important; }
+
+/* A task with a date in the PAST must always show in its branch. The tree hides
+   dated tasks until their day arrives; that is right for a future date and wrong
+   for one already gone - the task simply vanished from the branch it lives in.
+   .overdue is stamped on exactly those rows, so force them visible. */
+#treeRoot .tree-row.overdue { display: flex !important; }
 </style>
 </head>
 <body>
@@ -3862,7 +3868,7 @@ input:focus, textarea:focus, select:focus {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-19 14:59</span>
+    <span id="buildStamp">build 2026-08-19 15:08</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
