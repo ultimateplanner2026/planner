@@ -3741,7 +3741,7 @@ input:focus, textarea:focus, select:focus {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-19 09:30</span>
+    <span id="buildStamp">build 2026-08-19 12:10</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -15419,6 +15419,100 @@ function firstConnect(remote, rAt, lAt) {
     setTimeout(start, 1800);
   }
   setTimeout(start, 3000);
+})();
+
+
+/* ===== m142 collapsing sticks on every branch ===== */
+(function () {
+  var KEY = 'planner.collapsed.v1';
+
+  function load() {
+    try {
+      var raw = JSON.parse(localStorage.getItem(KEY) || '[]');
+      var out = {}, i;
+      for (i = 0; i < raw.length; i++) out[raw[i]] = 1;
+      return out;
+    } catch (e) { return {}; }
+  }
+
+  function save(set) {
+    try {
+      var ids = [], k;
+      for (k in set) { if (set.hasOwnProperty(k) && set[k]) ids.push(k); }
+      localStorage.setItem(KEY, JSON.stringify(ids));
+    } catch (e) {}
+  }
+
+  window.plannerCollapsedSet = load;
+
+  function apply() {
+    var set = load();
+    function walk(list) {
+      if (!list) return;
+      var i;
+      for (i = 0; i < list.length; i++) {
+        if (!list[i]) continue;
+        if (list[i].children && list[i].children.length) {
+          list[i].collapsed = !!set[list[i].id];
+        }
+        walk(list[i].children);
+      }
+    }
+    walk(window.Store && window.Store.data ? window.Store.data.tree : []);
+    return true;
+  }
+  window.__applyCollapsed = apply;
+
+  window.plannerToggleCollapse = function (id) {
+    if (!id) return false;
+    var set = load();
+    if (set[id]) delete set[id]; else set[id] = 1;
+    save(set);
+    apply();
+    if (window.renderTree) window.renderTree();
+    else if (window.renderAll) window.renderAll();
+    return true;
+  };
+
+  function wire() {
+    var root = document.getElementById('treeRoot');
+    if (!root || root.__caretWired) return false;
+    root.__caretWired = true;
+    root.addEventListener('click', function (e) {
+      var t = e.target;
+      var caret = t && t.closest ? t.closest('.tree-caret') : null;
+      if (!caret) return;
+      var row = caret.closest('[data-id]');
+      if (!row) return;
+      e.preventDefault();
+      e.stopPropagation();
+      window.plannerToggleCollapse(row.getAttribute('data-id'));
+    }, true);
+    return true;
+  }
+
+  var baseTree = window.renderTree;
+  if (typeof baseTree === 'function') {
+    window.renderTree = function () {
+      apply();
+      var r = baseTree.apply(this, arguments);
+      wire();
+      return r;
+    };
+  }
+
+  var baseAll = window.renderAll;
+  if (typeof baseAll === 'function') {
+    window.renderAll = function () {
+      apply();
+      var r = baseAll.apply(this, arguments);
+      wire();
+      return r;
+    };
+  }
+
+  setTimeout(function () { apply(); wire(); }, 1200);
+  setTimeout(function () { apply(); wire(); }, 2600);
 })();
 
 </script>
