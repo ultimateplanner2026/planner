@@ -3826,7 +3826,7 @@ input:focus, textarea:focus, select:focus {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-19 23:30</span>
+    <span id="buildStamp">build 2026-08-20 11:20</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -15888,6 +15888,74 @@ function firstConnect(remote, rAt, lAt) {
   }
   setTimeout(purge, 900);
 })();
+
+/* ===== m148 dated loose items go into the operator Unbranched branch ===== */
+/* House calendar items that have no branch.
+   The operator made their own "Unbranched" branch. When a task gets a DATE - so
+   it turns up on the calendar - but is sitting loose at the top level, move it
+   into that branch so everything on the calendar has a home.
+   Deliberately narrow, because v1 of this idea overreached and broke six checks:
+     * never CREATE the branch - if the operator has not made one, do nothing
+     * only touch top-level items, never anything already inside a branch
+     * only items with a date, so undated notes are left where they are
+     * never an untitled item - that is a task being typed right now */
+(function () {
+
+  function homeBranch() {
+    var d = window.Store && window.Store.data;
+    if (!d || !d.tree) return null;
+    var i, t;
+    for (i = 0; i < d.tree.length; i++) {
+      if (!d.tree[i]) continue;
+      t = String(d.tree[i].title || '').trim().toLowerCase();
+      if (t === 'unbranched') return d.tree[i];
+    }
+    return null;
+  }
+  window.plannerHomeBranch = homeBranch;
+
+  function house() {
+    var d = window.Store && window.Store.data;
+    if (!d || !d.tree) return 0;
+    var home = homeBranch();
+    if (!home) return 0;
+    if (!home.children) home.children = [];
+    var keep = [], moved = 0, i, n;
+    for (i = 0; i < d.tree.length; i++) {
+      n = d.tree[i];
+      if (!n) continue;
+      if (n === home) { keep.push(n); continue; }
+      if (n.children && n.children.length) { keep.push(n); continue; }
+      if (!n.date) { keep.push(n); continue; }
+      if (!n.title || !String(n.title).trim()) { keep.push(n); continue; }
+      home.children.push(n);
+      moved++;
+    }
+    if (moved) {
+      d.tree = keep;
+      try { localStorage.setItem('planner.data.v1', JSON.stringify(d)); } catch (e) {}
+    }
+    return moved;
+  }
+  window.__houseCalendarItems = house;
+
+  var baseA = window.renderAll;
+  if (typeof baseA === 'function') {
+    window.renderAll = function () {
+      try { house(); } catch (e) {}
+      return baseA.apply(this, arguments);
+    };
+  }
+  var baseT = window.renderTree;
+  if (typeof baseT === 'function') {
+    window.renderTree = function () {
+      try { house(); } catch (e) {}
+      return baseT.apply(this, arguments);
+    };
+  }
+  setTimeout(house, 1800);
+})();
+
 </script>
 </body>
 </html>
