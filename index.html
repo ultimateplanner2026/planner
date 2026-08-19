@@ -3854,7 +3854,7 @@ input:focus, textarea:focus, select:focus {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-19 14:23</span>
+    <span id="buildStamp">build 2026-08-19 14:32</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -16129,6 +16129,44 @@ function firstConnect(remote, rAt, lAt) {
     };
   }
   setTimeout(function () { adopt(); guardRow(); }, 1800);
+})();
+
+
+/* ===== m151 the home branch always sits last ===== */
+(function () {
+  function sink() {
+    var d = window.Store && window.Store.data;
+    if (!d || !d.tree || d.tree.length < 2) return false;
+    var home = window.plannerHomeBranch ? window.plannerHomeBranch() : null;
+    if (!home) return false;
+    var idx = -1, i;
+    for (i = 0; i < d.tree.length; i++) {
+      if (d.tree[i] === home) { idx = i; break; }
+    }
+    if (idx === -1) return false;
+    if (idx === d.tree.length - 1) return false;
+    d.tree.splice(idx, 1);
+    d.tree.push(home);
+    try { localStorage.setItem('planner.data.v1', JSON.stringify(d)); } catch (e) {}
+    return true;
+  }
+  window.__sinkHomeBranch = sink;
+
+  var baseA = window.renderAll;
+  if (typeof baseA === 'function') {
+    window.renderAll = function () {
+      try { sink(); } catch (e) {}
+      return baseA.apply(this, arguments);
+    };
+  }
+  var baseT = window.renderTree;
+  if (typeof baseT === 'function') {
+    window.renderTree = function () {
+      try { sink(); } catch (e) {}
+      return baseT.apply(this, arguments);
+    };
+  }
+  setTimeout(sink, 1900);
 })();
 
 </script>
