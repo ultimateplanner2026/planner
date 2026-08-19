@@ -3837,7 +3837,7 @@ input:focus, textarea:focus, select:focus {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-20 15:30</span>
+    <span id="buildStamp">build 2026-08-20 17:00</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -16022,6 +16022,96 @@ function firstConnect(remote, rAt, lAt) {
     };
   }
   setTimeout(guardRow, 1800);
+})();
+
+
+/* ===== m150 the home branch is protected by identity, not by name ===== */
+(function () {
+  var FLAG = 'isPermanentHome';
+  var LS_ID = 'planner.homebranch.id';
+
+  function remembered() {
+    try { return localStorage.getItem(LS_ID) || ''; } catch (e) { return ''; }
+  }
+  function remember(id) {
+    try { localStorage.setItem(LS_ID, id || ''); } catch (e) {}
+    return true;
+  }
+
+  function home() {
+    var d = window.Store && window.Store.data;
+    if (!d || !d.tree) return null;
+    var i, n;
+    for (i = 0; i < d.tree.length; i++) {
+      n = d.tree[i];
+      if (n && n[FLAG]) return n;
+    }
+    var id = remembered();
+    if (id) {
+      for (i = 0; i < d.tree.length; i++) {
+        if (d.tree[i] && d.tree[i].id === id) return d.tree[i];
+      }
+    }
+    for (i = 0; i < d.tree.length; i++) {
+      n = d.tree[i];
+      if (!n) continue;
+      if (String(n.title || '').trim().toLowerCase() === 'unbranched') return n;
+    }
+    return null;
+  }
+
+  function adopt() {
+    var n = home();
+    if (!n) return false;
+    if (!n[FLAG]) {
+      n[FLAG] = true;
+      try {
+        var d = window.Store.data;
+        localStorage.setItem('planner.data.v1', JSON.stringify(d));
+      } catch (e) {}
+    }
+    remember(n.id);
+    return true;
+  }
+
+  window.plannerHomeBranch = home;
+  window.plannerAdoptHome = adopt;
+
+  window.plannerIsHomeBranch = function (id) {
+    if (!id) return false;
+    var n = home();
+    return !!(n && n.id === id);
+  };
+
+  function guardRow() {
+    var rows = document.querySelectorAll('#treeRoot .tree-row'), i;
+    for (i = 0; i < rows.length; i++) {
+      var id = rows[i].getAttribute('data-id');
+      if (id && window.plannerIsHomeBranch(id)) rows[i].classList.add('is-permanent');
+      else rows[i].classList.remove('is-permanent');
+    }
+    return true;
+  }
+
+  var baseA = window.renderAll;
+  if (typeof baseA === 'function') {
+    window.renderAll = function () {
+      try { adopt(); } catch (e) {}
+      var r = baseA.apply(this, arguments);
+      try { guardRow(); } catch (e) {}
+      return r;
+    };
+  }
+  var baseT = window.renderTree;
+  if (typeof baseT === 'function') {
+    window.renderTree = function () {
+      try { adopt(); } catch (e) {}
+      var r = baseT.apply(this, arguments);
+      try { guardRow(); } catch (e) {}
+      return r;
+    };
+  }
+  setTimeout(function () { adopt(); guardRow(); }, 1800);
 })();
 
 </script>
