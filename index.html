@@ -3837,6 +3837,14 @@ input:focus, textarea:focus, select:focus {
    A branch is any row with a fold triangle, i.e. one that has children. */
 #treeRoot .tree-row:has(> .tree-caret) > .tree-check { display: none !important; }
 #treeRoot .tree-row.is-permanent > .tree-check { display: none !important; }
+
+/* The done tick box is removed everywhere, at the operator's instruction -
+   branches, tasks, subtasks, every depth, and the edit screen. Marking a task
+   complete is still available from the row menu, so nothing is stranded. */
+#treeRoot .tree-check,
+#treeRoot input[type="checkbox"].tree-check,
+#treeRoot .tree-row > input[type="checkbox"],
+.ea-body input[type="checkbox"].tree-check { display: none !important; }
 </style>
 </head>
 <body>
@@ -3854,7 +3862,7 @@ input:focus, textarea:focus, select:focus {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-19 14:32</span>
+    <span id="buildStamp">build 2026-08-19 14:59</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
