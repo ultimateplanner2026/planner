@@ -3817,6 +3817,9 @@ input:focus, textarea:focus, select:focus {
 #treeRoot .tree-row.ancestor-muted .tree-title { font-style: normal !important; }
 #treeRoot .tree-row.ancestor-muted .tree-check,
 #treeRoot .tree-row.ancestor-muted .tree-marker { opacity: 1 !important; }
+
+/* the permanent branch offers no delete control */
+#treeRoot .tree-row.is-permanent .btn-danger { display: none !important; }
 </style>
 </head>
 <body>
@@ -3834,7 +3837,7 @@ input:focus, textarea:focus, select:focus {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-20 14:05</span>
+    <span id="buildStamp">build 2026-08-20 15:30</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -15962,6 +15965,63 @@ function firstConnect(remote, rAt, lAt) {
     };
   }
   setTimeout(house, 1800);
+})();
+
+
+/* ===== m149 Unbranched is permanent ===== */
+(function () {
+  function isHome(id) {
+    var d = window.Store && window.Store.data;
+    if (!d || !d.tree || !id) return false;
+    var i;
+    for (i = 0; i < d.tree.length; i++) {
+      if (!d.tree[i]) continue;
+      if (d.tree[i].id !== id) continue;
+      return String(d.tree[i].title || '').trim().toLowerCase() === 'unbranched';
+    }
+    return false;
+  }
+  window.plannerIsHomeBranch = isHome;
+
+  var base = window.removeNode;
+  if (typeof base === 'function') {
+    window.removeNode = function (id) {
+      if (isHome(id)) {
+        if (window.toast) window.toast('Unbranched is permanent - it houses dated tasks that have no branch', 'warn');
+        return false;
+      }
+      return base.apply(this, arguments);
+    };
+  }
+
+  function guardRow() {
+    var rows = document.querySelectorAll('#treeRoot .tree-row'), i;
+    for (i = 0; i < rows.length; i++) {
+      var id = rows[i].getAttribute('data-id');
+      if (!id) continue;
+      if (isHome(id)) rows[i].classList.add('is-permanent');
+      else rows[i].classList.remove('is-permanent');
+    }
+    return true;
+  }
+
+  var baseT = window.renderTree;
+  if (typeof baseT === 'function') {
+    window.renderTree = function () {
+      var r = baseT.apply(this, arguments);
+      try { guardRow(); } catch (e) {}
+      return r;
+    };
+  }
+  var baseA = window.renderAll;
+  if (typeof baseA === 'function') {
+    window.renderAll = function () {
+      var r = baseA.apply(this, arguments);
+      try { guardRow(); } catch (e) {}
+      return r;
+    };
+  }
+  setTimeout(guardRow, 1800);
 })();
 
 </script>
