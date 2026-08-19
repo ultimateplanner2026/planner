@@ -3820,6 +3820,14 @@ input:focus, textarea:focus, select:focus {
 
 /* the permanent branch offers no delete control */
 #treeRoot .tree-row.is-permanent .btn-danger { display: none !important; }
+
+/* The permanent home branch offers no way to delete it - the row's own delete
+   button AND the delete entry in its row menu. Hiding only .btn-danger left the
+   menu route open. */
+#treeRoot .tree-row.is-permanent .btn-danger,
+#treeRoot .tree-row.is-permanent .tree-delete,
+#treeRoot .tree-row.is-permanent .rowmenu,
+#treeRoot .tree-row.is-permanent .tree-actions .btn-danger { display: none !important; }
 </style>
 </head>
 <body>
@@ -3837,7 +3845,7 @@ input:focus, textarea:focus, select:focus {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-20 17:00</span>
+    <span id="buildStamp">build 2026-08-20 18:30</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
