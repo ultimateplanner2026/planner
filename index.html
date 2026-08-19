@@ -3768,6 +3768,26 @@ input:focus, textarea:focus, select:focus {
 /* The area dot is removed at the operator's request. Nesting is shown by the
    guide lines and the indentation now, so the dot only added noise. */
 #treeRoot .area-dot { display: none !important; }
+
+/* Numbers next to a folded branch: removed at the operator's request. */
+#treeRoot .tree-row.is-collapsed > .tree-title::after { content: none !important; }
+
+/* The marker is a HOLLOW RED SQUARE - red outline, nothing inside - and it gets
+   smaller the deeper the row sits, so a branch, its children and their children
+   are told apart at a glance. */
+#treeRoot .tree-row > .tree-marker {
+  flex: 0 0 auto;
+  display: inline-block;
+  border: 1.5px solid #e5484d;
+  background: transparent;
+  border-radius: 1px;
+  margin-right: 2px;
+}
+#treeRoot .tree-row[data-depth="0"] > .tree-marker { width: 10px; height: 10px; }
+#treeRoot .tree-row[data-depth="1"] > .tree-marker { width: 8px;  height: 8px; }
+#treeRoot .tree-row[data-depth="2"] > .tree-marker { width: 6px;  height: 6px; border-width: 1.25px; }
+#treeRoot .tree-row[data-depth="3"] > .tree-marker { width: 5px;  height: 5px; border-width: 1px; }
+#treeRoot .tree-row[data-depth="4"] > .tree-marker { width: 4px;  height: 4px; border-width: 1px; }
 </style>
 </head>
 <body>
@@ -3785,7 +3805,7 @@ input:focus, textarea:focus, select:focus {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-19 14:30</span>
+    <span id="buildStamp">build 2026-08-19 22:05</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -15611,6 +15631,242 @@ function firstConnect(remote, rAt, lAt) {
   setTimeout(stamp, 2800);
 })();
 
+
+/* ===== m144 Unbranched branch + hollow square markers ===== */
+(function () {
+  var UNBRANCHED_ID = '__unbranched__';
+
+  function findUnbranched(tree) {
+    var i;
+    for (i = 0; i < tree.length; i++) {
+      if (tree[i] && tree[i].id === UNBRANCHED_ID) return tree[i];
+    }
+    return null;
+  }
+
+  window.plannerUnbranched = function (createIfMissing) {
+    var d = window.Store && window.Store.data;
+    if (!d || !d.tree) return null;
+    var node = findUnbranched(d.tree);
+    if (node) return node;
+    if (!createIfMissing) return null;
+    node = {
+      id: UNBRANCHED_ID,
+      title: 'Unbranched',
+      notes: '',
+      kind: 'goal',
+      done: false,
+      priority: 'normal',
+      date: null,
+      time: null,
+      block: null,
+      duration: null,
+      repeat: null,
+      tags: [],
+      areaId: null,
+      endDate: null,
+      collapsed: false,
+      children: []
+    };
+    d.tree.push(node);
+    return node;
+  };
+
+  function gather() {
+    var d = window.Store && window.Store.data;
+    if (!d || !d.tree) return 0;
+    var loose = [], i, n;
+    for (i = 0; i < d.tree.length; i++) {
+      n = d.tree[i];
+      if (!n || n.id === UNBRANCHED_ID) continue;
+      if (n.children && n.children.length) continue;
+      if (!n.title || !String(n.title).trim()) continue;
+      loose.push(n.id);
+    }
+    if (!loose.length) {
+      var existing = findUnbranched(d.tree);
+      if (existing && (!existing.children || !existing.children.length)) {
+        var t2 = [], q;
+        for (q = 0; q < d.tree.length; q++) {
+          if (d.tree[q] && d.tree[q].id !== UNBRANCHED_ID) t2.push(d.tree[q]);
+        }
+        d.tree = t2;
+        try { localStorage.setItem('planner.data.v1', JSON.stringify(d)); } catch (e) {}
+      }
+      return 0;
+    }
+    var home = window.plannerUnbranched(true);
+    if (!home) return 0;
+    var keep = [], moved = 0;
+    for (i = 0; i < d.tree.length; i++) {
+      n = d.tree[i];
+      if (!n) continue;
+      if (n.id === UNBRANCHED_ID) { keep.push(n); continue; }
+      if (loose.indexOf(n.id) === -1) { keep.push(n); continue; }
+      home.children.push(n);
+      moved++;
+    }
+    if (moved) {
+      d.tree = keep;
+      try { localStorage.setItem('planner.data.v1', JSON.stringify(d)); } catch (e) {}
+    }
+    return moved;
+  }
+  window.__gatherUnbranched = gather;
+
+  function marker() {
+    var rows = document.querySelectorAll('#treeRoot .tree-row'), i;
+    for (i = 0; i < rows.length; i++) {
+      if (rows[i].querySelector('.tree-marker')) continue;
+      var sq = document.createElement('span');
+      sq.className = 'tree-marker';
+      var caret = rows[i].querySelector('.tree-caret');
+      var check = rows[i].querySelector('.tree-check');
+      if (check) rows[i].insertBefore(sq, check);
+      else if (caret && caret.nextSibling) rows[i].insertBefore(sq, caret.nextSibling);
+      else rows[i].appendChild(sq);
+    }
+    return true;
+  }
+
+  var base = window.renderTree;
+  if (typeof base === 'function') {
+    window.renderTree = function () {
+      /* gather() parked - see m146 */
+      var r = base.apply(this, arguments);
+      try { marker(); } catch (e) {}
+      return r;
+    };
+  }
+  var baseAll = window.renderAll;
+  if (typeof baseAll === 'function') {
+    window.renderAll = function () {
+      /* gather() parked - see m146 */
+      var r = baseAll.apply(this, arguments);
+      try { marker(); } catch (e) {}
+      return r;
+    };
+  }
+
+  setTimeout(function () {
+    /* gather() parked - see m146 */
+    marker();
+  }, 1500);
+  setTimeout(marker, 3000);
+})();
+
+
+/* ===== m145 remove the dots, fold Unbranched ===== */
+(function () {
+  var UNBRANCHED_ID = '__unbranched__';
+
+  function stripDots() {
+    var kill = document.querySelectorAll('#treeRoot .area-dot, #treeRoot .pdot, #treeRoot .fdot');
+    var i, n = 0;
+    for (i = 0; i < kill.length; i++) {
+      if (kill[i].parentNode) { kill[i].parentNode.removeChild(kill[i]); n++; }
+    }
+    return n;
+  }
+  window.__stripDots = stripDots;
+
+  function keepFolded() {
+    var f = window.findNode ? window.findNode(UNBRANCHED_ID) : null;
+    if (!f || !f.node) return false;
+    var set = window.plannerCollapsedSet ? window.plannerCollapsedSet() : {};
+    f.node.collapsed = !!set[UNBRANCHED_ID];
+    return true;
+  }
+
+  function ensureCaret() {
+    var row = document.querySelector('#treeRoot .tree-row[data-id="' + UNBRANCHED_ID + '"]');
+    if (!row) return false;
+    var f = window.findNode ? window.findNode(UNBRANCHED_ID) : null;
+    if (!f || !f.node || !f.node.children || !f.node.children.length) return false;
+    if (row.querySelector('.tree-caret')) return true;
+    var c = document.createElement('button');
+    c.type = 'button';
+    c.className = 'tree-caret' + (f.node.collapsed ? '' : ' open');
+    c.innerHTML = '<svg viewBox="0 0 16 16" width="12" height="12"><path fill="currentColor" d="M5 4l6 6-6 6z"/></svg>';
+    c.addEventListener('click', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (window.plannerToggleCollapse) window.plannerToggleCollapse(UNBRANCHED_ID);
+    });
+    row.insertBefore(c, row.firstChild);
+    return true;
+  }
+
+  function after() {
+    try { keepFolded(); } catch (e) {}
+    try { stripDots(); } catch (e) {}
+    try { ensureCaret(); } catch (e) {}
+    return true;
+  }
+
+  var base = window.renderTree;
+  if (typeof base === 'function') {
+    window.renderTree = function () {
+      var r = base.apply(this, arguments);
+      after();
+      return r;
+    };
+  }
+  var baseAll = window.renderAll;
+  if (typeof baseAll === 'function') {
+    window.renderAll = function () {
+      var r = baseAll.apply(this, arguments);
+      after();
+      return r;
+    };
+  }
+  setTimeout(after, 1600);
+  setTimeout(after, 3200);
+})();
+
+
+/* ===== m146 Unbranched parked =====
+   Moving real tasks into an "Unbranched" node fought the data model: the node
+   persisted through saves and reloads, appeared on tidy trees, and swallowed
+   brand-new tasks while they were still being typed. Five checks caught it.
+   Parked rather than patched further - it will come back as a display-only
+   grouping that never touches the stored tree. The squares, the folding, the
+   guides and the dot removal all stay. */
+(function () {
+  window.__gatherUnbranched = function () { return 0; };
+  function purge() {
+    var d = window.Store && window.Store.data;
+    if (!d || !d.tree) return 0;
+    var keep = [], moved = 0, i, n;
+    for (i = 0; i < d.tree.length; i++) {
+      n = d.tree[i];
+      if (!n) continue;
+      if (n.id === '__unbranched__') {
+        // give its contents back to the top level, lose nothing
+        if (n.children && n.children.length) {
+          for (var k = 0; k < n.children.length; k++) keep.push(n.children[k]);
+        }
+        moved++;
+        continue;
+      }
+      keep.push(n);
+    }
+    if (moved) {
+      d.tree = keep;
+      try { localStorage.setItem('planner.data.v1', JSON.stringify(d)); } catch (e) {}
+    }
+    return moved;
+  }
+  var base = window.renderAll;
+  if (typeof base === 'function') {
+    window.renderAll = function () { try { purge(); } catch (e) {} return base.apply(this, arguments); };
+  }
+  var baseT = window.renderTree;
+  if (typeof baseT === 'function') {
+    window.renderTree = function () { try { purge(); } catch (e) {} return baseT.apply(this, arguments); };
+  }
+  setTimeout(purge, 900);
+})();
 </script>
 </body>
 </html>
