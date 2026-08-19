@@ -3764,6 +3764,10 @@ input:focus, textarea:focus, select:focus {
   padding: 1px 6px;
   vertical-align: middle;
 }
+
+/* The area dot is removed at the operator's request. Nesting is shown by the
+   guide lines and the indentation now, so the dot only added noise. */
+#treeRoot .area-dot { display: none !important; }
 </style>
 </head>
 <body>
@@ -3781,7 +3785,7 @@ input:focus, textarea:focus, select:focus {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-19 13:40</span>
+    <span id="buildStamp">build 2026-08-19 14:30</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
