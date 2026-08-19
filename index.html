@@ -3832,6 +3832,11 @@ input:focus, textarea:focus, select:focus {
 /* No done tick box on the permanent home branch - it is a container, not a task,
    and ticking it made no sense. Every real task keeps its tick box. */
 #treeRoot .tree-row.is-permanent .tree-check { display: none !important; }
+
+/* No done tick box on a BRANCH - only on a task you can actually finish.
+   A branch is any row with a fold triangle, i.e. one that has children. */
+#treeRoot .tree-row:has(> .tree-caret) > .tree-check { display: none !important; }
+#treeRoot .tree-row.is-permanent > .tree-check { display: none !important; }
 </style>
 </head>
 <body>
@@ -3849,7 +3854,7 @@ input:focus, textarea:focus, select:focus {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-20 19:45</span>
+    <span id="buildStamp">build 2026-08-19 14:23</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
