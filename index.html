@@ -3676,6 +3676,54 @@ input:focus, textarea:focus, select:focus {
   animation: none !important;
   transition: none !important;
 }
+
+/* =====================================================================
+   o12  THE BAR IS PINNED TO THE BOTTOM OF THE TREE, ALWAYS
+   =====================================================================
+   Screenshot 2026-08-19: the bar sat in the MIDDLE of the list with tasks
+   rendered below it. Yesterday I moved it inside the tree pane but left it
+   absolutely positioned, so it parked at the pane's bottom edge while the list
+   kept drawing past it.
+   #treePane is already `display:flex; flex-direction:column`, so the honest fix
+   is to let the bar BE the last flex child and give the list above it the job
+   of scrolling. No absolute positioning, nothing to drift.
+   ===================================================================== */
+
+:root[data-chrome="bottom"] aside#treePane,
+:root[data-chrome="bottom"] #treePane {
+  display: flex !important;
+  flex-direction: column !important;
+  min-height: 0;
+  padding-bottom: 0 !important;   /* the bar occupies real space now */
+  overflow: hidden;
+}
+
+/* the list takes all remaining height and scrolls inside itself -
+   which also gives the tree a proper mouse wheel */
+:root[data-chrome="bottom"] #treePane #treeRoot {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain;
+}
+
+/* the bar: last in the column, never scrolls away, never overlaps a row */
+:root[data-chrome="bottom"] #treePane > #bottomBar {
+  position: static !important;
+  order: 999;
+  flex: 0 0 auto !important;
+  margin-top: auto !important;
+  width: 100% !important;
+  left: auto !important; right: auto !important; bottom: auto !important;
+  border-top: 1px solid var(--line, #333844);
+  border-right: 0;
+  background: var(--s-raised, #262a33);
+  z-index: 5;
+}
+
+/* anything the tree renders after the list - the "3 hidden / Show them /
+   3 overdue" strip - belongs ABOVE the bar, not below it */
+:root[data-chrome="bottom"] #treePane > *:not(#bottomBar) { order: 1; }
 </style>
 </head>
 <body>
@@ -3693,7 +3741,7 @@ input:focus, textarea:focus, select:focus {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-18 16:40</span>
+    <span id="buildStamp">build 2026-08-19 09:30</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
