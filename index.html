@@ -3881,6 +3881,48 @@ input:focus, textarea:focus, select:focus {
 /* the hour lines stay quiet so the day edges dominate */
 .tghour-line { border-top-color: #262b34 !important; }
 .tghalf-line { border-top-color: #21252c !important; }
+
+/* ===== o16  ONE COLUMN PER DAY, PROPORTIONAL AT ANY WIDTH =====
+   Measured from the operator's screenshot: headers evenly ~273px apart while
+   the columns below were 180px, 180px, 513px, 490px - so an event sat across
+   three days and no line matched its date.
+   Cause: `repeat(7, 1fr)`. A `1fr` track is `minmax(auto, 1fr)`, and `auto`
+   refuses to shrink below the content's minimum width - so a long task title
+   physically widened its own day and squeezed the rest. `minmax(0, 1fr)` is the
+   fix: seven exactly equal shares whatever the calendar is resized to. */
+.tgcols {
+  grid-template-columns: repeat(7, minmax(0, 1fr)) !important;
+}
+#dayView .tgcols { grid-template-columns: minmax(0, 1fr) !important; }
+
+/* An event must never widen its column. It wraps inside its own day. */
+.tgcol { min-width: 0 !important; overflow: hidden; }
+.tgevent {
+  min-width: 0 !important;
+  max-width: 100% !important;
+  overflow: hidden;
+  white-space: normal !important;
+  word-break: break-word;
+}
+.tgevent-title {
+  min-width: 0 !important;
+  white-space: normal !important;
+  overflow-wrap: anywhere;
+  display: block;
+}
+.tgevent-time { flex: 0 0 auto; }
+
+/* The day line runs the full height of the grid, top to bottom. */
+.tgcols .tgcol::before {
+  content: '' !important;
+  position: absolute !important;
+  left: -1px; top: 0; bottom: 0;
+  width: 1px !important;
+  background: var(--day-edge, #4d566b) !important;
+  z-index: 6 !important;
+  pointer-events: none;
+}
+.tgbody { position: relative; }
 </style>
 </head>
 <body>
@@ -3898,7 +3940,7 @@ input:focus, textarea:focus, select:focus {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-19 15:26</span>
+    <span id="buildStamp">build 2026-08-20 00:55</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -16213,6 +16255,9 @@ function firstConnect(remote, rAt, lAt) {
   setTimeout(sink, 1900);
 })();
 
+
+/* m152 removed - it counted the DAY view's column as a phantom and would
+   have rewritten the grid from a wrong count. See below. */
 </script>
 </body>
 </html>
