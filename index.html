@@ -3923,6 +3923,28 @@ input:focus, textarea:focus, select:focus {
   pointer-events: none;
 }
 .tgbody { position: relative; }
+
+/* ===== o17  NO FLICKER ON THE HIDDEN-COUNT STRIP =====
+   Measured: `.ahead-state` and its parent both carried `transition: all`.
+   `all` animates EVERY property that changes - including width, height and
+   layout - so each time the count updated the strip visibly jumped. Transitions
+   belong on colour and opacity, never on layout, and never as `all`. */
+#treePane .ahead-state,
+#treePane .ahead-state * ,
+#treePane .ahead-state + *,
+.ahead-state {
+  transition: color .12s ease, background-color .12s ease !important;
+  animation: none !important;
+}
+/* reserve the line so a changing count cannot reflow the rows above it */
+#treePane .ahead-state {
+  display: inline-block;
+  min-height: 17px;
+  line-height: 17px;
+  vertical-align: middle;
+}
+/* the strip's own row keeps a fixed height whether it says 0 or 12 */
+#treePane .ahead-state, #treePane .ahead-state ~ * { will-change: auto; }
 </style>
 </head>
 <body>
@@ -3940,7 +3962,7 @@ input:focus, textarea:focus, select:focus {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-20 09:41</span>
+    <span id="buildStamp">build 2026-08-20 09:50</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
