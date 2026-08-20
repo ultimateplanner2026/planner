@@ -3940,7 +3940,7 @@ input:focus, textarea:focus, select:focus {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-20 00:55</span>
+    <span id="buildStamp">build 2026-08-20 09:41</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -16056,18 +16056,18 @@ function firstConnect(remote, rAt, lAt) {
   var baseA = window.renderAll;
   if (typeof baseA === 'function') {
     window.renderAll = function () {
-      /* housing parked - it moved tasks out of their branch */
+      try { house(); } catch (e) {}
       return baseA.apply(this, arguments);
     };
   }
   var baseT = window.renderTree;
   if (typeof baseT === 'function') {
     window.renderTree = function () {
-      /* housing parked - it moved tasks out of their branch */
+      try { house(); } catch (e) {}
       return baseT.apply(this, arguments);
     };
   }
-  /* housing parked */
+  setTimeout(house, 1800);
 })();
 
 
