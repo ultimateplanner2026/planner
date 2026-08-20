@@ -4212,6 +4212,20 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
   letter-spacing: -.01em;
 }
 #monthGrid .mchip:hover .mtime { color: var(--t-2, #d0d6e0); }
+
+/* ===== o15  no time label on the calendar blocks =====
+   Removed at the operator's request. In week and day view the block's POSITION
+   already states the time - it sits on its own hour line - so the label repeated
+   what the grid was already saying and ate room from the title.
+   Month chips keep their time (.mtime): a month cell has no hour rows, so there
+   the label is the only thing carrying the time. */
+#weekGrid .tgevent-time,
+#dayView .tgevent-time,
+.tgevent > .tgevent-time { display: none !important; }
+
+/* the title reclaims the space */
+#weekGrid .tgevent-title,
+#dayView .tgevent-title { flex: 1 1 auto; min-width: 0; }
 </style>
 </head>
 <body>
@@ -4229,7 +4243,7 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-20 17:48</span>
+    <span id="buildStamp">build 2026-08-20 18:00</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
