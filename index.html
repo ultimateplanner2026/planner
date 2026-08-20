@@ -4223,7 +4223,7 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-20 17:15</span>
+    <span id="buildStamp">build 2026-08-20 17:34</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -16713,6 +16713,16 @@ function firstConnect(remote, rAt, lAt) {
 
   window.plannerWeekday = weekdayOf;
 
+  function anchorOf(node, r) {
+    var start = parse(r.start);
+    if (start) return start;
+    if (node && node.date) {
+      var nodeDate = parse(node.date);
+      if (nodeDate) return nodeDate;
+    }
+    return null;
+  }
+
   function inWindow(r, a, iso) {
     var s = parse(r.start);
     if (s && toOrdinal(a) < toOrdinal(s)) return false;
@@ -16727,8 +16737,9 @@ function firstConnect(remote, rAt, lAt) {
   window.plannerRepeatMatches = function (node, iso) {
     if (!node || !node.repeat || !iso) return false;
     var r = node.repeat;
-    var a = parse(iso), s = parse(r.start);
-    if (!a || !s) return false;
+    var a = parse(iso);
+    if (!a) return false;
+    var s = anchorOf(node, r);
     if (!inWindow(r, a, iso)) return false;
 
     // day tick boxes NARROW whatever the frequency says
@@ -16744,22 +16755,46 @@ function firstConnect(remote, rAt, lAt) {
       for (j = 0; j < list.length; j++) { if (list[j] === iso) return true; }
       return false;
     }
-    if (f === 'daily') return true;
+    if (f === 'daily') {
+      var n = Math.max(1, parseInt(r.everyN, 10) || 1);
+      if (n === 1) return true;
+      if (!s) return true;
+      return ((toOrdinal(a) - toOrdinal(s)) % n) === 0;
+    }
     if (f === 'weekly') {
-      // every 7 days from start, unless days[] already narrowed it
-      if (r.days && r.days.length) return true;
-      return ((toOrdinal(a) - toOrdinal(s)) % 7) === 0;
+      var n = Math.max(1, parseInt(r.everyN, 10) || 1);
+      if (r.days && r.days.length) {
+        if (n === 1) return true;
+        if (!s) return true;
+        var diff = toOrdinal(a) - toOrdinal(s);
+        if (diff < 0) return false;
+        return (Math.floor(diff / 7) % n) === 0;
+      } else {
+        if (!s) return true;
+        return ((toOrdinal(a) - toOrdinal(s)) % (7 * n)) === 0;
+      }
     }
     if (f === 'monthly') {
+      if (!s) return false;
+      var n = Math.max(1, parseInt(r.everyN, 10) || 1);
+      var months = (a.y - s.y) * 12 + (a.m - s.m);
+      if (months < 0) return false;
+      if (months % n !== 0) return false;
       var clampM = Math.min(s.d, lastDayOf(a.y, a.m));
       return a.d === clampM;
     }
     if (f === 'yearly') {
+      if (!s) return false;
+      var n = Math.max(1, parseInt(r.everyN, 10) || 1);
+      var years = a.y - s.y;
+      if (years < 0) return false;
+      if (years % n !== 0) return false;
       if (a.m !== s.m) return false;
       var clampY = Math.min(s.d, lastDayOf(a.y, a.m));
       return a.d === clampY;
     }
     if (f === 'periodic') {
+      if (!s) return false;
       var n = Math.max(1, parseInt(r.everyN, 10) || 1);
       var u = r.unit || 'days';
       if (u === 'days')  return ((toOrdinal(a) - toOrdinal(s)) % n) === 0;
@@ -16812,7 +16847,7 @@ function firstConnect(remote, rAt, lAt) {
     }
     return out;
   };
-})();
+}());
 
 
 /* ===== m161 the Repeat panel ===== */
@@ -16840,10 +16875,25 @@ function firstConnect(remote, rAt, lAt) {
       for (i = 0; i < r.days.length; i++) names.push(DAYS[r.days[i]]);
       dayList = ' ' + names.join(' ');
     }
-    if (r.freq === 'daily')   return dayList ? ('Every' + dayList) : 'Every day';
-    if (r.freq === 'weekly')  return dayList ? ('Weekly' + dayList) : 'Every week';
-    if (r.freq === 'monthly') return 'Every month';
-    if (r.freq === 'yearly')  return 'Every year';
+var n = Math.max(1, parseInt(r.everyN, 10) || 1);
+if (r.freq === 'daily') {
+    if (dayList) {
+        return n > 1 ? 'Every ' + n + ' days' + dayList : 'Every' + dayList;
+    }
+    return n > 1 ? 'Every ' + n + ' days' : 'Every day';
+}
+if (r.freq === 'weekly') {
+    if (dayList) {
+        return n > 1 ? 'Every ' + n + ' weeks' + dayList : 'Weekly' + dayList;
+    }
+    return n > 1 ? 'Every ' + n + ' weeks' : 'Every week';
+}
+if (r.freq === 'monthly') {
+    return n > 1 ? 'Every ' + n + ' months' : 'Every month';
+}
+if (r.freq === 'yearly') {
+    return n > 1 ? 'Every ' + n + ' years' : 'Every year';
+}
     if (r.freq === 'specific') return (r.dates && r.dates.length) ? (r.dates.length + ' set dates') : 'No dates yet';
     if (r.freq === 'periodic') {
       var n = Math.max(1, parseInt(r.everyN, 10) || 1);
