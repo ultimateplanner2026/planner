@@ -4059,6 +4059,21 @@ input:focus, textarea:focus, select:focus {
 }
 .note-tool:hover { color: var(--t-1, #e8eaed); }
 .note-full, .note-lines, .note-bar { display: none !important; }
+
+/* picking the dates for "On specific dates" */
+.rep-datelist { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.rep-adddate {
+  padding: 6px 10px; cursor: pointer; font-size: 12px;
+  background: var(--accent-q, #4c9aff); color: #fff;
+  border: 0; border-radius: 6px;
+}
+.rep-datechip {
+  padding: 5px 9px; cursor: pointer; font-size: 12px;
+  background: var(--s-elevated, #2f343e); color: var(--t-1, #e8eaed);
+  border: 1px solid var(--line, #333844); border-radius: 6px;
+  font-variant-numeric: tabular-nums;
+}
+.rep-datechip:hover { border-color: #e5484d; color: #ffb4b7; }
 </style>
 </head>
 <body>
@@ -4076,7 +4091,7 @@ input:focus, textarea:focus, select:focus {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-20 14:23</span>
+    <span id="buildStamp">build 2026-08-20 14:35</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -17192,6 +17207,150 @@ function firstConnect(remote, rAt, lAt) {
     box.appendChild(bar);
     return box;
   };
+})();
+
+
+/* ===== m167 ten text sizes + the specific-dates picker ===== */
+(function () {
+  var SIZES = [10, 11, 12, 13, 15, 17, 20, 24, 28, 34];
+
+  function currentSize(el) {
+    var px = parseInt(window.getComputedStyle(el).fontSize, 10) || 13;
+    var best = 3, i, bestGap = 999;
+    for (i = 0; i < SIZES.length; i++) {
+      var gap = Math.abs(SIZES[i] - px);
+      if (gap < bestGap) { bestGap = gap; best = i; }
+    }
+    return best;
+  }
+
+  window.plannerStepFontSize = function (area, dir) {
+    if (!area) return false;
+    var sel = window.getSelection();
+    if (!sel || !sel.rangeCount || sel.isCollapsed) return false;
+    var range = sel.getRangeAt(0);
+    var probe = range.startContainer;
+    if (probe && probe.nodeType === 3) probe = probe.parentElement;
+    if (!probe) probe = area;
+    var idx = currentSize(probe) + (dir > 0 ? 1 : -1);
+    if (idx < 0) idx = 0;
+    if (idx > SIZES.length - 1) idx = SIZES.length - 1;
+    var span = document.createElement('span');
+    span.style.fontSize = SIZES[idx] + 'px';
+    try {
+      span.appendChild(range.extractContents());
+      range.insertNode(span);
+      var r2 = document.createRange();
+      r2.selectNodeContents(span);
+      sel.removeAllRanges();
+      sel.addRange(r2);
+    } catch (e) { return false; }
+    return SIZES[idx];
+  };
+
+  window.buildNoteBox = function (node) {
+    var box = document.createElement('div');
+    box.className = 'note-box';
+    var area = document.createElement('div');
+    area.className = 'note-rich';
+    area.setAttribute('contenteditable', 'true');
+    area.setAttribute('spellcheck', 'true');
+    if (node && node.notesHtml) area.innerHTML = node.notesHtml;
+    else area.textContent = (node && typeof node.notes === 'string') ? node.notes : '';
+
+    function commit() { node.notesHtml = area.innerHTML; node.notes = area.innerText; }
+    area.addEventListener('input', commit);
+    area.addEventListener('blur', commit);
+
+    var bar = document.createElement('div');
+    bar.className = 'note-bar2';
+    function tool(label, title, fn) {
+      var b = document.createElement('button');
+      b.type = 'button'; b.className = 'note-tool'; b.title = title; b.textContent = label;
+      b.addEventListener('mousedown', function (e) { e.preventDefault(); });
+      b.addEventListener('click', function (e) { e.preventDefault(); fn(); commit(); });
+      bar.appendChild(b);
+    }
+    tool('B', 'Bold', function () { document.execCommand('bold', false, null); });
+    tool('I', 'Italic', function () { document.execCommand('italic', false, null); });
+    tool('U', 'Underline', function () { document.execCommand('underline', false, null); });
+    tool('A-', 'Smaller - ten steps', function () { window.plannerStepFontSize(area, -1); });
+    tool('A+', 'Bigger - ten steps', function () { window.plannerStepFontSize(area, 1); });
+    tool('clear', 'Remove styling from the selection', function () { document.execCommand('removeFormat', false, null); });
+
+    box.appendChild(area);
+    box.appendChild(bar);
+    return box;
+  };
+
+  function mountDates() {
+    var panels = document.querySelectorAll('.rep-wrap'), i;
+    var node = null;
+    if (window.__editingId && window.findNode) {
+      var f = window.findNode(window.__editingId);
+      if (f && f.node) node = f.node;
+    }
+    for (i = 0; i < panels.length; i++) {
+      var body = panels[i].querySelector('.rep-body');
+      if (!body) continue;
+      var old = panels[i].querySelector('.rep-datelist');
+      var isSpec = node && node.repeat && node.repeat.freq === 'specific';
+      if (!isSpec) {
+        if (old && old.parentNode) old.parentNode.removeChild(old);
+        continue;
+      }
+      if (!old) {
+        old = document.createElement('div');
+        old.className = 'rep-datelist';
+        body.appendChild(old);
+      }
+      var want = (node.repeat.dates || []).join(',');
+      if (old.getAttribute('data-shown') === want) continue;
+      old.setAttribute('data-shown', want);
+      old.textContent = '';
+
+      var add = document.createElement('button');
+      add.type = 'button';
+      add.className = 'rep-adddate';
+      add.textContent = '+ Add a date';
+      add.addEventListener('click', function (e) {
+        e.preventDefault();
+        if (!window.openDatePopover) return;
+        window.openDatePopover(add, node.repeat.start, function (iso) {
+          if (!node.repeat.dates) node.repeat.dates = [];
+          if (node.repeat.dates.indexOf(iso) === -1) node.repeat.dates.push(iso);
+          node.repeat.dates.sort();
+          old.setAttribute('data-shown', '');
+          mountDates();
+          if (window.renderAll) window.renderAll();
+        });
+      });
+      old.appendChild(add);
+
+      var list = node.repeat.dates || [], k;
+      for (k = 0; k < list.length; k++) {
+        (function (iso) {
+          var chip = document.createElement('button');
+          chip.type = 'button';
+          chip.className = 'rep-datechip';
+          chip.textContent = iso + '  x';
+          chip.title = 'Remove this date';
+          chip.addEventListener('click', function (e) {
+            e.preventDefault();
+            var at = node.repeat.dates.indexOf(iso);
+            if (at !== -1) node.repeat.dates.splice(at, 1);
+            old.setAttribute('data-shown', '');
+            mountDates();
+            if (window.renderAll) window.renderAll();
+          });
+          old.appendChild(chip);
+        })(list[k]);
+      }
+    }
+    return true;
+  }
+  window.__mountRepeatDates = mountDates;
+  setInterval(function () { try { mountDates(); } catch (e) {} }, 700);
 })();
 
 </script>
