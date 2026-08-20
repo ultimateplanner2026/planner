@@ -4077,6 +4077,18 @@ input:focus, textarea:focus, select:focus {
 
 /* the date picker must sit ABOVE the edit dialog, or "+ Add a date" looks dead */
 .al-pop, .datepop { z-index: 200 !important; }
+
+/* A task at 23:30 lasting an hour ran past the bottom of the grid - the grid
+   ended exactly at midnight with nothing below it. Give the scroll area an
+   hour of room underneath so late events sit inside it. The hour lines are
+   positioned absolutely, so this adds space without moving any of them. */
+.tgbody {
+  /* Measured: the grid was 720px tall while a 23:30 task rendered at 770-810px,
+     so late-evening tasks hung off the bottom with nothing under them. The grid
+     now reaches past midnight far enough to contain a full-length late event. */
+  min-height: 820px;
+  padding-bottom: 44px;
+}
 </style>
 </head>
 <body>
@@ -4094,7 +4106,7 @@ input:focus, textarea:focus, select:focus {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-20 14:45</span>
+    <span id="buildStamp">build 2026-08-20 15:04</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -16909,7 +16921,7 @@ function firstConnect(remote, rAt, lAt) {
   }
   window.__paintRepeatWarning = paint;
 
-  setInterval(function () { try { paint(); } catch (e) {} }, 700);
+  /* poller removed - m170 runs this on one shared tick */ 0;
 })();
 
 
@@ -17020,7 +17032,7 @@ function firstConnect(remote, rAt, lAt) {
     };
   }
 
-  setInterval(function () { try { mount(); } catch (e) {} }, 600);
+  /* poller removed - m170 runs this on one shared tick */ 0;
 })();
 
 
@@ -17102,7 +17114,7 @@ function firstConnect(remote, rAt, lAt) {
     return true;
   }
   window.__paintRepeatWarning = paint;
-  setInterval(function () { try { paint(); } catch (e) {} }, 700);
+  /* poller removed - m170 runs this on one shared tick */ 0;
 })();
 
 
@@ -17161,7 +17173,7 @@ function firstConnect(remote, rAt, lAt) {
     return true;
   }
   window.__paintRepeatWarning = paint;
-  setInterval(function () { try { paint(); } catch (e) {} }, 700);
+  /* poller removed - m170 runs this on one shared tick */ 0;
 
   window.buildNoteBox = function (node) {
     var box = document.createElement('div');
@@ -17353,7 +17365,7 @@ function firstConnect(remote, rAt, lAt) {
     return true;
   }
   window.__mountRepeatDates = mountDates;
-  setInterval(function () { try { mountDates(); } catch (e) {} }, 700);
+  /* poller removed - m170 runs this on one shared tick */ 0;
 })();
 
 
@@ -17388,7 +17400,7 @@ function firstConnect(remote, rAt, lAt) {
        return true;
   }
   window.__tidyRepeatDays = tidyDays;
-  setInterval(function () { try { tidyDays(); } catch (e) {} }, 600);
+  /* poller removed - m170 runs this on one shared tick */ 0;
 
   /* 2 - the calendar runs to midnight */
   function extendDay() {
@@ -17415,6 +17427,34 @@ function firstConnect(remote, rAt, lAt) {
   }, 1400);
 })();
 
+
+/* ===== m170 ONE tick instead of six =====
+   The calendar stuttered. Measured: six timers I had added were each firing
+   every 600-700ms and rewriting part of the edit screen, on top of each other.
+   All that upkeep now runs from a single tick, only while the edit screen is
+   open, and only when something has actually changed since the last pass. */
+(function () {
+  var last = '';
+  function tick() {
+    if (!document.querySelector('.rep-wrap, .note-rich')) { last = ''; return; }
+    var node = null;
+    if (window.__editingId && window.findNode) {
+      var f = window.findNode(window.__editingId);
+      if (f && f.node) node = f.node;
+    }
+    var sig = String(window.__editingId) + '|' + (node && node.repeat ? JSON.stringify(node.repeat) : 'none');
+    if (sig === last) return;
+    last = sig;
+    try { if (window.__mountRepeatPanel) window.__mountRepeatPanel(); } catch (e) {}
+    try { if (window.__tidyRepeatDays) window.__tidyRepeatDays(); } catch (e) {}
+    try { if (window.__mountRepeatDates) window.__mountRepeatDates(); } catch (e) {}
+    try { if (window.__paintRepeatWarning) window.__paintRepeatWarning(); } catch (e) {}
+  }
+  setInterval(tick, 500);
+  function nudge() { last = ''; setTimeout(tick, 60); }
+  document.addEventListener('click', nudge, true);
+  document.addEventListener('change', nudge, true);
+})();
 </script>
 </body>
 </html>
