@@ -4035,7 +4035,7 @@ input:focus, textarea:focus, select:focus {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-20 12:55</span>
+    <span id="buildStamp">build 2026-08-20 13:09</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -16851,6 +16851,68 @@ function firstConnect(remote, rAt, lAt) {
   window.__paintRepeatWarning = paint;
 
   setInterval(function () { try { paint(); } catch (e) {} }, 700);
+})();
+
+
+/* ===== m163 routines appear on the calendar ===== */
+(function () {
+  function walk(list, out) {
+    if (!list) return out;
+    var i;
+    for (i = 0; i < list.length; i++) {
+      if (!list[i]) continue;
+      out.push(list[i]);
+      walk(list[i].children, out);
+    }
+    return out;
+  }
+
+  window.plannerRoutinesOn = function (iso) {
+    var out = [];
+    if (!iso || !window.plannerRepeatMatches) return out;
+    var all = walk((window.Store && window.Store.data) ? window.Store.data.tree : [], []);
+    var i;
+    for (i = 0; i < all.length; i++) {
+      var n = all[i];
+      if (!n || !n.repeat) continue;
+      if (!window.plannerRepeatMatches(n, iso)) continue;
+      out.push(n);
+    }
+    return out;
+  };
+
+  var base = window.scheduledOn;
+  if (typeof base === 'function') {
+    window.scheduledOn = function (iso) {
+      var res = base.apply(this, arguments) || [];
+      if (!iso || !window.plannerRoutinesOn) return res;
+      var extra = window.plannerRoutinesOn(iso);
+      var seen = {}, i, item, id;
+      for (i = 0; i < res.length; i++) {
+        item = res[i];
+        id = (item && item.id) ? item.id : ((item && item.node && item.node.id) ? item.node.id : null);
+        if (id) seen[id] = 1;
+      }
+      for (i = 0; i < extra.length; i++) {
+        if (seen[extra[i].id]) continue;
+        seen[extra[i].id] = 1;
+        res.push(extra[i]);
+      }
+      return res;
+    };
+  }
+
+  /* Completing a routine on the calendar finishes THAT DAY, not the routine. */
+  window.plannerToggleOccurrence = function (id, iso) {
+    if (!id || !iso) return false;
+    var f = window.findNode ? window.findNode(id) : null;
+    if (!f || !f.node || !f.node.repeat) return false;
+    var now = window.plannerOccurrenceDone(f.node, iso);
+    window.plannerCompleteOccurrence(f.node, iso, !now);
+    try { window.Store.save(); } catch (e) {}
+    if (window.renderAll) window.renderAll();
+    return true;
+  };
 })();
 
 </script>
