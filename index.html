@@ -3974,6 +3974,50 @@ input:focus, textarea:focus, select:focus {
 @media (max-width: 700px) {
   #buildStamp { top: 6px; right: 6px; font-size: 9px; }
 }
+
+/* ===== o19  the Repeat panel ===== */
+.rep-wrap { margin: 10px 0; }
+.rep-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 12px; cursor: pointer;
+  background: var(--s-base, #1c1f26);
+  border: 1px solid var(--accent-q, #4c9aff);
+  border-radius: var(--r-input, 6px);
+}
+.rep-label { font-size: 13px; color: var(--accent-q, #4c9aff); }
+.rep-value { font-size: 13px; font-weight: 600; color: var(--t-1, #e8eaed); }
+.rep-body {
+  margin-top: 8px; padding: 12px;
+  background: var(--s-raised, #262a33);
+  border: 1px solid var(--line, #333844);
+  border-radius: var(--r-card, 8px);
+}
+.rep-sub { font-size: 12px; color: var(--t-2, #9aa0a8); margin: 10px 0 6px; }
+.rep-row { display: flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 12px; }
+.rep-n { width: 58px; }
+.rep-freq, .rep-unit, .rep-n {
+  background: var(--s-elevated, #2f343e); color: var(--t-1, #e8eaed);
+  border: 1px solid var(--line, #333844); border-radius: 6px; padding: 5px 8px; font-size: 12px;
+}
+.rep-days { display: flex; flex-wrap: wrap; gap: 5px; }
+.rep-day {
+  min-width: 38px; padding: 5px 7px; cursor: pointer; font-size: 12px;
+  background: var(--s-elevated, #2f343e); color: var(--t-2, #9aa0a8);
+  border: 1px solid var(--line, #333844); border-radius: 5px;
+}
+.rep-day.on {
+  background: var(--accent-q, #4c9aff); color: #fff;
+  border-color: var(--accent-q, #4c9aff);
+}
+.rep-dates { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 4px; }
+.rep-datebtn {
+  background: var(--s-elevated, #2f343e); color: var(--t-1, #e8eaed);
+  border: 1px solid var(--line, #333844); border-radius: 6px;
+  padding: 6px 10px; font-size: 12px; cursor: pointer;
+}
+
+.rep-warn{margin-top:10px;padding:8px 10px;font-size:11px;line-height:1.5;border-radius:6px;
+  color:#ffd9a0;background:rgba(240,169,51,.12);border:1px solid rgba(240,169,51,.4);}
 </style>
 </head>
 <body>
@@ -3991,7 +4035,7 @@ input:focus, textarea:focus, select:focus {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-20 12:42</span>
+    <span id="buildStamp">build 2026-08-20 12:55</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -16580,6 +16624,233 @@ function firstConnect(remote, rAt, lAt) {
     }
     return out;
   };
+})();
+
+
+/* ===== m161 the Repeat panel ===== */
+(function () {
+  var DAYS = ['Su','Mo','Tu','We','Th','Fr','Sa'];
+  var FREQS = [
+    ['daily','Daily'], ['weekly','Weekly'], ['monthly','Monthly'],
+    ['yearly','Yearly'], ['specific','On specific dates'], ['periodic','Periodically']
+  ];
+
+  function blank(node) {
+    return {
+      freq: 'daily', everyN: 1, unit: 'days', days: [],
+      start: (node && node.date) ? node.date : (window.todayISO ? window.todayISO() : ''),
+      end: null, dates: []
+    };
+  }
+
+  window.plannerRepeatSummary = function (node) {
+    if (!node || !node.repeat) return 'Never';
+    var r = node.repeat;
+    var dayList = '';
+    if (r.days && r.days.length && r.days.length < 7) {
+      var names = [], i;
+      for (i = 0; i < r.days.length; i++) names.push(DAYS[r.days[i]]);
+      dayList = ' ' + names.join(' ');
+    }
+    if (r.freq === 'daily')   return dayList ? ('Every' + dayList) : 'Every day';
+    if (r.freq === 'weekly')  return dayList ? ('Weekly' + dayList) : 'Every week';
+    if (r.freq === 'monthly') return 'Every month';
+    if (r.freq === 'yearly')  return 'Every year';
+    if (r.freq === 'specific') return (r.dates && r.dates.length) ? (r.dates.length + ' set dates') : 'No dates yet';
+    if (r.freq === 'periodic') {
+      var n = Math.max(1, parseInt(r.everyN, 10) || 1);
+      var u = r.unit || 'days';
+      return 'Every ' + (n === 1 ? u.replace(/s$/, '') : (n + ' ' + u)) + dayList;
+    }
+    return 'Never';
+  };
+
+  window.buildRepeatPanel = function (node) {
+    var wrap = document.createElement('div');
+    wrap.className = 'rep-wrap';
+    if (!node.repeat) node.repeat = null;
+
+    var head = document.createElement('div');
+    head.className = 'rep-head';
+    var lab = document.createElement('span');
+    lab.className = 'rep-label';
+    lab.textContent = 'Repeat';
+    var val = document.createElement('span');
+    val.className = 'rep-value';
+    head.appendChild(lab); head.appendChild(val);
+
+    var body = document.createElement('div');
+    body.className = 'rep-body';
+
+    function refresh() {
+      val.textContent = window.plannerRepeatSummary(node);
+      body.style.display = node.repeat ? 'block' : 'none';
+    }
+
+    head.addEventListener('click', function (e) {
+      e.preventDefault();
+      if (!node.repeat) node.repeat = blank(node);
+      else if (body.style.display === 'block') { node.repeat = null; }
+      draw();
+    });
+
+    function draw() {
+      body.textContent = '';
+      if (!node.repeat) { refresh(); return; }
+      var r = node.repeat;
+
+      var sel = document.createElement('select');
+      sel.className = 'rep-freq';
+      var i;
+      for (i = 0; i < FREQS.length; i++) {
+        var o = document.createElement('option');
+        o.value = FREQS[i][0]; o.textContent = FREQS[i][1];
+        if (r.freq === FREQS[i][0]) o.selected = true;
+        sel.appendChild(o);
+      }
+      sel.addEventListener('change', function () {
+        r.freq = sel.value;
+        if (r.freq === 'periodic' && !r.everyN) { r.everyN = 1; r.unit = 'days'; }
+        draw();
+      });
+      body.appendChild(sel);
+
+      if (r.freq === 'periodic') {
+        var num = document.createElement('input');
+        num.type = 'number'; num.min = '1'; num.className = 'rep-n';
+        num.value = String(Math.max(1, parseInt(r.everyN, 10) || 1));
+        num.addEventListener('input', function () {
+          r.everyN = Math.max(1, parseInt(num.value, 10) || 1); refresh();
+        });
+        var us = document.createElement('select');
+        us.className = 'rep-unit';
+        ['days','weeks','months','years'].forEach(function (u) {
+          var o = document.createElement('option');
+          o.value = u; o.textContent = u;
+          if ((r.unit || 'days') === u) o.selected = true;
+          us.appendChild(o);
+        });
+        us.addEventListener('change', function () { r.unit = us.value; refresh(); });
+        var row = document.createElement('div');
+        row.className = 'rep-row';
+        var every = document.createElement('span');
+        every.textContent = 'Every';
+        row.appendChild(every); row.appendChild(num); row.appendChild(us);
+        body.appendChild(row);
+      }
+
+      var dlab = document.createElement('div');
+      dlab.className = 'rep-sub';
+      dlab.textContent = 'On the following days:';
+      body.appendChild(dlab);
+      var dwrap = document.createElement('div');
+      dwrap.className = 'rep-days';
+      for (i = 0; i < 7; i++) {
+        (function (idx) {
+          var b = document.createElement('button');
+          b.type = 'button';
+          var on = (r.days || []).indexOf(idx) !== -1;
+          b.className = 'rep-day' + (on ? ' on' : '');
+          b.textContent = DAYS[idx];
+          b.addEventListener('click', function (e) {
+            e.preventDefault();
+            if (!r.days) r.days = [];
+            var at = r.days.indexOf(idx);
+            if (at === -1) r.days.push(idx); else r.days.splice(at, 1);
+            draw();
+          });
+          dwrap.appendChild(b);
+        })(i);
+      }
+      body.appendChild(dwrap);
+
+      var dates = document.createElement('div');
+      dates.className = 'rep-dates';
+      var sBox = document.createElement('div');
+      sBox.className = 'rep-date';
+      var sLab = document.createElement('div');
+      sLab.className = 'rep-sub'; sLab.textContent = 'Starting:';
+      var sBtn = document.createElement('button');
+      sBtn.type = 'button'; sBtn.className = 'rep-datebtn';
+      sBtn.textContent = r.start || 'pick a date';
+      sBtn.addEventListener('click', function (e) {
+        e.preventDefault();
+        if (window.openDatePopover) {
+          window.openDatePopover(sBtn, r.start, function (iso) { r.start = iso; draw(); });
+        }
+      });
+      sBox.appendChild(sLab); sBox.appendChild(sBtn);
+
+      var eBox = document.createElement('div');
+      eBox.className = 'rep-date';
+      var eLab = document.createElement('div');
+      eLab.className = 'rep-sub'; eLab.textContent = 'Ending:';
+      var eBtn = document.createElement('button');
+      eBtn.type = 'button'; eBtn.className = 'rep-datebtn';
+      eBtn.textContent = r.end ? r.end : 'Repeat Forever';
+      eBtn.addEventListener('click', function (e) {
+        e.preventDefault();
+        if (r.end) { r.end = null; draw(); return; }
+        if (window.openDatePopover) {
+          window.openDatePopover(eBtn, r.start, function (iso) { r.end = iso; draw(); });
+        }
+      });
+      eBox.appendChild(eLab); eBox.appendChild(eBtn);
+      dates.appendChild(sBox); dates.appendChild(eBox);
+      body.appendChild(dates);
+
+      refresh();
+    }
+
+    wrap.appendChild(head);
+    wrap.appendChild(body);
+    draw();
+    body.style.display = node.repeat ? 'block' : 'none';
+    return wrap;
+  };
+})();
+
+
+/* ===== m162 warn when a repeat rule never fires ===== */
+(function () {
+  function addYear(iso) {
+    if (!iso) return iso;
+    var p = iso.split('-');
+    if (p.length !== 3) return iso;
+    return (parseInt(p[0], 10) + 1) + '-' + p[1] + '-' + p[2];
+  }
+
+  window.plannerRepeatNeverFires = function (node) {
+    if (!node || !node.repeat) return false;
+    if (!window.plannerOccurrencesBetween) return false;
+    var start = node.repeat.start;
+    if (!start) return false;
+    var hits = window.plannerOccurrencesBetween(node, start, addYear(start));
+    return hits.length === 0;
+  };
+
+  function paint() {
+    var panels = document.querySelectorAll('.rep-wrap'), i;
+    for (i = 0; i < panels.length; i++) {
+      var body = panels[i].querySelector('.rep-body');
+      if (!body) continue;
+      var old = panels[i].querySelector('.rep-warn');
+      var node = window.__repeatPanelNode || null;
+      var bad = node ? window.plannerRepeatNeverFires(node) : false;
+      if (bad && !old) {
+        var w = document.createElement('div');
+        w.className = 'rep-warn';
+        w.textContent = 'These settings never come round - no day matches all of them. Widen the days or change how often it repeats.';
+        body.appendChild(w);
+      } else if (!bad && old && old.parentNode) {
+        old.parentNode.removeChild(old);
+      }
+    }
+    return true;
+  }
+  window.__paintRepeatWarning = paint;
+
+  setInterval(function () { try { paint(); } catch (e) {} }, 700);
 })();
 
 </script>
