@@ -4191,6 +4191,21 @@ input[type="date"]::-webkit-datetime-edit-year-field:focus {
   background: var(--accent-q, #4c9aff); color: #fff; border-radius: 3px;
 }
 input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
+
+/* ===== o14  the month grid reads like a schedule =====
+   A task at 9:36 pm looked the same as an untimed one, so the month disagreed
+   with the week and day views. The time now rides in front of the title, and a
+   day's chips sit in time order. */
+#monthGrid .mtime {
+  display: inline-block;
+  margin-right: 5px;
+  font-size: 10px;
+  font-weight: 590;
+  font-variant-numeric: tabular-nums;
+  color: var(--t-3, #8a8f98);
+  letter-spacing: -.01em;
+}
+#monthGrid .mchip:hover .mtime { color: var(--t-2, #d0d6e0); }
 </style>
 </head>
 <body>
@@ -4208,7 +4223,7 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-20 16:49</span>
+    <span id="buildStamp">build 2026-08-20 17:15</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -17769,6 +17784,78 @@ function firstConnect(remote, rAt, lAt) {
     }
     return out;
   };
+})();
+
+
+/* ===== m175 the month shows the time ===== */
+(function () {
+    function label12(hhmm) {
+        if (!hhmm) return '';
+        var idx = hhmm.indexOf(':');
+        if (idx === -1) return '';
+        var hStr = hhmm.substring(0, idx);
+        var mStr = hhmm.substring(idx + 1);
+        var h = parseInt(hStr, 10);
+        var m = parseInt(mStr, 10);
+        if (isNaN(h) || isNaN(m)) return '';
+        var suffix = h >= 12 ? 'p' : 'a';
+        var hr = h % 12;
+        if (hr === 0) hr = 12;
+        var mm = m < 10 ? '0' + m : m;
+        return hr + ':' + mm + suffix;
+    }
+
+    function timeOfChip(chip) {
+        var id = chip.getAttribute('data-node-id');
+        if (!id) return '';
+        var f = window.findNode ? window.findNode(id) : null;
+        var nd = f && f.node ? f.node : null;
+        return (nd && nd.time) ? nd.time : '';
+    }
+
+    function decorate(root) {
+        var root = root || document;
+        var chips = root.querySelectorAll('.mchip'), i, chip, t, tag;
+        for (i = 0; i < chips.length; i++) {
+            chip = chips[i];
+            if (chip.getAttribute('data-timed') === '1') continue;
+            t = timeOfChip(chip);
+            chip.setAttribute('data-timed', '1');
+            chip.setAttribute('data-time', t || '');
+            if (!t) continue;
+            tag = document.createElement('span');
+            tag.className = 'mtime';
+            tag.textContent = label12(t);
+            chip.insertBefore(tag, chip.firstChild);
+        }
+        var cells = root.querySelectorAll('.mchips'), c, list, j, arr;
+        for (i = 0; i < cells.length; i++) {
+            c = cells[i];
+            list = c.querySelectorAll('.mchip');
+            arr = [];
+            for (j = 0; j < list.length; j++) arr.push(list[j]);
+            arr.sort(function (a, b) {
+                var x = a.getAttribute('data-time') || '', y = b.getAttribute('data-time') || '';
+                if (!x && !y) return 0;
+                if (!x) return 1;
+                if (!y) return -1;
+                if (x < y) return -1;
+                if (x > y) return 1;
+                return 0;
+            });
+            for (j = 0; j < arr.length; j++) c.appendChild(arr[j]);
+        }
+    }
+
+    var baseMonth = window.renderMonth;
+    if (typeof baseMonth === 'function') {
+        window.renderMonth = function () {
+            var r = baseMonth.apply(this, arguments);
+            try { decorate(document.getElementById('monthGrid') || document); } catch (e) {}
+            return r;
+        };
+    }
+    window.plannerDecorateMonthChips = decorate;
 })();
 
 </script>
