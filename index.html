@@ -4251,6 +4251,17 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
   box-shadow: 0 6px 22px rgba(0,0,0,.42);
 }
 .newbuild-pill:hover { filter: brightness(1.08); }
+
+/* the calendar's date range is now a control, so it must look like one */
+.tgtop .tgdatelabel {
+  cursor: pointer; border-radius: 6px; padding: 3px 8px;
+  border: 1px solid transparent;
+}
+.tgtop .tgdatelabel:hover {
+  background: var(--s-elevated, #1f2329);
+  border-color: var(--line, #23252a);
+}
+.tgtop .tgdatelabel::after { content: ' \25BE'; opacity: .55; font-size: 10px; }
 </style>
 </head>
 <body>
@@ -4268,7 +4279,7 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-20 19:35</span>
+    <span id="buildStamp">build 2026-08-20 19:38</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -9525,6 +9536,8 @@ renderAll();
     label();
   }
 
+  window.__openDatePop = open;
+  window.__closeDatePop = close;
   document.addEventListener('click', function (e) {
     if (pop && !(e.target.closest && e.target.closest('.todaypop'))
             && !(e.target.closest && e.target.closest('#btnToday'))) close();
@@ -18052,6 +18065,50 @@ if (r.freq === 'yearly') {
     }
 })();
 
+
+/* ===== m181 the calendar's date label opens the SAME picker =====
+   The Week/Day header showed a plain text range ("Aug 16 - Aug 22") that could not
+   be clicked, so there was no way to jump to a date from the calendar. Rather than
+   grow a second date picker, this makes the label a second anchor for the one the
+   priority tree already uses. */
+(function () {
+  function label(root) {
+    if (!root) return null;
+    var top = root.querySelector('.tgtop');
+    if (!top) return null;
+    var kids = top.children, i;
+    for (i = 0; i < kids.length; i++) {
+      var k = kids[i];
+      if (k.tagName === 'SPAN' && !k.classList.contains('tgspacer') && k.textContent.trim()) return k;
+    }
+    return null;
+  }
+  function wire() {
+    var hosts = [document.getElementById('weekGrid'), document.getElementById('dayView')], i;
+    for (i = 0; i < hosts.length; i++) {
+      var el = label(hosts[i]);
+      if (!el || el.getAttribute('data-datepop') === '1') continue;
+      el.setAttribute('data-datepop', '1');
+      el.classList.add('tgdatelabel');
+      el.setAttribute('title', 'Pick a date');
+      el.addEventListener('click', function (e) {
+        e.preventDefault(); e.stopPropagation();
+        if (window.__openDatePop) window.__openDatePop(this);
+      });
+    }
+  }
+  window.__wireCalDateLabel = wire;
+  ['renderWeek', 'renderDay', 'renderAll'].forEach(function (fn) {
+    var base = window[fn];
+    if (typeof base !== 'function') return;
+    window[fn] = function () {
+      var r = base.apply(this, arguments);
+      try { wire(); } catch (e) {}
+      return r;
+    };
+  });
+  setTimeout(wire, 1200);
+})();
 </script>
 </body>
 </html>
