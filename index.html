@@ -4150,6 +4150,47 @@ input:focus, textarea:focus, select:focus {
 .rep-body:has(.rep-freq) { display: block !important; }
 .sd-cal { display: block; }
 .sd-day { min-height: 30px; }
+
+/* The date and time fields were drawing their hour/minute spinners in the
+   browser's default light style, which looked pasted in. `color-scheme` is what
+   tells the browser to render its own controls dark - styling the input alone
+   never reaches those inner parts. */
+:root { color-scheme: dark; }
+input[type="date"], input[type="time"], input[type="datetime-local"], select {
+  color-scheme: dark;
+  background: var(--s-base, #1c1f26) !important;
+  color: var(--t-1, #e8eaed) !important;
+  border: 1px solid var(--line, #333844) !important;
+  border-radius: var(--r-input, 6px) !important;
+  padding: 6px 8px;
+  font-family: inherit; font-size: 13px;
+}
+input[type="date"]:focus, input[type="time"]:focus, select:focus {
+  outline: 2px solid var(--accent-q, #4c9aff); outline-offset: -1px;
+}
+/* the little calendar/clock buttons inside the field */
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.8); cursor: pointer; opacity: .8;
+}
+input[type="date"]::-webkit-calendar-picker-indicator:hover,
+input[type="time"]::-webkit-calendar-picker-indicator:hover { opacity: 1; }
+/* hour / minute / am-pm segments */
+input[type="time"]::-webkit-datetime-edit-hour-field,
+input[type="time"]::-webkit-datetime-edit-minute-field,
+input[type="time"]::-webkit-datetime-edit-ampm-field,
+input[type="date"]::-webkit-datetime-edit-month-field,
+input[type="date"]::-webkit-datetime-edit-day-field,
+input[type="date"]::-webkit-datetime-edit-year-field { color: var(--t-1, #e8eaed); }
+input[type="time"]::-webkit-datetime-edit-hour-field:focus,
+input[type="time"]::-webkit-datetime-edit-minute-field:focus,
+input[type="time"]::-webkit-datetime-edit-ampm-field:focus,
+input[type="date"]::-webkit-datetime-edit-month-field:focus,
+input[type="date"]::-webkit-datetime-edit-day-field:focus,
+input[type="date"]::-webkit-datetime-edit-year-field:focus {
+  background: var(--accent-q, #4c9aff); color: #fff; border-radius: 3px;
+}
+input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
 </style>
 </head>
 <body>
@@ -4167,7 +4208,7 @@ input:focus, textarea:focus, select:focus {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-20 15:54</span>
+    <span id="buildStamp">build 2026-08-20 16:08</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
