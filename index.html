@@ -4082,13 +4082,22 @@ input:focus, textarea:focus, select:focus {
    ended exactly at midnight with nothing below it. Give the scroll area an
    hour of room underneath so late events sit inside it. The hour lines are
    positioned absolutely, so this adds space without moving any of them. */
-.tgbody {
-  /* Measured: the grid was 720px tall while a 23:30 task rendered at 770-810px,
-     so late-evening tasks hung off the bottom with nothing under them. The grid
-     now reaches past midnight far enough to contain a full-length late event. */
-  min-height: 820px;
-  padding-bottom: 44px;
-}
+/* A minimum height on the BODY stretched the last hour: the hour lines are
+   spaced from the body's own height, so forcing it taller than
+   (hours x 40px) left a gap that did not match the other hours. The room for a
+   late event belongs on the SCROLL container instead, which does not feed the
+   hour spacing at all. */
+/* Room for a late event goes INSIDE the grid body as padding, not below it on
+   the scroller. Padding on the scroller put empty space underneath the day
+   columns, and an event dropped there landed on nothing - which broke dragging
+   an event to another day. Hour lines are positioned from the body's top, so
+   bottom padding does not disturb their spacing. */
+.tgbody { padding-bottom: 64px; }
+
+/* The current-time bar was re-created on every redraw and animated each time,
+   which read as flicker. It moves, it does not fade. */
+.tgnow, .tgnow-dot { transition: none !important; animation: none !important; }
+.tgnow ~ .tgnow { display: none !important; }
 </style>
 </head>
 <body>
@@ -4106,7 +4115,7 @@ input:focus, textarea:focus, select:focus {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-20 15:04</span>
+    <span id="buildStamp">build 2026-08-20 15:41</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
