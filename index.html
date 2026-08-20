@@ -4034,6 +4034,31 @@ input:focus, textarea:focus, select:focus {
 .note-full:focus { outline: 2px solid var(--accent-q, #4c9aff); outline-offset: -1px; }
 .note-box { background: transparent; border: 0; }
 .note-lines, .note-bar { display: none !important; }
+
+/* One notepad you can select right across, that can still be styled. */
+.note-rich {
+  display: block; width: 100%; min-height: 160px; max-height: 46vh;
+  overflow-y: auto; padding: 10px 12px;
+  background: var(--s-base, #1c1f26); color: var(--t-1, #e8eaed);
+  border: 1px solid var(--line, #333844);
+  border-radius: var(--r-input, 6px) var(--r-input, 6px) 0 0;
+  font-family: inherit; font-size: 13px; line-height: 1.6;
+  white-space: pre-wrap; word-wrap: break-word; outline: none;
+}
+.note-rich:focus { outline: 2px solid var(--accent-q, #4c9aff); outline-offset: -1px; }
+.note-bar2 {
+  display: flex; gap: 4px; flex-wrap: wrap; padding: 6px 8px;
+  background: var(--s-raised, #262a33);
+  border: 1px solid var(--line, #333844); border-top: 0;
+  border-radius: 0 0 var(--r-input, 6px) var(--r-input, 6px);
+}
+.note-tool {
+  min-width: 28px; padding: 4px 8px; cursor: pointer; font-size: 12px;
+  background: var(--s-elevated, #2f343e); color: var(--t-2, #9aa0a8);
+  border: 1px solid var(--line, #333844); border-radius: 5px;
+}
+.note-tool:hover { color: var(--t-1, #e8eaed); }
+.note-full, .note-lines, .note-bar { display: none !important; }
 </style>
 </head>
 <body>
@@ -4051,7 +4076,7 @@ input:focus, textarea:focus, select:focus {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-20 14:00</span>
+    <span id="buildStamp">build 2026-08-20 14:23</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -17060,6 +17085,113 @@ function firstConnect(remote, rAt, lAt) {
   }
   window.__paintRepeatWarning = paint;
   setInterval(function () { try { paint(); } catch (e) {} }, 700);
+})();
+
+
+/* ===== m166 notes styling back + the warning says the real reason ===== */
+(function () {
+
+  window.plannerRepeatProblem = function (node) {
+    if (!node || !node.repeat) return '';
+    var r = node.repeat;
+    if (r.freq === 'specific') {
+      if (!r.dates || !r.dates.length) return 'Pick the dates this should land on - none are chosen yet.';
+      return '';
+    }
+    if (!r.start) return 'Choose a date for it to start from.';
+    if (!r.days || !r.days.length) return '';
+    if (!window.plannerOccurrencesBetween) return '';
+    var p = r.start.split('-');
+    if (p.length !== 3) return '';
+    var until = (parseInt(p[0], 10) + 1) + '-' + p[1] + '-' + p[2];
+    var hits = window.plannerOccurrencesBetween(node, r.start, until);
+    if (hits.length === 0) return 'These settings never come round - the days you ticked never line up with how often it repeats. Widen the days or change the frequency.';
+    return '';
+  };
+
+  function paint() {
+    var panels = document.querySelectorAll('.rep-wrap'), i;
+    var node = null;
+    if (window.__editingId && window.findNode) {
+      var f = window.findNode(window.__editingId);
+      if (f && f.node) node = f.node;
+    }
+    var msg = node ? window.plannerRepeatProblem(node) : '';
+    for (i = 0; i < panels.length; i++) {
+      var body = panels[i].querySelector('.rep-body');
+      if (!body) continue;
+      var old = panels[i].querySelector('.rep-warn');
+      if (msg) {
+        if (!old) {
+          old = document.createElement('div');
+          old.className = 'rep-warn';
+          body.appendChild(old);
+        }
+        if (old.textContent !== msg) old.textContent = msg;
+      } else if (old && old.parentNode) {
+        old.parentNode.removeChild(old);
+      }
+      // weekday boxes make no sense for "On specific dates"
+      var isSpecific = node && node.repeat && node.repeat.freq === 'specific';
+      var dayWrap = panels[i].querySelector('.rep-days');
+      var dayLab = panels[i].querySelector('.rep-sub');
+      if (dayWrap) dayWrap.style.display = isSpecific ? 'none' : '';
+      if (dayLab && dayLab.textContent.indexOf('following days') >= 0) {
+        dayLab.style.display = isSpecific ? 'none' : '';
+      }
+    }
+    return true;
+  }
+  window.__paintRepeatWarning = paint;
+  setInterval(function () { try { paint(); } catch (e) {} }, 700);
+
+  window.buildNoteBox = function (node) {
+    var box = document.createElement('div');
+    box.className = 'note-box';
+
+    var area = document.createElement('div');
+    area.className = 'note-rich';
+    area.setAttribute('contenteditable', 'true');
+    area.setAttribute('spellcheck', 'true');
+
+    if (node && node.notesHtml) {
+      area.innerHTML = node.notesHtml;
+    } else {
+      var txt = (node && typeof node.notes === 'string') ? node.notes : '';
+      area.textContent = txt;
+    }
+
+    function commit() {
+      node.notesHtml = area.innerHTML;
+      node.notes = area.innerText;
+    }
+    area.addEventListener('input', commit);
+    area.addEventListener('blur', commit);
+
+    var bar = document.createElement('div');
+    bar.className = 'note-bar2';
+    function tool(label, title, fn) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'note-tool';
+      b.title = title;
+      b.textContent = label;
+      b.addEventListener('mousedown', function (e) { e.preventDefault(); });
+      b.addEventListener('click', function (e) { e.preventDefault(); fn(); commit(); });
+      bar.appendChild(b);
+    }
+    tool('B', 'Bold the selected text', function () { document.execCommand('bold', false, null); });
+    tool('I', 'Italic', function () { document.execCommand('italic', false, null); });
+    tool('U', 'Underline', function () { document.execCommand('underline', false, null); });
+    tool('A-', 'Smaller', function () { document.execCommand('fontSize', false, '2'); });
+    tool('A', 'Normal size', function () { document.execCommand('fontSize', false, '3'); });
+    tool('A+', 'Bigger', function () { document.execCommand('fontSize', false, '5'); });
+    tool('clear', 'Remove styling from the selection', function () { document.execCommand('removeFormat', false, null); });
+
+    box.appendChild(area);
+    box.appendChild(bar);
+    return box;
+  };
 })();
 
 </script>
