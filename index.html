@@ -4260,7 +4260,7 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-20 18:38</span>
+    <span id="buildStamp">build 2026-08-20 18:42</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -9548,26 +9548,21 @@ renderAll();
     return ids;
   }
 
-  function surfaceArrivals() {
-    var today = (window.selectedDate || window.todayISO());
-    var changed = false;
-    var arrivals = [];
-    window.walkTree(function (n) {
-      if (!n.date || n.done) return;
-      if (n.date > today) return;
-      var anc = ancestorsOf(n.id);
-      for (var i = 0; i < anc.length; i++) {
-        var a = window.findNode(anc[i]);
-        if (a && a.node && a.node.collapsed) { a.node.collapsed = false; changed = true; }
-      }
-      if (n.date === today && !announced[n.id]) {
-        announced[n.id] = true;
-        arrivals.push(n);
-      }
-    });
-    if (changed) window.Store.save();
-    return { changed: changed, arrivals: arrivals };
-  }
+function surfaceArrivals() {
+  var today = (window.selectedDate || window.todayISO());
+  var changed = false;
+  var arrivals = [];
+  window.walkTree(function (n) {
+    if (!n.date || n.done) return;
+    if (n.date > today) return;
+    if (n.date === today && !announced[n.id]) {
+      announced[n.id] = true;
+      arrivals.push(n);
+    }
+  });
+  if (changed) window.Store.save();
+  return { changed: changed, arrivals: arrivals };
+}
   window.__surfaceArrivals = surfaceArrivals;
 
   var base = window.renderTree;
