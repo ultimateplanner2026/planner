@@ -4018,6 +4018,9 @@ input:focus, textarea:focus, select:focus {
 
 .rep-warn{margin-top:10px;padding:8px 10px;font-size:11px;line-height:1.5;border-radius:6px;
   color:#ffd9a0;background:rgba(240,169,51,.12);border:1px solid rgba(240,169,51,.4);}
+
+/* the Level row is removed at the operator's request */
+.ea-levelrow { display: none !important; }
 </style>
 </head>
 <body>
@@ -4035,7 +4038,7 @@ input:focus, textarea:focus, select:focus {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-20 13:09</span>
+    <span id="buildStamp">build 2026-08-20 13:51</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -16913,6 +16916,55 @@ function firstConnect(remote, rAt, lAt) {
     if (window.renderAll) window.renderAll();
     return true;
   };
+})();
+
+
+/* ===== m164 mount the Repeat panel in the edit screen ===== */
+(function () {
+
+  function nodeOf(dlg) {
+    var el = dlg.querySelector('[data-id]');
+    var id = dlg.getAttribute('data-id') || (el ? el.getAttribute('data-id') : null);
+    if (!id && window.__editingId) id = window.__editingId;
+    if (!id || !window.findNode) return null;
+    var f = window.findNode(id);
+    return (f && f.node) ? f.node : null;
+  }
+
+  function mount() {
+    var title = document.querySelector('.ea-title');
+    if (!title) return false;
+    var dlg = title.closest ? title.closest('.modal') : null;
+    if (!dlg) dlg = title.parentElement;
+    if (!dlg) return false;
+    if (dlg.querySelector('.rep-wrap')) return true;
+    var node = nodeOf(dlg);
+    if (!node || !window.buildRepeatPanel) return false;
+    window.__repeatPanelNode = node;
+    var panel = window.buildRepeatPanel(node);
+    var note = dlg.querySelector('.ea-note');
+    if (note && note.parentNode) {
+      if (note.nextSibling) note.parentNode.insertBefore(panel, note.nextSibling);
+      else note.parentNode.appendChild(panel);
+    } else {
+      dlg.appendChild(panel);
+    }
+    return true;
+  }
+  window.__mountRepeatPanel = mount;
+
+  var baseEdit = window.editActivity;
+  if (typeof baseEdit === 'function') {
+    window.editActivity = function (id) {
+      window.__editingId = id;
+      var r = baseEdit.apply(this, arguments);
+      setTimeout(mount, 60);
+      setTimeout(mount, 260);
+      return r;
+    };
+  }
+
+  setInterval(function () { try { mount(); } catch (e) {} }, 600);
 })();
 
 </script>
