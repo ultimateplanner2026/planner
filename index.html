@@ -4021,6 +4021,19 @@ input:focus, textarea:focus, select:focus {
 
 /* the Level row is removed at the operator's request */
 .ea-levelrow { display: none !important; }
+
+/* One continuous notepad - select across paragraphs like anywhere else. */
+.note-full {
+  display: block; width: 100%; min-height: 160px; max-height: 46vh;
+  padding: 10px 12px; resize: vertical; overflow-y: auto;
+  background: var(--s-base, #1c1f26); color: var(--t-1, #e8eaed);
+  border: 1px solid var(--line, #333844); border-radius: var(--r-input, 6px);
+  font-family: inherit; font-size: 13px; line-height: 1.6;
+  white-space: pre-wrap; word-wrap: break-word;
+}
+.note-full:focus { outline: 2px solid var(--accent-q, #4c9aff); outline-offset: -1px; }
+.note-box { background: transparent; border: 0; }
+.note-lines, .note-bar { display: none !important; }
 </style>
 </head>
 <body>
@@ -4038,7 +4051,7 @@ input:focus, textarea:focus, select:focus {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-20 13:51</span>
+    <span id="buildStamp">build 2026-08-20 14:00</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -16965,6 +16978,88 @@ function firstConnect(remote, rAt, lAt) {
   }
 
   setInterval(function () { try { mount(); } catch (e) {} }, 600);
+})();
+
+
+/* ===== m165 notes as one field + no false repeat warning ===== */
+/* Two fixes.
+   1. NOTES AS ONE FIELD. The editor was a stack of one box per line, so a
+      selection could never cross a line - you could highlight one line and no
+      more. Per-line styling is not worth a notepad you cannot select in, so it
+      becomes a single textarea that behaves like any other notepad:
+      select all, copy, paste, drag across paragraphs.
+   2. THE FALSE WARNING. "These settings never come round" was appearing on
+      perfectly good rules. It read a global that went stale as soon as the
+      screen redrew, so it was judging the wrong task. It now reads the task
+      actually being edited, and stays silent unless it is certain. */
+(function () {
+
+  window.buildNoteBox = function (node) {
+    var box = document.createElement('div');
+    box.className = 'note-box';
+    var ta = document.createElement('textarea');
+    ta.className = 'note-full';
+    ta.setAttribute('spellcheck', 'true');
+    var txt = '';
+    if (node && typeof node.notes === 'string' && node.notes.length) {
+      txt = node.notes;
+    } else if (node && node.noteLines && node.noteLines.length) {
+      var parts = [], i;
+      for (i = 0; i < node.noteLines.length; i++) parts.push(node.noteLines[i].t || '');
+      txt = parts.join('\n');
+    }
+    ta.value = txt;
+    ta.addEventListener('input', function () {
+      node.notes = ta.value;
+      var lines = ta.value.split('\n'), out = [], k;
+      for (k = 0; k < lines.length; k++) out.push({ t: lines[k], b: false, i: false, s: 'normal' });
+      node.noteLines = out;
+    });
+    box.appendChild(ta);
+    return box;
+  };
+
+  window.plannerRepeatNeverFires = function (node) {
+    if (!node || !node.repeat) return false;
+    var r = node.repeat;
+    if (!r.start) return false;
+    if (!r.days || !r.days.length) {
+      if (r.freq !== 'specific') return false;
+    }
+    if (r.freq === 'specific') return !(r.dates && r.dates.length);
+    if (!window.plannerOccurrencesBetween) return false;
+    var p = r.start.split('-');
+    if (p.length !== 3) return false;
+    var until = (parseInt(p[0], 10) + 1) + '-' + p[1] + '-' + p[2];
+    var hits = window.plannerOccurrencesBetween(node, r.start, until);
+    return hits.length === 0;
+  };
+
+  function paint() {
+    var panels = document.querySelectorAll('.rep-wrap'), i;
+    var node = null;
+    if (window.__editingId && window.findNode) {
+      var f = window.findNode(window.__editingId);
+      if (f && f.node) node = f.node;
+    }
+    for (i = 0; i < panels.length; i++) {
+      var old = panels[i].querySelector('.rep-warn');
+      var bad = node ? window.plannerRepeatNeverFires(node) : false;
+      if (bad && !old) {
+        var body = panels[i].querySelector('.rep-body');
+        if (!body) continue;
+        var w = document.createElement('div');
+        w.className = 'rep-warn';
+        w.textContent = 'These settings never come round - no day matches all of them. Widen the days or change how often it repeats.';
+        body.appendChild(w);
+      } else if (!bad && old && old.parentNode) {
+        old.parentNode.removeChild(old);
+      }
+    }
+    return true;
+  }
+  window.__paintRepeatWarning = paint;
+  setInterval(function () { try { paint(); } catch (e) {} }, 700);
 })();
 
 </script>
