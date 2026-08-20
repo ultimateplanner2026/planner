@@ -3949,6 +3949,31 @@ input:focus, textarea:focus, select:focus {
 /* One caret per row. A duplicate caret wired to a dead id looks exactly like a
    triangle that does nothing when clicked. */
 #treeRoot .tree-row > .tree-caret ~ .tree-caret { display: none !important; }
+/* ===== o18  THE BUILD VERSION, TOP RIGHT =====
+   It was hidden in the UI, which made "which build am I on" unanswerable
+   without opening Settings. Fixed positioning so it can never push the top bar
+   around - the last time a version line was added inline it wrapped the bar and
+   knocked the month arrows off screen. */
+#buildStamp {
+  display: block !important;
+  position: fixed !important;
+  top: 10px;
+  right: 12px;
+  z-index: 80;
+  font-size: 10px;
+  line-height: 1;
+  letter-spacing: .02em;
+  color: var(--t-3, #6b7280);
+  background: transparent;
+  padding: 4px 6px;
+  border-radius: 5px;
+  pointer-events: none;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+@media (max-width: 700px) {
+  #buildStamp { top: 6px; right: 6px; font-size: 9px; }
+}
 </style>
 </head>
 <body>
@@ -3966,7 +3991,7 @@ input:focus, textarea:focus, select:focus {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-20 09:57</span>
+    <span id="buildStamp">build 2026-08-20 11:58</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -16285,6 +16310,137 @@ function firstConnect(remote, rAt, lAt) {
 
 /* m152 removed - it counted the DAY view's column as a phantom and would
    have rewritten the grid from a wrong count. See below. */
+
+/* ===== m153 the fold triangle, bound directly on every row ===== */
+(function () {
+  var LS = 'planner.collapsed.v1';
+
+  function set() {
+    try {
+      var raw = JSON.parse(localStorage.getItem(LS) || '[]');
+      var o = {}, i;
+      for (i = 0; i < raw.length; i++) o[raw[i]] = 1;
+      return o;
+    } catch (e) { return {}; }
+  }
+  function save(o) {
+    try {
+      var ids = [], k;
+      for (k in o) { if (o.hasOwnProperty(k) && o[k]) ids.push(k); }
+      localStorage.setItem(LS, JSON.stringify(ids));
+    } catch (e) {}
+  }
+
+  window.plannerToggleCollapse = function (id) {
+    if (!id) return false;
+    var s = set();
+    if (s[id]) delete s[id]; else s[id] = 1;
+    save(s);
+    var f = window.findNode ? window.findNode(id) : null;
+    if (f && f.node) f.node.collapsed = !!s[id];
+    if (window.renderTree) window.renderTree();
+    else if (window.renderAll) window.renderAll();
+    return true;
+  };
+
+  function applyState() {
+    var s = set();
+    (function walk(list) {
+      if (!list) return;
+      var i;
+      for (i = 0; i < list.length; i++) {
+        if (!list[i]) continue;
+        if (list[i].children && list[i].children.length) list[i].collapsed = !!s[list[i].id];
+        walk(list[i].children);
+      }
+    })(window.Store && window.Store.data ? window.Store.data.tree : []);
+    return true;
+  }
+
+  function rebind() {
+    var rows = document.querySelectorAll('#treeRoot .tree-row'), i;
+    for (i = 0; i < rows.length; i++) {
+      var row = rows[i];
+      var id = row.getAttribute('data-id');
+      if (!id) continue;
+      var carets = row.querySelectorAll('.tree-caret');
+      var j;
+      // more than one caret means a stale duplicate; keep the first only
+      for (j = 1; j < carets.length; j++) {
+        if (carets[j].parentNode) carets[j].parentNode.removeChild(carets[j]);
+      }
+      var c = row.querySelector('.tree-caret');
+      if (!c) continue;
+      if (c.getAttribute('data-bound') === id) continue;
+      var fresh = c.cloneNode(true);
+      fresh.setAttribute('data-bound', id);
+      (function (nid, el) {
+        el.addEventListener('click', function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+          window.plannerToggleCollapse(nid);
+        });
+      })(id, fresh);
+      if (c.parentNode) c.parentNode.replaceChild(fresh, c);
+    }
+    return true;
+  }
+  window.__rebindCarets = rebind;
+
+  function enforce() {
+    var s = set(), id;
+    function descendants(node, out) {
+      if (!node || !node.children) return out;
+      var i;
+      for (i = 0; i < node.children.length; i++) {
+        if (!node.children[i]) continue;
+        out.push(node.children[i].id);
+        descendants(node.children[i], out);
+      }
+      return out;
+    }
+    for (id in s) {
+      if (!s.hasOwnProperty(id) || !s[id]) continue;
+      var f = window.findNode ? window.findNode(id) : null;
+      if (!f || !f.node) continue;
+      f.node.collapsed = true;
+      var kids = descendants(f.node, []), k;
+      for (k = 0; k < kids.length; k++) {
+        var row = document.querySelector('#treeRoot .tree-row[data-id="' + kids[k] + '"]');
+        if (row) row.style.display = 'none';
+      }
+    }
+    return true;
+  }
+  window.__enforceCollapsed = enforce;
+
+  var baseT = window.renderTree;
+  if (typeof baseT === 'function') {
+    window.renderTree = function () {
+      applyState();
+      var r = baseT.apply(this, arguments);
+      try { rebind(); } catch (e) {}
+      try { enforce(); } catch (e) {}
+      setTimeout(function () { try { enforce(); } catch (e) {} }, 0);
+      return r;
+    };
+  }
+  var baseA = window.renderAll;
+  if (typeof baseA === 'function') {
+    window.renderAll = function () {
+      applyState();
+      var r = baseA.apply(this, arguments);
+      try { rebind(); } catch (e) {}
+      try { enforce(); } catch (e) {}
+      setTimeout(function () { try { enforce(); } catch (e) {} }, 0);
+      return r;
+    };
+  }
+  setTimeout(function () { applyState(); rebind(); }, 1600);
+  setTimeout(function () { rebind(); enforce(); }, 3200);
+})();
+
 </script>
 </body>
 </html>
