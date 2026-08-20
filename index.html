@@ -4098,6 +4098,58 @@ input:focus, textarea:focus, select:focus {
    which read as flicker. It moves, it does not fade. */
 .tgnow, .tgnow-dot { transition: none !important; animation: none !important; }
 .tgnow ~ .tgnow { display: none !important; }
+/* the inline month grid for "On specific dates" */
+.sd-cal { margin-top: 12px; }
+.sd-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.sd-title { font-size: 13px; font-weight: 600; color: var(--t-1, #e8eaed); }
+.sd-nav {
+  width: 28px; height: 26px; cursor: pointer; font-size: 15px; line-height: 1;
+  background: var(--s-elevated, #2f343e); color: var(--t-1, #e8eaed);
+  border: 1px solid var(--line, #333844); border-radius: 6px;
+}
+.sd-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.sd-dow { text-align: center; font-size: 10px; color: var(--t-3, #6b7280); padding: 2px 0; }
+.sd-blank { height: 30px; }
+.sd-day {
+  height: 30px; cursor: pointer; font-size: 12px;
+  background: var(--s-elevated, #2f343e); color: var(--t-1, #e8eaed);
+  border: 1px solid var(--line, #333844); border-radius: 6px;
+}
+.sd-day:hover { border-color: var(--accent-q, #4c9aff); }
+.sd-day.on {
+  background: var(--accent-q, #4c9aff); color: #fff; font-weight: 600;
+  border-color: var(--accent-q, #4c9aff);
+}
+.sd-count { margin-top: 8px; font-size: 11px; color: var(--t-3, #6b7280); }
+.rep-datelist, .rep-adddate { display: none !important; }
+
+/* The edit dialog must scroll. With the Repeat panel and a month grid inside it,
+   the days fell below the bottom of the screen and could not be clicked at all -
+   which is why "no options" kept coming back however many times the picker was
+   rebuilt. */
+.modal { max-height: 88vh; display: flex; flex-direction: column; }
+.modal > *:not(.modal-actions):not(.modal-buttons) { min-height: 0; }
+.ea-body, .modal-body { overflow-y: auto; max-height: 72vh; }
+.modal:has(.rep-wrap) { overflow-y: auto; }
+.rep-body { max-height: none; }
+
+/* The dialog must be able to reach its own bottom, or the month grid sits below
+   the screen edge and cannot be clicked - which is what "no options" was. */
+.modal { max-height: 90vh; overflow-y: auto; }
+.sd-cal { padding-bottom: 4px; }
+
+/* THE ACTUAL CAUSE of "no options to choose".
+   Measured: a day button reported top=0 bottom=0 - zero size - and
+   elementFromPoint at its centre returned the modal backdrop. The month grid was
+   being placed inside the repeat panel's body while that body was still
+   display:none, so it rendered with no size at all and every click fell through
+   to the backdrop behind it. Three pickers were rebuilt chasing this; none of
+   them was ever the problem.
+   Whenever the panel holds content, the panel is shown. */
+.rep-body:has(.sd-cal),
+.rep-body:has(.rep-freq) { display: block !important; }
+.sd-cal { display: block; }
+.sd-day { min-height: 30px; }
 </style>
 </head>
 <body>
@@ -4115,7 +4167,7 @@ input:focus, textarea:focus, select:focus {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-20 15:41</span>
+    <span id="buildStamp">build 2026-08-20 15:54</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -17456,7 +17508,7 @@ function firstConnect(remote, rAt, lAt) {
     last = sig;
     try { if (window.__mountRepeatPanel) window.__mountRepeatPanel(); } catch (e) {}
     try { if (window.__tidyRepeatDays) window.__tidyRepeatDays(); } catch (e) {}
-    try { if (window.__mountRepeatDates) window.__mountRepeatDates(); } catch (e) {}
+    try { if (window.__specificDatesCal) window.__specificDatesCal(); } catch (e) {}
     try { if (window.__paintRepeatWarning) window.__paintRepeatWarning(); } catch (e) {}
   }
   setInterval(tick, 500);
@@ -17464,6 +17516,161 @@ function firstConnect(remote, rAt, lAt) {
   document.addEventListener('click', nudge, true);
   document.addEventListener('change', nudge, true);
 })();
+
+/* ===== m171 inline calendar for On specific dates ===== */
+(function () {
+  var DOW = ['Su','Mo','Tu','We','Th','Fr','Sa'];
+  var MON = ['January','February','March','April','May','June','July','August',
+             'September','October','November','December'];
+  var cursor = null;
+
+  function iso(y, m, d) {
+    function p(v) { return (v < 10 ? '0' : '') + v; }
+    return y + '-' + p(m + 1) + '-' + p(d);
+  }
+
+  function build(node) {
+    var r = node.repeat;
+    if (!r.dates) r.dates = [];
+    if (!cursor) {
+      var s = (r.start || '').split('-');
+      cursor = (s.length === 3)
+        ? new Date(parseInt(s[0],10), parseInt(s[1],10) - 1, 1)
+        : new Date();
+    }
+    var wrap = document.createElement('div');
+    wrap.className = 'sd-cal';
+
+    var head = document.createElement('div');
+    head.className = 'sd-head';
+    var prev = document.createElement('button');
+    prev.type = 'button'; prev.className = 'sd-nav'; prev.textContent = '‹';
+    prev.addEventListener('click', function (e) {
+      e.preventDefault(); e.stopPropagation();
+      cursor = new Date(cursor.getFullYear(), cursor.getMonth() - 1, 1);
+      redraw(node);
+    });
+    var title = document.createElement('span');
+    title.className = 'sd-title';
+    title.textContent = MON[cursor.getMonth()] + ' ' + cursor.getFullYear();
+    var next = document.createElement('button');
+    next.type = 'button'; next.className = 'sd-nav'; next.textContent = '›';
+    next.addEventListener('click', function (e) {
+      e.preventDefault(); e.stopPropagation();
+      cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
+      redraw(node);
+    });
+    head.appendChild(prev); head.appendChild(title); head.appendChild(next);
+    wrap.appendChild(head);
+
+    var grid = document.createElement('div');
+    grid.className = 'sd-grid';
+    var i;
+    for (i = 0; i < 7; i++) {
+      var dh = document.createElement('div');
+      dh.className = 'sd-dow';
+      dh.textContent = DOW[i];
+      grid.appendChild(dh);
+    }
+    var y = cursor.getFullYear(), m = cursor.getMonth();
+    var first = new Date(y, m, 1).getDay();
+    var days = new Date(y, m + 1, 0).getDate();
+    for (i = 0; i < first; i++) {
+      var blank = document.createElement('div');
+      blank.className = 'sd-blank';
+      grid.appendChild(blank);
+    }
+    var d;
+    for (d = 1; d <= days; d++) {
+      (function (day) {
+        var key = iso(y, m, day);
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'sd-day' + (r.dates.indexOf(key) !== -1 ? ' on' : '');
+        b.textContent = String(day);
+        b.addEventListener('click', function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          var at = r.dates.indexOf(key);
+          if (at === -1) r.dates.push(key); else r.dates.splice(at, 1);
+          r.dates.sort();
+          redraw(node);
+          if (window.renderAll) window.renderAll();
+        });
+        grid.appendChild(b);
+      })(d);
+    }
+    wrap.appendChild(grid);
+
+    var count = document.createElement('div');
+    count.className = 'sd-count';
+    count.textContent = r.dates.length
+      ? (r.dates.length + ' date' + (r.dates.length === 1 ? '' : 's') + ' chosen')
+      : 'Click the days you want';
+    wrap.appendChild(count);
+    return wrap;
+  }
+
+  function redraw(node) {
+    var hosts = document.querySelectorAll('.rep-body'), i;
+    for (i = 0; i < hosts.length; i++) {
+      var old = hosts[i].querySelector('.sd-cal');
+      var fresh = build(node);
+      if (old && old.parentNode) old.parentNode.replaceChild(fresh, old);
+      else hosts[i].appendChild(fresh);
+    }
+    return true;
+  }
+
+  window.__specificDatesCal = function () {
+    var node = null;
+    if (window.__editingId && window.findNode) {
+      var f = window.findNode(window.__editingId);
+      if (f && f.node) node = f.node;
+    }
+    var hosts = document.querySelectorAll('.rep-body'), i;
+    var want = node && node.repeat && node.repeat.freq === 'specific';
+    for (i = 0; i < hosts.length; i++) {
+      var old = hosts[i].querySelector('.sd-cal');
+      if (!want) {
+        if (old && old.parentNode) old.parentNode.removeChild(old);
+        continue;
+      }
+      if (!old) { cursor = null; redraw(node); }
+    }
+    var strays = document.querySelectorAll('.rep-datelist');
+    for (i = 0; i < strays.length; i++) {
+      if (strays[i].parentNode) strays[i].parentNode.removeChild(strays[i]);
+    }
+    return true;
+  };
+})();
+
+
+
+/* ===== m172 chosen dates are the rule ===== */
+/* For "On specific dates", the dates ARE the rule.
+   Found by testing: a date picked BEFORE the Start date was silently dropped -
+   the engine checked the start/end window first, so choosing the 10th while
+   Start said the 20th meant the task simply never appeared. Nobody would guess
+   that; you pick a date, it should count. Start and End still gate every other
+   frequency. */
+(function () {
+  var base = window.plannerRepeatMatches;
+  if (typeof base !== 'function') return;
+
+  window.plannerRepeatMatches = function (node, iso) {
+    if (node && node.repeat && node.repeat.freq === 'specific') {
+      var list = (node.repeat.dates || []), i;
+      for (i = 0; i < list.length; i++) {
+        if (list[i] === iso) return true;
+      }
+      return false;
+    }
+    return base.apply(this, arguments);
+  };
+})();
+
 </script>
 </body>
 </html>
