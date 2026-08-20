@@ -154,17 +154,25 @@ header#topbar {
   border-bottom: var(--hairline);
   min-height: 48px;
 }
-header#topbar .group {
+header#topbar .group,
+header#topbar .topbar-group {
   display: flex;
   align-items: center;
   gap: var(--s1);
 }
-header#topbar .group + .group {
+header#topbar .group + .group,
+header#topbar .topbar-group + .topbar-group {
   padding-left: var(--s3);
   margin-left: var(--s2);
   border-left: var(--hairline);
 }
-header#topbar .spacer { flex: 1 1 auto; }
+header#topbar .spacer,
+header#topbar .topbar-spacer { flex: 1 1 auto; }
+/* The markup uses class="topbar-group"/"topbar-spacer" but these rules only ever
+   named .group/.spacer, so they never applied. The container fell back to
+   display:block, its buttons became inline-level, and #btnToday - the only one
+   containing text - aligned on a TEXT BASELINE, landing 4.094px below the arrow
+   buttons beside it. That is the box that would not line up. */
 
 header#topbar button {
   display: inline-flex;
@@ -4260,7 +4268,7 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-20 18:42</span>
+    <span id="buildStamp">build 2026-08-20 19:35</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -16614,7 +16622,7 @@ function firstConnect(remote, rAt, lAt) {
       var i;
       for (i = 0; i < list.length; i++) {
         if (!list[i]) continue;
-        if (list[i].children && list[i].children.length) list[i].collapsed = !!s[list[i].id];
+        if (list[i].children && list[i].children.length) { if (list[i].collapsed && !s[list[i].id]) { s[list[i].id] = 1; save(s); } list[i].collapsed = !!s[list[i].id]; }
         walk(list[i].children);
       }
     })(window.Store && window.Store.data ? window.Store.data.tree : []);
@@ -17943,48 +17951,105 @@ if (r.freq === 'yearly') {
 
 /* ===== m180 new-build pill ===== */
 (function () {
-  var MINE = '';
-  var pill = null;
+    var MINE = '';
+    var pill = null;
+    var waitInterval = null;
 
-  function stampOf(text) {
-    var m = String(text).match(/id="buildStamp">([^<]*)/);
-    return m ? m[1].trim() : '';
-  }
+    function stampOf(text) {
+        var m = String(text).match(/id="buildStamp">([^<]*)/);
+        return m ? m[1].trim() : '';
+    }
 
-  function show() {
-    if (pill) return;
-    pill = document.createElement('button');
-    pill.type = 'button';
-    pill.className = 'newbuild-pill';
-    pill.textContent = 'New version ready - tap to load';
-    pill.addEventListener('click', function () { location.reload(true); });
-    document.body.appendChild(pill);
-  }
+    function busy() {
+        var active = document.activeElement;
+        if (active) {
+            var tag = active.tagName;
+            if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || active.isContentEditable) {
+                return true;
+            }
+        }
+        var dialog = document.querySelector('.modal-backdrop, .ea, .actmenu');
+        if (dialog) {
+            return true;
+        }
+        var sel = window.getSelection && window.getSelection();
+        if (sel && String(sel).length > 0) {
+            return true;
+        }
+        if (document.visibilityState === 'hidden') {
+            return true;
+        }
+        return false;
+    }
 
-  function check() {
-    if (!window.fetch) return;
-    fetch(location.href, { cache: 'no-store' })
-      .then(function (r) { return r.text(); })
-      .then(function (t) {
-        var there = stampOf(t);
-        if (there && MINE && there !== MINE) show();
-      })
-      .catch(function () {});
-  }
+    function startWaiter() {
+        if (waitInterval) {
+            return;
+        }
+        waitInterval = setInterval(function () {
+            if (!busy()) {
+                clearInterval(waitInterval);
+                waitInterval = null;
+                location.reload();
+            }
+        }, 1500);
+    }
 
-  function start() {
-    var el = document.getElementById('buildStamp');
-    MINE = el ? el.textContent.trim() : '';
-    if (!MINE) return;
-    setInterval(check, 60000);
-    setTimeout(check, 8000);
-  }
+    function show() {
+        if (pill) {
+            return;
+        }
+        pill = document.createElement('button');
+        pill.type = 'button';
+        pill.className = 'newbuild-pill';
+        pill.textContent = 'New version ready - tap to load';
+        pill.addEventListener('click', function () {
+            if (waitInterval) {
+                clearInterval(waitInterval);
+                waitInterval = null;
+            }
+            location.reload(true);
+        });
+        document.body.appendChild(pill);
+    }
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', start);
-  } else {
-    start();
-  }
+    function check() {
+        if (!window.fetch) {
+            return;
+        }
+        fetch(location.href, { cache: 'no-store' })
+            .then(function (r) { return r.text(); })
+            .then(function (t) {
+                var there = stampOf(t);
+                if (there && MINE && there !== MINE) {
+                    if (!busy()) {
+                        location.reload();
+                    } else {
+                        show();
+                        startWaiter();
+                    }
+                }
+            })
+            .catch(function () {});
+    }
+
+    function start() {
+        var el = document.getElementById('buildStamp');
+        MINE = el ? el.textContent.trim() : '';
+        if (!MINE) {
+            return;
+        }
+        setInterval(check, 60000);
+        setTimeout(check, 8000);
+        document.addEventListener('visibilitychange', check);
+        window.addEventListener('focus', check);
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', start);
+    } else {
+        start();
+    }
 })();
 
 </script>
