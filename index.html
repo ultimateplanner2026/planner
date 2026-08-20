@@ -4,6 +4,12 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="color-scheme" content="light dark">
+  <!-- Without these the browser happily served a months-old copy and the operator
+       had to hard-refresh to find out whether a build had landed. A plain refresh
+       is now enough. -->
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   <title>Planner</title>
 
   <!-- Home-screen install, iPhone. These four tags are what actually make
@@ -4226,6 +4232,17 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
 /* the title reclaims the space */
 #weekGrid .tgevent-title,
 #dayView .tgevent-title { flex: 1 1 auto; min-width: 0; }
+
+/* the "a new build is live" pill - tap to load, never auto-reloads */
+.newbuild-pill {
+  position: fixed; right: 14px; bottom: 14px; z-index: 9999;
+  padding: 9px 14px; border-radius: 999px; cursor: pointer;
+  background: var(--accent-q, #5e6ad2); color: #fff;
+  border: 1px solid rgba(255,255,255,.18);
+  font-size: 12px; font-weight: 590; letter-spacing: -.01em;
+  box-shadow: 0 6px 22px rgba(0,0,0,.42);
+}
+.newbuild-pill:hover { filter: brightness(1.08); }
 </style>
 </head>
 <body>
@@ -4243,7 +4260,7 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-20 18:00</span>
+    <span id="buildStamp">build 2026-08-20 18:38</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -17926,6 +17943,53 @@ if (r.freq === 'yearly') {
         };
     }
     window.plannerDecorateMonthChips = decorate;
+})();
+
+
+/* ===== m180 new-build pill ===== */
+(function () {
+  var MINE = '';
+  var pill = null;
+
+  function stampOf(text) {
+    var m = String(text).match(/id="buildStamp">([^<]*)/);
+    return m ? m[1].trim() : '';
+  }
+
+  function show() {
+    if (pill) return;
+    pill = document.createElement('button');
+    pill.type = 'button';
+    pill.className = 'newbuild-pill';
+    pill.textContent = 'New version ready - tap to load';
+    pill.addEventListener('click', function () { location.reload(true); });
+    document.body.appendChild(pill);
+  }
+
+  function check() {
+    if (!window.fetch) return;
+    fetch(location.href, { cache: 'no-store' })
+      .then(function (r) { return r.text(); })
+      .then(function (t) {
+        var there = stampOf(t);
+        if (there && MINE && there !== MINE) show();
+      })
+      .catch(function () {});
+  }
+
+  function start() {
+    var el = document.getElementById('buildStamp');
+    MINE = el ? el.textContent.trim() : '';
+    if (!MINE) return;
+    setInterval(check, 60000);
+    setTimeout(check, 8000);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', start);
+  } else {
+    start();
+  }
 })();
 
 </script>
