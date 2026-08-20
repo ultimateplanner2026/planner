@@ -4074,6 +4074,9 @@ input:focus, textarea:focus, select:focus {
   font-variant-numeric: tabular-nums;
 }
 .rep-datechip:hover { border-color: #e5484d; color: #ffb4b7; }
+
+/* the date picker must sit ABOVE the edit dialog, or "+ Add a date" looks dead */
+.al-pop, .datepop { z-index: 200 !important; }
 </style>
 </head>
 <body>
@@ -4091,7 +4094,7 @@ input:focus, textarea:focus, select:focus {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-20 14:35</span>
+    <span id="buildStamp">build 2026-08-20 14:45</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -17351,6 +17354,65 @@ function firstConnect(remote, rAt, lAt) {
   }
   window.__mountRepeatDates = mountDates;
   setInterval(function () { try { mountDates(); } catch (e) {} }, 700);
+})();
+
+
+/* ===== m168 tidy repeat days + calendar to midnight ===== */
+(function () {
+
+  /* 1 - weekday boxes only where they mean something */
+  function tidyDays() {
+    /* FILL 1: */
+       var node = null;
+       if (window.__editingId && window.findNode) {
+         var f = window.findNode(window.__editingId);
+         if (f && f.node) node = f.node;
+       }
+       if (!node || !node.repeat) return false;
+       var freq = node.repeat.freq;
+       var meaningless = (freq === 'monthly' || freq === 'yearly' || freq === 'specific');
+       var panels = document.querySelectorAll('.rep-wrap'), i;
+       for (i = 0; i < panels.length; i++) {
+         var wrap = panels[i].querySelector('.rep-days');
+         var labels = panels[i].querySelectorAll('.rep-sub'), k;
+         if (wrap) wrap.style.display = meaningless ? 'none' : '';
+         for (k = 0; k < labels.length; k++) {
+           if (labels[k].textContent.indexOf('following days') >= 0) {
+             labels[k].style.display = meaningless ? 'none' : '';
+           }
+         }
+       }
+       if (meaningless && node.repeat.days && node.repeat.days.length) {
+         node.repeat.days = [];
+       }
+       return true;
+  }
+  window.__tidyRepeatDays = tidyDays;
+  setInterval(function () { try { tidyDays(); } catch (e) {} }, 600);
+
+  /* 2 - the calendar runs to midnight */
+  function extendDay() {
+    /* FILL 2: */
+       if (!window.TG) return false;
+       if (window.TG.expanded) return false;
+       if (window.TG.endHour === 24) return false;
+       window.TG.endHour = 24;
+       return true;
+  }
+  window.__extendCalendarDay = extendDay;
+
+  var baseAll = window.renderAll;
+  if (typeof baseAll === 'function') {
+    window.renderAll = function () {
+      /* FILL 3: */
+         extendDay();
+         return baseAll.apply(this, arguments);
+    };
+  }
+  setTimeout(function () {
+    extendDay();
+    if (window.renderAll) window.renderAll();
+  }, 1400);
 })();
 
 </script>
