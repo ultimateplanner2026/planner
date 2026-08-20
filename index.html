@@ -4208,7 +4208,7 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-20 16:08</span>
+    <span id="buildStamp">build 2026-08-20 16:49</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -17709,6 +17709,65 @@ function firstConnect(remote, rAt, lAt) {
       return false;
     }
     return base.apply(this, arguments);
+  };
+})();
+
+
+/* ===== m173 routines drawn on every matching day ===== */
+(function () {
+  function hasActiveRepeat(nd) {
+    return !!(nd && nd.repeat && nd.repeat.freq && typeof nd.repeat.freq === 'string' && nd.repeat.freq !== '' && nd.repeat.freq !== 'none' && nd.repeat.freq !== 'never');
+  }
+
+  function wrap(node, iso) {
+    return {
+      id: node.id,
+      title: node.title,
+      priority: node.priority,
+      done: !!(window.plannerOccurrenceDone && window.plannerOccurrenceDone(node, iso)),
+      duration: node.duration,
+      date: iso,
+      time: node.time,
+      node: node
+    };
+  }
+
+  var base = window.scheduledOn;
+  if (typeof base !== 'function') return;
+
+  window.scheduledOn = function (iso) {
+    var res = base.apply(this, arguments) || [];
+    if (!iso) return res;
+
+    var kept = [], i, item, nd;
+    for (i = 0; i < res.length; i++) {
+      item = res[i];
+      nd = (item && item.node) ? item.node : item;
+      if (nd && hasActiveRepeat(nd) && window.plannerRepeatMatches) {
+        if (!window.plannerRepeatMatches(nd, iso)) continue;
+      }
+      kept.push(item);
+    }
+
+    var out = [], seen2 = {}, key;
+    for (i = 0; i < kept.length; i++) {
+      item = kept[i];
+      if (!item) continue;
+      nd = item.node ? item.node : item;
+      key = nd.id;
+      if (seen2[key]) continue;
+      seen2[key] = 1;
+      out.push(item.node ? item : wrap(nd, iso));
+    }
+    if (window.plannerRoutinesOn) {
+      var extra = window.plannerRoutinesOn(iso);
+      for (i = 0; i < extra.length; i++) {
+        if (seen2[extra[i].id]) continue;
+        seen2[extra[i].id] = 1;
+        out.push(wrap(extra[i], iso));
+      }
+    }
+    return out;
   };
 })();
 
