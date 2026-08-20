@@ -2226,7 +2226,13 @@ aside#treePane { overflow-y: auto; }
   background: var(--accent); color: #fff; font-size: 12px; cursor: pointer;
   opacity: 0; transition: opacity 120ms;
 }
-.tgevent, .tgchip, .mchip { position: relative; }
+/* .tgevent was in this list and it broke the calendar: the rule exists so the actbtn
+   can anchor inside a chip, but .tgevent is already position:absolute, and absolute is
+   itself a containing block for actbtn. Forcing it back to relative made top: Npx an
+   OFFSET FROM FLOW instead of a position, so every event after the first in a column
+   drifted down by the height of the ones above it - one event per column looked fine,
+   which is exactly why it hid for so long. */
+.tgchip, .mchip { position: relative; }
 .tgevent:hover .actbtn, .tgchip:hover .actbtn, .mchip:hover .actbtn { opacity: 1; }
 .actmenu {
   z-index: 300; background: var(--surface); border: 1px solid var(--border);
@@ -4223,7 +4229,7 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-20 17:34</span>
+    <span id="buildStamp">build 2026-08-20 17:48</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
