@@ -3991,7 +3991,7 @@ input:focus, textarea:focus, select:focus {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-20 11:58</span>
+    <span id="buildStamp">build 2026-08-20 12:42</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -16439,6 +16439,147 @@ function firstConnect(remote, rAt, lAt) {
   }
   setTimeout(function () { applyState(); rebind(); }, 1600);
   setTimeout(function () { rebind(); enforce(); }, 3200);
+})();
+
+
+/* ===== m160 recurrence engine for routines ===== */
+(function () {
+  function parse(iso) {
+    if (!iso || typeof iso !== 'string') return null;
+    var p = iso.split('-');
+    if (p.length !== 3) return null;
+    return { y: parseInt(p[0], 10), m: parseInt(p[1], 10), d: parseInt(p[2], 10) };
+  }
+
+  function fmt(y, m, d) {
+    function p2(v) { return (v < 10 ? '0' : '') + v; }
+    return y + '-' + p2(m) + '-' + p2(d);
+  }
+
+  function lastDayOf(y, m) {
+    return [31, ((y % 4 === 0 && y % 100 !== 0) || y % 400 === 0) ? 29 : 28,
+            31, 30, 31, 30, 31, 31, 30, 31, 30, 31][m - 1];
+  }
+
+  function toOrdinal(a) {
+    var y = a.y, m = a.m, d = a.d;
+    if (m <= 2) { y -= 1; m += 12; }
+    var era = Math.floor(y / 400);
+    var yoe = y - era * 400;
+    var doy = Math.floor((153 * (m - 3) + 2) / 5) + d - 1;
+    var doe = yoe * 365 + Math.floor(yoe / 4) - Math.floor(yoe / 100) + doy;
+    return era * 146097 + doe;
+  }
+
+  function weekdayOf(a) {
+    // 1970-01-01 was a Thursday. ordinal(1970-01-01) is a fixed reference.
+    var ref = toOrdinal({ y: 1970, m: 1, d: 1 });
+    var diff = toOrdinal(a) - ref;
+    var w = (4 + (diff % 7)) % 7;
+    return (w + 7) % 7;
+  }
+
+  window.plannerWeekday = weekdayOf;
+
+  function inWindow(r, a, iso) {
+    var s = parse(r.start);
+    if (s && toOrdinal(a) < toOrdinal(s)) return false;
+    if (r.end) {
+      var e = parse(r.end);
+      // end is INCLUSIVE
+      if (e && toOrdinal(a) > toOrdinal(e)) return false;
+    }
+    return true;
+  }
+
+  window.plannerRepeatMatches = function (node, iso) {
+    if (!node || !node.repeat || !iso) return false;
+    var r = node.repeat;
+    var a = parse(iso), s = parse(r.start);
+    if (!a || !s) return false;
+    if (!inWindow(r, a, iso)) return false;
+
+    // day tick boxes NARROW whatever the frequency says
+    if (r.days && r.days.length) {
+      var wd = weekdayOf(a), i, ok = false;
+      for (i = 0; i < r.days.length; i++) { if (r.days[i] === wd) { ok = true; break; } }
+      if (!ok) return false;
+    }
+
+    var f = r.freq;
+    if (f === 'specific') {
+      var list = r.dates || [], j;
+      for (j = 0; j < list.length; j++) { if (list[j] === iso) return true; }
+      return false;
+    }
+    if (f === 'daily') return true;
+    if (f === 'weekly') {
+      // every 7 days from start, unless days[] already narrowed it
+      if (r.days && r.days.length) return true;
+      return ((toOrdinal(a) - toOrdinal(s)) % 7) === 0;
+    }
+    if (f === 'monthly') {
+      var clampM = Math.min(s.d, lastDayOf(a.y, a.m));
+      return a.d === clampM;
+    }
+    if (f === 'yearly') {
+      if (a.m !== s.m) return false;
+      var clampY = Math.min(s.d, lastDayOf(a.y, a.m));
+      return a.d === clampY;
+    }
+    if (f === 'periodic') {
+      var n = Math.max(1, parseInt(r.everyN, 10) || 1);
+      var u = r.unit || 'days';
+      if (u === 'days')  return ((toOrdinal(a) - toOrdinal(s)) % n) === 0;
+      if (u === 'weeks') return ((toOrdinal(a) - toOrdinal(s)) % (n * 7)) === 0;
+      if (u === 'months') {
+        var months = (a.y - s.y) * 12 + (a.m - s.m);
+        if (months < 0 || months % n !== 0) return false;
+        return a.d === Math.min(s.d, lastDayOf(a.y, a.m));
+      }
+      if (u === 'years') {
+        var years = a.y - s.y;
+        if (years < 0 || years % n !== 0) return false;
+        if (a.m !== s.m) return false;
+        return a.d === Math.min(s.d, lastDayOf(a.y, a.m));
+      }
+    }
+    return false;
+  };
+
+  window.plannerOccurrenceDone = function (node, iso) {
+    if (!node || !iso) return false;
+    var list = node.doneDates || [], i;
+    for (i = 0; i < list.length; i++) { if (list[i] === iso) return true; }
+    return false;
+  };
+
+  window.plannerCompleteOccurrence = function (node, iso, done) {
+    if (!node || !iso) return false;
+    if (!node.doneDates) node.doneDates = [];
+    var i = node.doneDates.indexOf(iso);
+    if (done && i === -1) node.doneDates.push(iso);      // idempotent
+    if (!done && i !== -1) node.doneDates.splice(i, 1);
+    return true;
+  };
+
+  window.plannerOccurrencesBetween = function (node, fromIso, toIso) {
+    var out = [];
+    if (!node || !node.repeat) return out;
+    var a = parse(fromIso), b = parse(toIso);
+    if (!a || !b) return out;
+    var cur = toOrdinal(a), last = toOrdinal(b), guard = 0;
+    var y = a.y, m = a.m, d = a.d;
+    while (cur <= last && guard < 800) {
+      var iso = fmt(y, m, d);
+      if (window.plannerRepeatMatches(node, iso)) out.push(iso);
+      d++;
+      if (d > lastDayOf(y, m)) { d = 1; m++; if (m > 12) { m = 1; y++; } }
+      cur++;
+      guard++;
+    }
+    return out;
+  };
 })();
 
 </script>
