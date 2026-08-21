@@ -4272,6 +4272,22 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
 }
 #treeDrawer #btnUndo:hover:not(:disabled) { color: var(--t-1, #f7f8f8); }
 #treeDrawer #btnUndo:disabled { cursor: default; }
+
+/* ===== o19  the month header must span the grid, not sit in one cell =====
+   #monthGrid is display:grid. The header was added as its first child, so the
+   browser placed it in a single 7th-of-the-width CELL: 207x88 instead of the
+   week header's 960x42, which pushed the whole month grid 30px down and made it
+   30px shorter than the week view. Spanning every column makes month and week
+   line up exactly - same left, same top, same width, same header height. */
+#monthGrid .tgtop {
+  grid-column: 1 / -1;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 42px;
+  align-items: center;
+}
+/* the month grid itself now starts flush with the week grid */
+#monthGrid { padding: 0; align-content: start; }
 </style>
 </head>
 <body>
@@ -4289,7 +4305,7 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-20 21:31</span>
+    <span id="buildStamp">build 2026-08-20 21:43</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
