@@ -4444,6 +4444,14 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
   border: 1px solid var(--line, #23252a); border-radius: 8px;
 }
 .branchpick-later:hover { color: var(--t-1, #f7f8f8); }
+
+/* the hidden-tasks state that is already in effect - shown, but not clickable */
+.actmenu-item.actmenu-dim {
+  opacity: .38;
+  cursor: default;
+  pointer-events: auto;
+}
+.actmenu-item.actmenu-dim:hover { background: transparent; }
 </style>
 </head>
 <body>
@@ -4461,7 +4469,7 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-21 14:56</span>
+    <span id="buildStamp">build 2026-08-21 15:16</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -18789,6 +18797,55 @@ if (r.freq === 'yearly') {
   var TREE  = ['Edit', 'Complete', 'Mark not complete', 'Due today', 'Due tomorrow',
                'Reschedule...', 'Show hidden below', 'Hide hidden below', 'Delete'];
 
+  /* The hidden-tasks control used to be ONE item that changed its own label, so you
+     could never see both states. Operator asked for both, stacked, with whichever is
+     already in effect greyed out - so the menu shows what IS and what you can switch to. */
+  function twoWayHidden(menu, id) {
+    var existing = null, all = menu.querySelectorAll('.actmenu-item'), i;
+    for (i = 0; i < all.length; i++) {
+      var t = all[i].textContent.trim();
+      if (t === 'Show hidden below' || t === 'Hide hidden below') { existing = all[i]; break; }
+    }
+    if (!existing) return;
+    var showing = !!(window.isRevealed && window.isRevealed(id));
+
+    var showBtn = existing;
+    showBtn.textContent = 'Show hidden below';
+    var hideBtn = showBtn.cloneNode(false);
+    hideBtn.className = showBtn.className;
+    hideBtn.textContent = 'Hide hidden below';
+
+    function wire(btn, wantShown) {
+      btn.addEventListener('click', function (e) {
+        e.preventDefault();
+        if (btn.getAttribute('data-inactive') === '1') { e.stopPropagation(); return; }
+        // The real function is revealBelow - toggleRevealed/setRevealed do not exist,
+        // so both buttons silently did nothing. Found by checking which globals are
+        // actually defined instead of assuming the name.
+        if (typeof window.revealBelow === 'function') window.revealBelow(id);
+        if (window.__closeActMenu) window.__closeActMenu();
+        if (window.renderAll) window.renderAll();
+      });
+    }
+    var fresh = showBtn.cloneNode(false);
+    fresh.className = showBtn.className;
+    fresh.textContent = 'Show hidden below';
+    if (showBtn.parentNode) showBtn.parentNode.replaceChild(fresh, showBtn);
+    showBtn = fresh;
+    wire(showBtn, true);
+    wire(hideBtn, false);
+    if (showBtn.nextSibling) showBtn.parentNode.insertBefore(hideBtn, showBtn.nextSibling);
+    else showBtn.parentNode.appendChild(hideBtn);
+
+    // grey out whichever state is already in effect
+    var dim = showing ? showBtn : hideBtn;
+    var live = showing ? hideBtn : showBtn;
+    dim.setAttribute('data-inactive', '1');
+    dim.classList.add('actmenu-dim');
+    live.removeAttribute('data-inactive');
+    live.classList.remove('actmenu-dim');
+  }
+
   function orderOf(list, label) {
     var i;
     for (i = 0; i < list.length; i++) { if (list[i] === label) return i; }
@@ -18809,6 +18866,22 @@ if (r.freq === 'yearly') {
       return orderOf(allowed, x.textContent.trim()) - orderOf(allowed, y.textContent.trim());
     });
     for (i = 0; i < keep.length; i++) menu.appendChild(keep[i]);
+
+    // Operator: drop the line after Complete and the line after Reschedule. Keep only
+    // the one above Delete, so the destructive item stays visually set apart.
+    var seps = menu.querySelectorAll('.actmenu-sep'), s;
+    for (s = 0; s < seps.length; s++) {
+      if (seps[s].parentNode) seps[s].parentNode.removeChild(seps[s]);
+    }
+    var del = null, kids = menu.querySelectorAll('.actmenu-item');
+    for (s = 0; s < kids.length; s++) {
+      if (kids[s].textContent.trim() === 'Delete') del = kids[s];
+    }
+    if (del) {
+      var sep = document.createElement('div');
+      sep.className = 'actmenu-sep';
+      del.parentNode.insertBefore(sep, del);
+    }
   }
 
   var lastFromTree = false;
@@ -18829,7 +18902,10 @@ if (r.freq === 'yearly') {
       var r = base.apply(this, arguments);
       try {
         var menu = document.querySelector('.actmenu');
-        if (menu) applyTo(menu, lastFromTree);
+        if (menu) {
+          if (lastFromTree) twoWayHidden(menu, id);
+          applyTo(menu, lastFromTree);
+        }
       } catch (e) {}
       return r;
     };
