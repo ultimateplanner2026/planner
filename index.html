@@ -4437,7 +4437,7 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-21 13:20</span>
+    <span id="buildStamp">build 2026-08-21 13:33</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -18568,71 +18568,7 @@ if (r.freq === 'yearly') {
 })();
 
 
-/* ===== m185  ONE caret handler for the whole tree, at any depth =====
-   The operator repeatedly hit sub-branches whose triangle did nothing, and I could
-   never reproduce it: per-row handlers are re-bound on every render (m153 clones
-   each caret to drop stale listeners, then re-binds), so ANY render that finishes
-   without re-binding - or any row created outside that path - leaves a dead caret.
-   That race is unreproducible on demand and impossible to rule out.
 
-   So stop binding per row. One capture-phase listener on #treeRoot handles every
-   caret that exists now or is ever created, at any depth, forever. It runs in the
-   capture phase and stops propagation, so it is authoritative and cannot
-   double-toggle against a surviving per-row handler. */
-(function () {
-  function findRow(el) {
-    while (el && el !== document) {
-      if (el.classList && el.classList.contains('tree-row')) return el;
-      el = el.parentElement;
-    }
-    return null;
-  }
-
-  function onCaretClick(e) {
-    var t = e.target;
-    var caret = null;
-    while (t && t !== document) {
-      if (t.classList && t.classList.contains('tree-caret')) { caret = t; break; }
-      t = t.parentElement;
-    }
-    if (!caret) return;
-    var row = findRow(caret);
-    if (!row) return;
-    var id = row.getAttribute('data-id');
-    if (!id) return;
-    var f = window.findNode ? window.findNode(id) : null;
-    if (!f || !f.node) return;
-    if (!(f.node.children && f.node.children.length)) return;
-
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.stopImmediatePropagation) e.stopImmediatePropagation();
-
-    if (typeof window.plannerToggleCollapse === 'function') {
-      window.plannerToggleCollapse(id);
-      return;
-    }
-    f.node.collapsed = !f.node.collapsed;
-    try { window.Store.save(); } catch (err) {}
-    if (window.renderTree) window.renderTree();
-  }
-
-  function attach() {
-    var root = document.getElementById('treeRoot');
-    if (!root || root.getAttribute('data-caret-delegated') === '1') return;
-    root.setAttribute('data-caret-delegated', '1');
-    root.addEventListener('click', onCaretClick, true);
-  }
-
-  window.__attachCaretDelegate = attach;
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', attach);
-  } else {
-    attach();
-  }
-  // #treeRoot itself can be replaced by a full re-render; re-attach if that happens.
-  setInterval(attach, 2000);
-})();
 </script>
 </body>
 </html>
