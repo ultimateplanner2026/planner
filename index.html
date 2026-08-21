@@ -4461,7 +4461,7 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-21 13:55</span>
+    <span id="buildStamp">build 2026-08-21 14:56</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -10568,11 +10568,19 @@ function surfaceArrivals() {
     note.textContent = 'They will be moved to Deleted, where you can restore them.';
     body.appendChild(note);
 
+    // ONE popup, not a chain. The second step showed the same list again and only
+    // taught the operator to click through both. The button now says exactly what it
+    // does instead of "Continue".
     window.showModal('Delete', body, [
       { label: 'Cancel' },
-      { label: 'Continue', kind: 'danger', onClick: function () { step2(id, items.length); } }
+      { label: 'Forever deleted', kind: 'danger', onClick: function () { window.__doDelete(id); } }
     ]);
     pinDialog();
+  };
+
+  window.__doDelete = function (id) {
+          window.trashNode(id);
+          if (window.toast) window.toast('Moved to Deleted', 'ok');
   };
 
   function step2(id, count) {
@@ -18767,6 +18775,67 @@ if (r.freq === 'yearly') {
     if (e.stopImmediatePropagation) e.stopImmediatePropagation();
     pickBranch(id, function () { b.click(); });
   }, true);
+})();
+
+/* ===== m188  separate menus for the calendar and the priority tree =====
+   One menu served both, so the calendar carried tree-only items. Operator's order,
+   Duplicate removed from both, "Show in tree" removed from both (meaningless inside
+   the tree, and dropped from the calendar at their request). The tree keeps
+   Show/Hide hidden below - a tree-only view toggle with nothing to act on in a
+   calendar. Delete stays last and stays danger-styled in both. */
+(function () {
+  var CAL   = ['Edit', 'Complete', 'Mark not complete', 'Due today', 'Due tomorrow',
+               'Reschedule...', 'Delete'];
+  var TREE  = ['Edit', 'Complete', 'Mark not complete', 'Due today', 'Due tomorrow',
+               'Reschedule...', 'Show hidden below', 'Hide hidden below', 'Delete'];
+
+  function orderOf(list, label) {
+    var i;
+    for (i = 0; i < list.length; i++) { if (list[i] === label) return i; }
+    return -1;
+  }
+
+  function applyTo(menu, fromTree) {
+    var allowed = fromTree ? TREE : CAL;
+    var btns = menu.querySelectorAll('.actmenu-item');
+    var keep = [], i, b, label;
+    for (i = 0; i < btns.length; i++) {
+      b = btns[i];
+      label = b.textContent.trim();
+      if (orderOf(allowed, label) < 0) { if (b.parentNode) b.parentNode.removeChild(b); continue; }
+      keep.push(b);
+    }
+    keep.sort(function (x, y) {
+      return orderOf(allowed, x.textContent.trim()) - orderOf(allowed, y.textContent.trim());
+    });
+    for (i = 0; i < keep.length; i++) menu.appendChild(keep[i]);
+  }
+
+  var lastFromTree = false;
+  // Remember where the menu was opened from. A tree row lives inside #treeRoot.
+  document.addEventListener('mousedown', function (e) {
+    var el = e.target;
+    while (el && el !== document) {
+      if (el.id === 'treeRoot') { lastFromTree = true; return; }
+      if (el.id === 'weekGrid' || el.id === 'dayView' || el.id === 'monthGrid' ||
+          el.id === 'tabMonth') { lastFromTree = false; return; }
+      el = el.parentElement;
+    }
+  }, true);
+
+  var base = window.__openActMenu;
+  if (typeof base === 'function') {
+    window.__openActMenu = function (id, x, y) {
+      var r = base.apply(this, arguments);
+      try {
+        var menu = document.querySelector('.actmenu');
+        if (menu) applyTo(menu, lastFromTree);
+      } catch (e) {}
+      return r;
+    };
+  }
+  window.__menuSetFromTree = function (v) { lastFromTree = !!v; };
+  window.__menuAllowed = function (fromTree) { return fromTree ? TREE.slice() : CAL.slice(); };
 })();
 </script>
 </body>
