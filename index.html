@@ -4418,7 +4418,7 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-20 23:51</span>
+    <span id="buildStamp">build 2026-08-21 01:32</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -18492,8 +18492,30 @@ if (r.freq === 'yearly') {
         });
       }
     }
+    // Day had no Today control where week and month put theirs (right after the
+    // next arrow) - its only one sat at the far end, past "Show 24h". Same button,
+    // same slot, so the three headers finally match.
+    if (!top.querySelector('.tgtoday-btn')) {
+      var nextBtn = null, kids = top.children, q;
+      for (q = 0; q < kids.length; q++) {
+        if (kids[q].tagName === 'BUTTON' && kids[q].textContent.indexOf('\u25B6') >= 0) nextBtn = kids[q];
+      }
+      var tb = document.createElement('button');
+      tb.type = 'button';
+      tb.className = 'tgtoday-btn';
+      tb.textContent = 'Today';
+      tb.addEventListener('click', function (e) {
+        e.preventDefault();
+        window.selectedDate = window.todayISO();
+        var nn = new Date();
+        window.viewMonth = new Date(nn.getFullYear(), nn.getMonth(), 1);
+        window.renderAll();
+      });
+      if (nextBtn && nextBtn.nextSibling) top.insertBefore(tb, nextBtn.nextSibling);
+      else top.appendChild(tb);
+    }
     var inline = top.querySelector('.btn-today-inline');
-    if (inline) inline.textContent = 'Today';
+    if (inline) inline.style.display = 'none';
   }
 
   function fixWeek() {
