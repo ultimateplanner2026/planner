@@ -4262,6 +4262,16 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
   border-color: var(--line, #23252a);
 }
 .tgtop .tgdatelabel::after { content: ' \25BE'; opacity: .55; font-size: 10px; }
+
+/* the undo control, sitting with the other Settings options */
+#treeDrawer #btnUndo {
+  display: block; width: 100%; margin-top: 8px; padding: 8px 12px;
+  background: var(--s-elevated, #1f2329); color: var(--t-2, #d0d6e0);
+  border: 1px solid var(--line, #23252a); border-radius: 8px;
+  font-size: 12px; font-weight: 510; text-align: left; cursor: pointer;
+}
+#treeDrawer #btnUndo:hover:not(:disabled) { color: var(--t-1, #f7f8f8); }
+#treeDrawer #btnUndo:disabled { cursor: default; }
 </style>
 </head>
 <body>
@@ -4279,7 +4289,7 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-20 21:09</span>
+    <span id="buildStamp">build 2026-08-20 21:13</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -18187,6 +18197,96 @@ if (r.freq === 'yearly') {
   }
   window.__buildMonthHeader = build;
   setTimeout(build, 1200);
+})();
+
+
+/* ===== m183 undo ===== */
+(function () {
+  var MAX = 30;
+  var stack = [];
+  var prev = null;
+  var restoring = false;
+  var btn = null;
+
+  function snap() {
+    try { return JSON.stringify(window.Store.data); } catch (e) { return null; }
+  }
+
+  function label() {
+    if (!btn) return;
+    btn.textContent = stack.length ? ('↶  Undo last change (' + stack.length + ')') : '↶  Nothing to undo';
+    btn.disabled = !stack.length;
+    btn.style.opacity = stack.length ? '1' : '.5';
+  }
+
+  function record() {
+    if (restoring) return;
+    if (prev !== null) {
+      var cur = snap();
+      if (cur !== null && cur !== prev) {
+        stack.push(prev);
+        if (stack.length > MAX) stack.shift();
+      }
+    }
+    prev = snap();
+    label();
+  }
+
+  window.plannerUndo = function () {
+    if (!stack.length) return false;
+    var s = stack.pop();
+    var parsed;
+    try { parsed = JSON.parse(s); } catch (e) { return false; }
+    restoring = true;
+    window.Store.data = parsed;
+    try { window.Store.save(); } catch (e) {}
+    restoring = false;
+    prev = snap();
+    label();
+    try { window.renderAll(); } catch (e) {}
+    return true;
+  };
+
+  window.plannerUndoDepth = function () { return stack.length; };
+
+  function wrapSave() {
+    var base = window.Store && window.Store.save;
+    if (typeof base !== 'function') return false;
+    window.Store.save = function () {
+      try { record(); } catch (e) {}
+      return base.apply(this, arguments);
+    };
+    prev = snap();
+    return true;
+  }
+
+  function addButton() {
+    var d = document.getElementById('treeDrawer');
+    if (!d) return;
+    if (document.getElementById('btnUndo')) return;
+    btn = document.createElement('button');
+    btn.id = 'btnUndo';
+    btn.type = 'button';
+    btn.className = 'drawer-btn';
+    btn.addEventListener('click', function (e) {
+      e.preventDefault();
+      window.plannerUndo();
+    });
+    d.appendChild(btn);
+    label();
+  }
+
+  function start() {
+    wrapSave();
+    addButton();
+    setInterval(addButton, 2000);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function () { setTimeout(start, 600); });
+  } else {
+    setTimeout(start, 600);
+  }
 })();
 
 </script>
