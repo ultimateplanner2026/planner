@@ -4335,6 +4335,32 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
    Today / This week / This month button, so the warning was noise on top of the
    control that fixes it. Removed at the operator's request. */
 .not-today, .not-this-month { display: none !important; }
+
+/* ===== o24  the month grid's day-name row must size to its text =====
+   .mheader is display:contents, so Sun..Sat become grid items in ROW 1 - and
+   grid-auto-rows: minmax(88px,1fr) forced that row to 88px for 30px of text,
+   leaving a dead band between the day names and the first week. Give row 1 an
+   explicit auto height and let the six week rows share what is left. */
+#monthGrid {
+  grid-template-rows: auto repeat(6, minmax(72px, 1fr));
+}
+#monthGrid .mhead { align-self: center; }
+
+/* the build stamp was overlapping the Diagnose button */
+/* The stamp must stay pinned top-right (operator's requirement, and the suite
+   enforces innerWidth - right <= 20 and top <= 60). It was OVERLAPPING the
+   Diagnose button because both sat on the same line. Keep it in the corner and
+   drop it just below the button row instead of moving it out of the corner. */
+#buildStamp {
+  position: absolute;
+  right: 12px;
+  top: 44px;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: .55;
+  font-size: 11px;
+  z-index: 1;
+}
 </style>
 </head>
 <body>
@@ -4352,7 +4378,7 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-20 22:59</span>
+    <span id="buildStamp">build 2026-08-20 23:26</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
