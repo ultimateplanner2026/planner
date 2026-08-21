@@ -4312,7 +4312,11 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
   white-space: nowrap;
 }
 /* the redundant duplicates: month has neither, so day and week should not either */
-#weekGrid .tgtop .btn-today-inline { display: none !important; }
+/* The trailing Today duplicated the one now sitting in position 3, in every view.
+   JS was hiding it per-render but it kept coming back; CSS settles it. */
+#weekGrid .tgtop .btn-today-inline,
+#dayView .tgtop .btn-today-inline,
+#tabMonth .btn-today-inline { display: none !important; }
 #dayView .tgtop .relbadge { display: none !important; }
 
 /* ===== o22  the month grid takes the priority tree's colour =====
@@ -4408,6 +4412,14 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
    at depth 3: 118 vs 96. Rows without children simply omitted the caret element,
    so everything after it slid left and the tree looked ragged. Reserve the space. */
 #treeRoot .tree-row:not(:has(.tree-caret)) > .tree-marker { margin-left: 22px; }
+
+/* ===== o28  the vertical guide lines are gone =====
+   #treeRoot .tree-row[data-depth]::after drew a 1px full-height rule beside every
+   nested row (o13, added to make nesting readable). Removed at the operator's
+   request 2026-08-21 - indentation and the shrinking red markers already carry
+   the hierarchy, and the lines read as clutter. */
+#treeRoot .tree-row[data-depth]::after,
+#treeRoot .tree-row[data-depth]:not([data-depth="0"])::after { content: none !important; }
 </style>
 </head>
 <body>
@@ -4425,7 +4437,7 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-21 11:22</span>
+    <span id="buildStamp">build 2026-08-21 11:57</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
