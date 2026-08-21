@@ -4289,7 +4289,7 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-20 21:13</span>
+    <span id="buildStamp">build 2026-08-20 21:31</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -18125,8 +18125,7 @@ if (r.freq === 'yearly') {
    month, no month name, no way back to today. It only ever showed the month
    containing selectedDate. This adds the same header the week view has. */
 (function () {
-  var MONTHS = ['January','February','March','April','May','June',
-                'July','August','September','October','November','December'];
+  var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
   function shift(n) {
     var p = String(window.selectedDate || window.todayISO()).split('-');
@@ -18142,7 +18141,7 @@ if (r.freq === 'yearly') {
 
   function labelText() {
     var p = String(window.selectedDate || window.todayISO()).split('-');
-    return MONTHS[parseInt(p[1],10) - 1] + ' ' + p[0];
+    return MONTHS[parseInt(p[1], 10) - 1] + ' ' + String(p[0]).slice(2);
   }
 
   function build() {
