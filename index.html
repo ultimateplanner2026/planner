@@ -4361,6 +4361,25 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
   font-size: 11px;
   z-index: 1;
 }
+
+/* ===== o25  the header must not move when you page through dates =====
+   The date label was auto-width, so its text length moved every control after
+   it: stepping Next in Day view swung the label 110->128px and jumped the next
+   arrow 18px; Week swung 87->114px and jumped it 27px. The buttons literally
+   moved out from under the cursor on every click. A fixed box holds them still.
+   Width fits the longest strings: "Wednesday, Sep 10" and "Aug 30 - Sep 5". */
+#dayView .tgtop .tgdatelabel,
+#dayView .tgtop .tgtitle,
+#weekGrid .tgtop .tgdatelabel,
+#tabMonth > .tgtop .tgdatelabel {
+  display: inline-block;
+  box-sizing: border-box;
+  width: 152px;
+  min-width: 152px;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 </style>
 </head>
 <body>
@@ -4378,7 +4397,7 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-20 23:26</span>
+    <span id="buildStamp">build 2026-08-20 23:35</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
