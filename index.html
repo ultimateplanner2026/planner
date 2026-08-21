@@ -4328,6 +4328,13 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
    CELLS change, so they match the priority tree side. */
 #monthGrid .mcell { background: var(--bg, #16181c); }
 #monthGrid .mhead { background: var(--bg, #16181c); }
+
+/* ===== o23  the amber "Not today" badge is gone =====
+   .not-today painted background: var(--warn) - a loud yellow pill in the calendar
+   header whenever the view was parked off today. The header already carries a
+   Today / This week / This month button, so the warning was noise on top of the
+   control that fixes it. Removed at the operator's request. */
+.not-today, .not-this-month { display: none !important; }
 </style>
 </head>
 <body>
@@ -4345,7 +4352,7 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-20 22:22</span>
+    <span id="buildStamp">build 2026-08-20 22:59</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -18387,6 +18394,18 @@ if (r.freq === 'yearly') {
     return MON[mi] + ' ' + parseInt(p[2], 10);
   }
 
+  // The DAY view keeps its weekday - the operator asked for "Thursday, Aug 20".
+  // Week and month stay bare, because a week or a month has no single weekday.
+  function dayLabel(iso) {
+    var DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+    var s = shortOf(iso);
+    if (!s) return '';
+    var p = String(iso).split('-');
+    var d = new Date(parseInt(p[0],10), parseInt(p[1],10) - 1, parseInt(p[2],10));
+    if (isNaN(d.getTime())) return s;
+    return DAYS[d.getDay()] + ', ' + s;
+  }
+
   function fixDay() {
     var top = document.querySelector('#dayView .tgtop');
     if (!top) return;
@@ -18394,7 +18413,7 @@ if (r.freq === 'yearly') {
     if (badge) badge.style.display = 'none';
     var t = top.querySelector('.tgtitle');
     if (t) {
-      var s = shortOf(window.selectedDate);
+      var s = dayLabel(window.selectedDate);
       if (s) t.textContent = s;
       t.classList.add('tgdatelabel');
       if (t.getAttribute('data-datepop') !== '1') {
