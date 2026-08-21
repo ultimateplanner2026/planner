@@ -4297,6 +4297,23 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
 
 /* the month header matches the week header's height exactly */
 #tabMonth > .tgtop { min-height: 42px; }
+
+/* ===== o21  one type style across day / week / month headers =====
+   Day and week drew their date at 14px/600 while month used 13px/400, so the
+   three timeframes looked like three different apps. Month is the style the
+   operator asked for: short and plain. */
+#dayView .tgtop .tgdatelabel,
+#dayView .tgtop .tgtitle,
+#weekGrid .tgtop .tgdatelabel,
+#tabMonth > .tgtop .tgdatelabel {
+  font-size: 13px;
+  font-weight: 400;
+  padding: 3px 8px;
+  white-space: nowrap;
+}
+/* the redundant duplicates: month has neither, so day and week should not either */
+#weekGrid .tgtop .btn-today-inline { display: none !important; }
+#dayView .tgtop .relbadge { display: none !important; }
 </style>
 </head>
 <body>
@@ -4314,7 +4331,7 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-20 21:59</span>
+    <span id="buildStamp">build 2026-08-20 22:16</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -18341,6 +18358,73 @@ if (r.freq === 'yearly') {
   } else {
     setTimeout(start, 600);
   }
+})();
+
+
+/* ===== m184 uniform calendar headers ===== */
+(function () {
+  var MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+  function shortOf(iso) {
+    var p = String(iso || '').split('-');
+    if (p.length !== 3) return '';
+    var mi = parseInt(p[1], 10) - 1;
+    if (isNaN(mi) || mi < 0 || mi > 11) return '';
+    return MON[mi] + ' ' + parseInt(p[2], 10);
+  }
+
+  function fixDay() {
+    var top = document.querySelector('#dayView .tgtop');
+    if (!top) return;
+    var badge = top.querySelector('.relbadge');
+    if (badge) badge.style.display = 'none';
+    var t = top.querySelector('.tgtitle');
+    if (t) {
+      var s = shortOf(window.selectedDate);
+      if (s) t.textContent = s;
+      t.classList.add('tgdatelabel');
+      if (t.getAttribute('data-datepop') !== '1') {
+        t.setAttribute('data-datepop', '1');
+        t.setAttribute('title', 'Pick a date');
+        t.addEventListener('click', function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          if (window.__openDatePop) window.__openDatePop(this);
+        });
+      }
+    }
+    var inline = top.querySelector('.btn-today-inline');
+    if (inline) inline.textContent = 'Today';
+  }
+
+  function fixWeek() {
+    var top = document.querySelector('#weekGrid .tgtop');
+    if (!top) return;
+    var lab = top.querySelector('.tgdatelabel');
+    if (!lab) return;
+    var txt = lab.textContent.trim();
+    var m = txt.match(/^([A-Za-z]{3}) (\d+) - ([A-Za-z]{3}) (\d+)$/);
+    if (m && m[1] === m[3]) lab.textContent = m[1] + ' ' + m[2] + ' - ' + m[4];
+    var inline = top.querySelector('.btn-today-inline');
+    if (inline) inline.style.display = 'none';
+  }
+
+  function run() {
+    try { fixDay(); } catch (e) {}
+    try { fixWeek(); } catch (e) {}
+  }
+
+  ['renderDay', 'renderWeek', 'renderAll'].forEach(function (fn) {
+    var base = window[fn];
+    if (typeof base !== 'function') return;
+    window[fn] = function () {
+      var r = base.apply(this, arguments);
+      try { run(); } catch (e) {}
+      return r;
+    };
+  });
+  window.__uniformHeaders = run;
+  setTimeout(run, 1200);
 })();
 
 </script>
