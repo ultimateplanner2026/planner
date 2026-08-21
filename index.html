@@ -4314,7 +4314,7 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-20 21:51</span>
+    <span id="buildStamp">build 2026-08-20 21:59</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -18153,18 +18153,25 @@ if (r.freq === 'yearly') {
   var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
   function shift(n) {
-    var p = String(window.selectedDate || window.todayISO()).split('-');
-    var y = parseInt(p[0],10), m = parseInt(p[1],10) - 1, d = parseInt(p[2],10);
-    var t = new Date(y, m + n, 1);
+    // renderMonth draws from window.viewMonth (a Date, first of the displayed
+    // month) - NOT from selectedDate. Driving selectedDate moved the label and
+    // nothing else, which is why the grid sat still while the header counted up.
+    var base = (window.viewMonth instanceof Date)
+      ? new Date(window.viewMonth)
+      : new Date(String(window.selectedDate || window.todayISO()).replace(/-/g, '/'));
+    var t = new Date(base.getFullYear(), base.getMonth() + n, 1);
+    window.viewMonth = t;
+    function p2(v) { return (v < 10 ? '0' : '') + v; }
     var last = new Date(t.getFullYear(), t.getMonth() + 1, 0).getDate();
+    var d = parseInt(String(window.selectedDate || '').slice(8, 10), 10) || 1;
     if (d > last) d = last;
-    var mm = t.getMonth() + 1;
-    function p2(v){ return (v < 10 ? '0' : '') + v; }
-    window.selectedDate = t.getFullYear() + '-' + p2(mm) + '-' + p2(d);
+    window.selectedDate = t.getFullYear() + '-' + p2(t.getMonth() + 1) + '-' + p2(d);
     window.renderAll();
   }
 
   function labelText() {
+    var v = window.viewMonth;
+    if (v instanceof Date) return MONTHS[v.getMonth()] + ' ' + String(v.getFullYear()).slice(2);
     var p = String(window.selectedDate || window.todayISO()).split('-');
     return MONTHS[parseInt(p[1], 10) - 1] + ' ' + String(p[0]).slice(2);
   }
@@ -18212,7 +18219,10 @@ if (r.freq === 'yearly') {
     var today = document.createElement('button');
     today.type='button'; today.textContent='This month';
     today.addEventListener('click', function(){
-      window.selectedDate = window.todayISO(); window.renderAll(); });
+      window.selectedDate = window.todayISO();
+         var n = new Date();
+         window.viewMonth = new Date(n.getFullYear(), n.getMonth(), 1);
+         window.renderAll(); });
 
     var spacer = document.createElement('span');
     spacer.className = 'tgspacer';
