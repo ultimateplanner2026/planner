@@ -4401,6 +4401,13 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
 }
 /* and the panes below them start at the same place */
 #dayView, #weekGrid, #tabMonth { padding: 0 !important; }
+
+/* ===== o27  childless rows must reserve the caret's space =====
+   Measured: at depth 1, "IRS letter" (has a caret) puts its marker at x=62 while
+   "2025 taxes" (no caret) puts its at x=40 - 22px left of its own sibling. Same
+   at depth 3: 118 vs 96. Rows without children simply omitted the caret element,
+   so everything after it slid left and the tree looked ragged. Reserve the space. */
+#treeRoot .tree-row:not(:has(.tree-caret)) > .tree-marker { margin-left: 22px; }
 </style>
 </head>
 <body>
@@ -4418,7 +4425,7 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-21 01:32</span>
+    <span id="buildStamp">build 2026-08-21 11:22</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
