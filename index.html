@@ -4314,6 +4314,20 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
 /* the redundant duplicates: month has neither, so day and week should not either */
 #weekGrid .tgtop .btn-today-inline { display: none !important; }
 #dayView .tgtop .relbadge { display: none !important; }
+
+/* ===== o22  the month grid takes the priority tree's colour =====
+   #monthGrid had background rgb(46,50,58) and gap:1px - that background showing
+   through the gaps IS the grid lines, so it could not simply be recoloured to
+   match the tree side without the day separators vanishing. Instead: the gaps
+   become the app's hairline colour, and the CELLS take the tree side's
+   background. Same result the operator asked for, lines intact. */
+/* Deliberately NOT overriding #monthGrid's own background: it is already
+   theme-aware (rgb(227,229,233) light / rgb(46,50,58) dark, the same colour the
+   top-bar buttons use for their borders), whereas --line is a single #333844 in
+   BOTH themes and would have put a dark hairline on the light page. Only the
+   CELLS change, so they match the priority tree side. */
+#monthGrid .mcell { background: var(--bg, #16181c); }
+#monthGrid .mhead { background: var(--bg, #16181c); }
 </style>
 </head>
 <body>
@@ -4331,7 +4345,7 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-20 22:16</span>
+    <span id="buildStamp">build 2026-08-20 22:22</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
