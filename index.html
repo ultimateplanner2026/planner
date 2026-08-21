@@ -4288,6 +4288,15 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
 }
 /* the month grid itself now starts flush with the week grid */
 #monthGrid { padding: 0; align-content: start; }
+
+/* The month header now lives at the top of the tab, exactly like the week view.
+   The old inline Today button sat above the grid and created a 30px offset that
+   made month and week start at different heights; the header replaces it. */
+#tabMonth .btn-today-inline { display: none !important; }
+#tabMonth > .tgtop { grid-column: auto; min-height: 0; }
+
+/* the month header matches the week header's height exactly */
+#tabMonth > .tgtop { min-height: 42px; }
 </style>
 </head>
 <body>
@@ -4305,7 +4314,7 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-20 21:43</span>
+    <span id="buildStamp">build 2026-08-20 21:51</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -18163,8 +18172,20 @@ if (r.freq === 'yearly') {
   function build() {
     var host = document.getElementById('monthGrid');
     if (!host) return;
-    var old = host.querySelector('.tgtop');
-    if (old) { if (old.parentNode) old.parentNode.removeChild(old); }
+    // Remove EVERY previous header, from the tab as well as the grid. The header
+      // moved out of #monthGrid, but this only ever looked inside it - so each
+      // render appended another and ten stacked up, shoving the grid down the page.
+      var tabEl = document.getElementById('tabMonth') || host.parentElement;
+      var stale = [], q, z;
+      q = host.querySelectorAll('.tgtop');
+      for (z = 0; z < q.length; z++) stale.push(q[z]);
+      if (tabEl) {
+        q = tabEl.querySelectorAll(':scope > .tgtop');
+        for (z = 0; z < q.length; z++) stale.push(q[z]);
+      }
+      for (z = 0; z < stale.length; z++) {
+        if (stale[z].parentNode) stale[z].parentNode.removeChild(stale[z]);
+      }
     var top = document.createElement('div');
     top.className = 'tgtop';
 
@@ -18198,8 +18219,16 @@ if (r.freq === 'yearly') {
 
     top.appendChild(prev); top.appendChild(lab); top.appendChild(next);
     top.appendChild(today); top.appendChild(spacer);
-    if (host.firstChild) host.insertBefore(top, host.firstChild);
-    else host.appendChild(top);
+    // Put the header where the WEEK view puts its own: at the top of the tab,
+      // ABOVE the grid - not inside it. #monthGrid is display:grid with
+      // grid-auto-rows: minmax(88px,1fr), so a header placed inside it was forced
+      // to an 88px row instead of the week header's 42px.
+      var tab = document.getElementById('tabMonth') || host.parentElement;
+      if (tab && tab !== host) {
+        if (host.parentNode === tab) tab.insertBefore(top, host);
+        else tab.insertBefore(top, tab.firstChild);
+      } else if (host.firstChild) { host.insertBefore(top, host.firstChild); }
+      else { host.appendChild(top); }
   }
 
   var base = window.renderMonth;
