@@ -4380,6 +4380,27 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* ===== o26  day / week / month must be the SAME BOX =====
+   Measured: day header 481,87 958x42 (inset 1px by a border), week 480,86 960x42,
+   month 480,86 960x43. Three views, three slightly different boxes - which is what
+   the operator kept seeing as "not consistent". Pin all three to one geometry. */
+#dayView, #weekGrid, #tabMonth, #monthGrid {
+  border: 0 !important;
+  box-sizing: border-box;
+}
+#dayView > .tgtop,
+#weekGrid > .tgtop,
+#tabMonth > .tgtop {
+  box-sizing: border-box;
+  height: 42px;
+  min-height: 42px;
+  max-height: 42px;
+  margin: 0;
+  width: 100%;
+}
+/* and the panes below them start at the same place */
+#dayView, #weekGrid, #tabMonth { padding: 0 !important; }
 </style>
 </head>
 <body>
@@ -4397,7 +4418,7 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-20 23:35</span>
+    <span id="buildStamp">build 2026-08-20 23:51</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
