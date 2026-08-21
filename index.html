@@ -4420,6 +4420,30 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
    the hierarchy, and the lines read as clutter. */
 #treeRoot .tree-row[data-depth]::after,
 #treeRoot .tree-row[data-depth]:not([data-depth="0"])::after { content: none !important; }
+
+.branchpick-back { display: flex; align-items: center; justify-content: center; z-index: 10000; }
+.branchpick {
+  width: 320px; max-width: 92vw; padding: 16px;
+  background: var(--s-raised, #191c21); color: var(--t-1, #f7f8f8);
+  border: 1px solid var(--line, #23252a); border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(0,0,0,.5);
+}
+.branchpick-head { font-size: 14px; font-weight: 590; margin-bottom: 4px; }
+.branchpick-sub { font-size: 12px; color: var(--t-3, #8a8f98); margin-bottom: 12px; line-height: 1.45; }
+.branchpick-list { display: flex; flex-direction: column; gap: 6px; max-height: 300px; overflow-y: auto; }
+.branchpick-item {
+  width: 100%; text-align: left; padding: 9px 12px; cursor: pointer;
+  background: var(--s-elevated, #1f2329); color: var(--t-1, #f7f8f8);
+  border: 1px solid var(--line, #23252a); border-radius: 8px; font-size: 13px;
+}
+.branchpick-item:hover { border-color: var(--accent-q, #5e6ad2); }
+.branchpick-foot { margin-top: 12px; display: flex; justify-content: flex-end; }
+.branchpick-later {
+  padding: 7px 12px; cursor: pointer; font-size: 12px;
+  background: transparent; color: var(--t-3, #8a8f98);
+  border: 1px solid var(--line, #23252a); border-radius: 8px;
+}
+.branchpick-later:hover { color: var(--t-1, #f7f8f8); }
 </style>
 </head>
 <body>
@@ -4437,7 +4461,7 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-21 13:33</span>
+    <span id="buildStamp">build 2026-08-21 13:55</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -18569,6 +18593,181 @@ if (r.freq === 'yearly') {
 
 
 
+
+/* ===== m186 empty-task sweep + must-live-in-a-branch ===== */
+(function () {
+  var EMPTY_MS = 3 * 60 * 1000;
+  var stamps = {};
+
+  function isBlank(n) {
+    if (!n) return false;
+    if (n.children && n.children.length) return false;
+    if (String(n.title || '').trim()) return false;
+    if (String(n.notes || '').trim()) return false;
+    if (n.date || n.time) return false;
+    if (n.tags && n.tags.length) return false;
+    if (n.done) return false;
+    return true;
+  }
+
+  function isBeingEdited(id) {
+    var a = document.activeElement;
+    if (!a) return false;
+    var row = document.querySelector('#treeRoot .tree-row[data-id="' + id + '"]');
+    if (row && (row === a || row.contains(a))) return true;
+    if (a.isContentEditable) return true;
+    var t = (a.tagName || '').toUpperCase();
+    if (t === 'INPUT' || t === 'TEXTAREA') return true;
+    if (document.querySelector('.modal-backdrop, .ea')) return true;
+    return false;
+  }
+
+  function sweep() {
+    var now = Date.now();
+    var seen = {}, doomed = [];
+    window.walkTree(function (n) {
+      if (!n || !n.id) return;
+      seen[n.id] = 1;
+      if (!isBlank(n)) { delete stamps[n.id]; return; }
+      if (!stamps[n.id]) { stamps[n.id] = now; return; }
+      if (now - stamps[n.id] >= EMPTY_MS && !isBeingEdited(n.id)) doomed.push(n.id);
+    });
+    var k;
+    for (k in stamps) { if (!seen[k]) delete stamps[k]; }
+    if (!doomed.length) return 0;
+    var removed = 0, i;
+    for (i = 0; i < doomed.length; i++) {
+      var f = window.findNode(doomed[i]);
+      if (!f || !f.node) continue;
+      if (!isBlank(f.node)) continue;
+      var list = f.parent ? f.parent.children : window.Store.data.tree;
+      var idx = list.indexOf(f.node);
+      if (idx >= 0) { list.splice(idx, 1); removed++; delete stamps[doomed[i]]; }
+    }
+    if (removed) { try { window.Store.save(); } catch (e) {} 
+                   try { window.renderAll(); } catch (e) {} }
+    return removed;
+  }
+
+  window.plannerSweepEmpty = sweep;
+  window.__emptyStamps = stamps;
+  setInterval(function () { try { sweep(); } catch (e) {} }, 20000);
+
+  function topLevelIds() {
+    var out = [], t = window.Store.data.tree || [], i;
+    for (i = 0; i < t.length; i++) {
+      if (t[i] && t[i].children && t[i].children.length) out.push({id: t[i].id, title: t[i].title});
+    }
+    return out;
+  }
+
+  window.plannerNeedsBranch = function (id) {
+    var f = window.findNode(id);
+    if (!f || !f.node) return false;
+    if (f.parent) return false;
+    if (f.node.children && f.node.children.length) return false;
+    return true;
+  };
+
+  window.plannerFileUnder = function (id, branchId) {
+    var f = window.findNode(id), b = window.findNode(branchId);
+    if (!f || !f.node || !b || !b.node) return false;
+    if (f.node === b.node) return false;
+    var list = f.parent ? f.parent.children : window.Store.data.tree;
+    var idx = list.indexOf(f.node);
+    if (idx < 0) return false;
+    list.splice(idx, 1);
+    if (!b.node.children) b.node.children = [];
+    b.node.children.push(f.node);
+    try { window.Store.save(); } catch (e) {}
+    try { window.renderAll(); } catch (e) {}
+    return true;
+  };
+
+  window.plannerBranchChoices = topLevelIds;
+})();
+
+
+/* ===== m187  a task must be filed under a branch before it is saved =====
+   Operator: "you have to save the task within a branch, so if I try to press save,
+   it will direct me to put in a branch." A task sitting at the top level with no
+   branch is how things got lost. Saving one now opens a branch picker first. */
+(function () {
+  function pickBranch(nodeId, onDone) {
+    var choices = (window.plannerBranchChoices ? window.plannerBranchChoices() : []) || [];
+    var back = document.createElement('div');
+    back.className = 'modal-backdrop branchpick-back';
+    var box = document.createElement('div');
+    box.className = 'branchpick';
+
+    var h = document.createElement('div');
+    h.className = 'branchpick-head';
+    h.textContent = 'Which branch does this belong to?';
+    box.appendChild(h);
+
+    var sub = document.createElement('div');
+    sub.className = 'branchpick-sub';
+    sub.textContent = 'A task has to live under a branch so it can be found later.';
+    box.appendChild(sub);
+
+    var list = document.createElement('div');
+    list.className = 'branchpick-list';
+    if (!choices.length) {
+      var none = document.createElement('div');
+      none.className = 'branchpick-sub';
+      none.textContent = 'No branches yet - create one first.';
+      list.appendChild(none);
+    }
+    choices.forEach(function (c) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'branchpick-item';
+      b.textContent = c.title || '(untitled branch)';
+      b.addEventListener('click', function () {
+        if (window.plannerFileUnder) window.plannerFileUnder(nodeId, c.id);
+        close();
+        if (onDone) onDone(true);
+      });
+      list.appendChild(b);
+    });
+    box.appendChild(list);
+
+    var foot = document.createElement('div');
+    foot.className = 'branchpick-foot';
+    var later = document.createElement('button');
+    later.type = 'button';
+    later.className = 'branchpick-later';
+    later.textContent = 'Leave it unfiled';
+    later.addEventListener('click', function () { close(); if (onDone) onDone(false); });
+    foot.appendChild(later);
+    box.appendChild(foot);
+
+    function close() {
+      if (back.parentNode) back.parentNode.removeChild(back);
+    }
+    back.appendChild(box);
+    back.addEventListener('click', function (e) { if (e.target === back) { close(); if (onDone) onDone(false); } });
+    document.body.appendChild(back);
+  }
+
+  window.plannerPickBranch = pickBranch;
+
+  // Intercept the Edit dialog's save/close, in the capture phase, BEFORE it closes.
+  document.addEventListener('click', function (e) {
+    var b = e.target;
+    while (b && b !== document && !(b.tagName === 'BUTTON')) b = b.parentElement;
+    if (!b || b.tagName !== 'BUTTON') return;
+    if (!/^(save|done|ok)$/i.test(b.textContent.trim())) return;
+    var ea = document.querySelector('.ea');
+    if (!ea) return;
+    var id = ea.getAttribute('data-node-id') || window.__editingNodeId;
+    if (!id || !window.plannerNeedsBranch || !window.plannerNeedsBranch(id)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+    pickBranch(id, function () { b.click(); });
+  }, true);
+})();
 </script>
 </body>
 </html>
