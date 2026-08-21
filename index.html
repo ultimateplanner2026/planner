@@ -4469,7 +4469,7 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-21 15:16</span>
+    <span id="buildStamp">build 2026-08-21 15:26</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -18896,17 +18896,54 @@ if (r.freq === 'yearly') {
     }
   }, true);
 
+  /* Watch for the menu appearing, whatever built it.
+     Wrapping window.__openActMenu was not enough: the calendar's own three-dot handler
+     calls the builder DIRECTLY inside its module, so the wrapper never ran and the
+     calendar kept the old menu entirely. An observer catches every path - the wrapper,
+     the calendar's internal call, right-click, anything added later. */
+  function contextFor(menu, id) {
+    var tr = document.getElementById('treeRoot');
+    var mr = menu.getBoundingClientRect();
+    if (tr) {
+      var b = tr.getBoundingClientRect();
+      return (mr.left <= b.right + 8);
+    }
+    return false;
+  }
+  function idFor(menu) {
+    var d = menu.getAttribute('data-node-id') || menu.getAttribute('data-id');
+    if (d) return d;
+    if (window.__actMenuId) return window.__actMenuId;
+    return null;
+  }
+  var obs = new MutationObserver(function (recs) {
+    var i, j;
+    for (i = 0; i < recs.length; i++) {
+      for (j = 0; j < recs[i].addedNodes.length; j++) {
+        var nd = recs[i].addedNodes[j];
+        if (!nd || nd.nodeType !== 1) continue;
+        var menu = nd.classList && nd.classList.contains('actmenu')
+                   ? nd : (nd.querySelector ? nd.querySelector('.actmenu') : null);
+        if (!menu || menu.getAttribute('data-split') === '1') continue;
+        menu.setAttribute('data-split', '1');
+        try {
+          var fromTree = contextFor(menu, null);
+          var id = idFor(menu);
+          if (fromTree && id) twoWayHidden(menu, id);
+          applyTo(menu, fromTree);
+        } catch (e) {}
+      }
+    }
+  });
+  obs.observe(document.body, { childList: true, subtree: true });
+
   var base = window.__openActMenu;
   if (typeof base === 'function') {
     window.__openActMenu = function (id, x, y) {
+      window.__actMenuId = id;
       var r = base.apply(this, arguments);
-      try {
-        var menu = document.querySelector('.actmenu');
-        if (menu) {
-          if (lastFromTree) twoWayHidden(menu, id);
-          applyTo(menu, lastFromTree);
-        }
-      } catch (e) {}
+      // The observer does all the work now. This wrapper only records which node the
+      // menu is for - running applyTo here as well added the Hide item twice.
       return r;
     };
   }
