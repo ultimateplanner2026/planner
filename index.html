@@ -4452,6 +4452,84 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
   pointer-events: auto;
 }
 .actmenu-item.actmenu-dim:hover { background: transparent; }
+
+/* ===== o29  TREE MARKERS - version E, approved 2026-08-22 =====
+   Chosen from five previewed variations. What it is:
+     - the caret IS the red square (one control, not a triangle beside a marker)
+     - nothing inside any square, no dot, no ring, no minus
+     - a SUB-branch that contains something is UNDERLINED; top-level branches and
+       leaves stay plain
+     - squares shrink 16 / 12 / 10 / 9 / 8 / 7 with depth
+     - indent is a flat 12px per level (was ~26px), squares at 6 / 18 / 30 / 42 ...
+   Measured in the preview, not eyeballed. */
+
+/* the caret becomes the square; the separate marker hides behind it */
+#treeRoot .tree-row > .tree-caret {
+  box-sizing: border-box;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1.5px solid #e5484d; border-radius: 2px;
+  background: transparent; padding: 0;
+  /* a <button> keeps a 16px line box unless the ceiling is pinned too - that is why
+     these looked like rectangles before */
+  line-height: 0 !important; min-height: 0 !important;
+  align-self: center !important; flex: 0 0 auto !important; overflow: hidden;
+}
+#treeRoot .tree-row > .tree-caret svg { display: none !important; }
+#treeRoot .tree-row:has(> .tree-caret) > .tree-marker { display: none !important; }
+#treeRoot .tree-row:not(:has(> .tree-caret)) > .tree-marker {
+  display: inline-flex !important; align-items: center; justify-content: center;
+  box-sizing: border-box !important; margin-left: 0 !important;
+}
+
+/* sizes: main branch clearly larger, then an even step down */
+#treeRoot .tree-row[data-depth="0"] > .tree-caret,
+#treeRoot .tree-row[data-depth="0"] > .tree-marker { width:16px !important; height:16px !important; max-height:16px !important; min-width:16px !important; }
+#treeRoot .tree-row[data-depth="1"] > .tree-caret,
+#treeRoot .tree-row[data-depth="1"] > .tree-marker { width:12px !important; height:12px !important; max-height:12px !important; min-width:12px !important; }
+#treeRoot .tree-row[data-depth="2"] > .tree-caret,
+#treeRoot .tree-row[data-depth="2"] > .tree-marker { width:10px !important; height:10px !important; max-height:10px !important; min-width:10px !important; }
+#treeRoot .tree-row[data-depth="3"] > .tree-caret,
+#treeRoot .tree-row[data-depth="3"] > .tree-marker { width: 9px !important; height: 9px !important; max-height: 9px !important; min-width: 9px !important; }
+#treeRoot .tree-row[data-depth="4"] > .tree-caret,
+#treeRoot .tree-row[data-depth="4"] > .tree-marker { width: 8px !important; height: 8px !important; max-height: 8px !important; min-width: 8px !important; }
+#treeRoot .tree-row[data-depth="5"] > .tree-caret,
+#treeRoot .tree-row[data-depth="5"] > .tree-marker { width: 7px !important; height: 7px !important; max-height: 7px !important; min-width: 7px !important; }
+
+/* indent - measured to land the squares 12px apart */
+#treeRoot .tree-row { margin-left: 0 !important; padding-left: 0 !important; }
+#treeRoot .tree-row[data-depth="1"] { padding-left: 18px !important; }
+#treeRoot .tree-row[data-depth="2"] { padding-left: 30px !important; }
+#treeRoot .tree-row[data-depth="3"] { padding-left: 42px !important; }
+#treeRoot .tree-row[data-depth="4"] { padding-left: 54px !important; }
+#treeRoot .tree-row[data-depth="5"] { padding-left: 66px !important; }
+
+/* nothing inside the squares, and nothing in front of a title */
+#treeRoot .tree-row > .tree-caret::after,
+#treeRoot .tree-row > .tree-marker::after,
+#treeRoot .tree-row > .tree-title::before { content: none !important; }
+#treeRoot .tree-row[data-revealed] { opacity: 1 !important; }
+
+/* THE SIGNAL: a sub-branch holding something is underlined */
+#treeRoot .tree-row:not([data-depth="0"]):has(> .tree-caret) > .tree-title {
+  text-decoration: underline !important;
+  text-decoration-color: rgba(255,255,255,.45) !important;
+  text-decoration-thickness: 1px !important;
+  text-underline-offset: 3px !important;
+}
+
+/* the future date - metadata, never competing with the task */
+#treeRoot .future-date {
+  margin-left: 8px;
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: rgba(245, 158, 11, .32);
+  text-decoration: none !important;
+  pointer-events: none;
+}
 </style>
 </head>
 <body>
@@ -4469,7 +4547,7 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-21 15:26</span>
+    <span id="buildStamp">build 2026-08-25 12:07</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -12783,7 +12861,10 @@ function firstConnect(remote, rAt, lAt) {
     go.style.cssText = 'font-size:12px;padding:6px 12px;border-radius:6px;cursor:pointer';
     go.addEventListener('click', function () {
       lsSet(KEY, sha);
-      location.replace(location.pathname + '?v=' + (new Date()).getTime());
+      // Was: location.pathname + '?v=' + Date.now() - a cache-buster that changed the
+      // operator's URL on every reload, so their bookmark was never the same twice.
+      // The app has had no-cache headers since 2026-08-20, so a plain reload is enough.
+      location.reload();
     });
     var no = document.createElement('button');
     no.type = 'button'; no.textContent = 'Later';
@@ -12945,6 +13026,59 @@ function firstConnect(remote, rAt, lAt) {
     return da >= db ? a : b;
   }
 
+
+  var MERGE_SEP = '\n\n--- also written on the other device ---\n\n';
+
+  function isPlainObject(v) {
+    return v && typeof v === 'object' && !Array.isArray(v);
+  }
+
+  // Merge two plain objects key by key. A key present on only one side is kept.
+  // Where both sides hold different values the writing is CONCATENATED, never
+  // dropped - the journal used to be taken wholesale from whichever document had
+  // the higher clock, destroying every entry the other side alone had.
+  function mergeDictKey(a, b) {
+    if (!isPlainObject(a)) return isPlainObject(b) ? b : a;
+    if (!isPlainObject(b)) return a;
+    var out = {}, k;
+    for (k in a) { if (a.hasOwnProperty(k)) out[k] = a[k]; }
+    for (k in b) {
+      if (!b.hasOwnProperty(k)) continue;
+      if (!out.hasOwnProperty(k)) { out[k] = b[k]; continue; }
+      var av = out[k], bv = b[k];
+      var same;
+      try { same = JSON.stringify(av) === JSON.stringify(bv); } catch (e) { same = av === bv; }
+      if (same) continue;
+      if (typeof av === 'string' && typeof bv === 'string') {
+        out[k] = av + MERGE_SEP + bv;
+      } else if (isPlainObject(av) && isPlainObject(bv) &&
+                 typeof av.text === 'string' && typeof bv.text === 'string') {
+        var copy = {}, ck;
+        for (ck in av) { if (av.hasOwnProperty(ck)) copy[ck] = av[ck]; }
+        copy.text = (av.text === bv.text) ? av.text : (av.text + MERGE_SEP + bv.text);
+        out[k] = copy;
+      }
+      // anything else: keep the a-side value
+    }
+    return out;
+  }
+
+  // Take the winning node but never lose the other side's notes.
+  function keepBothNotes(win, lose) {
+    if (!win || !win.node) return win;
+    var copy = {}, k;
+    for (k in win.node) { if (win.node.hasOwnProperty(k)) copy[k] = win.node[k]; }
+    var ln = lose && lose.node ? lose.node.notes : '';
+    var wn = copy.notes;
+    if (typeof ln === 'string' && ln.trim() &&
+        typeof wn === 'string' && wn.trim() && ln.trim() !== wn.trim()) {
+      copy.notes = wn + MERGE_SEP + ln;
+    } else if ((!wn || !String(wn).trim()) && typeof ln === 'string' && ln.trim()) {
+      copy.notes = ln;
+    }
+    return { node: copy, parentId: win.parentId, index: win.index, tomb: win.tomb };
+  }
+
   window.mergePlanner = function (local, remote) {
     if (!remote) return local;
     if (!local) return remote;
@@ -12955,8 +13089,10 @@ function firstConnect(remote, rAt, lAt) {
     var live = [], dead = [], w;
     for (id in ids) {
       if (!ids.hasOwnProperty(id)) continue;
-      w = winner(L.map[id], R.map[id]);
+      var la = L.map[id], rb = R.map[id];
+      w = winner(la, rb);
       if (!w) continue;
+      if (!w.tomb && la && rb) { w = keepBothNotes(w, (w === la) ? rb : la); }
       if (w.tomb) { dead.push(w.tomb); } else { live.push(w); }
     }
     var byParent = {}, i, e, p;
@@ -12971,7 +13107,12 @@ function firstConnect(remote, rAt, lAt) {
       kids.sort(function (x, y) { return (x.index || 0) - (y.index || 0); });
       var res = [], k, nd;
       for (k = 0; k < kids.length; k++) {
-        nd = kids[k].node;
+        // Copy before attaching children. Assigning straight onto kids[k].node
+        // mutated the caller's own documents mid-merge - verified: merging A with B
+        // left B's nodes grafted into A.
+        var srcNode = kids[k].node, nd2 = {}, nk;
+        for (nk in srcNode) { if (srcNode.hasOwnProperty(nk)) nd2[nk] = srcNode[nk]; }
+        nd = nd2;
         nd.children = build(nd.id);
         res.push(nd);
       }
@@ -12985,6 +13126,31 @@ function firstConnect(remote, rAt, lAt) {
     // sync before it ever wrote.
     for (key in local) { if (local.hasOwnProperty(key)) merged[key] = local[key]; }
     for (key in src) { if (src.hasOwnProperty(key) && src[key] !== undefined) merged[key] = src[key]; }
+    // Any key holding a plain object - journal, habitLog, anything added later - is
+    // merged key by key. Copying it from `src` wholesale destroyed every entry the
+    // other side alone had; measured, a 2026-08-24 journal entry vanished outright.
+    var dk;
+    for (dk in local) {
+      if (!local.hasOwnProperty(dk)) continue;
+      if (dk === 'tree' || dk === 'trash' || dk === 'settings') continue;
+      if (isPlainObject(local[dk]) || isPlainObject(remote[dk])) {
+        merged[dk] = mergeDictKey(local[dk], remote[dk]);
+      }
+    }
+    for (dk in remote) {
+      if (!remote.hasOwnProperty(dk)) continue;
+      if (dk === 'tree' || dk === 'trash' || dk === 'settings') continue;
+      if (!merged.hasOwnProperty(dk) && isPlainObject(remote[dk])) merged[dk] = remote[dk];
+    }
+    // settings: keep the local choice, fill in only what local has no value for
+    if (isPlainObject(local.settings) || isPlainObject(remote.settings)) {
+      var so = {}, sk;
+      for (sk in (remote.settings || {})) { if (remote.settings.hasOwnProperty(sk)) so[sk] = remote.settings[sk]; }
+      for (sk in (local.settings || {})) {
+        if (local.settings.hasOwnProperty(sk) && local.settings[sk] !== undefined) so[sk] = local.settings[sk];
+      }
+      merged.settings = so;
+    }
     merged.tree = build('__root__');
     merged.trash = dead;
     merged.clock = Math.max(L.max, R.max, Number(local.clock) || 0, Number(remote.clock) || 0);
@@ -18949,6 +19115,72 @@ if (r.freq === 'yearly') {
   }
   window.__menuSetFromTree = function (v) { lastFromTree = !!v; };
   window.__menuAllowed = function (fromTree) { return fromTree ? TREE.slice() : CAL.slice(); };
+})();
+
+/* ===== m189  FUTURE-DATED TASKS SHOW THEIR DATE =====
+   Approved 2026-08-22 (preview option 2, "dimmer"). A task dated later than today
+   carries its date immediately after the title text - uppercase, tabular figures,
+   9px at 32% yellow so it reads as metadata and never competes with the task.
+   Only future dates: today and past show nothing.
+
+   The date is appended INSIDE .tree-title. As a sibling it landed after the title's
+   stretched flex box, measured 143px away from the last letter; inside, it sits
+   against the text at a constant 8px no matter how long the title is. */
+(function () {
+  var MON = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+
+  function todayISO() {
+    var d = new Date();
+    function p(n) { return (n < 10 ? '0' : '') + n; }
+    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+  }
+
+  function label(iso) {
+    var p = String(iso).split('-');
+    if (p.length !== 3) return '';
+    var mi = parseInt(p[1], 10) - 1;
+    if (isNaN(mi) || mi < 0 || mi > 11) return '';
+    var day = parseInt(p[2], 10);
+    if (isNaN(day)) return '';
+    return MON[mi] + ' ' + day;
+  }
+
+  function paint() {
+    var t = todayISO();
+    var rows = document.querySelectorAll('#treeRoot .tree-row');
+    var i;
+    for (i = 0; i < rows.length; i++) {
+      var row = rows[i];
+      var old = row.querySelector('.future-date');
+      if (old && old.parentNode) old.parentNode.removeChild(old);
+      var id = row.getAttribute('data-id');
+      if (!id || !window.findNode) continue;
+      var f = window.findNode(id);
+      if (!f || !f.node || !f.node.date) continue;
+      if (!(f.node.date > t)) continue;
+      var text = label(f.node.date);
+      if (!text) continue;
+      var span = document.createElement('span');
+      span.className = 'future-date';
+      span.setAttribute('contenteditable', 'false');
+      span.textContent = text;
+      var title = row.querySelector('.tree-title');
+      if (title) title.appendChild(span);
+    }
+  }
+
+  window.plannerPaintFutureDates = paint;
+
+  ['renderTree', 'renderAll'].forEach(function (fn) {
+    var base = window[fn];
+    if (typeof base !== 'function') return;
+    window[fn] = function () {
+      var r = base.apply(this, arguments);
+      try { paint(); } catch (e) {}
+      return r;
+    };
+  });
+  setTimeout(paint, 1200);
 })();
 </script>
 </body>
