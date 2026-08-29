@@ -4547,7 +4547,7 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-25 12:07</span>
+    <span id="buildStamp">build 2026-08-25 14:36</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -4794,9 +4794,14 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
     journal: {},
     habits: [],
     habitLog: {},
+    areas: [],
     settings: {
       theme: 'auto',
-      weekStart: 0
+      weekStart: 0,
+      filters: {
+        areas: [],
+        tags: []
+      }
     }
   };
 
@@ -7898,7 +7903,7 @@ renderAll();
 (function(){window.renderWeek=function(){var host=document.getElementById('weekGrid');if(!host)return;host.textContent='';var startISO=weekStartOf(window.selectedDate);var start=parseISO(startISO);var isos=[];for(var i=0;i<7;i++){var d=new Date(start);d.setDate(d.getDate()+i);isos.push(isoOf(d));}var tgtop=document.createElement('div');tgtop.className='tgtop';var btnPrev=document.createElement('button');btnPrev.textContent='\u25C0';btnPrev.addEventListener('click',function(){shiftWeek(-1);});var btnNext=document.createElement('button');btnNext.textContent='\u25B6';btnNext.addEventListener('click',function(){shiftWeek(1);});var dateRange=document.createElement('span');dateRange.textContent=fmtDate(isos[0],'short')+' - '+fmtDate(isos[6],'short');var btnThisWeek=document.createElement('button');btnThisWeek.textContent='This week';btnThisWeek.addEventListener('click',function(){window.selectedDate=todayISO();renderAll();});var spacer=document.createElement('span');spacer.className='tgspacer';var btnExpand=document.createElement('button');btnExpand.className='tgexpand';btnExpand.textContent=TG.expanded?'Working hours':'Show 24h';btnExpand.addEventListener('click',function(){tgToggleExpanded();});tgtop.appendChild(btnPrev);tgtop.appendChild(dateRange);tgtop.appendChild(btnNext);tgtop.appendChild(btnThisWeek);tgtop.appendChild(spacer);tgtop.appendChild(btnExpand);host.appendChild(tgtop);var dayHeaderRow=document.createElement('div');dayHeaderRow.className='tgweekhead';var gutterLabel=document.createElement('div');gutterLabel.className='tggutterlabel';dayHeaderRow.appendChild(gutterLabel);isos.forEach(function(iso){var dayHead=document.createElement('div');dayHead.className='tgdayhead';dayHead.dataset.iso=iso;var d=parseISO(iso);var weekdays=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];var weekday=weekdays[d.getDay()];var dayNum=d.getDate();dayHead.textContent=weekday+' '+dayNum;if(iso===todayISO())dayHead.classList.add('tgtoday');if(iso===window.selectedDate)dayHead.classList.add('tgsel');dayHead.addEventListener('click',function(){window.selectedDate=iso;setTab('day');});dayHeaderRow.appendChild(dayHead);});host.appendChild(dayHeaderRow);var allDayRow=document.createElement('div');allDayRow.className='tgallday';var allDayGutter=document.createElement('div');allDayGutter.className='tggutterlabel';allDayGutter.textContent='All day';allDayRow.appendChild(allDayGutter);isos.forEach(function(iso){var allDayCell=document.createElement('div');allDayCell.className='tgalldaycell';allDayCell.dataset.iso=iso;var entries=scheduledOn(iso);entries.forEach(function(entry){if(!tgTimeOf(entry)){var chip=document.createElement('div');chip.className='tgchip';chip.textContent=entry.title||entry.name||'';chip.dataset.nodeId=(entry.node?entry.node.id:entry.id);chip.title=entry.title||'';allDayCell.appendChild(chip);}});allDayRow.appendChild(allDayCell);});host.appendChild(allDayRow);var g=tgBuildGrid(host,isos);isos.forEach(function(iso,i){tgFillColumn(g.cols[i],iso);});tgWireDrops(g.body.querySelector('.tgcols'));tgScrollToMorning(g.scroll);};})();
 
 /* ===== k30 ===== */
-(function(){window.DEFAULT_AREAS=[{id:"work",name:"Work",color:"#2f6feb"},{id:"money",name:"Finances",color:"#16a34a"},{id:"health",name:"Health",color:"#ea580c"},{id:"love",name:"Relationships",color:"#db2777"},{id:"growth",name:"Growth",color:"#7c3aed"},{id:"spirit",name:"Spirituality",color:"#0891b2"},{id:"fun",name:"Fun",color:"#ca8a04"},{id:"home",name:"Home",color:"#64748b"}];window.migrateV2=function(){var d=Store.data;if(!Array.isArray(d.areas)||!d.areas.length)d.areas=DEFAULT_AREAS.map(function(a){return {id:a.id,name:a.name,color:a.color};});if(!Array.isArray(d.lists))d.lists=[];if(!Array.isArray(d.timeLog))d.timeLog=[];if(!d.settings)d.settings={};if(!d.settings.filters)d.settings.filters={areas:[],tags:[]};walkTree(function(n){if(n.areaId===undefined)n.areaId=null;if(!Array.isArray(n.tags))n.tags=[];if(n.endDate===undefined)n.endDate=null;if(n.time===undefined)n.time=null;if(n.repeat&&n.repeat.interval===undefined)n.repeat.interval=1;if(n.repeat&&!Array.isArray(n.repeat.exceptions))n.repeat.exceptions=[];});Object.keys(d.journal||{}).forEach(function(k){var e=d.journal[k];if(e&&typeof e==='object'){if(e.mood===undefined)e.mood=null;if(e.template===undefined)e.template=null;if(!Array.isArray(e.photos))e.photos=[];}});d.version=2;};window.areaById=function(id){var areas=Store.data.areas;for(var i=0;i<areas.length;i++){if(areas[i].id===id)return areas[i];}return null;};window.allTags=function(){var tags={};walkTree(function(n){if(Array.isArray(n.tags)){n.tags.forEach(function(t){tags[t]=true;});}});return Object.keys(tags).sort();};window.addArea=function(name,color){var area={id:uid(),name:name,color:color};Store.data.areas.push(area);Store.save();};window.removeArea=function(id){if(!confirm('Remove area?'))return;walkTree(function(n){if(n.areaId===id)n.areaId=null;});var areas=Store.data.areas;var idx=-1;for(var i=0;i<areas.length;i++){if(areas[i].id===id){idx=i;break;}}if(idx!==-1)areas.splice(idx,1);Store.save();renderAll();};var run=function(){migrateV2();Store.save();};if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',function(){setTimeout(run,30);});}else{setTimeout(run,30);}})();
+(function(){window.DEFAULT_AREAS=[{id:"work",name:"Work",color:"#2f6feb"},{id:"money",name:"Finances",color:"#16a34a"},{id:"health",name:"Health",color:"#ea580c"},{id:"love",name:"Relationships",color:"#db2777"},{id:"growth",name:"Growth",color:"#7c3aed"},{id:"spirit",name:"Spirituality",color:"#0891b2"},{id:"fun",name:"Fun",color:"#ca8a04"},{id:"home",name:"Home",color:"#64748b"}];window.migrateV2=function(){var d=Store.data;if(!Array.isArray(d.areas)||!d.areas.length)d.areas=DEFAULT_AREAS.map(function(a){return {id:a.id,name:a.name,color:a.color};});if(!Array.isArray(d.lists))d.lists=[];if(!Array.isArray(d.timeLog))d.timeLog=[];if(!d.settings)d.settings={};if(!d.settings.filters)d.settings.filters={areas:[],tags:[]};walkTree(function(n){if(n.areaId===undefined)n.areaId=null;if(!Array.isArray(n.tags))n.tags=[];if(n.endDate===undefined)n.endDate=null;if(n.time===undefined)n.time=null;if(n.repeat&&n.repeat.interval===undefined)n.repeat.interval=1;if(n.repeat&&!Array.isArray(n.repeat.exceptions))n.repeat.exceptions=[];});Object.keys(d.journal||{}).forEach(function(k){var e=d.journal[k];if(e&&typeof e==='object'){if(e.mood===undefined)e.mood=null;if(e.template===undefined)e.template=null;if(!Array.isArray(e.photos))e.photos=[];}});d.version=2;};window.areaById=function(id){var areas = Store.data.areas || [];for(var i=0;i<areas.length;i++){if(areas[i].id===id)return areas[i];}return null;};window.allTags=function(){var tags={};walkTree(function(n){if(Array.isArray(n.tags)){n.tags.forEach(function(t){tags[t]=true;});}});return Object.keys(tags).sort();};window.addArea=function(name,color){var area={id:uid(),name:name,color:color};Store.data.areas.push(area);Store.save();};window.removeArea=function(id){if(!confirm('Remove area?'))return;walkTree(function(n){if(n.areaId===id)n.areaId=null;});var areas = Store.data.areas || [];var idx=-1;for(var i=0;i<areas.length;i++){if(areas[i].id===id){idx=i;break;}}if(idx!==-1)areas.splice(idx,1);Store.save();renderAll();};var run=function(){migrateV2();Store.save();};if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',function(){setTimeout(run,30);});}else{setTimeout(run,30);}})();
 
 /* ===== k31a ===== */
 (function(){var base=window.renderTree;window.renderTree=function(){base();window.__decorateRows();if(typeof window.__applyTagFilters==='function')window.__applyTagFilters();};window.__decorateRows=function(){var root=document.getElementById('treeRoot');if(!root)return;var rows=root.querySelectorAll('.tree-row');for(var i=0;i<rows.length;i++){var row=rows[i];var old=row.querySelectorAll('.area-dot, .tag-chip');for(var j=0;j<old.length;j++)old[j].remove();var found=window.findNode(row.dataset.id);if(!found||!found.node)continue;var node=found.node;if(node.areaId){var area=window.areaById(node.areaId);if(area){var dot=document.createElement('span');dot.className='area-dot';dot.style.background=area.color;dot.title=area.name;row.insertBefore(dot,row.firstChild);}}if(Array.isArray(node.tags)&&node.tags.length){var actions=row.querySelector('.tree-actions');for(var t=0;t<node.tags.length;t++){var chip=document.createElement('span');chip.className='tag-chip';chip.textContent='#'+node.tags[t];if(actions)row.insertBefore(chip,actions);else row.appendChild(chip);}}}};})();
@@ -7913,7 +7918,7 @@ renderAll();
         var container=document.createElement('div');
         container.id='treeFilters';
         var filters=Store.data.settings.filters;
-        var areas=Store.data.areas;
+        var areas = Store.data.areas || [];
         for(var i=0;i<areas.length;i++){
             (function(area){
                 var btn=document.createElement('button');
@@ -7978,7 +7983,7 @@ renderAll();
 })();
 
 /* ===== k31b2 ===== */
-(function(){window.__applyTagFilters=function(){if(typeof window.__renderFilterBar==='function')window.__renderFilterBar();var f=Store.data.settings.filters;var rows=document.querySelectorAll('#treeRoot .tree-row');if(f.areas.length===0&&f.tags.length===0){rows.forEach(function(row){if(row.hasAttribute('data-filterhidden')){row.removeAttribute('data-filterhidden');row.style.display='';}});return;}var matches={};walkTree(function(node){var id=node.id;var ok=true;if(f.areas.length>0&&f.areas.indexOf(node.areaId)===-1)ok=false;if(ok&&f.tags.length>0){var nodeTags=node.tags||[];if(!nodeTags.some(function(t){return f.tags.indexOf(t)>=0;}))ok=false;}matches[id]=ok;});var visible={};function computeVisible(node){var id=node.id;var match=matches[id];var children=node.children||[];var childVis=false;for(var i=0;i<children.length;i++){if(computeVisible(children[i])){childVis=true;break;}}var isVis=match||childVis;visible[id]=isVis;return isVis;}var tree=Store.data.tree;if(Array.isArray(tree)){tree.forEach(function(root){computeVisible(root);});}else{computeVisible(tree);}rows.forEach(function(row){var id=row.dataset.id;var isVis=visible[id];if(!isVis){row.style.display='none';row.setAttribute('data-filterhidden','1');}else{row.style.display='';row.removeAttribute('data-filterhidden');if(!matches[id]){row.classList.add('ancestor-muted');}else{row.classList.remove('ancestor-muted');}}});};})();
+(function(){window.__applyTagFilters=function(){if(typeof window.__renderFilterBar==='function')window.__renderFilterBar();var f = (Store.data.settings && Store.data.settings.filters) || {areas: [], tags: []}; f.areas = f.areas || []; f.tags = f.tags || [];var rows=document.querySelectorAll('#treeRoot .tree-row');if(f.areas.length===0&&f.tags.length===0){rows.forEach(function(row){if(row.hasAttribute('data-filterhidden')){row.removeAttribute('data-filterhidden');row.style.display='';}});return;}var matches={};walkTree(function(node){var id=node.id;var ok=true;if(f.areas.length>0&&f.areas.indexOf(node.areaId)===-1)ok=false;if(ok&&f.tags.length>0){var nodeTags=node.tags||[];if(!nodeTags.some(function(t){return f.tags.indexOf(t)>=0;}))ok=false;}matches[id]=ok;});var visible={};function computeVisible(node){var id=node.id;var match=matches[id];var children=node.children||[];var childVis=false;for(var i=0;i<children.length;i++){if(computeVisible(children[i])){childVis=true;break;}}var isVis=match||childVis;visible[id]=isVis;return isVis;}var tree=Store.data.tree;if(Array.isArray(tree)){tree.forEach(function(root){computeVisible(root);});}else{computeVisible(tree);}rows.forEach(function(row){var id=row.dataset.id;var isVis=visible[id];if(!isVis){row.style.display='none';row.setAttribute('data-filterhidden','1');}else{row.style.display='';row.removeAttribute('data-filterhidden');if(!matches[id]){row.classList.add('ancestor-muted');}else{row.classList.remove('ancestor-muted');}}});};})();
 
 /* ===== k31c ===== */
 (function () {
@@ -12861,10 +12866,42 @@ function firstConnect(remote, rAt, lAt) {
     go.style.cssText = 'font-size:12px;padding:6px 12px;border-radius:6px;cursor:pointer';
     go.addEventListener('click', function () {
       lsSet(KEY, sha);
-      // Was: location.pathname + '?v=' + Date.now() - a cache-buster that changed the
-      // operator's URL on every reload, so their bookmark was never the same twice.
-      // The app has had no-cache headers since 2026-08-20, so a plain reload is enough.
-      location.reload();
+      // GitHub Pages serves the document with cache-control: max-age=600 and no
+      // Cache-Control: no-cache (Pages does not allow custom response headers), so a
+      // plain location.reload() can be answered from the browser's HTTP cache and the
+      // user stays on the OLD build. We therefore force the browser to revalidate and
+      // overwrite its cached entry for the current URL with fetch(cache: 'reload')
+      // BEFORE doing a normal reload. This keeps the URL exactly as-is (no ?v=...
+      // query string), so the operator's bookmark stays stable across reloads.
+      var reloaded = false;
+      var doReload = function () {
+        if (reloaded) { return; }
+        reloaded = true;
+        location.reload();
+      };
+      // Feature-detect: older UAs may lack fetch entirely, or may reject the
+      // 'reload' cache option value. In either case fall back to a plain reload.
+      var supportsCacheReload = false;
+      try {
+        if (typeof Request !== 'undefined') {
+          new Request(location.href, { cache: 'reload' });
+          supportsCacheReload = true;
+        }
+      } catch (e1) { /* unknown option -> unsupported */ }
+      if (typeof fetch !== 'function' || !supportsCacheReload) {
+        doReload();
+        return;
+      }
+      // Race the revalidation fetch against a 3 s deadline. Whichever wins triggers
+      // the single reload; the 'reloaded' flag prevents a second reload if both fire.
+      var timer = setTimeout(doReload, 3000);
+      fetch(location.href, { cache: 'reload' }).then(function () {
+        clearTimeout(timer);
+        doReload();
+      }).catch(function () {
+        clearTimeout(timer);
+        doReload();
+      });
     });
     var no = document.createElement('button');
     no.type = 'button'; no.textContent = 'Later';
