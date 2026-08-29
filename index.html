@@ -4547,7 +4547,7 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-25 14:36</span>
+    <span id="buildStamp">build 2026-08-29 19:39</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -4608,6 +4608,12 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
 
   <div id="toast" aria-live="polite" aria-atomic="true"></div>
   <div id="modalHost"></div>
+<!-- Firebase compat SDK: loaded before the app script so `firebase` is defined when the
+     sync modules run. Compat (not modular/ESM) because this app is one ES5 file with no build step. -->
+<script src="https://www.gstatic.com/firebasejs/11.6.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/11.6.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/11.6.0/firebase-firestore-compat.js"></script>
+
 <script>
 /* ===== m117 sign-in link ===== */
 /* Sign-in link. The token travels in the URL FRAGMENT, which browsers never
@@ -19218,6 +19224,410 @@ if (r.freq === 'yearly') {
     };
   });
   setTimeout(paint, 1200);
+})();
+
+
+/* ===== m190  FIREBASE SIGN-IN + FIRESTORE SYNC =====
+   Replaces per-device GitHub tokens. Three modules: the FB api, the sign-in dialog,
+   and the settings button. Added 2026-08-29. */
+
+/*
+This replaces the previous token-based gist sync. A GitHub personal access token cannot be pasted
+on a work computer or on a phone, and OAuth for gists is awkward for a personal planner. Instead
+the entire planner lives in one Firestore document per user, held under a single 'doc' field as a
+JSON string plus a numeric 'updatedAt' timestamp. Firestore caps each document at 1MB and limits
+nesting to 20 levels, so the whole tree is serialised rather than stored as nested fields.
+*/
+(function () {
+  try {
+    var config = {
+      apiKey: "AIzaSyAcdgyujMPFIdtEGEjqa66SUS8MRVe-L7Y",
+      authDomain: "ultimate-planner-9a61d.firebaseapp.com",
+      projectId: "ultimate-planner-9a61d",
+      storageBucket: "ultimate-planner-9a61d.firebasestorage.app",
+      messagingSenderId: "955204289418",
+      appId: "1:955204289418:web:023ae471b623b813d2fe73"
+    };
+
+    var initOk = false;
+    var auth = null;
+    var db = null;
+
+    if (typeof firebase !== 'undefined') {
+      try {
+        if (!firebase.apps || firebase.apps.length === 0) {
+          firebase.initializeApp(config);
+        }
+        auth = firebase.auth();
+        db = firebase.firestore();
+        initOk = true;
+      } catch (e) {
+        initOk = false;
+      }
+    }
+
+    function friendly(err) {
+      if (!err) return 'Something went wrong.';
+      var code = err.code || '';
+      var msg = err.message || 'Something went wrong.';
+      if (code === 'auth/invalid-email') return 'That email address does not look right.';
+      if (code === 'auth/email-already-in-use') return 'An account already exists for that email. Try signing in instead.';
+      if (code === 'auth/weak-password') return 'Password needs to be at least 6 characters.';
+      if (code === 'auth/wrong-password' || code === 'auth/invalid-login-credentials') return 'Wrong email or password.';
+      if (code === 'auth/user-not-found') return 'No account for that email. Create one first.';
+      if (code === 'auth/network-request-failed') return 'Could not reach the internet.';
+      if (code === 'auth/unauthorized-domain') return 'This web address is not approved for sign-in yet.';
+      return msg;
+    }
+
+    function docRef() {
+      if (!auth || !auth.currentUser) return null;
+      return db.collection('users').doc(auth.currentUser.uid);
+    }
+
+    function hasReal(d) {
+      if (!d) return false;
+      if (!d.tree) return false;
+      if (!Array.isArray(d.tree)) return false;
+      if (d.tree.length === 0) return false;
+      return true;
+    }
+
+    function signUp(email, password) {
+      if (!auth) return Promise.reject(new Error('Sign-in is not ready yet.'));
+      return auth.createUserWithEmailAndPassword(email, password).then(function (cred) {
+        return cred && cred.user ? cred.user : null;
+      }).then(undefined, function (err) {
+        throw new Error(friendly(err));
+      });
+    }
+
+    function signIn(email, password) {
+      if (!auth) return Promise.reject(new Error('Sign-in is not ready yet.'));
+      return auth.signInWithEmailAndPassword(email, password).then(function (cred) {
+        return cred && cred.user ? cred.user : null;
+      }).then(undefined, function (err) {
+        throw new Error(friendly(err));
+      });
+    }
+
+    function signOut() {
+      if (!auth) return Promise.resolve();
+      return auth.signOut();
+    }
+
+    function push() {
+      var ref = docRef();
+      if (!ref) return Promise.resolve(false);
+      try {
+        if (typeof window.stampClocks === 'function') window.stampClocks();
+      } catch (e) {}
+      var payload = { doc: JSON.stringify(window.Store.data), updatedAt: Date.now() };
+      return ref.set(payload, { merge: false }).then(function () {
+        return true;
+      }).then(undefined, function (err) {
+        if (typeof window.toast === 'function') window.toast(friendly(err), 'err');
+        return false;
+      });
+    }
+
+    function pull() {
+      var ref = docRef();
+      if (!ref) return Promise.resolve(false);
+      return ref.get().then(function (snap) {
+        // A brand-new account has no document yet. Seed it from this device rather
+        // than returning empty-handed, or the first sign-in would look like data loss.
+        if (!snap || !snap.exists) {
+          return push().then(function () { return true; });
+        }
+        var raw = snap.get('doc');
+        if (!raw) return false;
+        var remote = null;
+        try {
+          remote = JSON.parse(raw);
+        } catch (e) {
+          if (typeof window.toast === 'function') window.toast('Cloud data could not be read.', 'err');
+          return false;
+        }
+        if (!hasReal(remote)) {
+          return push().then(function () { return true; });
+        }
+        if (!hasReal(window.Store.data)) {
+          window.Store.data = remote;
+        } else {
+          window.Store.data = window.mergePlanner(window.Store.data, remote);
+        }
+        if (typeof window.Store.save === 'function') window.Store.save();
+        if (typeof window.renderAll === 'function') window.renderAll();
+        return true;
+      }).then(undefined, function (err) {
+        if (typeof window.toast === 'function') window.toast(friendly(err), 'err');
+        return false;
+      });
+    }
+
+    window.FB = {
+      ready: function () { return initOk; },
+      on: function () { return !!(auth && auth.currentUser); },
+      user: function () { return (auth && auth.currentUser && auth.currentUser.email) ? auth.currentUser.email : ''; },
+      signUp: signUp,
+      signIn: signIn,
+      signOut: signOut,
+      pull: pull,
+      push: push
+    };
+  } catch (e) {
+    window.FB = window.FB || {
+      ready: function () { return false; },
+      on: function () { return false; },
+      user: function () { return ''; },
+      signUp: function () { return Promise.reject(e); },
+      signIn: function () { return Promise.reject(e); },
+      signOut: function () { return Promise.resolve(); },
+      pull: function () { return Promise.resolve(false); },
+      push: function () { return Promise.resolve(false); }
+    };
+  }
+})();
+
+
+
+/* Cloud auth dialog - email and password sign-in for Firestore sync.
+   Lets the user create an account or sign in so the planner follows them across devices. */
+(function(){
+  try {
+    window.__cloudAuthPanel = function(){
+      var backdrop, card, emailInput, passwordInput, errorEl, signInBtn, signUpBtn, keyHandler;
+
+      function styleInput(el){
+        el.style.width = '100%';
+        el.style.boxSizing = 'border-box';
+        el.style.margin = '6px 0';
+        el.style.padding = '9px';
+        el.style.borderRadius = '8px';
+        el.style.background = 'var(--bg,#111)';
+        el.style.color = 'inherit';
+        el.style.border = '1px solid var(--border,#333)';
+      }
+
+      function close(){
+        if (keyHandler) {
+          document.removeEventListener('keydown', keyHandler);
+          keyHandler = null;
+        }
+        if (backdrop && backdrop.parentNode) {
+          backdrop.parentNode.removeChild(backdrop);
+        }
+      }
+
+      function go(isNew){
+        var email = (emailInput.value || '').trim();
+        var pw = (passwordInput.value || '').trim();
+        if (!email || !pw) {
+          errorEl.textContent = 'Enter your email and password.';
+          return;
+        }
+        errorEl.textContent = '';
+        signInBtn.disabled = true;
+        signUpBtn.disabled = true;
+        signInBtn.textContent = 'Working...';
+        signUpBtn.textContent = 'Working...';
+        var p = isNew ? window.FB.signUp(email, pw) : window.FB.signIn(email, pw);
+        p.then(function(){
+          close();
+          window.toast('Signed in as ' + email, 'ok');
+          window.FB.pull();
+        }, function(err){
+          errorEl.textContent = err && err.message ? err.message : String(err);
+          signInBtn.disabled = false;
+          signUpBtn.disabled = false;
+          signInBtn.textContent = 'Sign in';
+          signUpBtn.textContent = 'Create account';
+        });
+      }
+
+      backdrop = document.createElement('div');
+      backdrop.style.position = 'fixed';
+      backdrop.style.top = '0';
+      backdrop.style.left = '0';
+      backdrop.style.width = '100%';
+      backdrop.style.height = '100%';
+      backdrop.style.background = 'rgba(0,0,0,.55)';
+      backdrop.style.zIndex = '2147483000';
+      backdrop.style.display = 'flex';
+      backdrop.style.alignItems = 'center';
+      backdrop.style.justifyContent = 'center';
+
+      card = document.createElement('div');
+      card.style.maxWidth = '340px';
+      card.style.width = '90%';
+      card.style.padding = '20px';
+      card.style.borderRadius = '12px';
+      card.style.background = 'var(--surface,#1c1c1e)';
+      card.style.color = 'var(--text,#fff)';
+      card.style.border = '1px solid var(--border,#333)';
+      card.style.boxSizing = 'border-box';
+
+      var h3 = document.createElement('h3');
+      h3.textContent = 'Sign in to sync your planner';
+      card.appendChild(h3);
+
+      var desc = document.createElement('p');
+      desc.style.fontSize = '13px';
+      desc.style.opacity = '.75';
+      desc.style.margin = '6px 0';
+      desc.textContent = 'Use the same email and password on every device - your phone, your work computer, anywhere. Nothing else to copy.';
+      card.appendChild(desc);
+
+      emailInput = document.createElement('input');
+      emailInput.type = 'email';
+      emailInput.placeholder = 'Email';
+      styleInput(emailInput);
+      card.appendChild(emailInput);
+
+      passwordInput = document.createElement('input');
+      passwordInput.type = 'password';
+      passwordInput.placeholder = 'Password';
+      styleInput(passwordInput);
+      card.appendChild(passwordInput);
+
+      errorEl = document.createElement('p');
+      errorEl.style.color = '#ff6b6b';
+      errorEl.style.fontSize = '13px';
+      errorEl.style.margin = '6px 0';
+      errorEl.textContent = '';
+      card.appendChild(errorEl);
+
+      var row = document.createElement('div');
+      row.style.display = 'flex';
+      row.style.gap = '8px';
+      row.style.margin = '6px 0';
+
+      signInBtn = document.createElement('button');
+      signInBtn.textContent = 'Sign in';
+      signInBtn.style.flex = '1';
+      row.appendChild(signInBtn);
+
+      signUpBtn = document.createElement('button');
+      signUpBtn.textContent = 'Create account';
+      signUpBtn.style.flex = '1';
+      row.appendChild(signUpBtn);
+
+      card.appendChild(row);
+
+      var cancelBtn = document.createElement('button');
+      cancelBtn.textContent = 'Cancel';
+      cancelBtn.style.marginTop = '6px';
+      card.appendChild(cancelBtn);
+
+      backdrop.appendChild(card);
+      document.body.appendChild(backdrop);
+
+      backdrop.addEventListener('click', function(e){
+        if (e.target === backdrop) close();
+      });
+
+      keyHandler = function(e){
+        if (e.key === 'Escape') {
+          close();
+        } else if (e.key === 'Enter') {
+          if (e.target === emailInput || e.target === passwordInput) {
+            go(false);
+          }
+        }
+      };
+      document.addEventListener('keydown', keyHandler);
+
+      signInBtn.addEventListener('click', function(){ go(false); });
+      signUpBtn.addEventListener('click', function(){ go(true); });
+      cancelBtn.addEventListener('click', close);
+
+      emailInput.focus();
+    };
+  } catch(e) {}
+})();
+
+
+
+/*
+ * Sign-in button lets the user sign in so their planner follows them to any device,
+ * replacing per-device GitHub tokens with one cloud identity.
+ */
+(function () {
+  try {
+    var PENDING = false;
+
+    function label(btn) {
+      if (window.FB.on()) {
+        btn.textContent = window.FB.user();
+        btn.title = 'Sign out';
+      } else {
+        btn.textContent = 'Sign in to sync';
+        btn.title = 'Sign in so your planner follows you to any device';
+      }
+    }
+
+    function install() {
+      try {
+        var ref = document.getElementById('btnSignIn');
+        if (!ref) return;
+        var existing = document.getElementById('btnCloudAuth');
+        if (existing) {
+          label(existing);
+          return;
+        }
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.id = 'btnCloudAuth';
+        var cs = window.getComputedStyle(ref);
+        btn.style.font = cs.font;
+        btn.style.fontSize = cs.fontSize;
+        btn.style.padding = cs.padding;
+        btn.style.border = cs.border;
+        btn.style.borderRadius = cs.borderRadius;
+        btn.style.background = cs.background;
+        btn.style.color = cs.color;
+        btn.addEventListener('click', function () {
+          try {
+            if (window.FB.on()) {
+              window.FB.signOut().then(function () {
+                try {
+                  label(btn);
+                  window.toast('Signed out', 'ok');
+                } catch (e) {}
+              });
+            } else {
+              window.__cloudAuthPanel();
+            }
+          } catch (e) {}
+        });
+        label(btn);
+        ref.parentNode.insertBefore(btn, ref.nextSibling);
+      } catch (e) {}
+    }
+
+    function schedule() {
+      if (PENDING) return;
+      if (!document.getElementById('btnSignIn')) return;
+      PENDING = true;
+      setTimeout(function () {
+        PENDING = false;
+        install();
+      }, 50);
+    }
+
+    if (typeof MutationObserver !== 'undefined') {
+      new MutationObserver(function () {
+        schedule();
+      }).observe(document.body, { childList: true, subtree: true });
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', install);
+    } else {
+      setTimeout(install, 400);
+    }
+  } catch (e) {}
 })();
 </script>
 </body>
