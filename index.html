@@ -4547,7 +4547,7 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-29 22:17</span>
+    <span id="buildStamp">build 2026-08-29 22:51</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -19300,11 +19300,14 @@ nesting to 20 levels, so the whole tree is serialised rather than stored as nest
       return db.collection('users').doc(auth.currentUser.uid);
     }
 
+    // The starter tasks seeded on a brand-new device must not count as real work,
+    // or signing in merges them into the user's real planner and corrupts it.
     function hasReal(d) {
+      if (typeof hasRealContent === 'function') return hasRealContent(d);
       if (!d) return false;
-      if (!d.tree) return false;
       if (!Array.isArray(d.tree)) return false;
       if (d.tree.length === 0) return false;
+      if (d.tree.length === 1 && d.tree[0] && d.tree[0].title === 'Set up my planner') return false;
       return true;
     }
 
