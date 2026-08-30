@@ -4547,7 +4547,7 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-29 19:39</span>
+    <span id="buildStamp">build 2026-08-29 20:47</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -19628,6 +19628,96 @@ nesting to 20 levels, so the whole tree is serialised rather than stored as nest
       setTimeout(install, 400);
     }
   } catch (e) {}
+})();
+
+
+/* ===== m191  ROUTE THE SYNC CONTRACT AT FIREBASE =====
+   Without this the app signs in but never syncs: Cloud.push() still pointed at the
+   old gist backend, so edits after sign-in went nowhere. Shipped 2026-08-29. */
+
+
+
+/*
+ * Without this wiring the app would sign in successfully but never sync,
+ * because Cloud.push() would still route to the older gist backend and
+ * the new Firebase state would never be persisted or pulled.
+ */
+(function () {
+  try {
+    var attempts = 0;
+    var maxAttempts = 40;
+
+    function tryInstall() {
+      attempts++;
+      var C = window.Cloud;
+      var F = window.FB;
+      if (!C || !F || C.__fbWrapped) {
+        if (attempts < maxAttempts) {
+          setTimeout(tryInstall, 300);
+        }
+        return;
+      }
+      C.__fbWrapped = true;
+
+      var prevConnected = C.connected.bind(C);
+      var prevPull = C.pull.bind(C);
+      var prevPush = C.push.bind(C);
+
+      C.connected = function () {
+        return window.FB && window.FB.on() ? true : prevConnected();
+      };
+      C.pull = function () {
+        return window.FB && window.FB.on() ? window.FB.pull() : prevPull.apply(C, arguments);
+      };
+
+      var pushTimer = null;
+      var pushInFlight = false;
+
+      function fireDebounced() {
+        pushTimer = null;
+        if (pushInFlight) {
+          pushTimer = setTimeout(fireDebounced, 1500);
+          return;
+        }
+        pushInFlight = true;
+        Promise.resolve(window.FB.push()).then(
+          function () { pushInFlight = false; },
+          function () { pushInFlight = false; }
+        );
+      }
+
+      C.push = function () {
+        if (window.FB && window.FB.on()) {
+          if (pushTimer) {
+            clearTimeout(pushTimer);
+          }
+          pushTimer = setTimeout(fireDebounced, 1500);
+          return Promise.resolve();
+        }
+        return prevPush.apply(C, arguments) || Promise.resolve();
+      };
+
+      var lastPullTime = 0;
+
+      setInterval(function () {
+        if (window.FB && window.FB.on() && document.visibilityState === 'visible') {
+          window.FB.pull();
+        }
+      }, 60000);
+
+      window.addEventListener('focus', function () {
+        var now = Date.now();
+        if (window.FB && window.FB.on() && (now - lastPullTime) >= 30000) {
+          window.FB.pull();
+          lastPullTime = now;
+        }
+      });
+    }
+
+    tryInstall();
+  } catch (e) {
+    // silent
+  }
 })();
 </script>
 </body>
