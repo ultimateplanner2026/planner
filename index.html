@@ -4547,7 +4547,7 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-29 20:58</span>
+    <span id="buildStamp">build 2026-08-29 21:07</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -4944,7 +4944,20 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
           if (typeof window.renderAll === 'function') {
             window.renderAll();
           }
-          window.toast('Imported successfully.', 'ok');
+          // Push to the cloud so other signed-in devices pick up this import too.
+          try {
+            if (window.Cloud && typeof window.Cloud.connected === 'function' && window.Cloud.connected()) {
+              window.Cloud.push().then(function () {
+                window.toast('Imported and synced to your account.', 'ok');
+              }, function () {
+                window.toast('Imported here, but the upload failed - it will retry.', 'err');
+              });
+            } else {
+              window.toast('Imported successfully.', 'ok');
+            }
+          } catch (e) {
+            window.toast('Imported here, but the upload failed - it will retry.', 'err');
+          }
         } catch (err) {
           console.error('Import error:', err);
           window.toast('Failed to parse the file.', 'err');
