@@ -4547,7 +4547,7 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-29 20:47</span>
+    <span id="buildStamp">build 2026-08-29 20:58</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -19316,17 +19316,48 @@ nesting to 20 levels, so the whole tree is serialised rather than stored as nest
       return auth.signOut();
     }
 
+    function doWrite(ref) {
+      // Stamp local clocks, serialize the store, and push it to the cloud.
+      return new Promise(function(resolve) {
+        var payload;
+        try {
+          window.stampClocks();
+          payload = {doc: JSON.stringify(window.Store.data), updatedAt: Date.now()};
+        } catch (err) {
+          window.toast(friendly(err), 'err');
+          resolve(false);
+          return;
+        }
+        ref.set(payload, {merge: false}).then(function() {
+          resolve(true);
+        }, function(err) {
+          window.toast(friendly(err), 'err');
+          resolve(false);
+        });
+      });
+    }
+
     function push() {
+      // Guard against the empty-device wipe: signing into a fresh phone
+      // must not overwrite a cloud planner that already has real work.
+      // If this device is empty but the remote isn't, we refuse to upload.
       var ref = docRef();
       if (!ref) return Promise.resolve(false);
-      try {
-        if (typeof window.stampClocks === 'function') window.stampClocks();
-      } catch (e) {}
-      var payload = { doc: JSON.stringify(window.Store.data), updatedAt: Date.now() };
-      return ref.set(payload, { merge: false }).then(function () {
-        return true;
-      }).then(undefined, function (err) {
-        if (typeof window.toast === 'function') window.toast(friendly(err), 'err');
+      if (hasReal(window.Store.data)) return doWrite(ref);
+      return ref.get().then(function(snap) {
+        var remote = null;
+        try {
+          var raw = snap.get('doc');
+          if (raw != null) remote = JSON.parse(raw);
+        } catch (e) {
+          remote = null;
+        }
+        if (hasReal(remote)) {
+          window.toast('This device has an empty planner, so nothing was uploaded - your saved planner is safe.', 'err');
+          return false;
+        }
+        return doWrite(ref);
+      }, function() {
         return false;
       });
     }
