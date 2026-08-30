@@ -4547,7 +4547,7 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-29 21:07</span>
+    <span id="buildStamp">build 2026-08-29 22:17</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -12346,15 +12346,17 @@ function firstConnect(remote, rAt, lAt) {
     C.setState = function () { var r = msSetState.apply(C, arguments); label(); return r; };
     C.signIn = function () { return Gist.signIn(); };
     C.signOut = function () { if (ghOn()) return Gist.signOut(); return msSignOut(); };
-    C.pull = function () { return ghOn() ? Gist.pull() : msPull.apply(C, arguments); };
-    C.push = function () { return ghOn() ? Gist.push() : (msPush.apply(C, arguments) || Promise.resolve()); };
+    // Firebase wins over the gist when the user is signed in to Firebase.
+    var fbOn = function () { return !!(window.FB && typeof window.FB.on === 'function' && window.FB.on()); };
+    C.pull = function () { return fbOn() ? window.FB.pull() : (ghOn() ? Gist.pull() : msPull.apply(C, arguments)); };
+    C.push = function () { return fbOn() ? window.FB.push() : (ghOn() ? Gist.push() : (msPush.apply(C, arguments) || Promise.resolve())); };
 
     label();
     if (ghOn()) {
       st('connecting');
       Gist.pull();
       setInterval(function () {
-        if (document.visibilityState === 'visible' && ghOn()) Gist.pull();
+        if (document.visibilityState === 'visible' && ghOn() && !fbOn()) Gist.pull();
       }, 60000);
     }
   }
