@@ -4547,7 +4547,7 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-29 22:51</span>
+    <span id="buildStamp">build 2026-08-31 00:16</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -10326,7 +10326,7 @@ function surfaceArrivals() {
         } },
       { label: 'Show in tree', run: function () {
           if (typeof window.revealInTree === 'function') window.revealInTree(id); } },
-      { label: (window.isRevealed && window.isRevealed(id)) ? 'Hide hidden below' : 'Show hidden below',
+      { label: (window.isRevealed && window.isRevealed(id)) ? 'Hide future tasks' : 'Show future tasks',
         run: function () { if (typeof window.revealBelow === 'function') window.revealBelow(id); } },
       { sep: true },
       { label: 'Delete', kind: 'danger', run: function () {
@@ -19013,13 +19013,13 @@ if (r.freq === 'yearly') {
    One menu served both, so the calendar carried tree-only items. Operator's order,
    Duplicate removed from both, "Show in tree" removed from both (meaningless inside
    the tree, and dropped from the calendar at their request). The tree keeps
-   Show/Hide hidden below - a tree-only view toggle with nothing to act on in a
+   Show/Hide future tasks - a tree-only view toggle with nothing to act on in a
    calendar. Delete stays last and stays danger-styled in both. */
 (function () {
   var CAL   = ['Edit', 'Complete', 'Mark not complete', 'Due today', 'Due tomorrow',
                'Reschedule...', 'Delete'];
   var TREE  = ['Edit', 'Complete', 'Mark not complete', 'Due today', 'Due tomorrow',
-               'Reschedule...', 'Show hidden below', 'Hide hidden below', 'Delete'];
+               'Reschedule...', 'Show future tasks', 'Hide future tasks', 'Delete'];
 
   /* The hidden-tasks control used to be ONE item that changed its own label, so you
      could never see both states. Operator asked for both, stacked, with whichever is
@@ -19028,16 +19028,16 @@ if (r.freq === 'yearly') {
     var existing = null, all = menu.querySelectorAll('.actmenu-item'), i;
     for (i = 0; i < all.length; i++) {
       var t = all[i].textContent.trim();
-      if (t === 'Show hidden below' || t === 'Hide hidden below') { existing = all[i]; break; }
+      if (t === 'Show future tasks' || t === 'Hide future tasks') { existing = all[i]; break; }
     }
     if (!existing) return;
     var showing = !!(window.isRevealed && window.isRevealed(id));
 
     var showBtn = existing;
-    showBtn.textContent = 'Show hidden below';
+    showBtn.textContent = 'Show future tasks';
     var hideBtn = showBtn.cloneNode(false);
     hideBtn.className = showBtn.className;
-    hideBtn.textContent = 'Hide hidden below';
+    hideBtn.textContent = 'Hide future tasks';
 
     function wire(btn, wantShown) {
       btn.addEventListener('click', function (e) {
@@ -19053,7 +19053,7 @@ if (r.freq === 'yearly') {
     }
     var fresh = showBtn.cloneNode(false);
     fresh.className = showBtn.className;
-    fresh.textContent = 'Show hidden below';
+    fresh.textContent = 'Show future tasks';
     if (showBtn.parentNode) showBtn.parentNode.replaceChild(fresh, showBtn);
     showBtn = fresh;
     wire(showBtn, true);
@@ -19767,6 +19767,110 @@ nesting to 20 levels, so the whole tree is serialised rather than stored as nest
   } catch (e) {
     // silent
   }
+})();
+
+
+/* ===== m192  "SHOW FUTURE TASKS" ACTUALLY WORKS =====
+   The per-branch override was applied before __applyTimeFilter, which then re-hid
+   everything, so the menu item did nothing. Now re-applied after. 2026-08-31. */
+
+/*
+* Fixes ordering bug: the per-branch "show future tasks" override runs
+ * BEFORE window.__applyTimeFilter, which then re-hides the revealed rows
+ * on every render. We wrap __applyTimeFilter so the reveal is re-applied
+ * AFTER it, leaving the planner's hide logic untouched.
+ */
+(function () {
+  try {
+    var MAX_TRIES = 50;
+    var POLL_MS = 200;
+    var tries = 0;
+
+    function addDescendants(node, allowed) {
+      try {
+        if (!node) return;
+        if (node.id != null) allowed[node.id] = true;
+        var kids = node.children;
+        if (kids && kids.length) {
+          for (var k = 0; k < kids.length; k++) {
+            addDescendants(kids[k], allowed);
+          }
+        }
+      } catch (e) { /* swallow */ }
+    }
+
+    function buildAllowedShow() {
+      var allowed = {};
+      try {
+        var store = window.Store;
+        if (!store || !store.data) return allowed;
+        var settings = store.data.settings || {};
+        var revealed = settings.revealed;
+        if (!revealed || !revealed.length) return allowed;
+        var revealedSet = {};
+        for (var i = 0; i < revealed.length; i++) {
+          if (revealed[i] != null) revealedSet[revealed[i]] = true;
+        }
+        var tree = store.data.tree;
+        if (!tree || !window.walkTree) return allowed;
+        for (var t = 0; t < tree.length; t++) {
+          window.walkTree(tree[t], function (node) {
+            try {
+              if (node && revealedSet[node.id]) {
+                addDescendants(node, allowed);
+              }
+            } catch (e) { /* swallow */ }
+          });
+        }
+      } catch (e) { /* swallow */ }
+      return allowed;
+    }
+
+    function reapplyRevealed() {
+      try {
+        var allowed = buildAllowedShow();
+        var rows = document.querySelectorAll('#treeRoot .tree-row');
+        for (var i = 0; i < rows.length; i++) {
+          var row = rows[i];
+          if (row.getAttribute && row.getAttribute('data-focushidden') != null) continue;
+          var id = row.getAttribute && row.getAttribute('data-id');
+          if (id != null && allowed[id]) {
+            row.style.display = '';
+            row.setAttribute('data-revealed', '1');
+          } else {
+            if (row.getAttribute && row.getAttribute('data-revealed') != null) {
+              row.removeAttribute('data-revealed');
+            }
+          }
+        }
+      } catch (e) { /* swallow */ }
+    }
+
+    window.__reapplyRevealed = reapplyRevealed;
+
+    function tryWrap() {
+      try {
+        tries++;
+        if (window.__revealFixInstalled) return;
+        if (typeof window.__applyTimeFilter !== 'function') {
+          if (tries < MAX_TRIES) {
+            setTimeout(tryWrap, POLL_MS);
+          }
+          return;
+        }
+        window.__revealFixInstalled = true;
+        var original = window.__applyTimeFilter;
+        window.__applyTimeFilter = function () {
+          try {
+            original.apply(this, arguments);
+          } catch (e) { /* swallow */ }
+          reapplyRevealed();
+        };
+      } catch (e) { /* swallow */ }
+    }
+
+    tryWrap();
+  } catch (e) { /* swallow */ }
 })();
 </script>
 </body>
