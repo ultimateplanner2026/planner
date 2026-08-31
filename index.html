@@ -4530,6 +4530,8 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
   text-decoration: none !important;
   pointer-events: none;
 }
+
+#btnFocus{white-space:nowrap;height:30px;line-height:28px;padding:0 12px;flex:0 0 auto;font-size:12px;font-weight:500;border-radius:6px;border:none}
 </style>
 </head>
 <body>
@@ -4547,7 +4549,7 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-08-31 00:16</span>
+    <span id="buildStamp">build 2026-08-31 00:53</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -19871,6 +19873,404 @@ nesting to 20 levels, so the whole tree is serialised rather than stored as nest
 
     tryWrap();
   } catch (e) { /* swallow */ }
+})();
+
+
+/* ===== m193  FOCUS MODE =====
+   Blue "Focus mode" button beside New goal. Click it, every branch gets a red box,
+   click a branch and the tree plus the calendar narrow to that branch alone.
+   Click the button again to come back out. Not in the live app. */
+
+
+
+/* focus mode narrows the tree and calendar to one branch.
+   this module owns only state, label and button;
+   actual filtering is performed in a separate module.
+*/
+(function () {
+  try {
+    if (typeof window.__focusId === 'undefined') window.__focusId = null;
+    if (typeof window.__focusPick === 'undefined') window.__focusPick = false;
+
+    function titleOf(id) {
+      if (!id || typeof window.walkTree !== 'function') return '';
+      var found = '';
+      try {
+        window.walkTree(function (n) {
+          if (n && n.id === id) {
+            found = n.title || '';
+            return false;
+          }
+          return true;
+        });
+      } catch (e) {}
+      return found;
+    }
+
+    function redraw() {
+      if (typeof window.renderAll === 'function') {
+        try { window.renderAll(); } catch (e) {}
+      }
+      if (typeof window.__focusLabel === 'function') window.__focusLabel();
+    }
+
+    window.__focusApply = function (id) {
+      window.__focusId = id;
+      window.__focusPick = false;
+      redraw();
+    };
+
+    window.__focusClear = function () {
+      window.__focusId = null;
+      window.__focusPick = false;
+      redraw();
+    };
+
+    function truncate(s, n) {
+      s = String(s == null ? '' : s);
+      if (s.length <= n) return s;
+      return s.substr(0, n) + '\u2026';
+    }
+
+    window.__focusLabel = function () {
+      var btn = document.getElementById('btnFocus');
+      if (!btn) return;
+      var text;
+      if (window.__focusPick) {
+        text = 'Pick one';
+        btn.style.background = '#1f4f9e';
+        btn.style.color = '#fff';
+      } else if (window.__focusId) {
+        text = '' + truncate(titleOf(window.__focusId), 18) + ' \u00d7';
+        btn.style.background = '#1f4f9e';
+        btn.style.color = '#fff';
+      } else {
+        text = 'Focus mode';
+        btn.style.background = 'var(--accent,#2f6feb)';
+        btn.style.color = '#fff';
+      }
+      btn.textContent = text;
+    };
+
+    function copyStyles(src, dst) {
+      var cs = window.getComputedStyle(src);
+      var props = ['height', 'padding', 'borderRadius', 'fontSize', 'fontWeight', 'border', 'fontFamily'];
+      for (var i = 0; i < props.length; i++) {
+        dst.style[props[i]] = cs[props[i]];
+      }
+    }
+
+    function install() {
+      var btn = document.getElementById('btnFocus');
+      if (btn) {
+        var ref0 = document.getElementById('btnAddGoal');
+        if (ref0) copyStyles(ref0, btn);
+        window.__focusLabel();
+        return;
+      }
+      var toolbar = document.querySelector('.tree-toolbar');
+      var ref = document.getElementById('btnAddGoal');
+      if (!toolbar || !ref) return;
+      btn = document.createElement('button');
+      btn.id = 'btnFocus';
+      btn.type = 'button';
+      toolbar.insertBefore(btn, ref);
+      copyStyles(ref, btn);
+      btn.addEventListener('click', function () {
+        if (window.__focusId || window.__focusPick) {
+          window.__focusClear();
+        } else {
+          window.__focusPick = true;
+          window.__focusLabel();
+        }
+      });
+      document.addEventListener('keydown', function (e) {
+        if (!e) return;
+        var k = e.key || e.keyCode;
+        if ((k === 'Escape' || k === 27) && window.__focusPick) {
+          window.__focusClear();
+        }
+      });
+      window.__focusLabel();
+    }
+
+    function onReady() {
+      install();
+      if (window.__focusMO) return;
+      var pending = false;
+      var mo = new MutationObserver(function () {
+        if (pending) return;
+        pending = true;
+        setTimeout(function () {
+          pending = false;
+          if (document.querySelector('.tree-toolbar')) install();
+        }, 50);
+      });
+      try {
+        mo.observe(document.body, { childList: true, subtree: true });
+        window.__focusMO = mo;
+      } catch (e) {}
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', onReady);
+    } else {
+      setTimeout(onReady, 400);
+    }
+  } catch (err) {
+    /* silent */
+  }
+})();
+
+
+
+/* Focus Mode: picking overlay, red box decoration, tree filter
+   Auto-reruns via MutationObserver after each render
+   Exposes window.__focusRefresh; ES5 only */
+(function () {
+  try {
+    var CSS_ID = 'focusModeCss';
+    var PICK_CLASS = 'focus-pick';
+    var HIDDEN_ATTR = 'data-focushidden';
+    var ROW_SEL = '#treeRoot .tree-row';
+
+    if (!document.getElementById(CSS_ID)) {
+      var st = document.createElement('style');
+      st.id = CSS_ID;
+      st.type = 'text/css';
+      st.appendChild(document.createTextNode(
+        '#treeRoot .tree-row.focus-pick{outline:2px solid #e5484d;outline-offset:-2px;border-radius:6px;cursor:pointer}' +
+        '#treeRoot .tree-row.focus-pick:hover{background:rgba(229,72,77,.12)}' +
+        '#treeRoot .tree-row[data-focushidden]{display:none !important}'
+      ));
+      (document.head || document.documentElement).appendChild(st);
+    }
+
+    document.addEventListener('click', function (e) {
+      if (!window.__focusPick) return;
+      var t = e.target;
+      if (t && t.nodeType !== 1) t = t.parentNode;
+      var row = null;
+      if (t && typeof t.closest === 'function') {
+        row = t.closest(ROW_SEL);
+      } else {
+        var n = t;
+        while (n && n !== document) {
+          if (n.nodeType === 1 && n.classList && n.classList.contains('tree-row')) {
+            row = n;
+            break;
+          }
+          n = n.parentNode;
+        }
+      }
+      if (!row) return;
+      e.preventDefault();
+      e.stopPropagation();
+      var id = row.getAttribute('data-id');
+      if (typeof window.__focusApply === 'function') window.__focusApply(id);
+    }, true);
+
+    function collectDescendants(node, set) {
+      var kids = node && node.children;
+      if (!kids) return;
+      for (var i = 0; i < kids.length; i++) {
+        var k = kids[i];
+        if (k && k.id) set[k.id] = true;
+        collectDescendants(k, set);
+      }
+    }
+
+    function decorate() {
+      var rows = document.querySelectorAll(ROW_SEL);
+      var picking = !!window.__focusPick;
+      for (var i = 0; i < rows.length; i++) {
+        if (picking) {
+          rows[i].classList.add(PICK_CLASS);
+        } else if (rows[i].classList.contains(PICK_CLASS)) {
+          rows[i].classList.remove(PICK_CLASS);
+        }
+      }
+    }
+
+    function applyTree() {
+      var rows = document.querySelectorAll(ROW_SEL);
+      var fid = window.__focusId;
+      if (!fid) {
+        for (var i = 0; i < rows.length; i++) {
+          if (rows[i].hasAttribute(HIDDEN_ATTR)) {
+            rows[i].removeAttribute(HIDDEN_ATTR);
+            rows[i].style.display = '';
+          }
+        }
+        return;
+      }
+      var allowed = {};
+      var found = null;
+      if (typeof window.walkTree === 'function') {
+        window.walkTree(function (n) {
+          if (n && n.id === fid) found = n;
+        });
+      }
+      if (found) {
+        allowed[found.id] = true;
+        collectDescendants(found, allowed);
+      } else {
+        allowed[fid] = true;
+        // children will be hidden in that case, which should not happen
+      }
+      for (var j = 0; j < rows.length; j++) {
+        var row = rows[j];
+        var rid = row.getAttribute('data-id');
+        if (allowed[rid]) {
+          if (row.hasAttribute(HIDDEN_ATTR)) {
+            row.removeAttribute(HIDDEN_ATTR);
+            row.style.display = '';
+          }
+        } else {
+          if (!row.hasAttribute(HIDDEN_ATTR)) row.setAttribute(HIDDEN_ATTR, '1');
+          row.style.display = 'none';
+        }
+      }
+    }
+
+    window.__focusRefresh = function () {
+      decorate();
+      applyTree();
+    };
+
+    var pending = false;
+    function schedule() {
+      if (pending) return;
+      pending = true;
+      setTimeout(function () {
+        pending = false;
+        try { decorate(); applyTree(); } catch (e) {}
+      }, 40);
+    }
+
+    function initial() {
+      try { decorate(); applyTree(); } catch (e) {}
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initial, false);
+    } else {
+      initial();
+    }
+    setTimeout(initial, 400);
+
+    function startObserver() {
+      if (typeof MutationObserver === 'undefined' || !document.body) return;
+      var mo = new MutationObserver(schedule);
+      mo.observe(document.body, { childList: true, subtree: true });
+    }
+    if (document.body) {
+      startObserver();
+    } else {
+      document.addEventListener('DOMContentLoaded', startObserver, false);
+    }
+  } catch (err) {
+    if (window.console && console.error) console.error('focusMode init error', err);
+  }
+})();
+
+
+
+/* Calendar entries carry data-node-id, so focusing a branch
+   hides every entry outside that branch's subtree.
+   This filter wires that rule to live DOM updates. */
+(function(){
+  try {
+    var STYLE_ID = 'focusCalCss';
+
+    function injectCss(){
+      if (document.getElementById(STYLE_ID)) return;
+      var s = document.createElement('style');
+      s.id = STYLE_ID;
+      s.appendChild(document.createTextNode('[data-node-id][data-focushidden]{display:none !important}'));
+      document.head.appendChild(s);
+    }
+
+    function allowedIds(){
+      if (!window.__focusId) return null;
+      var result = {};
+      var found = null;
+      window.walkTree(function(node){
+        if (found) return;
+        if (node && node.id === window.__focusId) found = node;
+      });
+      if (!found) return result;
+      function collect(n){
+        if (!n) return;
+        if (n.id != null) result[n.id] = true;
+        if (n.children && n.children.length){
+          for (var i = 0; i < n.children.length; i++) collect(n.children[i]);
+        }
+      }
+      collect(found);
+      return result;
+    }
+
+    function applyCalendar(){
+      var set = allowedIds();
+      var els = document.querySelectorAll('[data-node-id]');
+      for (var i = 0; i < els.length; i++){
+        var el = els[i];
+        if (set === null){
+          if (el.getAttribute('data-focushidden') !== null){
+            el.style.display = '';
+            el.removeAttribute('data-focushidden');
+          }
+        } else {
+          var id = el.getAttribute('data-node-id');
+          if (set[id]){
+            el.style.display = '';
+            el.removeAttribute('data-focushidden');
+          } else {
+            el.style.display = 'none';
+            el.setAttribute('data-focushidden', '1');
+          }
+        }
+      }
+    }
+
+    injectCss();
+
+    var busy = false;
+    var pending = false;
+    var timer = null;
+
+    function runPass(){
+      pending = false;
+      busy = true;
+      try { applyCalendar(); }
+      finally {
+        setTimeout(function(){ busy = false; }, 0);
+      }
+    }
+
+    function schedule(){
+      if (busy){ pending = true; return; }
+      if (timer !== null){ pending = true; return; }
+      pending = false;
+      timer = setTimeout(function(){
+        timer = null;
+        runPass();
+      }, 40);
+    }
+
+    var obs = new MutationObserver(function(){ schedule(); });
+    obs.observe(document.body, { childList: true, subtree: true });
+
+    function init(){ applyCalendar(); }
+    if (document.readyState === 'loading'){
+      document.addEventListener('DOMContentLoaded', init);
+    } else {
+      setTimeout(init, 400);
+    }
+
+    window.__focusCalendar = applyCalendar;
+  } catch(e) {}
 })();
 </script>
 </body>
