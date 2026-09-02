@@ -4549,7 +4549,7 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-09-01 14:38</span>
+    <span id="buildStamp">build 2026-09-02 11:34</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -20425,6 +20425,152 @@ nesting to 20 levels, so the whole tree is serialised rather than stored as nest
     }
     if (!installGuard) {
         pollDeps();
+    }
+})();
+
+
+
+
+/* ===== m195  INLINE RENAMES ACTUALLY SAVE =====
+   Renaming a task in the tree updated the node in memory but never wrote to storage,
+   so the new name vanished on the next reload. Measured: node.title said RENAMED,
+   localStorage still said ORIGINAL. 2026-09-02. */
+
+/*
+ * The inline rename updated only the in-memory task node.
+ * It was never passed to the Store, so the edit disappeared on reload
+ * or whenever the priority tree was rendered from storage.
+ * This module persists the existing edit without touching node data.
+ */
+(function () {
+    "use strict";
+
+    try {
+        if (window.__inlineSaveInstalled) {
+            return;
+        }
+
+        window.__inlineSaveInstalled = true;
+
+        var saveTimer = null;
+
+        function isEditableElement(element) {
+            if (!element || element.nodeType !== 1) {
+                return false;
+            }
+
+            var nodeName = element.nodeName.toLowerCase();
+
+            if (nodeName === "input" || nodeName === "textarea") {
+                return true;
+            }
+
+            if (typeof element.isContentEditable === "boolean") {
+                return element.isContentEditable;
+            }
+
+            var editableValue = element.getAttribute("contenteditable");
+            return editableValue !== null && editableValue !== "false";
+        }
+
+        function looksLikeTaskTitle(element) {
+            if (!element) {
+                return false;
+            }
+
+            var className = typeof element.className === "string"
+                ? element.className
+                : "";
+
+            return className.indexOf("tree-title") !== -1 ||
+                element.getAttribute("data-field") === "title";
+        }
+
+        function findDataIdAncestor(element) {
+            var current = element;
+
+            if (current && typeof current.closest === "function") {
+                var closestMatch = current.closest("[data-id]");
+                if (closestMatch) {
+                    return closestMatch;
+                }
+            }
+
+            while (current && current !== document) {
+                if (
+                    current.nodeType === 1 &&
+                    current.hasAttribute &&
+                    current.hasAttribute("data-id")
+                ) {
+                    return current;
+                }
+
+                current = current.parentNode;
+            }
+
+            return null;
+        }
+
+        function isTaskTitleEditor(element) {
+            if (!isEditableElement(element) || !looksLikeTaskTitle(element)) {
+                return false;
+            }
+
+            var dataIdAncestor = findDataIdAncestor(element);
+            if (!dataIdAncestor) {
+                return false;
+            }
+
+            var dataId = dataIdAncestor.getAttribute("data-id");
+            return dataId !== null;
+        }
+
+        function saveNow() {
+            if (saveTimer !== null) {
+                window.clearTimeout(saveTimer);
+                saveTimer = null;
+            }
+
+            try {
+                window.Store.save();
+            } catch (error) {
+                return;
+            }
+        }
+
+        function scheduleSave() {
+            if (saveTimer !== null) {
+                window.clearTimeout(saveTimer);
+            }
+
+            saveTimer = window.setTimeout(function () {
+                saveTimer = null;
+                saveNow();
+            }, 600);
+        }
+
+        document.addEventListener("input", function (event) {
+            if (isTaskTitleEditor(event.target)) {
+                scheduleSave();
+            }
+        }, true);
+
+        document.addEventListener("blur", function (event) {
+            if (isTaskTitleEditor(event.target)) {
+                saveNow();
+            }
+        }, true);
+
+        document.addEventListener("keydown", function (event) {
+            if (
+                (event.key === "Enter" || event.key === "Escape") &&
+                isTaskTitleEditor(event.target)
+            ) {
+                saveNow();
+            }
+        }, true);
+    } catch (error) {
+        return;
     }
 })();
 </script>
