@@ -4549,7 +4549,7 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-09-02 11:34</span>
+    <span id="buildStamp">build 2026-09-02 12:14</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -20572,6 +20572,80 @@ nesting to 20 levels, so the whole tree is serialised rather than stored as nest
     } catch (error) {
         return;
     }
+})();
+
+
+/* ===== m196  THE NOTES BOX NO LONGER TRAPS THE WHEEL =====
+   In the Edit dialog the notes area has its own scrollbar and fills most of the
+   dialog, so it swallowed every wheel event and the fields below it could not be
+   reached. Measured: wheel over notes left scrollTop at 0. 2026-09-02. */
+
+/*
+Nested scroll area was trapping the wheel so the dialog could not be scrolled.
+The notes box inside the modal-body swallowed wheel events, preventing the
+dialog from scrolling. This script chains the wheel to the next scrollable
+ancestor that can move.
+*/
+(function(){
+  if (window.__wheelChainInstalled) {
+    return;
+  }
+  window.__wheelChainInstalled = true;
+
+  function isScrollable(el) {
+    var style = window.getComputedStyle(el);
+    if (style.overflowY !== 'auto' && style.overflowY !== 'scroll') {
+      return false;
+    }
+    return el.scrollHeight - el.clientHeight > 2;
+  }
+
+  function canMove(el, deltaY) {
+    if (deltaY > 0) {
+      return el.scrollTop + el.clientHeight < el.scrollHeight - 1;
+    } else if (deltaY < 0) {
+      return el.scrollTop > 0;
+    }
+    return false;
+  }
+
+  document.addEventListener('wheel', function(e) {
+    try {
+      if (e.ctrlKey) {
+        return;
+      }
+      var node = e.target;
+      var inner = null;
+      while (node) {
+        if (node.nodeType === 1 && isScrollable(node)) {
+          inner = node;
+          break;
+        }
+        if (node === document.body) {
+          break;
+        }
+        node = node.parentNode;
+      }
+      if (!inner) {
+        return;
+      }
+      if (canMove(inner, e.deltaY)) {
+        return;
+      }
+      var current = inner.parentNode;
+      while (current) {
+        if (current.nodeType === 1 && isScrollable(current) && canMove(current, e.deltaY)) {
+          e.preventDefault();
+          current.scrollTop += e.deltaY;
+          return;
+        }
+        if (current === document.body) {
+          break;
+        }
+        current = current.parentNode;
+      }
+    } catch (err) {}
+  }, true);
 })();
 </script>
 </body>
