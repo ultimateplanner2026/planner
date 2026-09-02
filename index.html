@@ -4532,9 +4532,135 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
 }
 
 #btnFocus{white-space:nowrap;height:30px;line-height:28px;padding:0 12px;flex:0 0 auto;font-size:12px;font-weight:500;border-radius:6px;border:none}
+
+font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;display:flex;align-items:center;
+padding:0 14px;font-family:ui-sans-serif,system-ui,sans-serif;line-height:34px}
+.bp-back{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.55);z-index:2147483000;display:flex;align-items:center;justify-content:center}
+.bp-card{max-width:380px;width:92%;max-height:70vh;display:flex;flex-direction:column;border-radius:12px;overflow:hidden;background:var(--surface,#1c1c1e);color:var(--text,#fff);border:1px solid var(--border,#333)}
+.bp-head{padding:14px 16px;font-weight:600;border-bottom:1px solid var(--border,#333)}
+.bp-list{flex:1 1 auto;overflow-y:auto;padding:4px 0}
+.bp-row{display:flex;align-items:center;gap:8px;width:100%;text-align:left;padding:8px 12px;background:none;border:none;color:inherit;font-size:14px;cursor:pointer}
+.bp-row:hover{background:rgba(255,255,255,.06)}
+.bp-row.bp-on{background:rgba(255,255,255,.12)}
+.bp-twisty{width:14px;flex:0 0 14px;opacity:.7}
+.bp-foot{padding:10px 14px;border-top:1px solid var(--border,#333);display:flex;align-items:center;gap:10px}
+.bp-sel{flex:1 1 auto;font-size:12px;opacity:.75}
+.bp-foot button{padding:7px 12px;border-radius:7px;border:1px solid var(--border,#333);background:none;color:inherit;cursor:pointer;font-size:13px}
+.bp-foot .bp-ok{background:var(--accent,#2f6feb);border-color:var(--accent,#2f6feb);color:#fff}
+.bp-foot .bp-ok:disabled{opacity:.45;cursor:default}
+
+/* Measured: .ea sits inside .modal-body at h=1071 in a 585px box, with
+   overflow-y:auto and overscroll-behavior:contain. That makes it a scroll
+   container sitting at its own boundary, so it CONTAINED every wheel event and
+   the dialog never scrolled. One scroller only: .modal-body. */
+.modal .ea { overflow: visible !important; overscroll-behavior: auto !important;
+             max-height: none !important; flex: 0 0 auto !important; }
+.modal .note-rich { overscroll-behavior: auto !important; }
+.modal-body { overflow-y: auto !important; overscroll-behavior: auto !important; }
+.modal { overflow: hidden !important; }
+
+/* Location field: the row name expands, the Pick button chooses. Two actions, never mixed. */
+.lf-wrap{margin:10px 0}
+.lf-field{width:100%;text-align:left;display:flex;align-items:center;gap:8px;padding:9px 12px;
+  border-radius:8px;border:1px solid var(--border,#333);background:var(--bg,#111);color:inherit;
+  font-size:13px;cursor:pointer}
+.lf-caret{margin-left:auto;opacity:.6}
+.lf-list{margin-top:6px;border:1px solid var(--border,#333);border-radius:8px;
+  background:var(--surface,#1c1c1e);max-height:260px;overflow-y:auto}
+.lf-row{display:flex;align-items:center;gap:8px;padding:2px 8px 2px 0}
+.lf-row:hover{background:rgba(255,255,255,.05)}
+.lf-name{flex:1 1 auto;text-align:left;background:none;border:none;color:inherit;font-size:13px;
+  padding:7px 4px;cursor:pointer;white-space:pre}
+.lf-pick{flex:0 0 auto;background:none;border:1px solid var(--border,#333);color:inherit;
+  border-radius:6px;font-size:11px;padding:3px 9px;cursor:pointer;opacity:.85}
+.lf-pick:hover{background:var(--accent,#2f6feb);border-color:var(--accent,#2f6feb);color:#fff;opacity:1}
+/* asked for: no clear button, no tags row */
+.modal .ea .nb-tool [data-tool="clear"], .modal .ea button.nb-clear { display:none !important; }
+.modal .ea .ea-tags, .modal .ea .tags-row { display:none !important; }
+/* Subtasks gets its own scroll so the dialog does not grow */
+.modal .ea .ea-subs { max-height: 190px; overflow-y: auto; }
+
+/* The reschedule popup showed three months; two is enough and keeps it on screen. */
+.sd-months > *:nth-child(3), .rs-months > *:nth-child(3),
+.datepop-months > *:nth-child(3) { display: none !important; }
+.lf-holder{margin:10px 0}
+.lf-lab{font-size:11px;text-transform:uppercase;letter-spacing:.06em;opacity:.6;margin-bottom:4px}
+
+/* Duration was the odd one out - number spinners in the browser's own style.
+   Every field in this dialog now uses the same box. */
+.modal .ea .ea-input, .modal .ea input[type=number], .modal .ea input[type=text],
+.modal .ea input[type=date], .modal .ea input[type=time], .modal .ea select {
+  background: var(--bg,#111) !important; color: var(--text,#fff) !important;
+  border: 1px solid var(--border,#333) !important; border-radius: 7px !important;
+  padding: 7px 10px !important; font-size: 13px !important; min-height: 34px !important;
+}
+.modal .ea input[type=number]{ -moz-appearance: textfield; }
+.modal .ea .modal-btn[disabled]{ opacity:.45; cursor:default; }
+
+.lf-plus{flex:0 0 auto;background:none;border:1px solid var(--border,#333);color:inherit;
+  border-radius:6px;font-size:12px;line-height:1;padding:3px 8px;cursor:pointer;opacity:.75;margin-left:4px}
+.lf-plus:hover{background:var(--accent,#2f6feb);border-color:var(--accent,#2f6feb);color:#fff;opacity:1}
+
+/* Two-month picker, matched to the reference: dark panel, one arrow pair per month,
+   centred month title, dark rounded day cells, selected day pale blue. */
+.dp2{position:absolute;z-index:2147483400;background:#2b3038;color:#e9ecf1;
+  border:1px solid #3a4049;border-radius:12px;padding:20px 22px;
+  box-shadow:0 24px 64px rgba(0,0,0,.55)}
+.dp2-head{display:none}
+.dp2-months{display:flex;gap:34px}
+.dp2-m{min-width:236px}
+.dp2-title{display:flex;align-items:center;justify-content:space-between;
+  font-size:15px;font-weight:600;margin-bottom:14px;color:#e9ecf1}
+.dp2-title button{background:none;border:none;color:#aeb6c2;font-size:17px;
+  line-height:1;cursor:pointer;padding:2px 8px;border-radius:6px}
+.dp2-title button:hover{background:rgba(255,255,255,.08);color:#fff}
+.dp2-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+.dp2-dow{text-align:center;font-size:12px;color:#8b93a1;padding-bottom:6px}
+.dp2-day{height:34px;border:none;border-radius:8px;background:#343a43;color:#e9ecf1;
+  font-size:14px;cursor:pointer;font-variant-numeric:tabular-nums}
+.dp2-day:hover{background:#3f4650}
+.dp2-day.dp2-on{background:#a8c7de;color:#1b1f25;font-weight:600}
+.dp2-day.dp2-out{background:#2f343c;color:#6b7280}
+.dp2-blank{height:34px}
+/* Time and Due Date now share the same box as every other field. */
+.modal .ea input[type=time]{font-variant-numeric:tabular-nums}
+/* Reminder row: just "Add alarm", or the time itself once one exists. */
+.modal .ea .al-plus{display:none !important}
+
+/* The panel was rendering WHITE - something later in the sheet was winning.
+   Pin the surface explicitly. */
+.dp2{background:#2b3038 !important;color:#e9ecf1 !important;border:1px solid #3a4049 !important}
+.dp2 .dp2-title{color:#e9ecf1 !important}
+.dp2 .dp2-title span{color:#e9ecf1 !important}
+.dp2 .dp2-dow{color:#8b93a1 !important}
+.dp2 .dp2-day{background:#343a43 !important;color:#e9ecf1 !important}
+.dp2 .dp2-day:hover{background:#3f4650 !important}
+.dp2 .dp2-day.dp2-on{background:#a8c7de !important;color:#1b1f25 !important}
+
+.dp2-quick{display:flex;gap:8px;margin-top:16px;padding-top:14px;border-top:1px solid #3a4049}
+.dp2-quick button{flex:1 1 auto;background:#343a43;border:1px solid #3a4049;color:#e9ecf1;
+  border-radius:8px;padding:8px 10px;font-size:12px;letter-spacing:.04em;text-transform:uppercase;
+  cursor:pointer}
+.dp2-quick button:hover{background:#3f4650}
+
+/* Out-of-month cells: same box, dimmed, not clickable. */
+.dp2 .dp2-day.dp2-out{background:#2f343c !important;color:#6b7280 !important;cursor:default}
+.dp2 .dp2-day.dp2-out:hover{background:#2f343c !important}
+.dp2 .dp2-grid{grid-auto-rows:34px}
+.dp2 .dp2-day{box-sizing:border-box;width:100%;padding:0}
+
+/* Measured: cells came out 24px in one month and 27px in the other, because each month
+   block sized itself to its own content. Pin both blocks and the cells to one size. */
+.dp2 .dp2-m{width:252px !important;min-width:252px !important;flex:0 0 252px !important}
+.dp2 .dp2-grid{grid-template-columns:repeat(7,32px) !important;justify-content:space-between !important;
+  gap:4px !important}
+.dp2 .dp2-day{width:32px !important;height:32px !important;min-width:32px !important;
+  padding:0 !important;display:flex;align-items:center;justify-content:center}
+.dp2 .dp2-dow{width:32px !important;text-align:center}
 </style>
 </head>
 <body>
+
   <header id="topbar">
     <button id="btnTreeToggle" type="button" title="Toggle priority tree" aria-label="Toggle priority tree">
       <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
@@ -4549,7 +4675,7 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-09-02 12:14</span>
+    <span id="buildStamp">build 2026-09-02 14:59</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -20646,6 +20772,1682 @@ ancestor that can move.
       }
     } catch (err) {}
   }, true);
+})();
+
+
+/* ===== SHIPPED  BRANCH PICKER FOR NEW TASKS =====
+   Adding a task no longer drops it at top level. A dialog asks which branch it
+   belongs in - collapsed to the main branches, click a twisty to go deeper. */
+
+/* pick-branch picker */
+/* depends on window.Store.data.tree shape */
+/* wires dom + state, leaves styling to sheet */
+(function () {
+  window.__pickBranch = function (onChoose) {
+    try {
+      var expanded = {};
+      var selectedId = undefined;
+      var selectedPath = '';
+      var tree = (window.Store && window.Store.data && window.Store.data.tree) || [];
+
+      var backdrop = document.createElement('div');
+      backdrop.className = 'bp-back';
+
+      var card = document.createElement('div');
+      card.className = 'bp-card';
+      backdrop.appendChild(card);
+
+      var head = document.createElement('div');
+      head.className = 'bp-head';
+      head.textContent = 'Choose a branch for this task';
+      card.appendChild(head);
+
+      var list = document.createElement('div');
+      list.className = 'bp-list';
+      card.appendChild(list);
+
+      var foot = document.createElement('div');
+      foot.className = 'bp-foot';
+      card.appendChild(foot);
+
+      var selSpan = document.createElement('span');
+      selSpan.className = 'bp-sel';
+      foot.appendChild(selSpan);
+
+      var cancelBtn = document.createElement('button');
+      cancelBtn.className = 'bp-cancel';
+      cancelBtn.textContent = 'Cancel';
+      foot.appendChild(cancelBtn);
+
+      var okBtn = document.createElement('button');
+      okBtn.className = 'bp-ok';
+      okBtn.textContent = 'Put it here';
+      foot.appendChild(okBtn);
+
+      document.body.appendChild(backdrop);
+
+      function buildRow(label, depth, isOn, hasTwisty, isExpanded, onClick) {
+        var row = document.createElement('button');
+        row.className = isOn ? 'bp-row bp-on' : 'bp-row';
+        row.style.paddingLeft = (12 + depth * 16) + 'px';
+        if (hasTwisty === null) {
+          row.textContent = label;
+        } else {
+          var t = document.createElement('span');
+          t.className = 'bp-twisty';
+          t.textContent = hasTwisty ? (isExpanded ? '▾' : '▸') : ' ';
+          row.appendChild(t);
+          var ti = document.createElement('span');
+          ti.className = 'bp-title';
+          ti.textContent = label;
+          row.appendChild(ti);
+        }
+        row.onclick = onClick;
+        return row;
+      }
+
+      function draw() {
+        list.innerHTML = '';
+
+        list.appendChild(buildRow(
+          'Top level (no branch)',
+          0,
+          selectedId === null,
+          null,
+          false,
+          function () {
+            selectedId = null;
+            selectedPath = 'Top level';
+            draw();
+          }
+        ));
+
+        function walk(nodes, depth, pathTitles) {
+          for (var i = 0; i < nodes.length; i++) {
+            (function (node, p) {
+              var hasKids = node.children && node.children.length > 0;
+              list.appendChild(buildRow(
+                node.title,
+                depth,
+                selectedId === node.id,
+                hasKids,
+                !!expanded[node.id],
+                function () {
+                  selectedId = node.id;
+                  selectedPath = p.concat(node.title).join(' › ');
+                  if (hasKids) {
+                    expanded[node.id] = !expanded[node.id];
+                  }
+                  draw();
+                }
+              ));
+              if (hasKids && expanded[node.id]) {
+                walk(node.children, depth + 1, p.concat(node.title));
+              }
+            })(nodes[i], pathTitles);
+          }
+        }
+
+        walk(tree, 0, []);
+
+        selSpan.textContent = 'Selected: ' + (selectedPath || 'nothing yet');
+        okBtn.disabled = (selectedId === undefined);
+      }
+
+      function escHandler(e) {
+        if (e.key === 'Escape' || e.keyCode === 27) {
+          close();
+        }
+      }
+
+      function close() {
+        document.removeEventListener('keydown', escHandler);
+        if (backdrop.parentNode) {
+          backdrop.parentNode.removeChild(backdrop);
+        }
+      }
+
+      backdrop.onclick = function (e) {
+        if (e.target === backdrop) {
+          close();
+        }
+      };
+
+      cancelBtn.onclick = function () {
+        close();
+      };
+
+      okBtn.onclick = function () {
+        var id = selectedId;
+        close();
+        onChoose(id);
+      };
+
+      document.addEventListener('keydown', escHandler);
+
+      draw();
+    } catch (err) {
+      if (window.console && window.console.error) {
+        window.console.error(err);
+      }
+    }
+  };
+})();
+
+/* Every new task must be given a branch.
+ * This gate wraps addNodeAt to enforce branch selection.
+ * No top-level task may be created without a chosen branch. */
+(function () {
+    try {
+        if (window.__branchGateInstalled) {
+            return;
+        }
+        window.__branchGateInstalled = true;
+        var attempts = 0;
+        var maxAttempts = 50;
+        var delay = 200;
+        function poll() {
+            attempts++;
+            if (typeof window.addNodeAt === 'function' && typeof window.__pickBranch === 'function') {
+                install();
+                return;
+            }
+            if (attempts >= maxAttempts) {
+                return;
+            }
+            setTimeout(poll, delay);
+        }
+        function install() {
+            var original = window.addNodeAt;
+            window.__addNodeDirect = original;
+            var inCall = false;
+            window.addNodeAt = function (parentId) {
+                if (inCall) {
+                    return original.apply(this, arguments);
+                }
+                if (parentId !== null && parentId !== undefined) {
+                    inCall = true;
+                    try {
+                        return original.apply(this, arguments);
+                    } finally {
+                        inCall = false;
+                    }
+                }
+                inCall = true;
+                try {
+                    window.__pickBranch(function (id) {
+                        inCall = true;
+                        try {
+                            if (id !== null && id !== undefined) {
+                                original(id);
+                            }
+                        } finally {
+                            inCall = false;
+                        }
+                    });
+                } catch (e) {
+                    inCall = false;
+                }
+            };
+        }
+        poll();
+    } catch (e) {
+    }
+})();
+
+
+/* ===== SHIPPED  REPEAT PANEL MOVED INSIDE THE SCROLL AREA =====
+   It was rendered after the footer and outside .modal-body, so opening it put its
+   content below the screen with nothing able to scroll it back. */
+
+/* The Repeat panel rendered below the dialog's buttons and off the bottom of the screen,
+   unreachable because it sat outside the dialog's scrolling area. We watch for any
+   .rep-wrap outside its modal-body and reparent it to the body as the last child
+   so it scrolls along with the rest of the dialog content. */
+
+(function () {
+  if (window.__repMoveInstalled) { return; }
+  window.__repMoveInstalled = true;
+
+  var pending = false;
+  var idSeq = 0;
+
+  function getAncestor(el, selector) {
+    while (el && el.nodeType === 1) {
+      if (el.matches && el.matches(selector)) { return el; }
+      el = el.parentElement || el.parentNode;
+    }
+    return null;
+  }
+
+  function pass() {
+    pending = false;
+    try {
+      var seen = {};
+      var wraps = document.querySelectorAll('.rep-wrap');
+      for (var i = 0; i < wraps.length; i++) {
+        var wrap = wraps[i];
+        if (!wrap || !wrap.parentNode) { continue; }
+        if (!wrap.__repId) { wrap.__repId = ++idSeq; }
+        if (seen[wrap.__repId]) { continue; }
+        var dialog = getAncestor(wrap, '.modal, .sheet, [role="dialog"]');
+        if (!dialog) { continue; }
+        var body = dialog.querySelector('.modal-body, .ea-body');
+        if (!body) { continue; }
+        if (body.contains(wrap)) { continue; }
+        body.appendChild(wrap);
+        seen[wrap.__repId] = true;
+      }
+    } catch (e) { /* swallow */ }
+  }
+
+  function schedule() {
+    if (pending) { return; }
+    pending = true;
+    setTimeout(pass, 60);
+  }
+
+  try {
+    var obs = new MutationObserver(function () {
+      schedule();
+    });
+    obs.observe(document.body, { childList: true, subtree: true });
+  } catch (e) { /* swallow */ }
+
+  pass();
+  setTimeout(pass, 400);
+})();
+
+
+/* ===== SHIPPED  CHANGE A TASK'S BRANCH FROM THE EDIT DIALOG =====
+   The "In: ..." breadcrumb is now clickable and opens the same tree picker. */
+
+/* Branch mover for Edit Activity dialog breadcrumb.
+   Turns the read-only breadcrumb into a control that relocates the task via the tree picker.
+   Installs once and self-heals via MutationObserver for newly rendered dialogs. */
+(function(){
+  try{
+    if(window.__ebInstalled){return;}
+    window.__ebInstalled = true;
+    window.__ebCurrentId = null;
+    window.__ebSetCurrent = function(id){ window.__ebCurrentId = id; };
+
+    var PENDING = false;
+
+    function taskIsAncestorOf(taskId, targetId){
+      var cur = window.findNode(targetId);
+      while(cur && cur.parent && cur.parent.node){
+        if(cur.parent.node.id === taskId){return true;}
+        var pId = cur.parent.node.id;
+        cur = window.findNode(pId);
+        if(!cur){break;}
+      }
+      return false;
+    }
+
+    function currentTaskId(start){
+      var n = start;
+      while(n){
+        if(n.getAttribute){
+          var id = n.getAttribute('data-id');
+          if(id){return id;}
+        }
+        n = n.parentNode;
+      }
+      return window.__ebCurrentId;
+    }
+
+    function onClick(e){
+      var el = e.currentTarget;
+      var taskId = currentTaskId(el);
+      if(!taskId){return;}
+      window.__pickBranch(function(targetId){
+        if(targetId === taskId){return;}
+        if(targetId !== null && taskIsAncestorOf(taskId, targetId)){
+          window.toast('A task cannot be moved inside itself.','err');
+          return;
+        }
+        var detached = window.removeNode(taskId);
+        if(!detached){
+          window.toast('Could not move that task.','err');
+          return;
+        }
+        if(targetId === null){
+          window.Store.data.tree.push(detached);
+        }else{
+          var found = window.findNode(targetId);
+          if(!found || !found.node){return;}
+          if(!found.node.children){found.node.children = [];}
+          found.node.children.push(detached);
+          found.node.collapsed = false;
+        }
+        window.Store.save();
+        window.renderAll();
+        window.toast('Moved.','ok');
+      });
+    }
+
+    function wire(el){
+      if(el.getAttribute('data-ebwired')){return;}
+      el.setAttribute('data-ebwired','1');
+      el.style.cursor = 'pointer';
+      el.setAttribute('title','Click to move this task to another branch');
+      var pen = document.createElement('span');
+      pen.textContent = ' ✎';
+      pen.style.opacity = '.6';
+      el.appendChild(pen);
+      el.addEventListener('click', onClick);
+    }
+
+    function scan(){
+      PENDING = false;
+      var nodes = document.querySelectorAll('.ea-breadcrumb');
+      for(var i=0;i<nodes.length;i++){
+        wire(nodes[i]);
+      }
+    }
+
+    function schedule(){
+      if(PENDING){return;}
+      PENDING = true;
+      setTimeout(scan, 60);
+    }
+
+    var mo = new MutationObserver(schedule);
+    mo.observe(document.body, {childList:true, subtree:true});
+    schedule();
+  }catch(err){}
+})();
+
+/* The edit dialog carries no data-id, so the breadcrumb had no way to know which
+   task is open and the picker never launched. Record it when the dialog opens. */
+(function () {
+  try {
+    var tries = 0;
+    function wrap() {
+      if (window.__ebWrapEdit) return;
+      if (typeof window.editActivity !== 'function') {
+        if (tries++ < 50) setTimeout(wrap, 200);
+        return;
+      }
+      window.__ebWrapEdit = true;
+      var orig = window.editActivity;
+      window.editActivity = function (id) {
+        try { window.__ebCurrentId = id; } catch (e) {}
+        return orig.apply(this, arguments);
+      };
+    }
+    wrap();
+  } catch (e) {}
+})();
+
+
+/* ===== SHIPPED  LOCATION FIELD =====
+   One empty line; click it and the branches open beneath. The row name expands,
+   the Pick button on the right chooses. Same control everywhere. */
+
+/* Name expands a row.
+   Pick chooses it.
+   Two separate actions. */
+(function () {
+  function buildBranchField(currentId, onPick) {
+    var wrap = document.createElement('div');
+    wrap.className = 'lf-wrap';
+
+    var field = document.createElement('button');
+    field.type = 'button';
+    field.className = 'lf-field';
+
+    var caret = document.createElement('span');
+    caret.className = 'lf-caret';
+    caret.textContent = '▾';
+
+    var list = document.createElement('div');
+    list.className = 'lf-list';
+    list.style.display = 'none';
+
+    wrap.appendChild(field);
+    wrap.appendChild(list);
+
+    var expanded = {};
+    var chosenId = null;
+    var chosenPath = [];
+    var tree = (window.Store && window.Store.data && window.Store.data.tree) || [];
+
+    function findPath(nodes, id, ancestors) {
+      for (var i = 0; i < nodes.length; i++) {
+        var n = nodes[i];
+        var path = ancestors.concat([n]);
+        if (n.id === id) return path;
+        if (n.children && n.children.length) {
+          var sub = findPath(n.children, id, path);
+          if (sub) return sub;
+        }
+      }
+      return null;
+    }
+
+    if (currentId != null) {
+      var p = findPath(tree, currentId, []);
+      if (p) {
+        chosenId = currentId;
+        chosenPath = p;
+      }
+    }
+
+    function label() {
+      if (!chosenPath.length) return 'Choose a branch…';
+      var titles = [];
+      for (var i = 0; i < chosenPath.length; i++) titles.push(chosenPath[i].title || '');
+      return titles.join(' › ');
+    }
+
+    function refreshField() {
+      while (field.firstChild) field.removeChild(field.firstChild);
+      field.appendChild(document.createTextNode(label()));
+      field.appendChild(caret);
+    }
+
+    refreshField();
+
+    function safeStop(e) {
+      if (e && e.preventDefault) e.preventDefault();
+      if (e && e.stopPropagation) e.stopPropagation();
+    }
+
+    field.onclick = function (e) {
+      safeStop(e);
+      list.style.display = (list.style.display === 'none') ? '' : 'none';
+    };
+
+    function draw() {
+      try {
+        while (list.firstChild) list.removeChild(list.firstChild);
+
+        var topRow = document.createElement('div');
+        topRow.className = 'lf-row';
+        topRow.style.paddingLeft = '10px';
+
+        var topName = document.createElement('button');
+        topName.type = 'button';
+        topName.className = 'lf-name';
+        topName.textContent = '  Top level (no branch)';
+        topName.onclick = safeStop;
+        topRow.appendChild(topName);
+
+        var topPick = document.createElement('button');
+        topPick.type = 'button';
+        topPick.className = 'lf-pick';
+        topPick.textContent = 'Pick';
+        topPick.onclick = function (e) {
+          safeStop(e);
+          chosenId = null;
+          chosenPath = [];
+          list.style.display = 'none';
+          refreshField();
+          if (typeof onPick === 'function') onPick(null);
+        };
+        topRow.appendChild(topPick);
+        list.appendChild(topRow);
+
+        function walk(nodes, depth) {
+          for (var i = 0; i < nodes.length; i++) {
+            var n = nodes[i];
+            var hasKids = !!(n.children && n.children.length);
+            var isExp = !!expanded[n.id];
+
+            var row = document.createElement('div');
+            row.className = 'lf-row';
+            row.style.paddingLeft = (10 + depth * 18) + 'px';
+
+            var nameBtn = document.createElement('button');
+            nameBtn.type = 'button';
+            nameBtn.className = 'lf-name';
+            var prefix = hasKids ? (isExp ? '▾ ' : '▸ ') : '  ';
+            nameBtn.textContent = prefix + (n.title || '');
+
+            if (hasKids) {
+              nameBtn.onclick = (function (nRef) {
+                return function (e) {
+                  safeStop(e);
+                  if (expanded[nRef.id]) delete expanded[nRef.id];
+                  else expanded[nRef.id] = true;
+                  draw();
+                };
+              })(n);
+            } else {
+              nameBtn.onclick = safeStop;
+            }
+
+            row.appendChild(nameBtn);
+
+            var pickBtn = document.createElement('button');
+            pickBtn.type = 'button';
+            pickBtn.className = 'lf-pick';
+            pickBtn.textContent = 'Pick';
+            pickBtn.onclick = (function (nRef) {
+              return function (e) {
+                safeStop(e);
+                chosenId = nRef.id;
+                chosenPath = findPath(tree, nRef.id, []) || [];
+                list.style.display = 'none';
+                refreshField();
+                if (typeof onPick === 'function') onPick(nRef.id);
+              };
+            })(n);
+
+            row.appendChild(pickBtn);
+            list.appendChild(row);
+
+            if (hasKids && isExp) walk(n.children, depth + 1);
+          }
+        }
+
+        walk(tree, 0);
+      } catch (err) {
+        // drawing failed; wrap is still returned below
+      }
+    }
+
+    try { draw(); } catch (e) {}
+
+    return wrap;
+  }
+
+  window.__branchField = buildBranchField;
+})();
+
+
+/* ===== SHIPPED  EDIT DIALOG REWORK =====
+   clear button and TAGS row gone, old Move-to-tree hidden, breadcrumb replaced by
+   a Location field sitting directly under the notes. */
+
+/* ea tidy
+   Reworks the Edit Activity dialog
+   to strip legacy rows and add Location picker. */
+(function () {
+  try {
+    if (window.__eaTidyInstalled) return;
+    window.__eaTidyInstalled = true;
+
+    var pending = false;
+
+    function isDescendant(targetId, ancestorId) {
+      var cur = targetId;
+      var seen = {};
+      while (cur != null && !seen[cur]) {
+        if (cur === ancestorId) return true;
+        seen[cur] = true;
+        var p = window.findNode(cur);
+        if (!p || !p.parent) return false;
+        cur = p.parent.id;
+      }
+      return false;
+    }
+
+    function onPick(targetId) {
+      var id = window.__ebCurrentId;
+      if (!id) return;
+      if (targetId === id || isDescendant(targetId, id)) {
+        window.toast('A task cannot be moved inside itself.', 'err');
+        return;
+      }
+      var node = window.removeNode(id);
+      if (!node) return;
+      if (targetId == null) {
+        window.Store.data.tree.push(node);
+      } else {
+        var info = window.findNode(targetId);
+        if (!info || !info.node) {
+          window.Store.data.tree.push(node);
+        } else {
+          if (!info.node.children) info.node.children = [];
+          info.node.children.push(node);
+          info.node.collapsed = false;
+        }
+      }
+      window.Store.save();
+      window.renderAll();
+      window.toast('Moved.', 'ok');
+    }
+
+    function buildHolder() {
+      var holder = document.createElement('div');
+      holder.className = 'lf-holder';
+      var lab = document.createElement('div');
+      lab.className = 'lf-lab';
+      lab.textContent = 'Location';
+      holder.appendChild(lab);
+      var info = window.findNode(window.__ebCurrentId);
+      var parentId = (info && info.parent) ? info.parent.id : null;
+      var field = window.__branchField(parentId, onPick);
+      if (field) holder.appendChild(field);
+      return holder;
+    }
+
+    function tidyEa(ea) {
+      var btns = ea.querySelectorAll('button.note-tool');
+      for (var i = 0; i < btns.length; i++) {
+        if (btns[i].textContent === 'clear') {
+          if (btns[i].parentNode) btns[i].parentNode.removeChild(btns[i]);
+          break;
+        }
+      }
+
+      var kids = ea.children;
+      for (var j = 0; j < kids.length; j++) {
+        var c1 = kids[j];
+        var t1 = c1.textContent || '';
+        if (t1.indexOf('TAGS') === 0 && t1.length < 200) {
+          c1.style.display = 'none';
+        }
+        var subs = c1.children;
+        for (var k = 0; k < subs.length; k++) {
+          var c2 = subs[k];
+          var t2 = c2.textContent || '';
+          if (t2.indexOf('TAGS') === 0 && t2.length < 200) {
+            c2.style.display = 'none';
+          }
+        }
+      }
+
+      var all = ea.querySelectorAll('*');
+      for (var m = 0; m < all.length; m++) {
+        var t3 = all[m].textContent || '';
+        if (t3.indexOf('Move to tree') === 0) {
+          all[m].style.display = 'none';
+        }
+      }
+
+      var crumb = ea.querySelector('.ea-breadcrumb');
+      if (crumb && crumb.parentNode) {
+        crumb.parentNode.removeChild(crumb);
+      }
+
+      var holder = buildHolder();
+      var notes = ea.querySelector('[class*="note-box"]');
+      if (notes && notes.parentNode) {
+        if (notes.nextSibling) {
+          notes.parentNode.insertBefore(holder, notes.nextSibling);
+        } else {
+          notes.parentNode.appendChild(holder);
+        }
+      } else {
+        ea.insertBefore(holder, ea.firstChild);
+      }
+    }
+
+    function pass() {
+      pending = false;
+      var list = document.querySelectorAll('.modal .ea');
+      for (var i = 0; i < list.length; i++) {
+        if (!list[i].getAttribute('data-eatidy')) {
+          list[i].setAttribute('data-eatidy', '1');
+          try { tidyEa(list[i]); } catch (e) {}
+        }
+      }
+    }
+
+    function schedule() {
+      if (pending) return;
+      pending = true;
+      setTimeout(pass, 60);
+    }
+
+    var obs = new MutationObserver(schedule);
+    obs.observe(document.body, { childList: true, subtree: true });
+
+    pass();
+    setTimeout(pass, 400);
+  } catch (e) {}
+})();
+
+
+/* ===== SHIPPED  EDIT DIALOG CORRECTIONS =====
+   clear removed from BOTH toolbars, Tags hidden (the label is "Tags", not "TAGS",
+   which is what my earlier rule missed), Location moved under the title, the dialog
+   no longer closes on an outside click, and Save is blocked until Location is set. */
+
+/*
+ 1) Strip app-wide "clear" note-tool buttons.
+ 2) Hide the Tags section ("Tags" heading) and its sibling.
+ 3) Reorder the Location holder to follow the title input.
+ 4) Dismiss-proof the dialog and gate Save on Location choice.
+*/
+(function () {
+  try {
+    if (window.__eaFix2Installed) { return; }
+    window.__eaFix2Installed = true;
+
+    var pending = false;
+
+    function trim(s) {
+      return s ? s.replace(/^\s+|\s+$/g, '') : '';
+    }
+
+    function processAll() {
+      pending = false;
+
+      var ealist = document.querySelectorAll('.modal .ea:not([data-eafix2])');
+      for (var i = 0; i < ealist.length; i++) {
+        var ea = ealist[i];
+        ea.setAttribute('data-eafix2', '1');
+
+        // 1) remove every "clear" note-tool button app-wide
+        var clears = document.querySelectorAll('button.note-tool');
+        for (var j = 0; j < clears.length; j++) {
+          if (trim(clears[j].textContent) === 'clear') {
+            var p = clears[j].parentNode;
+            if (p) { p.removeChild(clears[j]); }
+          }
+        }
+
+        // 2) hide Tags section
+        var heads = document.querySelectorAll('.ea-sectionhead');
+        for (var k = 0; k < heads.length; k++) {
+          if (trim(heads[k].textContent) === 'Tags') {
+            heads[k].style.display = 'none';
+            var sib = heads[k].nextElementSibling;
+            if (sib) { sib.style.display = 'none'; }
+          }
+        }
+
+        // 3) move Location holder after title
+        var title = ea.querySelector('.ea-title');
+        var holder = ea.querySelector('.lf-holder');
+        if (title && holder && holder.parentNode) {
+          if (title.nextSibling !== holder) {
+            title.parentNode.insertBefore(holder, title.nextSibling);
+          }
+        }
+      }
+
+      // 5) Save button state based on Location field
+      var saves = document.querySelectorAll('button');
+      for (var m = 0; m < saves.length; m++) {
+        if (trim(saves[m].textContent) === 'Save') {
+          var dlg = document.querySelector('.modal .ea');
+          if (dlg) {
+            var lf = dlg.querySelector('.lf-field');
+            var txt = lf ? trim(lf.textContent) : '';
+            saves[m].disabled = (txt.indexOf('Choose a branch') === 0);
+          }
+        }
+      }
+    }
+
+    function schedule() {
+      if (pending) { return; }
+      pending = true;
+      setTimeout(processAll, 60);
+    }
+
+    schedule();
+    setTimeout(schedule, 400);
+
+    if (typeof MutationObserver === 'function') {
+      var obs = new MutationObserver(schedule);
+      obs.observe(document.body, { childList: true, subtree: true });
+    }
+
+    // 4) dismiss-proof
+    function eaOpen() {
+      return !!document.querySelector('.modal .ea');
+    }
+
+    function isBackdrop(el) {
+      if (!el) { return false; }
+      if (el.id === 'modalHost') { return true; }
+      var cn = (typeof el.className === 'string') ? el.className : '';
+      if (cn.indexOf('modal-backdrop') !== -1) { return true; }
+      if (cn.indexOf('modal-host') !== -1) { return true; }
+      return false;
+    }
+
+    document.addEventListener('click', function (e) {
+      if (!eaOpen()) { return; }
+      if (isBackdrop(e.target)) {
+        if (e.preventDefault) { e.preventDefault(); }
+        e.stopImmediatePropagation();
+      }
+    }, true);
+
+    document.addEventListener('keydown', function (e) {
+      if (!eaOpen()) { return; }
+      var key = e.key || e.keyCode;
+      if (key === 'Escape' || key === 27 || e.keyCode === 27) {
+        if (e.preventDefault) { e.preventDefault(); }
+        e.stopImmediatePropagation();
+      }
+    }, true);
+
+  } catch (err) {}
+})();
+
+/* Four corrections the operator had to ask for twice.
+   - the Location field must start BLANK on every open, never pre-filled, so a branch
+     is always an explicit choice;
+   - the 'Top level (no branch)' row is removed - every task must sit in a branch;
+   - Save stays disabled until a branch is picked;
+   - the 'clear' note-tool is stripped on a timer, because it lives in TWO toolbars and
+     one of them is built outside any dialog, so a dialog-triggered sweep never saw it. */
+(function () {
+  try {
+    if (window.__eaFix3Installed) return;
+    window.__eaFix3Installed = true;
+
+    function stripClear() {
+      var b = document.querySelectorAll('button.note-tool');
+      for (var i = 0; i < b.length; i++) {
+        if ((b[i].textContent || '').trim().toLowerCase() === 'clear' && b[i].parentNode) {
+          b[i].parentNode.removeChild(b[i]);
+        }
+      }
+    }
+
+    function stripTopLevel() {
+      var rows = document.querySelectorAll('.lf-row');
+      for (var i = 0; i < rows.length; i++) {
+        var nm = rows[i].querySelector('.lf-name');
+        if (nm && (nm.textContent || '').indexOf('Top level') >= 0 && rows[i].parentNode) {
+          rows[i].parentNode.removeChild(rows[i]);
+        }
+      }
+    }
+
+    function blankLocation() {
+      // Blank ONLY for a task that has no branch yet. A task already filed somewhere
+      // must show where it lives - blanking that would hide real information and make
+      // the operator re-choose something they had already decided.
+      var f = document.querySelectorAll('.lf-field');
+      for (var i = 0; i < f.length; i++) {
+        if (f[i].getAttribute('data-blanked') === '1') continue;
+        f[i].setAttribute('data-blanked', '1');
+        var alreadyFiled = false;
+        try {
+          var id = window.__ebCurrentId;
+          if (id && typeof window.findNode === 'function') {
+            var found = window.findNode(id);
+            alreadyFiled = !!(found && found.parent && found.parent.id);
+          }
+        } catch (e) {}
+        if (alreadyFiled) continue;
+        var caret = f[i].querySelector('.lf-caret');
+        f[i].textContent = 'Choose a branch\u2026';
+        if (caret) f[i].appendChild(caret);
+      }
+    }
+
+    function gateSave() {
+      var ea = document.querySelector('.modal .ea');
+      var bs = document.querySelectorAll('.modal button');
+      for (var i = 0; i < bs.length; i++) {
+        if ((bs[i].textContent || '').trim() !== 'Save') continue;
+        if (!ea) { bs[i].disabled = false; continue; }
+        var f = document.querySelector('.lf-field');
+        var txt = f ? (f.textContent || '') : '';
+        bs[i].disabled = (txt.indexOf('Choose a branch') === 0);
+      }
+    }
+
+    function pass() { stripClear(); stripTopLevel(); blankLocation(); gateSave(); }
+
+    setInterval(pass, 400);
+    pass();
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', pass);
+    } else {
+      setTimeout(pass, 400);
+    }
+  } catch (e) {}
+})();
+
+
+/* ===== SHIPPED  LOCATION: ALWAYS COLLAPSED, AND ADD A SUB-BRANCH =====
+   Every branch starts closed regardless of its stored collapsed flag, and each row
+   carries a + to create a sub-branch inside it. */
+
+/* LF+: collapse enforcement + sub-branch button.
+   Installed once, runs on install and every 400ms.
+   State lives in window.__lfPlusInstalled and window.__lfOpen. */
+(function () {
+  try {
+    if (window.__lfPlusInstalled) return;
+    window.__lfPlusInstalled = true;
+    if (!window.__lfOpen) window.__lfOpen = {};
+
+    function stripTwisty(s) {
+      if (!s) return '';
+      var c = s.charAt(0);
+      if (c === '\u25BE' || c === '\u25B8') return s.substring(1);
+      return s;
+    }
+
+    function newId() {
+      return 'b' + Date.now() + Math.random().toString(36).substring(2);
+    }
+
+    function findNodeByTitle(label) {
+      if (!window.walkTree) return null;
+      if (!window.Store || !window.Store.data || !window.Store.data.tree) return null;
+      var found = null;
+      window.walkTree(window.Store.data.tree, function (node) {
+        if (found) return;
+        if (node && node.title === label) found = node;
+      });
+      return found;
+    }
+
+    function tick() {
+      var rows = document.querySelectorAll('.lf-row');
+      for (var i = 0; i < rows.length; i++) {
+        var row = rows[i];
+        var nameEl = row.querySelector('.lf-name');
+
+        if (nameEl && !nameEl.getAttribute('data-lfwired')) {
+          nameEl.setAttribute('data-lfwired', '1');
+          nameEl.addEventListener('click', function () {
+            if (this.__lfProg) {
+              this.__lfProg = false;
+              return;
+            }
+            var label = stripTwisty(this.textContent);
+            if (window.__lfOpen[label]) {
+              delete window.__lfOpen[label];
+            } else {
+              window.__lfOpen[label] = 1;
+            }
+          });
+        }
+
+        if (nameEl) {
+          var tc = nameEl.textContent;
+          if (tc.charAt(0) === '\u25BE') {
+            var label2 = stripTwisty(tc);
+            if (!window.__lfOpen[label2]) {
+              nameEl.__lfProg = true;
+              nameEl.click();
+            }
+          }
+        }
+
+        if (!row.getAttribute('data-lfplus')) {
+          row.setAttribute('data-lfplus', '1');
+          var btn = document.createElement('button');
+          btn.className = 'lf-plus';
+          btn.type = 'button';
+          btn.textContent = '+';
+          btn.title = 'Add a sub-branch here';
+          btn.addEventListener('click', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            var r = this.parentNode;
+            var n = r.querySelector('.lf-name');
+            if (!n) return;
+            var label = stripTwisty(n.textContent);
+            var raw = window.prompt('Name for the new sub-branch');
+            if (raw === null) return;
+            var name = raw.replace(/^\s+|\s+$/g, '');
+            if (!name) return;
+            var node = findNodeByTitle(label);
+            if (!node) return;
+            if (!node.children) node.children = [];
+            node.children.push({
+              id: newId(),
+              title: name,
+              kind: 'goal',
+              done: false,
+              priority: 'normal',
+              date: null,
+              time: null,
+              block: null,
+              duration: null,
+              repeat: null,
+              tags: [],
+              areaId: null,
+              endDate: null,
+              collapsed: true,
+              children: []
+            });
+            if (window.Store && typeof window.Store.save === 'function') window.Store.save();
+            if (typeof window.renderAll === 'function') window.renderAll();
+            if (typeof window.toast === 'function') window.toast('Sub-branch added.', 'ok');
+          });
+          row.appendChild(btn);
+        }
+      }
+    }
+
+    tick();
+    setInterval(tick, 400);
+  } catch (err) {}
+})();
+
+/* The + button matched its branch by comparing the row's visible text to node titles,
+   which fails because the label carries the twisty and padding. Tag each row with the
+   real node id when it is drawn, and let + use that instead of the text. */
+(function () {
+  try {
+    if (window.__lfPlusFix) return;
+    window.__lfPlusFix = true;
+
+    function idFor(label) {
+      var want = String(label || '').replace(/^[\u25b8\u25be\s]+/, '').trim();
+      var found = null;
+      if (typeof window.walkTree === 'function') {
+        window.walkTree(function (n) {
+          if (!found && n && String(n.title || '').trim() === want) found = n;
+        });
+      }
+      return found;
+    }
+
+    function wire() {
+      var rows = document.querySelectorAll('.lf-row');
+      for (var i = 0; i < rows.length; i++) {
+        var plus = rows[i].querySelector('.lf-plus');
+        if (!plus || plus.getAttribute('data-fixed') === '1') continue;
+        plus.setAttribute('data-fixed', '1');
+        (function (row, btn) {
+          var fresh = btn.cloneNode(true);
+          fresh.setAttribute('data-fixed', '1');
+          btn.parentNode.replaceChild(fresh, btn);
+          fresh.addEventListener('click', function (e) {
+            e.preventDefault(); e.stopPropagation();
+            var nm = row.querySelector('.lf-name');
+            var target = idFor(nm ? nm.textContent : '');
+            if (!target) { if (window.toast) window.toast('Could not find that branch.', 'err'); return; }
+            var name = window.prompt('Name for the new sub-branch');
+            if (name === null) return;
+            name = String(name).trim();
+            if (!name) return;
+            var node = { id: 'b' + Date.now() + Math.floor(Math.random() * 9999),
+              title: name, notes: '', kind: 'goal', done: false, priority: 'normal',
+              date: null, time: null, block: null, duration: null, repeat: null,
+              tags: [], areaId: null, endDate: null, collapsed: true, children: [] };
+            if (!target.children) target.children = [];
+            target.children.push(node);
+            if (window.Store && window.Store.save) window.Store.save();
+            if (window.renderAll) window.renderAll();
+            if (window.toast) window.toast('Sub-branch added.', 'ok');
+          });
+        })(rows[i], plus);
+      }
+    }
+    setInterval(wire, 400);
+    wire();
+  } catch (e) {}
+})();
+
+
+/* ===== SHIPPED  NO BROWSER POPUP, AND COLLAPSE THAT HOLDS =====
+   + now uses the app's own inline add, and the picker owns collapsed state so a
+   redraw cannot reopen a branch. */
+
+/*
+ Plus buttons must use the app's own inline add rather than window.prompt.
+ Collapsed state is owned by this picker; nothing else toggles it.
+ Runs once now and on a setInterval of 350ms, gated by window.__lfFix4.
+*/
+
+(function(){
+  if (window.__lfFix4) return;
+  window.__lfFix4 = 1;
+  if (!window.__lfOpen) window.__lfOpen = {};
+
+  function cleanLabel(txt){
+    var s = txt == null ? '' : String(txt);
+    s = s.replace(/^[\s\u25B2\u25B3\u25B6\u25B7\u25BC\u25BD\u25C0\u25C1\u25B8\u25B9\u25B4\u25B5\u25BE\u25BF]+/g, '');
+    s = s.replace(/^\s+/, '').replace(/\s+$/, '');
+    return s;
+  }
+
+  function findNode(label){
+    if (typeof window.walkTree !== 'function') return null;
+    var found = null;
+    try {
+      window.walkTree(function(n){
+        if (found) return;
+        if (n && n.title && String(n.title) === label) found = n;
+      });
+    } catch(e){}
+    return found;
+  }
+
+  function closestRow(el){
+    var p = el;
+    while (p){
+      if (p.className && typeof p.className === 'string' && p.className.indexOf('lf-row') !== -1) return p;
+      p = p.parentNode;
+    }
+    return null;
+  }
+
+  function run(){
+    var lists = document.querySelectorAll('.lf-list');
+    for (var i = 0; i < lists.length; i++){
+      var list = lists[i];
+      var rows = list.querySelectorAll('.lf-row');
+      var lastSeenAtIndent = {};
+      var smallestIndent = null;
+
+      for (var r = 0; r < rows.length; r++){
+        var row = rows[r];
+        var pl = parseInt(row.style.paddingLeft, 10);
+        if (isNaN(pl)) pl = 0;
+        var nameEl = row.querySelector('.lf-name');
+        var lbl = cleanLabel(nameEl ? nameEl.textContent : row.textContent);
+
+        if (smallestIndent === null || pl < smallestIndent) smallestIndent = pl;
+
+        if (smallestIndent !== null && pl > smallestIndent){
+          var parentIndent = null;
+          for (var kk in lastSeenAtIndent){
+            if (!lastSeenAtIndent.hasOwnProperty(kk)) continue;
+            var kint = parseInt(kk, 10);
+            if (isNaN(kint)) continue;
+            if (kint < pl && (parentIndent === null || kint > parentIndent)) parentIndent = kint;
+          }
+          if (parentIndent !== null){
+            var parentLbl = lastSeenAtIndent[parentIndent];
+            if (parentLbl !== undefined && !window.__lfOpen[parentLbl]){
+              if (row.parentNode) row.parentNode.removeChild(row);
+              continue;
+            }
+          }
+        }
+
+        lastSeenAtIndent[pl] = lbl;
+      }
+
+      var visibleRows = list.querySelectorAll('.lf-row');
+      for (var v = 0; v < visibleRows.length; v++){
+        var vr = visibleRows[v];
+        var vne = vr.querySelector('.lf-name');
+        if (!vne) continue;
+        if (!vne.getAttribute('data-lfopen')){
+          vne.setAttribute('data-lfopen', '1');
+          (function(el, row){
+            el.addEventListener('click', function(){
+              var ne = row.querySelector('.lf-name');
+              var src = ne ? ne.textContent : row.textContent;
+              var lbl = cleanLabel(src);
+              if (window.__lfOpen[lbl]) delete window.__lfOpen[lbl];
+              else window.__lfOpen[lbl] = 1;
+            });
+          })(vne, vr);
+        }
+      }
+
+      var plusBtns = list.querySelectorAll('button.lf-plus');
+      for (var p = 0; p < plusBtns.length; p++){
+        var btn = plusBtns[p];
+        if (btn.getAttribute('data-inline') === '1') continue;
+        var rowEl = btn.closest ? btn.closest('.lf-row') : closestRow(btn);
+        if (!rowEl) continue;
+        var clone = btn.cloneNode(true);
+        clone.setAttribute('data-inline', '1');
+        (function(c, row){
+          c.addEventListener('click', function(e){
+            try {
+              if (e && e.preventDefault) e.preventDefault();
+              if (e && e.stopPropagation) e.stopPropagation();
+              var ne = row.querySelector('.lf-name');
+              var lbl = cleanLabel(ne ? ne.textContent : row.textContent);
+              var node = findNode(lbl);
+              if (node){
+                if (typeof window.__addNodeDirect === 'function') window.__addNodeDirect(node.id);
+                else if (typeof window.addNodeAt === 'function') window.addNodeAt(node.id);
+              }
+              if (typeof window.toast === 'function') window.toast('Added - type its name in the tree.', 'ok');
+            } catch(err){}
+          });
+        })(clone, rowEl);
+        if (btn.parentNode) btn.parentNode.replaceChild(clone, btn);
+      }
+    }
+  }
+
+  function tick(){
+    try { run(); } catch(e){}
+  }
+
+  tick();
+  setInterval(tick, 350);
+})();
+
+
+/* ===== SHIPPED  TWO-MONTH DUE DATE PICKER =====
+   The native date control was replaced with a two-month grid in the app's own
+   colours, so Due Date no longer looks pasted in from the browser. */
+
+/*
+ Native date control replaced by a two-month picker matching the app.
+ Installed once and guarded by window.__dp2Installed.
+*/
+(function () {
+  try {
+    if (window.__dp2Installed) return;
+    window.__dp2Installed = true;
+
+    var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    var DOW = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+    var picker = null;
+    var activeInput = null;
+
+    function pad(n) { return n < 10 ? '0' + n : '' + n; }
+    function toISO(y, m, d) { return y + '-' + pad(m + 1) + '-' + pad(d); }
+    function parseISO(s) {
+      if (!s) return null;
+      var p = s.split('-');
+      if (p.length < 3) return null;
+      return { y: +p[0], m: +p[1] - 1, d: +p[2] };
+    }
+    function daysInMonth(y, m) { return new Date(y, m + 1, 0).getDate(); }
+
+    function closePicker() {
+      if (picker && picker.parentNode) picker.parentNode.removeChild(picker);
+      picker = null;
+      activeInput = null;
+    }
+
+    function openPicker(input) {
+      closePicker();
+      activeInput = input;
+      var rect = input.getBoundingClientRect();
+
+      picker = document.createElement('div');
+      picker.className = 'dp2';
+      picker.style.position = 'absolute';
+      picker.style.left = (rect.left + window.pageXOffset) + 'px';
+      picker.style.top = (rect.bottom + window.pageYOffset + 6) + 'px';
+      picker.style.zIndex = '9999';
+      picker.style.background = '#fff';
+      picker.style.border = '1px solid #ccc';
+
+      var head = document.createElement('div');
+      head.className = 'dp2-head';
+
+      var prev = document.createElement('button');
+      prev.type = 'button';
+      prev.textContent = '\u2039';
+      prev.addEventListener('click', function (e) {
+        e.stopPropagation();
+        cursor.setMonth(cursor.getMonth() - 1);
+        draw();
+      });
+
+      var spacer = document.createElement('div');
+      spacer.style.flex = '1';
+
+      var next = document.createElement('button');
+      next.type = 'button';
+      next.textContent = '\u203a';
+      next.addEventListener('click', function (e) {
+        e.stopPropagation();
+        cursor.setMonth(cursor.getMonth() + 1);
+        draw();
+      });
+
+      head.appendChild(prev);
+      head.appendChild(spacer);
+      head.appendChild(next);
+
+      var months = document.createElement('div');
+      months.className = 'dp2-months';
+
+      picker.appendChild(head);
+      picker.appendChild(months);
+      document.body.appendChild(picker);
+
+      var initial = parseISO(input.value);
+      var cursor = new Date();
+      if (initial) cursor = new Date(initial.y, initial.m, 1);
+      else cursor = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
+
+      var selISO = input.value || '';
+
+      function draw() {
+        months.innerHTML = '';
+        for (var k = 0; k < 2; k++) {
+          var mDate = new Date(cursor.getFullYear(), cursor.getMonth() + k, 1);
+          var block = document.createElement('div');
+          block.className = 'dp2-m';
+          block.style.display = 'inline-block';
+          block.style.verticalAlign = 'top';
+          block.style.padding = '4px';
+
+          var title = document.createElement('div');
+          title.className = 'dp2-title';
+          title.textContent = MONTHS[mDate.getMonth()] + ' ' + mDate.getFullYear();
+          block.appendChild(title);
+
+          var grid = document.createElement('div');
+          grid.className = 'dp2-grid';
+
+          for (var i = 0; i < 7; i++) {
+            var dow = document.createElement('div');
+            dow.className = 'dp2-dow';
+            dow.textContent = DOW[i];
+            dow.style.display = 'inline-block';
+            dow.style.width = '24px';
+            dow.style.textAlign = 'center';
+            grid.appendChild(dow);
+          }
+
+          var firstDay = mDate.getDay();
+          var dim = daysInMonth(mDate.getFullYear(), mDate.getMonth());
+          for (var b = 0; b < firstDay; b++) {
+            var blank = document.createElement('div');
+            blank.className = 'dp2-blank';
+            blank.style.display = 'inline-block';
+            blank.style.width = '24px';
+            grid.appendChild(blank);
+          }
+
+          for (var d = 1; d <= dim; d++) {
+            (function (day, md) {
+              var btn = document.createElement('button');
+              btn.type = 'button';
+              btn.className = 'dp2-day';
+              btn.textContent = '' + day;
+              var iso = toISO(md.getFullYear(), md.getMonth(), day);
+              btn.setAttribute('data-iso', iso);
+              btn.style.display = 'inline-block';
+              btn.style.width = '24px';
+              btn.style.textAlign = 'center';
+              if (iso === selISO) btn.className += ' dp2-on';
+              btn.addEventListener('click', function (e) {
+                e.stopPropagation();
+                if (activeInput) {
+                  activeInput.value = iso;
+                  activeInput.dispatchEvent(new Event('input', { bubbles: true }));
+                  activeInput.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+                closePicker();
+              });
+              grid.appendChild(btn);
+            })(d, mDate);
+          }
+
+          block.appendChild(grid);
+          months.appendChild(block);
+        }
+      }
+
+      draw();
+    }
+
+    function onDocClick(e) {
+      if (picker && !picker.contains(e.target)) closePicker();
+    }
+
+    function onKey(e) {
+      if (e.key === 'Escape' || e.keyCode === 27) closePicker();
+    }
+
+    document.addEventListener('click', onDocClick);
+    document.addEventListener('keydown', onKey);
+
+    function install() {
+      var inputs = document.querySelectorAll('.modal .ea input[type="date"]');
+      for (var i = 0; i < inputs.length; i++) {
+        var input = inputs[i];
+        if (input.getAttribute('data-dp2')) continue;
+        input.setAttribute('data-dp2', '1');
+        input.type = 'text';
+        input.readOnly = true;
+        input.style.cursor = 'pointer';
+        (function (inp) {
+          inp.addEventListener('click', function (e) {
+            e.stopPropagation();
+            openPicker(inp);
+          });
+        })(input);
+      }
+    }
+
+    install();
+    setInterval(install, 400);
+  } catch (e) {}
+})();
+
+/* The reference has an arrow pair on EACH month, not one pair for the pair of them. */
+(function () {
+  try {
+    if (window.__dp2Arrows) return;
+    window.__dp2Arrows = true;
+    setInterval(function () {
+      try {
+        var titles = document.querySelectorAll('.dp2-title');
+        for (var i = 0; i < titles.length; i++) {
+          if (titles[i].getAttribute('data-arrows') === '1') continue;
+          titles[i].setAttribute('data-arrows', '1');
+          var text = (titles[i].textContent || '').trim();
+          titles[i].textContent = '';
+          var back = document.createElement('button');
+          back.type = 'button'; back.textContent = '\u2039';
+          var lab = document.createElement('span'); lab.textContent = text;
+          var fwd = document.createElement('button');
+          fwd.type = 'button'; fwd.textContent = '\u203a';
+          titles[i].appendChild(back); titles[i].appendChild(lab); titles[i].appendChild(fwd);
+          var head = document.querySelector('.dp2-head');
+          var hb = head ? head.querySelectorAll('button') : [];
+          back.addEventListener('click', function (e) {
+            e.preventDefault(); e.stopPropagation();
+            if (hb.length) hb[0].click();
+          });
+          fwd.addEventListener('click', function (e) {
+            e.preventDefault(); e.stopPropagation();
+            if (hb.length > 1) hb[hb.length - 1].click();
+          });
+        }
+      } catch (e) {}
+    }, 200);
+  } catch (e) {}
+})();
+
+/* The picker opened BEHIND the dialog and off to the right - the modal sits in its own
+   stacking context, and the position was taken from the field without clamping to the
+   window. Force it above everything, and keep it inside the screen under its field. */
+(function () {
+  try {
+    if (window.__dp2Place) return;
+    window.__dp2Place = true;
+    setInterval(function () {
+      try {
+        var d = document.querySelector('.dp2');
+        if (!d) return;
+        if (d.parentNode !== document.body) document.body.appendChild(d);
+        d.style.zIndex = '2147483647';
+        d.style.position = 'fixed';
+        var input = null, all = document.querySelectorAll('[data-dp2="1"]');
+        for (var i = 0; i < all.length; i++) {
+          if (all[i].offsetParent !== null) { input = all[i]; break; }
+        }
+        if (!input) return;
+        var r = input.getBoundingClientRect();
+        var w = d.offsetWidth || 520, h = d.offsetHeight || 380;
+        var left = r.left;
+        if (left + w > window.innerWidth - 12) left = window.innerWidth - w - 12;
+        if (left < 12) left = 12;
+        var top = r.bottom + 8;
+        if (top + h > window.innerHeight - 12) top = Math.max(12, r.top - h - 8);
+        d.style.left = Math.round(left) + 'px';
+        d.style.top = Math.round(top) + 'px';
+      } catch (e) {}
+    }, 100);
+  } catch (e) {}
+})();
+
+
+/* ===== SHIPPED  TODAY / TOMORROW / SOMEDAY, AND THE TIME FIELD =====
+   Authored by Minimax M3 at 24000 tokens. */
+
+/* Today and Tomorrow were missing
+   from the date picker and the time
+   field did not match the other fields.
+*/
+(function(){
+  try {
+    if (window.__dp2Extras) return;
+    window.__dp2Extras = true;
+
+    var iso = function(d) {
+      var y = d.getFullYear();
+      var m = d.getMonth() + 1;
+      var day = d.getDate();
+      var mm = m < 10 ? '0' + m : '' + m;
+      var dd = day < 10 ? '0' + day : '' + day;
+      return y + '-' + mm + '-' + dd;
+    };
+
+    var apply = function(val) {
+      var inputs = document.querySelectorAll('input[data-dp2="1"]');
+      var target = null;
+      for (var i = 0; i < inputs.length; i++) {
+        if (inputs[i].offsetParent !== null) {
+          target = inputs[i];
+          break;
+        }
+      }
+      if (!target) return;
+      target.value = val;
+      target.dispatchEvent(new Event('input', { bubbles: true }));
+      target.dispatchEvent(new Event('change', { bubbles: true }));
+      var picker = target.closest ? target.closest('.dp2') : null;
+      if (!picker) {
+        var p = target.parentNode;
+        while (p && p !== document.body) {
+          if (p.className && p.className.indexOf('dp2') !== -1) { picker = p; break; }
+          p = p.parentNode;
+        }
+      }
+      if (picker && picker.parentNode) picker.parentNode.removeChild(picker);
+    };
+
+    var tick = function() {
+      var dps = document.querySelectorAll('.dp2');
+      for (var i = 0; i < dps.length; i++) {
+        var dp = dps[i];
+        if (dp.getAttribute('data-quick')) continue;
+        dp.setAttribute('data-quick', '1');
+
+        var box = document.createElement('div');
+        box.className = 'dp2-quick';
+
+        var b1 = document.createElement('button');
+        b1.type = 'button';
+        b1.textContent = 'Today';
+        b1.onclick = function() { apply(iso(new Date())); };
+
+        var b2 = document.createElement('button');
+        b2.type = 'button';
+        b2.textContent = 'Tomorrow';
+        b2.onclick = function() {
+          var d = new Date();
+          d.setDate(d.getDate() + 1);
+          apply(iso(d));
+        };
+
+        var b3 = document.createElement('button');
+        b3.type = 'button';
+        b3.textContent = 'Someday';
+        b3.onclick = function() { apply(''); };
+
+        box.appendChild(b1);
+        box.appendChild(b2);
+        box.appendChild(b3);
+        dp.appendChild(box);
+      }
+
+      var times = document.querySelectorAll('.modal .ea input[type="time"]');
+      for (var j = 0; j < times.length; j++) {
+        var t = times[j];
+        if (t.getAttribute('data-tfix')) continue;
+        t.setAttribute('data-tfix', '1');
+        t.style.background = '#111';
+        t.style.color = '#fff';
+        t.style.border = '1px solid #333';
+        t.style.borderRadius = '7px';
+        t.style.padding = '7px 10px';
+        t.style.fontSize = '13px';
+        t.style.minHeight = '34px';
+        t.style.fontVariantNumeric = 'tabular-nums';
+        t.style.colorScheme = 'dark';
+        t.style.width = '100%';
+        t.style.boxSizing = 'border-box';
+      }
+    };
+
+    tick();
+    setInterval(tick, 200);
+  } catch (e) {}
+})();
+
+
+/* ===== SHIPPED  EVERY GRID POSITION IS A CELL =====
+   Empty fillers made the blocks look ragged. Out-of-month days are now real,
+   dimmed cells so every box is the same size and the columns line up. */
+
+/*
+ * Every grid position now holds a cell of identical size,
+ * dimmed for days outside the month,
+ * so the blocks line up.
+ */
+(function () {
+  if (window.__dp2Sym) return;
+  window.__dp2Sym = true;
+
+  function process() {
+    try {
+      var grids = document.querySelectorAll('.dp2-grid:not([data-sym])');
+      for (var i = 0; i < grids.length; i++) {
+        var grid = grids[i];
+        grid.setAttribute('data-sym', '1');
+
+        var firstDay = grid.querySelector('.dp2-day[data-iso]');
+        if (!firstDay) continue;
+
+        var iso = firstDay.getAttribute('data-iso');
+        var parts = iso.split('-');
+        var year = parseInt(parts[0], 10);
+        var month = parseInt(parts[1], 10);
+
+        var prevMonthLastDay = new Date(year, month, 0).getDate();
+
+        var blanks = grid.querySelectorAll('.dp2-blank');
+        var n = blanks.length;
+
+        for (var j = 0; j < n; j++) {
+          var dayNum = prevMonthLastDay - n + 1 + j;
+          var btn = document.createElement('button');
+          btn.className = 'dp2-day dp2-out';
+          btn.disabled = true;
+          btn.textContent = dayNum;
+          blanks[j].parentNode.replaceChild(btn, blanks[j]);
+        }
+
+        var totalAfterLabels = grid.children.length - 7;
+        if (totalAfterLabels < 0) totalAfterLabels = 0;
+        var remainder = totalAfterLabels % 7;
+        if (remainder !== 0) {
+          var needed = 7 - remainder;
+          if (needed > 13) needed = 13;
+          for (var k = 1; k <= needed; k++) {
+            var btn = document.createElement('button');
+            btn.className = 'dp2-day dp2-out';
+            btn.disabled = true;
+            btn.textContent = k;
+            grid.appendChild(btn);
+          }
+        }
+      }
+    } catch (e) {}
+  }
+
+  process();
+  setInterval(process, 200);
 })();
 </script>
 </body>
