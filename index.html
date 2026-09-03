@@ -4675,7 +4675,7 @@ padding:0 14px;font-family:ui-sans-serif,system-ui,sans-serif;line-height:34px}
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-09-02 14:59</span>
+    <span id="buildStamp">build 2026-09-03 15:39</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -5662,7 +5662,7 @@ Object.assign(window.Cloud, {
 });
 
 window.applyTheme = function() {
-  const theme = Store.data.settings?.theme || "auto";
+  const theme = Store.data?.settings?.theme || "auto";
   if (theme === "auto") {
     delete document.documentElement.dataset.theme;
   } else {
@@ -10375,7 +10375,16 @@ function surfaceArrivals() {
     function save() {
       var t = title.value.trim();
       node.title = t;
-      node.notes = note.value;
+      /* 2026-09-03: `note` is the <textarea class="ea-note"> that m110 REPLACED in the DOM with
+         the rich contenteditable box. The closure still held the detached textarea, so saving
+         wrote back the notes as they were when the dialog opened - discarding everything typed. */
+      var rich = document.querySelector('.modal .note-rich');
+      if (rich) {
+        node.notesHtml = rich.innerHTML;
+        node.notes = rich.innerText;
+      } else {
+        node.notes = note.value;
+      }
       node.date = date.value || null;
       node.time = time.value || null;
       if (!node.date) { node.time = null; node.block = null; }
@@ -13580,6 +13589,14 @@ function firstConnect(remote, rAt, lAt) {
   // working. It is DERIVED - never edited directly.
   function syncPlain(node) {
     var L = node.noteLines || [], parts = [], i;
+    /* 2026-09-03 - THE notes bug. This derives node.notes from node.noteLines, the model of a note
+       box that was superseded twice; nothing writes noteLines any more. m110 wires it to the Save
+       button, so on every save it joined an empty array and stored ''. Measured: the dialog wrote
+       "WATCHED-NOTE", then this wrote "" one tick later. And when a node carries notesHtml the
+       rich box is the live source - deriving would restore the pre-edit text. noteLines is left in
+       the data untouched, just never read back. */
+    if (node.notesHtml) return;
+    if (!L.length) return;
     for (i = 0; i < L.length; i++) { parts.push(L[i].t || ''); }
     node.notes = parts.join('\n');
   }
@@ -21563,15 +21580,16 @@ ancestor that can move.
       }
 
       // 5) Save button state based on Location field
+      /* 2026-09-03: this used to DISABLE Save whenever the Location field still read
+         "Choose a branch". That field is deliberately blank on every open, so Save started
+         disabled with no message, and a top-level goal - which has no branch to pick - could
+         never enable it. Clicking Save did nothing and the edit was lost. The branch requirement
+         is still enforced by the guard that opens the branch picker on click, which at least
+         tells the user what it wants. Never silently disable. */
       var saves = document.querySelectorAll('button');
       for (var m = 0; m < saves.length; m++) {
         if (trim(saves[m].textContent) === 'Save') {
-          var dlg = document.querySelector('.modal .ea');
-          if (dlg) {
-            var lf = dlg.querySelector('.lf-field');
-            var txt = lf ? trim(lf.textContent) : '';
-            saves[m].disabled = (txt.indexOf('Choose a branch') === 0);
-          }
+          saves[m].disabled = false;
         }
       }
     }
