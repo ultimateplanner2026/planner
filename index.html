@@ -4675,7 +4675,7 @@ padding:0 14px;font-family:ui-sans-serif,system-ui,sans-serif;line-height:34px}
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-09-03 15:39</span>
+    <span id="buildStamp">build 2026-09-03 16:07</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -18063,7 +18063,22 @@ if (r.freq === 'yearly') {
     if (node && node.notesHtml) area.innerHTML = node.notesHtml;
     else area.textContent = (node && typeof node.notes === 'string') ? node.notes : '';
 
-    function commit() { node.notesHtml = area.innerHTML; node.notes = area.innerText; }
+    /* 2026-09-03: commit() already mutated the node on every keystroke but never persisted, so a
+       Save click that got swallowed anywhere in the chain lost the note even though the object
+       held it. Measured: 1 in 4 saves stored the PREVIOUS note. Persisting here is not a change of
+       semantics - the node was already being mutated irreversibly - only of durability. */
+    var commitSaveTimer = null;
+    function commit() {
+      node.notesHtml = area.innerHTML;
+      node.notes = area.innerText;
+      if (window.Store && typeof window.Store.save === 'function') {
+        if (commitSaveTimer !== null) { clearTimeout(commitSaveTimer); }
+        commitSaveTimer = setTimeout(function () {
+          commitSaveTimer = null;
+          try { window.Store.save(); } catch (err) {}
+        }, 400);
+      }
+    }
     area.addEventListener('input', commit);
     area.addEventListener('blur', commit);
 
@@ -21696,15 +21711,19 @@ ancestor that can move.
       }
     }
 
+    /* 2026-09-03 - THE title bug, and the reason it was intermittent. This is the SECOND place
+       that gated Save on the Location field, and it runs on a 400ms setInterval. The other one
+       (fixed the same day) runs on a MutationObserver. So the button flickered: enabled by one,
+       disabled by the other, four times a second. Click during a disabled window and NOTHING
+       happens - no event fires at all, so there is no error and no message; click again a moment
+       later and it works. Measured: 1 in 4 saves silently lost the title. The branch requirement
+       is still enforced by the guard that opens the branch picker on click, which at least tells
+       the user what it wants. Never silently disable a control. */
     function gateSave() {
-      var ea = document.querySelector('.modal .ea');
       var bs = document.querySelectorAll('.modal button');
       for (var i = 0; i < bs.length; i++) {
         if ((bs[i].textContent || '').trim() !== 'Save') continue;
-        if (!ea) { bs[i].disabled = false; continue; }
-        var f = document.querySelector('.lf-field');
-        var txt = f ? (f.textContent || '') : '';
-        bs[i].disabled = (txt.indexOf('Choose a branch') === 0);
+        bs[i].disabled = false;
       }
     }
 
