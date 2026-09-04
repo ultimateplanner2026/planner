@@ -4920,6 +4920,139 @@ html:root #treeRoot .tree-row:not([data-depth="0"]){ height:32px !important; min
 .dp2 .dp2-grid{ gap:4px !important }
 .dp2 .dp2-day{ height:30px !important }
 .dp2 .dp2-blank{ height:30px !important }
+
+/* --- the tree footer is one button now, Sep 04 --- */
+/* "N hidden until their day" and "Show them" are gone - the edit menu already carries Show/Hide
+   future tasks, so they repeated a control that already exists. "N overdue" is the only thing left
+   and it is now a toggle: press it and the tree opens ONLY the branches that hold something
+   overdue. Pressed state is a solid fill, not an outline - it is the only sign the tree is filtered. */
+#treeFooter .overdue-btn{
+  border:1px solid #7f1d1d; border-radius:8px; background:transparent;
+  color:#f87171; font:inherit; font-size:12px; line-height:1;
+  padding:6px 10px; min-height:28px; cursor:pointer;
+}
+#treeFooter .overdue-btn:hover{ background:rgba(248,113,113,.12) }
+#treeFooter .overdue-btn.is-on{
+  background:#f87171; border-color:#f87171; color:#1b1f25; font-weight:600;
+}
+#treeFooter .overdue-btn:disabled{ opacity:.45; cursor:default; background:transparent; color:#9aa1ab; border-color:#3a4049 }
+#treeFooter{ justify-content:flex-end }
+
+/* --- overdue mode is CSS, not a timer writing style.display, Sep 04 --- */
+/* The first version set display on every row four times a second while the app's own filter did
+   the same - two writers, visible flicker. Now one class on the tree and one on each row, and CSS
+   does the hiding. Nothing is written unless it actually changed. */
+#treeRoot.overdue-only .tree-row{ display:none !important; }
+#treeRoot.overdue-only .tree-row.od-hit,
+#treeRoot.overdue-only .tree-row.od-anc{ display:flex !important; }
+/* past due shows red ONLY while the button is on */
+#treeRoot.overdue-only .tree-row.od-hit .tree-title{ color:#f87171 !important; }
+#treeRoot.overdue-only .tree-row.od-hit .tree-datechip{ color:#f87171 !important; }
+
+/* --- the priority tree toolbar is one row, Sep 04 --- */
+/* search on the left and WIDE, the date nav just right of it (left of centre, not centred), the
+   gear hard right. Focus mode and New goal moved into the gear menu. */
+.tree-toolbar{ display:flex !important; align-items:center !important; gap:8px !important;
+               flex-wrap:nowrap !important; }
+.tree-toolbar #treeSearch{
+  flex:1 1 auto !important; min-width:110px !important; max-width:none !important;
+  width:auto !important; height:30px !important; box-sizing:border-box !important;
+}
+.tree-datenav{ display:flex; align-items:center; gap:2px; flex:0 0 auto; margin-right:auto; }
+.tree-datenav button{ height:28px !important; min-height:28px !important; }
+.tree-datenav #btnToday{ white-space:nowrap; }
+.tree-gear{
+  flex:0 0 30px; width:30px; height:30px; border:1px solid #2e323a; border-radius:8px;
+  background:#16181c; color:#e6e8ec; font-size:15px; line-height:1; cursor:pointer; padding:0;
+}
+.tree-gear:hover{ border-color:#3a4150 }
+/* the date leaves the top bar; nothing should hold its place */
+#topbar #btnPrevMonth, #topbar #btnToday, #topbar #btnNextMonth{ display:none !important; }
+
+.tree-gearmenu{
+  position:absolute; z-index:2147483400; background:#2b3038; color:#e9ecf1;
+  border:1px solid #3a4049; border-radius:10px; padding:6px; min-width:180px;
+  box-shadow:0 18px 48px rgba(0,0,0,.5);
+  font-family:ui-sans-serif,system-ui,-apple-system,sans-serif;
+}
+.tree-gearmenu .gearitem{
+  display:flex; align-items:center; width:100%; gap:8px;
+  background:none; border:none; color:#e9ecf1; font:inherit; font-size:13px;
+  text-align:left; padding:9px 10px; border-radius:7px; cursor:pointer;
+}
+.tree-gearmenu .gearitem:hover{ background:#343a43 }
+.tree-gearmenu .gearcheck{ margin-left:auto; color:#a8c7de; font-weight:600 }
+.tree-gearmenu .gearcount{ margin-left:auto; color:#f87171; font-weight:600 }
+
+/* the date left the top bar, so the space it held open goes too - the remaining controls move to
+   the left edge instead of leaving a hole where the date used to be */
+#topbar .topbar-spacer{ flex:0 0 0 !important; width:0 !important; }
+#topbar #buildStamp{ margin-left:auto; }
+/* give the search every pixel the row can spare */
+.tree-toolbar{ padding-left:8px !important; padding-right:8px !important; gap:6px !important; }
+.tree-datenav{ gap:0 !important; }
+.tree-datenav button{ padding-left:6px !important; padding-right:6px !important; }
+.tree-datenav #btnPrevMonth, .tree-datenav #btnNextMonth{
+  width:18px !important; min-width:18px !important; padding:0 !important; font-size:11px !important;
+}
+.tree-datenav #btnToday{ padding:0 6px !important; font-size:12px !important; }
+
+/* --- the divider runs floor to ceiling, Sep 04 --- */
+/* The full-width #topbar used to sit above both panes, so the divider only began below it. Its
+   controls now live in a header inside the calendar pane, and the tree pane's own toolbar is the
+   top of its column - so the split line goes all the way up. */
+/* the app fills the window below whatever chrome sits above it. In the real build that is
+   nothing; in the preview it is the red bar, which sets --chrome-top to its own height. */
+#main{ height:calc(100vh - var(--chrome-top, 0px)) !important; }
+.cal-topbar{
+  display:flex; align-items:center; gap:8px; padding:0 12px;
+  height:47px; flex:0 0 47px; background:var(--surface,#1c1f26);
+  border-bottom:1px solid var(--line,#2e323a); justify-content:flex-end;
+}
+.cal-topbar > *{ flex:0 0 auto }
+/* the buttons kept the old top bar's stacked icon-over-label look once they moved; put the icon
+   and its word back on one line */
+.cal-topbar button{ display:inline-flex !important; align-items:center !important; gap:5px !important;
+                    white-space:nowrap !important; }
+.cal-topbar button svg{ flex:0 0 auto }
+/* the tree's toolbar is now the top of its column, so it matches the calendar header's height */
+.tree-toolbar{ height:47px !important; flex:0 0 47px !important; background:var(--surface,#1c1f26) !important;
+               border-bottom:1px solid var(--line,#2e323a) !important; }
+/* a visible split line, still draggable */
+#splitter{ background:#3a4150 !important; width:3px !important; flex:0 0 3px !important; }
+#splitter:hover{ background:#4a5160 !important; }
+/* the operator asked for the version on screen, TOP RIGHT (2026-08-20), and the regression suite
+   holds that: right edge within 20px of the window, top within 60px. Moving it to the bottom broke
+   that. It rides the calendar header now. */
+#buildStamp{ position:fixed !important; right:10px !important; top:8px !important; bottom:auto !important;
+             left:auto !important; opacity:.45; pointer-events:none !important; z-index:5; }
+/* the date label must not resize as the date changes, or the whole control jumps */
+.tree-datenav #btnToday{ width:95px !important; min-width:95px !important; max-width:95px !important;
+                         justify-content:center !important; overflow:hidden !important; }
+
+/* --- the date nav is one segmented control, Sep 04 --- */
+/* The arrows were bare chevrons floating either side of a boxed label. Joined: three cells sharing
+   a border, rounded at the ends only, so it reads as a single control. */
+.tree-datenav{ gap:0 !important; }
+.tree-datenav > button{
+  border:1px solid #2e323a !important; background:#16181c !important; color:#e6e8ec !important;
+  height:28px !important; min-height:28px !important; border-radius:0 !important;
+  margin:0 !important; box-sizing:border-box !important;
+}
+.tree-datenav > button + button{ border-left:0 !important; }
+.tree-datenav > button:first-child{ border-radius:7px 0 0 7px !important; }
+.tree-datenav > button:last-child{ border-radius:0 7px 7px 0 !important; }
+.tree-datenav > button:hover{ background:#1f242c !important; }
+.tree-datenav #btnPrevMonth, .tree-datenav #btnNextMonth{
+  width:22px !important; min-width:22px !important; padding:0 !important; font-size:12px !important;
+}
+.tree-datenav #btnToday{ padding:0 8px !important; font-size:12px !important; }
+</style>
+</head>
+<body>
+
+
+
 </style>
 </head>
 <body>
@@ -4940,7 +5073,7 @@ html:root #treeRoot .tree-row:not([data-depth="0"]){ height:32px !important; min
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-09-04 01:00</span>
+    <span id="buildStamp">build 2026-09-04 15:31</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -24146,5 +24279,419 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
      FIRST click on a month cell already navigates to that day - by the second click
      the app is showing the day view. Double-click belongs to Day and Week, where the
      grid stays put. Removed rather than left as a handler that never runs. -->
+
+<!-- 2026-09-04: the first overdue module lived here. It rebuilt the button and rewrote
+     every row's style.display on a 400ms tick, so the button flashed on every render and
+     the tree fought the app's own filter - both flickered. Replaced by a version that
+     writes CLASSES and only when they differ. -->
+
+<script>
+/* 2026-09-04 - overdue mode. Press the button and only the branches holding an overdue task open.
+   Everything is expressed as classes - 'overdue-only' on the tree, 'od-hit' and 'od-anc' on rows -
+   and written only when they differ, so nothing flickers. Past-due tasks turn red, but only while
+   the button is on. */
+(function () {
+  if (window.__overdue2Installed) return;
+  window.__overdue2Installed = true;
+
+  if (typeof window.__overdueMode === 'undefined') window.__overdueMode = false;
+
+  function overdueIds() {
+    var set = {};
+    var today = window.todayISO();
+    window.walkTree(function (node) {
+      if (node.date && !node.done && node.date < today) {
+        set[node.id] = true;
+      }
+    });
+    return set;
+  }
+
+  function ancestorsOf(ids) {
+    var set = {};
+    var keys = Object.keys(ids);
+    for (var i = 0; i < keys.length; i++) {
+      var found = window.findNode(keys[i]);
+      var p = found && found.parent;
+      while (p) {
+        if (!ids[p.id]) set[p.id] = true;
+        var next = window.findNode(p.id);
+        p = next ? next.parent : null;
+      }
+    }
+    return set;
+  }
+
+  function setClass(el, cls, on) {
+    if (!el) return;
+    var has = el.classList.contains(cls);
+    if (on && !has) el.classList.add(cls);
+    else if (!on && has) el.classList.remove(cls);
+  }
+
+  function onOverdueClick() {
+    var wasOn = !!window.__overdueMode;
+    window.__overdueMode = !wasOn;
+
+    /* 2026-09-04: plannerToggleCollapse re-renders the whole tree on EVERY call, and this opens or
+       shuts a branch at a time - six re-renders, six layout jumps, which is the flicker at the
+       bottom of the list. Measured across the click: the tree height went 677 -> 1016 -> 974.
+       Silence renderTree while the set is being changed, then render once at the end. */
+    /* and the tree still lands in two stages - the render opens the branches (height 1016), then
+       paint() hides the unrelated rows a tick later (974). Two visible jumps. Hide the tree for the
+       few milliseconds in between and reveal it once, already correct. */
+    var treeEl = document.getElementById('treeRoot');
+    if (treeEl) treeEl.style.visibility = 'hidden';
+
+    var realRender = window.renderTree;
+    window.renderTree = function () {};
+
+    if (!wasOn) {
+      var odSet = overdueIds();
+      var ancSet = ancestorsOf(odSet);
+      var collapsed = window.plannerCollapsedSet();
+      var aKeys = Object.keys(ancSet);
+      for (var i = 0; i < aKeys.length; i++) {
+        if (collapsed[aKeys[i]]) window.plannerToggleCollapse(aKeys[i]);
+      }
+    } else {
+      var collapsed2 = window.plannerCollapsedSet();
+      window.walkTree(function (node) {
+        if (node.children && node.children.length && !collapsed2[node.id]) {
+          window.plannerToggleCollapse(node.id);
+        }
+      });
+    }
+
+    window.renderTree = realRender;
+    if (typeof window.renderTree === 'function') window.renderTree();
+    paint();
+
+    /* Other modules re-render on their own deferred ticks after this one, and each of those lands
+       before paint()'s 400ms interval comes round - which is why the tree sat at the un-filtered
+       height for ~300ms. Re-apply on the same schedule they use, and only reveal the tree on the
+       last pass, so the change is seen once. */
+    var stages = [0, 60, 160, 320];
+    var si;
+    for (si = 0; si < stages.length; si++) {
+      (function (delay, isLast) {
+        setTimeout(function () {
+          paint();
+          if (isLast && treeEl) treeEl.style.visibility = '';
+        }, delay);
+      })(stages[si], si === stages.length - 1);
+    }
+  }
+
+  function paint() {
+    /* 2026-09-04: paint runs on a timer and at install, which can be before the store has
+       loaded. walkTree then throws "Cannot read properties of null (reading 'tree')" on
+       boot. Wait until there is data. */
+    if (!window.Store || !window.Store.data || !window.Store.data.tree) return;
+    if (typeof window.walkTree !== 'function' || typeof window.findNode !== 'function') return;
+    /* 2026-09-04: the footer button is gone at the operator's request - the toggle lives in
+       the gear menu. This module kept re-creating it while the layout module removed it,
+       which is two writers on one element again. paint() now only paints the TREE.
+       (An earlier version of this edit left `if (!footer) return;` in place, so paint did
+       nothing at all and the overdue-only class never appeared.) */
+    var odSet = overdueIds();
+    var ancSet = ancestorsOf(odSet);
+    var n = Object.keys(odSet).length;
+
+    /* no footer button any more - `btn` was left dangling here and threw a ReferenceError
+       inside paint(), which is why the tree never got its class. */
+
+    var tree = document.getElementById('treeRoot');
+    if (tree) {
+      setClass(tree, 'overdue-only', !!window.__overdueMode);
+      var rows = tree.querySelectorAll('.tree-row');
+      for (var r = 0; r < rows.length; r++) {
+        var row = rows[r];
+        var id = row.getAttribute('data-id');
+        setClass(row, 'od-hit', !!odSet[id]);
+        setClass(row, 'od-anc', !!ancSet[id]);
+      }
+    }
+  }
+
+  /* 2026-09-04: the gear's "Missed" line owns the toggle now that the footer button is gone,
+     so the count and the switch are exposed here. */
+  /* NOT __overdueCount: the app already uses that name for a NUMBER, reassigned on every
+     __applyTimeFilter run, so a function parked there is overwritten within the second.
+     Measured: typeof came back "number". This is RULES 1a-26 again - grep the name first. */
+  window.__odCount = function () { return Object.keys(overdueIds()).length; };
+  window.__odToggle = function () { onOverdueClick(); };
+
+  paint();
+  setInterval(paint, 400);
+
+  var origSetTab = window.setTab;
+  window.setTab = function (name) {
+    window.__overdueMode = false;
+    origSetTab(name);
+    paint();
+  };
+})();
+</script>
+
+<script>
+/* 2026-09-04 - the priority tree toolbar: search left and wide, the date nav moved down from the
+   top bar and sitting just right of it, the gear hard right. Focus mode and New goal are hidden
+   rather than removed - other code still clicks those buttons - and the gear menu clicks them. */
+(function () {
+  if (window.__treeBarInstalled) return;
+  window.__treeBarInstalled = true;
+
+  var openMenu = null;
+
+  function hasClass(el, cls) {
+    if (!el) return false;
+    return (' ' + (el.className || '') + ' ').indexOf(' ' + cls + ' ') !== -1;
+  }
+
+  function onKey(e) {
+    var k = e.key || e.keyCode;
+    if (k === 'Escape' || k === 27) closeMenu();
+  }
+
+  function onDocClick(e) {
+    if (openMenu && !openMenu.contains(e.target)) closeMenu();
+  }
+
+  function closeMenu() {
+    if (!openMenu) return;
+    var m = openMenu;
+    openMenu = null;
+    if (m.parentNode) m.parentNode.removeChild(m);
+    if (m.__cleanup) m.__cleanup();
+  }
+
+  function positionMenu(menuEl, gear) {
+    var gr = gear.getBoundingClientRect();
+    var sx = window.pageXOffset || 0;
+    var sy = window.pageYOffset || 0;
+    var vw = window.innerWidth;
+    var vh = window.innerHeight;
+    var w = menuEl.offsetWidth;
+    var h = menuEl.offsetHeight;
+    var left = sx + gr.right - w;
+    var top = sy + gr.bottom + 6;
+    var minLeft = sx + 8;
+    var maxLeft = sx + vw - w - 8;
+    if (minLeft > maxLeft) maxLeft = minLeft;
+    if (left < minLeft) left = minLeft;
+    if (left > maxLeft) left = maxLeft;
+    var minTop = sy + 8;
+    var maxTop = sy + vh - h - 8;
+    if (minTop > maxTop) maxTop = minTop;
+    if (top > maxTop) top = maxTop;
+    if (top < minTop) top = minTop;
+    menuEl.style.position = 'absolute';
+    menuEl.style.left = left + 'px';
+    menuEl.style.top = top + 'px';
+  }
+
+  function menu(gear) {
+    if (openMenu) closeMenu();
+
+    var menuEl = document.createElement('div');
+    menuEl.className = 'tree-gearmenu';
+
+    var b1 = document.createElement('button');
+    b1.type = 'button';
+    b1.className = 'gearitem';
+    b1.textContent = 'New goal';
+    b1.onclick = function () {
+      var t = document.getElementById('btnAddGoal');
+      if (t) t.click();
+      closeMenu();
+    };
+    menuEl.appendChild(b1);
+
+    var b2 = document.createElement('button');
+    b2.type = 'button';
+    b2.className = 'gearitem';
+    b2.textContent = 'Focus mode';
+    b2.onclick = function () {
+      var t = document.getElementById('btnFocus');
+      if (t) t.click();
+      closeMenu();
+    };
+    if (hasClass(document.body, 'focus-mode') || window.__focusOn) {
+      var sp = document.createElement('span');
+      sp.className = 'gearcheck';
+      sp.textContent = '\u2713';
+      b2.appendChild(sp);
+    }
+    menuEl.appendChild(b2);
+
+    var b3 = document.createElement('button');
+    b3.type = 'button';
+    b3.className = 'gearitem';
+    b3.textContent = 'Missed';
+    /* 2026-09-04: the footer button is gone at the operator's request, so this line owns the
+       toggle. The overdue module exposes the count and the switch. */
+    var n = (typeof window.__odCount === 'function') ? window.__odCount() : 0;
+    if (n > 0) {
+      var sp2 = document.createElement('span');
+      sp2.className = 'gearcount';
+      sp2.textContent = String(n);
+      b3.appendChild(sp2);
+    }
+    if (window.__overdueMode) {
+      var spOn = document.createElement('span');
+      spOn.className = 'gearcheck';
+      spOn.textContent = '\u2713';
+      b3.appendChild(spOn);
+    }
+    b3.disabled = (n === 0);
+    b3.onclick = function () {
+      if (typeof window.__odToggle === 'function') window.__odToggle();
+      closeMenu();
+    };
+    menuEl.appendChild(b3);
+
+    document.body.appendChild(menuEl);
+    openMenu = menuEl;
+    positionMenu(menuEl, gear);
+
+    var onKeyHandler = onKey;
+    var onDocHandler = onDocClick;
+    menuEl.__cleanup = function () {
+      document.removeEventListener('keydown', onKeyHandler, true);
+      document.removeEventListener('click', onDocHandler, true);
+    };
+
+    setTimeout(function () {
+      document.addEventListener('keydown', onKeyHandler, true);
+      document.addEventListener('click', onDocHandler, true);
+    }, 0);
+  }
+
+  function build() {
+    var tb = document.querySelector('.tree-toolbar');
+    if (!tb) return;
+
+    var dg = document.getElementById('treeDateGroup');
+    if (!dg) {
+      dg = document.createElement('div');
+      dg.id = 'treeDateGroup';
+      dg.className = 'tree-datenav';
+      var ids = ['btnPrevMonth', 'btnToday', 'btnNextMonth'];
+      for (var i = 0; i < ids.length; i++) {
+        var el = document.getElementById(ids[i]);
+        if (el) dg.appendChild(el);
+      }
+      var search = document.getElementById('treeSearch');
+      if (search && search.parentNode === tb) {
+        if (search.nextSibling) {
+          tb.insertBefore(dg, search.nextSibling);
+        } else {
+          tb.appendChild(dg);
+        }
+      } else {
+        tb.appendChild(dg);
+      }
+    }
+
+    var gear = document.getElementById('treeGear');
+    if (!gear) {
+      gear = document.createElement('button');
+      gear.type = 'button';
+      gear.id = 'treeGear';
+      gear.className = 'tree-gear';
+      gear.title = 'Priority tree options';
+      gear.textContent = '\u2699';
+      tb.appendChild(gear);
+    }
+    gear.onclick = function (e) {
+      e.stopPropagation();
+      menu(gear);
+    };
+
+    var bf = document.getElementById('btnFocus');
+    if (bf) bf.style.display = 'none';
+    var ba = document.getElementById('btnAddGoal');
+    if (ba) ba.style.display = 'none';
+  }
+
+  build();
+  setInterval(build, 500);
+})();
+</script>
+
+<script>
+/* 2026-09-04 - the divider now runs from the very top. The full-width top bar is emptied into a
+   header inside the calendar pane and hidden, so each column owns its own header and the split
+   line is unbroken. The overdue button leaves the tree footer - it lives in the gear menu. */
+(function () {
+  if (window.__fullDividerInstalled) return;
+  window.__fullDividerInstalled = true;
+
+  function move() {
+    var topbar = document.getElementById('topbar');
+    var rightPane = document.getElementById('rightPane');
+    var treeToolbar = document.querySelector('.tree-toolbar');
+    if (!topbar || !rightPane || !treeToolbar) return;
+
+    var calTopbar = null;
+    for (var i = 0; i < rightPane.children.length; i++) {
+      if (rightPane.children[i].id === 'calTopbar') {
+        calTopbar = rightPane.children[i];
+        break;
+      }
+    }
+    if (!calTopbar) {
+      calTopbar = document.createElement('div');
+      calTopbar.id = 'calTopbar';
+      calTopbar.className = 'cal-topbar';
+      rightPane.insertBefore(calTopbar, rightPane.firstChild);
+    }
+
+    var kids = Array.prototype.slice.call(topbar.children);
+    for (var j = 0; j < kids.length; j++) {
+      var kid = kids[j];
+      if (kid.id === 'buildStamp') continue;
+      if (calTopbar.contains(kid)) continue;
+      calTopbar.appendChild(kid);
+    }
+
+    /* the version must stay on screen, top right (operator, 2026-08-20, and the regression suite
+       holds it). It lives inside #topbar, which is about to be hidden, so lift it out first. */
+    var bs = document.getElementById('buildStamp');
+    if (bs && bs.parentNode !== document.body) document.body.appendChild(bs);
+
+    if (topbar.children.length === 0) {
+      topbar.style.display = 'none';
+    }
+  }
+
+  function dropFooterButton() {
+    /* 2026-09-04: the whole footer goes, not just the overdue button. "N hidden until their day"
+       and "Show them" were being stripped by the overdue module, and that module no longer touches
+       the footer at all - so they came back. Everything the footer holds is either duplicated in
+       the edit menu or now lives in the gear. */
+    var f = document.getElementById('treeFooter');
+    if (!f) return;
+    var kill = document.querySelectorAll('#treeFooter .overdue-count, .ahead-state, #btnRevealAhead'), i;
+    for (i = 0; i < kill.length; i++) {
+      if (kill[i].parentNode) kill[i].parentNode.removeChild(kill[i]);
+    }
+    if (f.children.length === 0) f.style.display = 'none';
+  }
+
+  function tick() {
+    move();
+    dropFooterButton();
+  }
+
+  tick();
+  setInterval(tick, 500);
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', tick);
+  }
+})();
+</script>
 </body>
 </html>
