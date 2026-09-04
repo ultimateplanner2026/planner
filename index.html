@@ -4657,9 +4657,274 @@ padding:0 14px;font-family:ui-sans-serif,system-ui,sans-serif;line-height:34px}
 .dp2 .dp2-day{width:32px !important;height:32px !important;min-width:32px !important;
   padding:0 !important;display:flex;align-items:center;justify-content:center}
 .dp2 .dp2-dow{width:32px !important;text-align:center}
+
+
+/* --- review-loop round 1 findings (Minimax, measured) --- */
+/* Reminder row: ONE control reading "Add alarm". No "No alarms", no bare "+".
+   Sized to its OWN section - the ea-row fields, which live renders at 36px / 13px / 7px.
+   It was H=27 font=11px radius=5px transparent, which matched nothing. */
+.modal .ea .al-wrap{gap:6px !important}
+.modal .ea .al-add{
+  height:36px !important;min-height:36px !important;width:100% !important;
+  font-size:13px !important;border-radius:7px !important;box-sizing:border-box !important;
+  background:#16181c !important;border:1px solid #2e323a !important;color:#e6e8ec !important;
+  text-align:left !important;padding:0 10px !important;cursor:pointer;
+}
+.modal .ea .al-add:hover{border-color:#3a4150 !important}
+/* Notes box: same corner radius as its neighbours (was 6px) */
+.modal .ea .note-box{border-radius:7px !important;overflow:hidden !important}
+.modal .ea .note-rich{border-radius:7px 7px 0 0 !important;border-color:#2e323a !important}
+.modal .ea .note-bar2{border-radius:0 0 7px 7px !important;border-color:#2e323a !important}
+
+/* --- section symmetry, Sep 03 (measured; fonts deliberately left at the live sizes) --- */
+
+
+/* 2. Edit dialog, the field column: 34 / 36 / 38 -> 36.
+      Nothing was wrong with the CSS - padding 7px, border 1px, font 13px and border-box were
+      already identical on all five. No height was set, so each control type sized itself:
+      input[type=time] reserves 2px for its clock spinner, and a <select> ignores the inherited
+      line-height:19.5px in favour of `normal`. An explicit height stops the control type
+      deciding. 36 already matches Due Date, Duration and the Subtasks field, so only Time (-2)
+      and the two selects (+2) move. Fonts, radius, padding and colour are untouched. */
+.modal .ea .ea-row input, .modal .ea .ea-row select{
+  height:36px !important; min-height:36px !important; box-sizing:border-box !important;
+}
+
+/* --- priority tree hierarchy, Sep 03 --- */
+/* Measured on live: EVERY depth renders at 14px, and depth 0 is only weight 510 vs 400 - so a
+   main branch is the same size as its sub-branches and barely bolder. Operator: "the main branch
+   font needs to be bold and bigger than the subbranches", and the tree overall wants to be bigger.
+   Two levels only, so each stays internally consistent:
+       depth 0  (main branches)  17px / 700
+       depth 1+ (sub-branches)   15px / 400
+   These carry !important, which also neutralises the stray inline font-size:13px that a few nodes
+   carry in the operator's own stored data - at every depth, not just depth 0. Data is untouched. */
+#treeRoot .tree-row[data-depth="0"] .tree-title{
+  font-size:14px !important; font-weight:700 !important; letter-spacing:-.01em !important;
+}
+#treeRoot .tree-row[data-depth="0"]{ min-height:40px !important; }
+#treeRoot .tree-row:not([data-depth="0"]) .tree-title{
+  font-size:13px !important; font-weight:400 !important;
+}
+#treeRoot .tree-row:not([data-depth="0"]){ min-height:34px !important; }
+/* The row height is pinned by `:root[data-v-density] #treeRoot .tree-row { height: ... !important }`,
+   which makes min-height inert. Beat it on specificity so a 17px main-branch title gets room. */
+html:root #treeRoot .tree-row[data-depth="0"]{ height:32px !important; min-height:32px !important; }
+html:root #treeRoot .tree-row:not([data-depth="0"]){ height:32px !important; min-height:32px !important; }
+
+/* --- week / day time grid, Sep 03 --- */
+/* Measured in the week panel: day heads and hour labels both 11px, and the hour pitch was 40px,
+   so 18 hours came to 720px inside a 670px scroller - it technically scrolled, by 50px, which
+   reads as a fixed cramped grid. TG.HOUR_PX is now 60 (18 x 60 = 1080 in ~670, ~410px of real
+   scroll) and every label, line, event top/height, the now-marker and the drag maths derive from
+   that one constant, so nothing else needed moving. The 18px event floor is left absolute - it is
+   a legibility minimum, not a scale. */
+#tabWeek .tgdayhead, #tabDay .tgdayhead, .tgdayhead{ font-size:13px !important; }
+.tghour-label{ font-size:12px !important; }
+.tgdatelabel{ font-size:15px !important; }
+/* every control in the .tgtop bar is one section - they must all match */
+.tgtop button:not(.not-today):not(.not-this-month){ font-size:13px !important; min-height:30px !important; }
+
+/* --- date nav bar + calendar headers, Sep 03 (measured) --- */
+/* The .tgtop bar is ONE section, so everything in it is one size. It read wrong because the label
+   sat at 15px/H28 beside buttons at 13px/H30 - two sizes and a 2px height step in the same strip.
+   14px/H30 is chosen deliberately, not as a midpoint: it is bigger than the 12-13px the bar started
+   at (the "a little bigger" ask) and uniform (the "it must match" ask). */
+/* 2026-09-03: `display:inline-flex !important` below applies to every button in this bar - and
+   the amber "Not today" badge is one, hidden since 2026-08-20 by `.not-today{display:none}`.
+   Same specificity, mine came later, so it won and the badge came back as a 185x30 pill. The
+   regression suite caught it: "no amber 'not today' badge is visible  week:185x30". Exclude it. */
+.tgtop button:not(.not-today):not(.not-this-month), .tgtop .tgdatelabel, .tgtop .tgtitle{
+  font-size:14px !important; min-height:30px !important; box-sizing:border-box !important;
+  display:inline-flex !important; align-items:center !important;
+}
+/* Month day-name headers were 11px/600 while the week's were 13px/400 - same thing, two looks. */
+.mhead{ font-size:13px !important; font-weight:400 !important; }
+/* "All day" shares the gutter with the hour labels, so it takes their metric exactly. */
+.tggutterlabel{ font-size:12px !important; font-weight:400 !important; }
+
+/* --- overall size-up, Sep 03 (operator: "it needs to be much bigger") --- */
+/* View tabs. 500 reads washed out above 14px, so the weight goes up with the size. */
+#tabsBar .tab{ font-size:14px !important; font-weight:500 !important; min-height:42px !important; }
+/* Task text in the calendar. The time line stays one step below the title so it reads as
+   subordinate - and, deliberately, so a short block does not overflow: at 60px/hour a 30-minute
+   event is 30px, and a 14px title over a 13px time would not fit. 14 + 12 does. */
+.tgevent-title{ font-size:14px !important; }
+.tgevent{ font-size:12px !important; }
+.tgevent-time{ font-size:12px !important; }
+/* Week all-day chips and month cell entries - a different component from the timed blocks. */
+.tgchip{ font-size:13px !important; }
+.mchip{ font-size:13px !important; }
+.mdaynum{ font-size:14px !important; }
+
+/* --- one width for every black box in the edit dialog's field column, Sep 03 --- */
+/* Measured: Due Date 167, Time 362, Duration 167, Priority 120, Colour 121, Reminder 334 - all
+   right-aligned to the same edge, so the LEFT edges were ragged the whole way down. One width
+   lines them up. Subtasks is a different section and keeps its own full-width input. */
+.modal .ea .ea-row input,
+.modal .ea .ea-row select,
+.modal .ea .ea-row .lf-field{
+  width:200px !important; min-width:200px !important; max-width:200px !important;
+  flex:0 0 200px !important; box-sizing:border-box !important;
+}
+/* The Reminder row's control sits inside .al-wrap, which is a COLUMN flex container - a
+   `flex:0 0 200px` there sets its HEIGHT, not its width. Measured: it came out 200px tall.
+   Width and height explicitly, no flex shorthand. */
+.modal .ea .ea-row .al-wrap{ flex:0 0 200px !important; width:200px !important; align-items:stretch !important; }
+.modal .ea .ea-row .al-add{
+  width:200px !important; min-width:200px !important; max-width:200px !important;
+  height:36px !important; min-height:36px !important; max-height:36px !important;
+  flex:none !important; box-sizing:border-box !important;
+}
+
+/* --- field column sized to its content, Sep 03 --- */
+/* Canvas-measured widest value in the app font: "2026-09-05" = 67px. +24 padding +2 border
+   +18 for a caret or clock icon = 111. 112 it is. Values read down the column, so they are
+   left-aligned; the right edges go ragged instead, which is the trade the operator asked for. */
+.modal .ea .ea-row input,
+.modal .ea .ea-row select,
+.modal .ea .ea-row .lf-field{
+  width:112px !important; min-width:112px !important; max-width:112px !important;
+  flex:0 0 112px !important; text-align:left !important; padding-left:10px !important;
+}
+.modal .ea .ea-row .al-wrap{ flex:0 0 112px !important; width:112px !important; }
+.modal .ea .ea-row .al-add{
+  width:112px !important; min-width:112px !important; max-width:112px !important;
+  text-align:left !important; padding-left:10px !important;
+}
+
+/* --- the time picker, borrowing the date picker's palette exactly --- */
+/* A native <input type="time"> opens a dropdown Chrome draws itself, outside the page, so CSS
+   can never match it to the app. This replaces that panel with our own list. Every colour here
+   is lifted from .dp2 so the two can never drift. */
+.tp2{
+  position:absolute; z-index:2147483400; background:#2b3038; color:#e9ecf1;
+  border:1px solid #3a4049; border-radius:12px; padding:10px;
+  box-shadow:0 18px 48px rgba(0,0,0,.5); font-size:13px; min-width:150px;
+  font-family:ui-sans-serif,system-ui,-apple-system,sans-serif;
+}
+.tp2-lab{ font-size:12px; color:#8b93a1; padding:0 4px 6px; }
+.tp2-list{
+  max-height:220px; overflow-y:auto; overscroll-behavior:contain;
+  display:flex; flex-direction:column; gap:4px; padding-right:4px;
+}
+.tp2-list::-webkit-scrollbar{ width:8px }
+.tp2-list::-webkit-scrollbar-thumb{ background:#3f4650; border-radius:4px }
+.tp2-list::-webkit-scrollbar-track{ background:transparent }
+.tp2-opt{
+  flex:0 0 auto; height:34px; min-height:34px; border:none; border-radius:8px;
+  background:#343a43; color:#e9ecf1; font-size:14px; cursor:pointer;
+  text-align:center; font-family:inherit;
+}
+.tp2-opt:hover{ background:#3f4650 }
+.tp2-opt.tp2-on{ background:#a8c7de; color:#1b1f25; font-weight:600 }
+.tp2-foot{ display:flex; gap:8px; margin-top:10px }
+.tp2-foot button{
+  flex:1 1 0; height:34px; border-radius:8px; background:#343a43;
+  border:1px solid #3a4049; color:#e9ecf1; font-size:12px; cursor:pointer;
+  font-family:inherit;
+}
+.tp2-foot button:hover{ background:#3f4650 }
+.tp2-foot .tp2-ok{ background:#a8c7de; border-color:#a8c7de; color:#1b1f25; font-weight:600 }
+
+/* the reminder panel is the same panel, one month stacked over the same time list */
+.rp2 .dp2-months{ display:block }
+.rp2 .dp2-m{ min-width:0 }
+.rp2 .tp2-list{ max-height:150px }
+.rp2-sep{ height:1px; background:#3a4049; margin:10px 0 }
+
+/* --- hour / minute / meridiem as separate scrolling columns, Sep 03 --- */
+/* Same cells and colours as the day grid - these are the dp2 tokens, not copies of them. */
+.tp2-cols{ display:flex; gap:8px; align-items:flex-start }
+/* one column width everywhere, so the Time panel and the Duration panel read as the same
+   control. Measured before: time 214px on 56/56/64 columns, duration 150px on 56/56. */
+.tp2-col{ display:flex; flex-direction:column; min-width:52px; width:52px }
+.tp2-col.tp2-col-wide{ min-width:52px; width:52px }
+.tp2-collab{ font-size:12px; color:#8b93a1; text-align:center; padding-bottom:6px }
+.tp2-cols .tp2-list{
+  max-height:238px; scroll-snap-type:y proximity; min-width:52px;
+}
+.tp2-cols .tp2-opt{ scroll-snap-align:center; padding:0 }
+/* side-by-side reminder: the month on the left, the time columns on the right */
+.rp2 .rp2-body{ display:flex; gap:18px; align-items:flex-start }
+.rp2 .dp2-months{ display:block }
+.rp2 .dp2-m{ min-width:236px }
+.rp2 .tp2-cols .tp2-list{ max-height:238px }
+.rp2-sep{ display:none }
+
+/* --- the saved-alarm chip, Sep 03 --- */
+/* It used to be trapped in the 112px field column: the date button was squeezed to 43px and wrapped
+   four lines tall, with an empty time input under it and an 8px remove button. The chip now takes
+   the full row width; only "Add alarm" stays in the column. */
+.modal .ea .ea-row .al-wrap{ flex:1 1 auto !important; width:auto !important; align-items:stretch !important }
+.modal .ea .ea-row .al-add{ align-self:flex-end }
+.alc{
+  display:flex; align-items:center; gap:10px; width:100%;
+  background:#2b3038; border:1px solid #3a4049; border-radius:8px;
+  padding:0 8px 0 10px; min-height:38px; box-sizing:border-box;
+}
+.alc + .alc{ margin-top:6px }
+.alc-bell{
+  flex:0 0 26px; width:26px; height:26px; border-radius:13px; background:#343a43;
+  display:flex; align-items:center; justify-content:center; font-size:13px; line-height:1;
+}
+.alc-body{
+  flex:1 1 auto; background:none; border:none; color:#e6e8ec; font:inherit; font-size:13px;
+  text-align:left; padding:8px 2px; cursor:pointer; border-radius:6px; min-height:36px;
+}
+.alc-body:hover{ background:#343a43 }
+.alc-body:focus-visible{ outline:2px solid #a8c7de; outline-offset:2px }
+.alc-time{ color:#8b93a1 }
+.alc-x{
+  flex:0 0 30px; width:30px; height:30px; border:none; border-radius:8px; background:none;
+  color:#8b93a1; font-size:14px; line-height:1; cursor:pointer;
+}
+.alc-x:hover{ background:#3f4650; color:#e6e8ec }
+
+/* --- Time and Duration must be the SAME size, Sep 03 --- */
+/* Both panels are pinned to one width and one list height, so the two read as one control even
+   though Time has three columns and Duration has two. The reminder panel is excluded - it carries a
+   month beside the columns and sizes itself. */
+.tp2:not(.rp2){ width:150px !important; min-width:150px !important; box-sizing:border-box }
+.tp2:not(.rp2) .tp2-cols{ justify-content:center }
+.tp2-col{ min-width:44px !important; width:44px !important }
+.tp2-col.tp2-col-wide{ min-width:44px !important; width:44px !important }
+.tp2-cols .tp2-list{ max-height:170px !important; min-width:44px }
+.tp2 .tp2-opt{ font-size:13px }
+
+/* --- Reminder: one line, with the + on the right --- */
+.modal .ea .ea-row .al-wrap{
+  flex-direction:row !important; align-items:center !important; gap:8px !important;
+}
+.modal .ea .ea-row .al-group{ flex:1 1 auto; min-width:0 }
+.modal .ea .ea-row .al-add{
+  /* 2026-09-03: the + sits between the label and the chips, not after them. The DOM order is
+     chips-then-button, so `order` moves it without touching the markup that builds it. */
+  order:-1 !important;
+  flex:0 0 36px !important; width:36px !important; min-width:36px !important; max-width:36px !important;
+  height:36px !important; min-height:36px !important; align-self:center !important;
+  padding:0 !important; text-align:center !important; font-size:18px !important; line-height:1 !important;
+}
+
+/* --- the edit dialog is a quarter wider, Sep 03 --- */
+/* 460 -> 575. Scoped with :has(.ea) so only the Edit Activity dialog grows; the delete
+   confirmation and every other modal keep their own width. The app already relies on :has()
+   elsewhere, so this is not a new dependency. */
+.modal:has(.ea){ max-width:575px !important }
+
+/* --- two months have to fit inside a 575px dialog, Sep 03 --- */
+/* The due-date panel was 584px wide and hung 421px past the dialog's right edge. Slimmer months
+   and a tighter gap bring it inside without dropping to one month. */
+.dp2 .dp2-months{ gap:16px !important }
+.dp2 .dp2-m{ min-width:224px !important; width:224px !important }
+.dp2 .dp2-grid{ gap:4px !important }
+.dp2 .dp2-day{ height:30px !important }
+.dp2 .dp2-blank{ height:30px !important }
 </style>
 </head>
 <body>
+
+
 
   <header id="topbar">
     <button id="btnTreeToggle" type="button" title="Toggle priority tree" aria-label="Toggle priority tree">
@@ -4675,7 +4940,7 @@ padding:0 14px;font-family:ui-sans-serif,system-ui,sans-serif;line-height:34px}
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-09-03 16:07</span>
+    <span id="buildStamp">build 2026-09-04 00:11</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -6277,7 +6542,13 @@ document.addEventListener("DOMContentLoaded", function() {
     var id = row.dataset.id;
     var found = findNode(id);
     if (!found) return;
-    found.node.title = titleEl.textContent.trim();
+    /* 2026-09-03: no empty guard here. A re-render can leave the element momentarily blank, and
+       whatever fires next wrote that emptiness straight over a real title. Never blank a title that
+       has content - if the user really wants it gone they can clear it and it stays cleared only
+       when they typed the emptiness themselves, which the blur handler above already covers. */
+    var __t = titleEl.textContent.trim();
+    if (!__t && found.node.title) return;
+    found.node.title = __t;
     Store.save();
   }
 
@@ -7945,7 +8216,7 @@ window.renderHabits = function () {
 })();
 
 /* ===== h18 ===== */
-(function(){var TG=window.TG={HOUR_PX:40,SNAP_MIN:15,startHour:6,endHour:23,expanded:false};if(Store&&Store.data&&Store.data.settings&&Store.data.settings.gridExpanded){TG.expanded=true;TG.startHour=0;TG.endHour=24;}function pad(n){return(n<10?'0':'')+n;}function timeToMin(t){if(!t)return null;var p=t.split(':');return parseInt(p[0],10)*60+parseInt(p[1],10);}window.tgHours=function(){var a=[];for(var h=TG.startHour;h<TG.endHour;h++)a.push(h);return a;};window.tgHeight=function(){return (TG.endHour-TG.startHour)*TG.HOUR_PX;};window.tgToY=function(hhmm){if(!hhmm)return null;var p=hhmm.split(':');return ((parseInt(p[0],10)+parseInt(p[1],10)/60)-TG.startHour)*TG.HOUR_PX;};window.tgFromY=function(y){var totalMin=(y/TG.HOUR_PX)*60+TG.startHour*60;var snapped=Math.floor(totalMin/TG.SNAP_MIN)*TG.SNAP_MIN;var minMin=TG.startHour*60;var maxMin=(TG.endHour-0.25)*60;if(snapped<minMin)snapped=minMin;if(snapped>maxMin)snapped=maxMin;return pad(Math.floor(snapped/60))+':'+pad(snapped%60);};window.tgLabel=function(h){if(h===0)return'12 AM';if(h<12)return h+' AM';if(h===12)return'12 PM';return(h-12)+' PM';};window.tgToggleExpanded=function(){TG.expanded=!TG.expanded;if(TG.expanded){TG.startHour=0;TG.endHour=24;}else{TG.startHour=6;TG.endHour=23;}Store.data.settings.gridExpanded=TG.expanded;Store.save();if(window.renderAll)window.renderAll();};window.tgTimeOf=function(e){if(e&&e.node&&e.node.time)return e.node.time;if(e&&e.event&&e.event.time)return e.event.time;return null;};window.tgDuration=function(e){var d=(e&&e.duration)||(e&&e.node&&e.node.duration)||30;return d<15?15:d;};window.tgMigrate=function(){if(localStorage.getItem('planner.timemigrated'))return;var map={morning:'09:00',afternoon:'13:00',evening:'18:00'};function mig(n){if(n&&n.date&&!n.time&&n.block){n.time=map[n.block]||null;}}walkTree(function(n){mig(n);});if(Store.data&&Store.data.events){Store.data.events.forEach(function(ev){if(ev&&ev.date&&!ev.time&&ev.block){ev.time=map[ev.block]||null;}});}localStorage.setItem('planner.timemigrated','true');Store.save();};window.tgLayout=function(entries){if(!entries||!entries.length)return[];var sorted=entries.filter(function(e){return!!window.tgTimeOf(e);}).sort(function(a,b){return timeToMin(window.tgTimeOf(a))-timeToMin(window.tgTimeOf(b));});var clusters=[];var res=[];sorted.forEach(function(e){var start=timeToMin(window.tgTimeOf(e));var dur=window.tgDuration(e);var end=start+dur;var top=window.tgToY(window.tgTimeOf(e));var height=Math.max(18,(dur/60)*TG.HOUR_PX);if(!clusters.length){clusters.push({colEnds:[end]});res.push({entry:e,top:top,height:height,col:0,cols:1});return;}var cur=clusters[clusters.length-1];var maxEnd=Math.max.apply(null,cur.colEnds);if(start<maxEnd){var col=-1;for(var i=0;i<cur.colEnds.length;i++){if(cur.colEnds[i]<=start){col=i;break;}}if(col===-1){if(cur.colEnds.length<3){col=cur.colEnds.length;cur.colEnds.push(end);}else{col=0;cur.colEnds[0]=end;}}else{cur.colEnds[col]=end;}var colCount=Math.min(3,cur.colEnds.length);res.push({entry:e,top:top,height:height,col:col,cols:colCount});}else{clusters.push({colEnds:[end]});res.push({entry:e,top:top,height:height,col:0,cols:1});}});return res;};if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',function(){setTimeout(window.tgMigrate,0);});}else{setTimeout(window.tgMigrate,0);}})();
+(function(){var TG=window.TG={HOUR_PX:60,SNAP_MIN:15,startHour:6,endHour:23,expanded:false};if(Store&&Store.data&&Store.data.settings&&Store.data.settings.gridExpanded){TG.expanded=true;TG.startHour=0;TG.endHour=24;}function pad(n){return(n<10?'0':'')+n;}function timeToMin(t){if(!t)return null;var p=t.split(':');return parseInt(p[0],10)*60+parseInt(p[1],10);}window.tgHours=function(){var a=[];for(var h=TG.startHour;h<TG.endHour;h++)a.push(h);return a;};window.tgHeight=function(){return (TG.endHour-TG.startHour)*TG.HOUR_PX;};window.tgToY=function(hhmm){if(!hhmm)return null;var p=hhmm.split(':');return ((parseInt(p[0],10)+parseInt(p[1],10)/60)-TG.startHour)*TG.HOUR_PX;};window.tgFromY=function(y){var totalMin=(y/TG.HOUR_PX)*60+TG.startHour*60;var snapped=Math.floor(totalMin/TG.SNAP_MIN)*TG.SNAP_MIN;var minMin=TG.startHour*60;var maxMin=(TG.endHour-0.25)*60;if(snapped<minMin)snapped=minMin;if(snapped>maxMin)snapped=maxMin;return pad(Math.floor(snapped/60))+':'+pad(snapped%60);};window.tgLabel=function(h){if(h===0)return'12 AM';if(h<12)return h+' AM';if(h===12)return'12 PM';return(h-12)+' PM';};window.tgToggleExpanded=function(){TG.expanded=!TG.expanded;if(TG.expanded){TG.startHour=0;TG.endHour=24;}else{TG.startHour=6;TG.endHour=23;}Store.data.settings.gridExpanded=TG.expanded;Store.save();if(window.renderAll)window.renderAll();};window.tgTimeOf=function(e){if(e&&e.node&&e.node.time)return e.node.time;if(e&&e.event&&e.event.time)return e.event.time;return null;};window.tgDuration=function(e){var d=(e&&e.duration)||(e&&e.node&&e.node.duration)||30;return d<15?15:d;};window.tgMigrate=function(){if(localStorage.getItem('planner.timemigrated'))return;var map={morning:'09:00',afternoon:'13:00',evening:'18:00'};function mig(n){if(n&&n.date&&!n.time&&n.block){n.time=map[n.block]||null;}}walkTree(function(n){mig(n);});if(Store.data&&Store.data.events){Store.data.events.forEach(function(ev){if(ev&&ev.date&&!ev.time&&ev.block){ev.time=map[ev.block]||null;}});}localStorage.setItem('planner.timemigrated','true');Store.save();};window.tgLayout=function(entries){if(!entries||!entries.length)return[];var sorted=entries.filter(function(e){return!!window.tgTimeOf(e);}).sort(function(a,b){return timeToMin(window.tgTimeOf(a))-timeToMin(window.tgTimeOf(b));});var clusters=[];var res=[];sorted.forEach(function(e){var start=timeToMin(window.tgTimeOf(e));var dur=window.tgDuration(e);var end=start+dur;var top=window.tgToY(window.tgTimeOf(e));var height=Math.max(18,(dur/60)*TG.HOUR_PX);if(!clusters.length){clusters.push({colEnds:[end]});res.push({entry:e,top:top,height:height,col:0,cols:1});return;}var cur=clusters[clusters.length-1];var maxEnd=Math.max.apply(null,cur.colEnds);if(start<maxEnd){var col=-1;for(var i=0;i<cur.colEnds.length;i++){if(cur.colEnds[i]<=start){col=i;break;}}if(col===-1){if(cur.colEnds.length<3){col=cur.colEnds.length;cur.colEnds.push(end);}else{col=0;cur.colEnds[0]=end;}}else{cur.colEnds[col]=end;}var colCount=Math.min(3,cur.colEnds.length);res.push({entry:e,top:top,height:height,col:col,cols:colCount});}else{clusters.push({colEnds:[end]});res.push({entry:e,top:top,height:height,col:0,cols:1});}});return res;};if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',function(){setTimeout(window.tgMigrate,0);});}else{setTimeout(window.tgMigrate,0);}})();
 
 /* ===== h26 ===== */
 window.tgLayout=function(e){var t=[];for(var n=0;n<e.length;n++){var r=e[n];var a=window.tgTimeOf(r);if(!a)continue;var s=a.split(":");var u=parseInt(s[0],10)*60+parseInt(s[1],10);var d=window.tgDuration(r);var l=u+d;t.push({entry:r,start:u,end:l,timeStr:a,dur:d})}t.sort(function(e,t){if(e.start!==t.start)return e.start-t.start;return e.end-t.end});var c=[];var i=0;while(i<t.length){var p=[];var f=t[i].end;p.push(t[i]);var h=i+1;while(h<t.length&&t[h].start<f){p.push(t[h]);if(t[h].end>f)f=t[h].end;h++}var m=[];for(var v=0;v<p.length;v++){var y=p[v];var b=-1;for(var g=0;g<m.length;g++){if(m[g]<=y.start){b=g;break}}if(b===-1){b=m.length;m.push(0)}m[b]=y.end;y.col=b}var C=Math.min(3,m.length);for(var x=0;x<p.length;x++){var E=p[x];var w=E.col;if(w>=C)w=C-1;var D=E.entry;var S=E.timeStr;var k=E.dur;var M=Math.max(18,k/60*window.TG.HOUR_PX);c.push({entry:D,top:window.tgToY(S),height:M,col:w,cols:C})}i=h}return c};
@@ -10374,7 +10645,9 @@ function surfaceArrivals() {
 
     function save() {
       var t = title.value.trim();
-      node.title = t;
+      /* 2026-09-03: same guard. If the field is empty but the task already had a title, keep it -
+         a save should never be the thing that deletes a name. */
+      if (t || !node.title) node.title = t;
       /* 2026-09-03: `note` is the <textarea class="ea-note"> that m110 REPLACED in the DOM with
          the rich contenteditable box. The closure still held the detached textarea, so saving
          wrote back the notes as they were when the dialog opened - discarding everything typed. */
@@ -11151,6 +11424,12 @@ function surfaceArrivals() {
       move.appendChild(opt);
     });
 
+    /* 2026-09-03: this "Move to tree" select is the RETIRED control the Location field replaced.
+       Its value is captured when the dialog opens, and the Location pick never updates it - so on
+       Save the commit below compared a stale '' against the branch the user had just chosen, decided
+       the task had "moved", and put it back at top level. Pick a branch, save, reopen, and the
+       Location was empty again. Only honour this select when the user actually used it. */
+    move.addEventListener('change', function () { move.setAttribute('data-touched', '1'); });
     move.value = currentParentId;
     body.appendChild(rowFn('Move to tree', move));
 
@@ -11202,7 +11481,8 @@ function surfaceArrivals() {
       var newParentId = move.value;
       var oldParent = f.parent;
       var newParent = newParentId ? window.findNode(newParentId).node : null;
-      var moved = newParentId !== (oldParent ? oldParent.id : '');
+      var moved = move.getAttribute('data-touched') === '1'
+                  && newParentId !== (oldParent ? oldParent.id : '');
       if (moved) {
         var detached = window.removeNode(id);
         if (detached) {
@@ -14128,58 +14408,41 @@ function firstConnect(remote, rAt, lAt) {
   }
 
   function build(node) {
-    var wrap = document.createElement('div');
-    wrap.className = 'al-wrap';
-
-    function redraw() {
-      wrap.textContent = '';
-
-      var head = document.createElement('div');
-      head.className = 'al-head';
-      var t = document.createElement('span');
-      t.textContent = pending.length ? ('Alarms (' + pending.length + ')') : 'No alarms';
-      var plus = document.createElement('button');
-      plus.type = 'button';
-      plus.className = 'al-plus';
-      plus.textContent = '+';
-      plus.title = 'Add an alarm';
-      plus.addEventListener('click', function (e) {
-        e.preventDefault();
-        // a tap is the only moment iOS will show the permission prompt
-        if (window.askAlarmPermission) window.askAlarmPermission();
-        pending.push(window.newAlarm(node));
-        redraw();
-      });
-      head.appendChild(t);
-      head.appendChild(plus);
-      wrap.appendChild(head);
-
-      if (pending.length) {
-        var group = document.createElement('div');
-        group.className = 'al-group';
-        var i2;
-        for (i2 = 0; i2 < pending.length; i2++) {
-          group.appendChild(rowFor(pending[i2], i2, node, redraw));
-        }
-        wrap.appendChild(group);
+      var wrap = document.createElement('div');
+      wrap.className = 'al-wrap';
+  
+      function makeAddBtn() {
+          var btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'al-add';
+          btn.textContent = '+';   /* 2026-09-03: a + sitting to the right of the row */
+          btn.onclick = function () {
+              if (window.askAlarmPermission) {
+                  window.askAlarmPermission();
+              }
+              pending.push(window.newAlarm(node));
+              redraw();
+          };
+          return btn;
       }
-
-      var add = document.createElement('button');
-      add.type = 'button';
-      add.className = 'al-add';
-      add.textContent = '+ Add alarm';
-      add.addEventListener('click', function (e) {
-        e.preventDefault();
-        // a tap is the only moment iOS will show the permission prompt
-        if (window.askAlarmPermission) window.askAlarmPermission();
-        pending.push(window.newAlarm(node));
-        redraw();
-      });
-      wrap.appendChild(add);
-    }
-
-    redraw();
-    return wrap;
+  
+      function redraw() {
+          wrap.textContent = '';
+          if (pending.length === 0) {
+              wrap.appendChild(makeAddBtn());
+          } else {
+              var group = document.createElement('div');
+              group.className = 'al-group';
+              for (var i = 0; i < pending.length; i++) {
+                  group.appendChild(rowFor(pending[i], i, node, redraw));
+              }
+              wrap.appendChild(group);
+              wrap.appendChild(makeAddBtn());
+          }
+      }
+  
+      redraw();
+      return wrap;
   }
 
   function patch(id) {
@@ -17973,6 +18236,11 @@ if (r.freq === 'yearly') {
     area.className = 'note-rich';
     area.setAttribute('contenteditable', 'true');
     area.setAttribute('spellcheck', 'true');
+    /* 2026-09-03: the operator sees an upload/share glyph over the notes. It is not in the
+       app's DOM - a full scan of every view found no such control - so it is the OS drawing
+       its own affordance over an editable area (macOS Writing Tools). This is the documented
+       way to ask the browser not to. */
+    area.setAttribute('writingsuggestions', 'false');
 
     if (node && node.notesHtml) {
       area.innerHTML = node.notesHtml;
@@ -18060,6 +18328,11 @@ if (r.freq === 'yearly') {
     area.className = 'note-rich';
     area.setAttribute('contenteditable', 'true');
     area.setAttribute('spellcheck', 'true');
+    /* 2026-09-03: the operator sees an upload/share glyph over the notes. It is not in the
+       app's DOM - a full scan of every view found no such control - so it is the OS drawing
+       its own affordance over an editable area (macOS Writing Tools). This is the documented
+       way to ask the browser not to. */
+    area.setAttribute('writingsuggestions', 'false');
     if (node && node.notesHtml) area.innerHTML = node.notesHtml;
     else area.textContent = (node && typeof node.notes === 'string') ? node.notes : '';
 
@@ -19165,10 +19438,12 @@ if (r.freq === 'yearly') {
     if (!ea) return;
     var id = ea.getAttribute('data-node-id') || window.__editingNodeId;
     if (!id || !window.plannerNeedsBranch || !window.plannerNeedsBranch(id)) return;
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.stopImmediatePropagation) e.stopImmediatePropagation();
-    pickBranch(id, function () { b.click(); });
+    /* 2026-09-03 SUPERSEDED: this called pickBranch(), which opens its OWN modal - and showModal
+       closes whatever dialog is already up, so pressing Save made the edit dialog vanish and be
+       replaced by a picker. That is the "it goes blank and reopens" the operator reported. The
+       newer branch gate blocks the same click and opens the Location field INSIDE the dialog
+       instead, so nothing is torn down. Leaving this one live would race it. */
+    return;
   }, true);
 })();
 
@@ -20971,10 +21246,15 @@ ancestor that can move.
  * No top-level task may be created without a chosen branch. */
 (function () {
     try {
-        if (window.__branchGateInstalled) {
-            return;
-        }
-        window.__branchGateInstalled = true;
+        /* 2026-09-03 RETIRED at the operator's instruction: this wrapped addNodeAt and opened a
+           separate "Choose a branch for this task" modal every time a task was added. They do not
+           want a popup on add - the branch is chosen in the edit dialog's Location field, which is
+           already mandatory before a save.
+           It still has to publish __addNodeDirect, though: that alias is what the Location field's
+           + and the calendar double-click call, and returning before it left them calling
+           undefined. Measured: "window.__addNodeDirect is not a function". */
+        window.__addNodeDirect = window.addNodeAt;
+        return;
         var attempts = 0;
         var maxAttempts = 50;
         var delay = 200;
@@ -21326,6 +21606,14 @@ ancestor that can move.
           for (var i = 0; i < nodes.length; i++) {
             var n = nodes[i];
             var hasKids = !!(n.children && n.children.length);
+            /* 2026-09-03: the Location list is for MAIN BRANCHES only. A one-off task parked at
+               the top level - dated or not - is not a branch, and several were being offered as
+               places to file work. A main branch is a top-level node that HOLDS things, so at the
+               top level a node must have children to be offered. Deeper levels are untouched, and
+               nothing is deleted or moved - the task stays exactly where it is.
+               Trade-off, deliberate: a branch you have created but not put anything in yet will not
+               appear until it holds something. Use the + on a branch row to make a sub-branch. */
+            if (depth === 0 && !hasKids) continue;
             var isExp = !!expanded[n.id];
 
             var row = document.createElement('div');
@@ -22305,9 +22593,21 @@ ancestor that can move.
         if (!input) return;
         var r = input.getBoundingClientRect();
         var w = d.offsetWidth || 520, h = d.offsetHeight || 380;
-        var left = r.left;
-        if (left + w > window.innerWidth - 12) left = window.innerWidth - w - 12;
-        if (left < 12) left = 12;
+        /* 2026-09-03: this ran every 100ms against the VIEWPORT while the newer clamp ran every
+           150ms against the DIALOG, so the panel was dragged between two different answers four
+           times a second - it visibly flickered left-right. Same rule in both places now, so
+           whichever fires, the value it writes is identical and nothing moves. */
+        var mEl = document.querySelector('.modal');
+        var left;
+        if (mEl) {
+          var mr = mEl.getBoundingClientRect();
+          left = mr.right - w;
+          if (left < mr.left) left = mr.left;
+        } else {
+          left = r.left;
+          if (left + w > window.innerWidth - 12) left = window.innerWidth - w - 12;
+          if (left < 12) left = 12;
+        }
         var top = r.bottom + 8;
         if (top + h > window.innerHeight - 12) top = Math.max(12, r.top - h - 8);
         d.style.left = Math.round(left) + 'px';
@@ -22387,14 +22687,9 @@ ancestor that can move.
           apply(iso(d));
         };
 
-        var b3 = document.createElement('button');
-        b3.type = 'button';
-        b3.textContent = 'Someday';
-        b3.onclick = function() { apply(''); };
-
+        /* 2026-09-03: "Someday" removed at the operator's request - unnecessary. */
         box.appendChild(b1);
         box.appendChild(b2);
-        box.appendChild(b3);
         dp.appendChild(box);
       }
 
@@ -22485,6 +22780,1328 @@ ancestor that can move.
 
   process();
   setInterval(process, 200);
+})();
+</script>
+
+<script>
+/* 2026-09-03 - the time picker. A native <input type="time"> opens a dropdown Chrome
+   draws itself, outside the page, so CSS can never match it to the app. This replaces that
+   panel with our own, using the date picker's palette so the two cannot drift. Scrolls. */
+
+
+(function() {
+  if (window.__tp2Installed) return;
+  window.__tp2Installed = true;
+
+  function p(n) { return n < 10 ? '0' + n : '' + n; }
+
+  function fmt12(h, m) {
+    var mer = h >= 12 ? 'PM' : 'AM';
+    var h12 = h % 12 || 12;
+    return p(h12) + ':' + p(m) + ' ' + mer;
+  }
+
+  window.buildTimeList = function(valueHHMM, onPick) {
+    var list = document.createElement('div');
+    list.className = 'tp2-list';
+    for (var h = 0; h < 24; h++) {
+      for (var m = 0; m < 60; m += 15) {
+        var v = p(h) + ':' + p(m);
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'tp2-opt';
+        b.textContent = fmt12(h, m);
+        b.dataset.v = v;
+        if (v === valueHHMM) b.className += ' tp2-on';
+        (function(val) {
+          b.addEventListener('click', function() { onPick(val); });
+        })(v);
+        list.appendChild(b);
+      }
+    }
+    return list;
+  };
+
+  window.openTimePicker = function(anchorEl, valueHHMM, onPick) {
+    var existing = document.querySelectorAll('.tp2');
+    for (var i = 0; i < existing.length; i++) {
+      if (existing[i].parentNode) existing[i].parentNode.removeChild(existing[i]);
+    }
+    var chosen = valueHHMM;
+    var root = document.createElement('div');
+    root.className = 'tp2';
+    var lab = document.createElement('div');
+    lab.className = 'tp2-lab';
+    lab.appendChild(document.createTextNode('Time'));
+    root.appendChild(lab);
+    var list = window.buildTimeList(valueHHMM, function(hhmm) {
+      var prev = list.querySelector('.tp2-opt.tp2-on');
+      if (prev) prev.classList.remove('tp2-on');
+      var opts = list.querySelectorAll('.tp2-opt');
+      for (var j = 0; j < opts.length; j++) {
+        if (opts[j].getAttribute('data-v') === hhmm) {
+          opts[j].classList.add('tp2-on');
+          break;
+        }
+      }
+      chosen = hhmm;
+    });
+    root.appendChild(list);
+    var foot = document.createElement('div');
+    foot.className = 'tp2-foot';
+    var cancelBtn = document.createElement('button');
+    cancelBtn.type = 'button';
+    cancelBtn.appendChild(document.createTextNode('Cancel'));
+    foot.appendChild(cancelBtn);
+    var setBtn = document.createElement('button');
+    setBtn.type = 'button';
+    setBtn.className = 'tp2-ok';
+    setBtn.appendChild(document.createTextNode('Set'));
+    foot.appendChild(setBtn);
+    root.appendChild(foot);
+    document.body.appendChild(root);
+    var rect = anchorEl.getBoundingClientRect();
+    /* 2026-09-03: panels were LEFT-aligned to the field, so a 150px panel under a field whose
+       left edge sits near the dialog's right edge spilled 9px past it. Right-align to the
+       field instead: the panel's right edge lands on the field's right edge, which is always
+       inside the dialog. The viewport clamp below still applies. */
+    var left = rect.right + window.pageXOffset - (root.offsetWidth || 150);
+    root.style.position = 'absolute';
+    root.style.left = left + 'px';
+    root.style.top = (rect.bottom + window.pageYOffset + 6) + 'px';
+    var pr = root.getBoundingClientRect();
+    if (pr.right > window.innerWidth - 8) {
+      root.style.left = (left - (pr.right - (window.innerWidth - 8))) + 'px';
+    }
+    if (pr.bottom > window.innerHeight - 8) {
+      root.style.top = (rect.top + window.pageYOffset - pr.height - 6) + 'px';
+    }
+    var sel = list.querySelector('.tp2-opt.tp2-on');
+    if (sel) {
+      list.scrollTop = sel.offsetTop - list.clientHeight / 2 + sel.offsetHeight / 2;
+    }
+    function close() {
+      if (root.parentNode) root.parentNode.removeChild(root);
+      document.removeEventListener('keydown', onKey, true);
+      document.removeEventListener('click', onDocClick, true);
+    }
+    function onKey(e) {
+      if (e.key === 'Escape' || e.keyCode === 27) close();
+    }
+    function onDocClick(e) {
+      if (root.contains(e.target)) return;
+      close();
+    }
+    cancelBtn.addEventListener('click', close);
+    setBtn.addEventListener('click', function() {
+      var v = chosen;
+      close();
+      onPick(v);
+    });
+    setTimeout(function() {
+      document.addEventListener('keydown', onKey, true);
+      document.addEventListener('click', onDocClick, true);
+    }, 0);
+  };
+  document.addEventListener('click', function(e) {
+    var t = e.target;
+    if (!t || typeof t.closest !== 'function') return;
+    var input = t.closest('input[type="time"]');
+    if (!input) return;
+    if (!input.closest('.modal .ea')) return;
+    e.preventDefault();
+    input.readOnly = true;
+    var cb = function(hhmm) {
+      input.value = hhmm;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+    window.openTimePicker(input, input.value || '09:00', cb);
+  }, true);
+})();
+</script>
+
+<script>
+/* 2026-09-03 - the reminder picker. One month over a scrolling time list, in the SAME panel and
+   the SAME palette as the due-date picker - it uses that picker's own dp2- classes, so the two
+   cannot drift apart. Set creates the alarm; Cancel leaves everything alone. */
+window.openReminderPicker = function(anchorEl, initDate, initTime, onSet) {
+  var existing = document.querySelectorAll('.tp2');
+  for (var i = 0; i < existing.length; i++) {
+    if (existing[i].parentNode) existing[i].parentNode.removeChild(existing[i]);
+  }
+
+  var chosenDate = initDate || window.todayISO();
+  var chosenTime = initTime || '09:00';
+
+  var dParts = chosenDate.split('-');
+  var viewYear = parseInt(dParts[0], 10);
+  var viewMonth = parseInt(dParts[1], 10) - 1;
+
+  var panel = document.createElement('div');
+  panel.className = 'tp2 rp2';
+
+  var months = document.createElement('div');
+  months.className = 'dp2-months';
+  var mWrap = document.createElement('div');
+  mWrap.className = 'dp2-m';
+  months.appendChild(mWrap);
+  panel.appendChild(months);
+
+  var title = document.createElement('div');
+  title.className = 'dp2-title';
+  var prevBtn = document.createElement('button');
+  prevBtn.type = 'button';
+  prevBtn.textContent = '\u2039';
+  var titleSpan = document.createElement('span');
+  var nextBtn = document.createElement('button');
+  nextBtn.type = 'button';
+  nextBtn.textContent = '\u203A';
+  title.appendChild(prevBtn);
+  title.appendChild(titleSpan);
+  title.appendChild(nextBtn);
+  mWrap.appendChild(title);
+
+  var grid = document.createElement('div');
+  grid.className = 'dp2-grid';
+  mWrap.appendChild(grid);
+
+  var monthNames = ['January','February','March','April','May','June',
+                    'July','August','September','October','November','December'];
+  function pad2(n) { return n < 10 ? '0' + n : '' + n; }
+
+  function renderMonth() {
+    while (grid.firstChild) grid.removeChild(grid.firstChild);
+    titleSpan.textContent = monthNames[viewMonth] + ' ' + viewYear;
+
+    var dows = ['Su','Mo','Tu','We','Th','Fr','Sa'];
+    for (var i = 0; i < 7; i++) {
+      var dow = document.createElement('div');
+      dow.className = 'dp2-dow';
+      dow.textContent = dows[i];
+      grid.appendChild(dow);
+    }
+
+    var firstDay = new Date(viewYear, viewMonth, 1).getDay();
+    for (var i = 0; i < firstDay; i++) {
+      var blank = document.createElement('div');
+      blank.className = 'dp2-blank';
+      grid.appendChild(blank);
+    }
+
+    var daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+    for (var d = 1; d <= daysInMonth; d++) {
+      var dateStr = viewYear + '-' + pad2(viewMonth + 1) + '-' + pad2(d);
+      var dayBtn = document.createElement('button');
+      dayBtn.type = 'button';
+      dayBtn.className = 'dp2-day';
+      dayBtn.textContent = '' + d;
+      if (dateStr === chosenDate) dayBtn.className += ' dp2-on';
+      dayBtn.onclick = (function(ds) {
+        return function() {
+          chosenDate = ds;
+          renderMonth();
+        };
+      })(dateStr);
+      grid.appendChild(dayBtn);
+    }
+  }
+
+  prevBtn.onclick = function() {
+    viewMonth--;
+    if (viewMonth < 0) { viewMonth = 11; viewYear--; }
+    renderMonth();
+  };
+  nextBtn.onclick = function() {
+    viewMonth++;
+    if (viewMonth > 11) { viewMonth = 0; viewYear++; }
+    renderMonth();
+  };
+
+  renderMonth();
+
+  var sep = document.createElement('div');
+  sep.className = 'rp2-sep';
+  panel.appendChild(sep);
+
+  var timeLab = document.createElement('div');
+  timeLab.className = 'tp2-lab';
+  timeLab.textContent = 'Time';
+  panel.appendChild(timeLab);
+
+  var timeList = window.buildTimeList(chosenTime, function(time) {
+    chosenTime = time;
+    var opts = timeList.querySelectorAll('.tp2-opt');
+    for (var j = 0; j < opts.length; j++) {
+      var b = opts[j];
+      if (b.getAttribute('data-v') === time) {
+        b.className = 'tp2-opt tp2-on';
+      } else {
+        b.className = 'tp2-opt';
+      }
+    }
+  });
+  panel.appendChild(timeList);
+
+  var foot = document.createElement('div');
+  foot.className = 'tp2-foot';
+  var cancelBtn = document.createElement('button');
+  cancelBtn.type = 'button';
+  cancelBtn.textContent = 'Cancel';
+  var setBtn = document.createElement('button');
+  setBtn.type = 'button';
+  setBtn.className = 'tp2-ok';
+  setBtn.textContent = 'Set';
+  foot.appendChild(cancelBtn);
+  foot.appendChild(setBtn);
+  panel.appendChild(foot);
+
+  function close() {
+    if (panel.parentNode) panel.parentNode.removeChild(panel);
+    document.removeEventListener('keydown', onKey);
+    document.removeEventListener('click', onClick, true);
+  }
+
+  cancelBtn.onclick = close;
+  setBtn.onclick = function() {
+    onSet(chosenDate, chosenTime);
+    close();
+  };
+
+  document.body.appendChild(panel);
+
+  var rect = anchorEl.getBoundingClientRect();
+  /* 2026-09-03: panels were LEFT-aligned to the field, so a 150px panel under a field whose
+     left edge sits near the dialog's right edge spilled 9px past it. Right-align to the
+     field instead: the panel's right edge lands on the field's right edge, which is always
+     inside the dialog. The viewport clamp below still applies. */
+  var left = rect.right + window.pageXOffset - (panel.offsetWidth || 150);
+  var top = rect.bottom + window.pageYOffset + 6;
+  panel.style.position = 'absolute';
+  panel.style.left = left + 'px';
+  panel.style.top = top + 'px';
+
+  var pr = panel.getBoundingClientRect();
+  var vw = window.innerWidth;
+  var vh = window.innerHeight;
+  if (pr.right > vw - 8) {
+    panel.style.left = (left - (pr.right - (vw - 8))) + 'px';
+    pr = panel.getBoundingClientRect();
+  }
+  if (pr.bottom > vh - 8) {
+    panel.style.top = (rect.top + window.pageYOffset - pr.height - 6) + 'px';
+  }
+
+  var sel = timeList.querySelector('.tp2-on');
+  if (sel) {
+    timeList.scrollTop = sel.offsetTop - timeList.clientHeight / 2 + sel.offsetHeight / 2;
+  }
+
+  function onKey(e) {
+    if (e.key === 'Escape' || e.keyCode === 27) close();
+  }
+  function onClick(e) {
+    if (!panel.contains(e.target) && e.target !== anchorEl && !anchorEl.contains(e.target)) {
+      close();
+    }
+  }
+
+  setTimeout(function() {
+    document.addEventListener('keydown', onKey);
+    document.addEventListener('click', onClick, true);
+  }, 0);
+};
+
+(function () {
+  if (window.__rpWireInstalled) return;
+  window.__rpWireInstalled = true;
+  document.addEventListener('click', function (e) {
+    var btn = e.target && e.target.closest ? e.target.closest('.al-add') : null;
+    if (!btn) return;
+    e.preventDefault();
+    e.stopPropagation();
+    e.stopImmediatePropagation();
+    var f = window.findNode(window.__editingId);
+    var node = f && f.node;
+    if (!node) return;
+    window.openReminderPicker(btn, node.date || null, node.time || null, function (dateISO, hhmm) {
+      var a = window.newAlarm(node);
+      a.date = dateISO;
+      a.time = hhmm;
+      /* 2026-09-03: alarmsOf() returns node.reminders ONLY when it is already non-empty; on an
+         empty array it hands back a fresh throwaway array, so pushing to it went nowhere and the
+         alarm silently never appeared. node.reminders is the array the app actually stores. */
+      if (!node.reminders || !node.reminders.length) node.reminders = [];
+      node.reminders.push(a);
+      window.Store.save();
+      /* 2026-09-03: this used to remove the modal and call editActivity again, so adding an alarm
+         blanked the dialog and rebuilt it scrolled back to the top. The chip painter already
+         redraws the row on its own tick - just let it. */
+    });
+  }, true);
+})();
+</script>
+
+<script>
+/* 2026-09-03 - hour and minute as SEPARATE scrolling columns, every single minute, at the
+   operator's instruction. The same columns serve the Time field, Duration and the Reminder
+   picker, and the Reminder panel now puts the month and the time side by side. Everything
+   still uses the date picker's own dp2- classes, so one palette drives all of it. */
+/* --- columns --- */
+window.buildTimeCols = function(valueHHMM, onChange) {
+  var state = { h: 9, m: 0, ap: 'AM' };
+
+  if (valueHHMM && typeof valueHHMM === 'string') {
+    var parts = valueHHMM.split(':');
+    if (parts.length === 2) {
+      var hh = parseInt(parts[0], 10);
+      var mm = parseInt(parts[1], 10);
+      if (!isNaN(hh) && hh >= 0 && hh <= 23) {
+        state.ap = hh < 12 ? 'AM' : 'PM';
+        var h12 = hh % 12;
+        state.h = h12 === 0 ? 12 : h12;
+      }
+      if (!isNaN(mm) && mm >= 0 && mm <= 59) {
+        state.m = mm;
+      }
+    }
+  }
+
+  function pad2(n) { return n < 10 ? '0' + n : '' + n; }
+
+  function build24() {
+    var hour24 = state.h === 12 ? (state.ap === 'AM' ? 0 : 12) : (state.ap === 'AM' ? state.h : state.h + 12);
+    return pad2(hour24) + ':' + pad2(state.m);
+  }
+
+  function makeColumn(caption, opts, currentValue, extraClass) {
+    var col = document.createElement('div');
+    col.className = 'tp2-col' + (extraClass ? ' ' + extraClass : '');
+
+    var lab = document.createElement('div');
+    lab.className = 'tp2-collab';
+    lab.textContent = caption;
+    col.appendChild(lab);
+
+    var list = document.createElement('div');
+    list.className = 'tp2-list';
+    col.appendChild(list);
+
+    var currentBtn = null;
+
+    for (var i = 0; i < opts.length; i++) {
+      var v = opts[i];
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'tp2-opt';
+      btn.setAttribute('data-v', v);
+      btn.textContent = v;
+      if (v === currentValue) {
+        btn.className += ' tp2-on';
+        currentBtn = btn;
+      }
+      (function(b, val) {
+        b.addEventListener('click', function(e) {
+          e.preventDefault();
+          if (currentBtn && currentBtn !== b) {
+            currentBtn.className = currentBtn.className.replace(/\s*tp2-on/g, '');
+          }
+          if (b.className.indexOf('tp2-on') === -1) {
+            b.className += ' tp2-on';
+          }
+          currentBtn = b;
+          if (caption === 'Hour') state.h = parseInt(val, 10);
+          else if (caption === 'Min') state.m = parseInt(val, 10);
+          else state.ap = val;
+          if (typeof onChange === 'function') onChange(build24());
+        });
+      })(btn, v);
+      list.appendChild(btn);
+    }
+    return col;
+  }
+
+  var hourOpts = [];
+  for (var i = 1; i <= 12; i++) hourOpts.push(pad2(i));
+
+  var minOpts = [];
+  for (var i = 0; i < 60; i++) minOpts.push(pad2(i));
+
+  var root = document.createElement('div');
+  root.className = 'tp2-cols';
+
+  root.appendChild(makeColumn('Hour', hourOpts, pad2(state.h), null));
+  root.appendChild(makeColumn('Min', minOpts, pad2(state.m), null));
+  root.appendChild(makeColumn('AM/PM', ['AM', 'PM'], state.ap, 'tp2-col-wide'));
+
+  return root;
+};
+
+window.scrollColsToSelection = function(root) {
+  var lists = root.querySelectorAll('.tp2-list');
+  for (var i = 0; i < lists.length; i++) {
+    var list = lists[i];
+    var sel = list.querySelector('.tp2-opt.tp2-on');
+    if (sel) {
+      list.scrollTop = sel.offsetTop - list.clientHeight / 2 + sel.offsetHeight / 2;
+    }
+  }
+};
+
+/* --- time + duration pickers --- */
+(function () {
+  if (window.__cols2Installed) return;
+  window.__cols2Installed = true;
+
+  function panel(anchorEl) {
+    var existing = document.querySelectorAll('.tp2');
+    for (var i = 0; i < existing.length; i++) {
+      if (existing[i].parentNode) existing[i].parentNode.removeChild(existing[i]);
+    }
+
+    var div = document.createElement('div');
+    div.className = 'tp2';
+    document.body.appendChild(div);
+
+    var rect = anchorEl.getBoundingClientRect();
+    /* 2026-09-03: panels were LEFT-aligned to the field, so a 150px panel under a field whose
+       left edge sits near the dialog's right edge spilled 9px past it. Right-align to the
+       field instead: the panel's right edge lands on the field's right edge, which is always
+       inside the dialog. The viewport clamp below still applies. */
+    var left = rect.right + window.pageXOffset - (div.offsetWidth || 150);
+    var top = rect.bottom + window.pageYOffset + 6;
+    div.style.position = 'absolute';
+    div.style.left = left + 'px';
+    div.style.top = top + 'px';
+
+    var pRect = div.getBoundingClientRect();
+    var winW = window.innerWidth;
+    var winH = window.innerHeight;
+    if (pRect.right > winW - 8) {
+      left -= (pRect.right - (winW - 8));
+      div.style.left = left + 'px';
+    }
+    if (pRect.bottom > winH - 8) {
+      top = rect.top + window.pageYOffset - pRect.height - 6;
+      div.style.top = top + 'px';
+    }
+
+    var onKey = function (e) {
+      if (e.key === 'Escape') close();
+    };
+    var onClick = function (e) {
+      if (div.parentNode && !div.contains(e.target)) close();
+    };
+
+    function close() {
+      if (div.parentNode) div.parentNode.removeChild(div);
+      document.removeEventListener('keydown', onKey, true);
+      document.removeEventListener('click', onClick, true);
+    }
+
+    setTimeout(function () {
+      document.addEventListener('keydown', onKey, true);
+      document.addEventListener('click', onClick, true);
+    }, 0);
+
+    return { el: div, close: close };
+  }
+
+  function makeFoot(onCancel, onSet) {
+    var foot = document.createElement('div');
+    foot.className = 'tp2-foot';
+    var cancel = document.createElement('button');
+    cancel.type = 'button';
+    cancel.className = 'tp2-cancel';
+    cancel.textContent = 'Cancel';
+    var ok = document.createElement('button');
+    ok.type = 'button';
+    ok.className = 'tp2-ok';
+    ok.textContent = 'Set';
+    cancel.addEventListener('click', onCancel);
+    ok.addEventListener('click', onSet);
+    foot.appendChild(cancel);
+    foot.appendChild(ok);
+    return foot;
+  }
+
+  window.openTimePicker = function (anchorEl, valueHHMM, onPick) {
+    var latest = valueHHMM;
+    var p = panel(anchorEl);
+    var el = p.el;
+
+    var lab = document.createElement('div');
+    lab.className = 'tp2-lab';
+    lab.textContent = 'Time';
+    el.appendChild(lab);
+
+    el.appendChild(window.buildTimeCols(valueHHMM, function (v) {
+      latest = v;
+    }));
+
+    el.appendChild(makeFoot(p.close, function () {
+      onPick(latest);
+      p.close();
+    }));
+
+    if (window.scrollColsToSelection) window.scrollColsToSelection(el);
+  };
+
+  window.openDurationPicker = function (anchorEl, totalMinutes, onPick) {
+    var m = typeof totalMinutes === 'number' ? totalMinutes : 0;
+    var stateH = Math.floor(m / 60);
+    var stateM = m % 60;
+    if (stateH < 0) stateH = 0;
+    if (stateH > 12) stateH = 12;
+    if (stateM < 0) stateM = 0;
+    if (stateM > 59) stateM = 59;
+
+    var p = panel(anchorEl);
+    var el = p.el;
+
+    function buildCol(caption, count, formatter, selVal, setVal) {
+      var col = document.createElement('div');
+      col.className = 'tp2-col';
+      var cap = document.createElement('div');
+      cap.className = 'tp2-collab';
+      cap.textContent = caption;
+      col.appendChild(cap);
+      var list = document.createElement('div');
+      list.className = 'tp2-list';
+      var btns = [];
+      for (var i = 0; i < count; i++) {
+        var label = formatter(i);
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'tp2-opt';
+        b.setAttribute('data-v', String(i));
+        b.textContent = label;
+        if (i === selVal) b.className += ' tp2-on';
+        (function (val) {
+          b.addEventListener('click', function () {
+            for (var j = 0; j < btns.length; j++) {
+              btns[j].className = 'tp2-opt';
+            }
+            b.className = 'tp2-opt tp2-on';
+            setVal(val);
+          });
+        })(i);
+        list.appendChild(b);
+        btns.push(b);
+      }
+      col.appendChild(list);
+      return col;
+    }
+
+    var lab = document.createElement('div');
+
+    lab.className = 'tp2-lab';
+
+    lab.textContent = 'Duration';
+
+    el.appendChild(lab);   /* 2026-09-03: Time has a caption line; without one here the
+
+       two panels came out 280px and 258px tall. Same size means same height too. */
+
+    var cols = document.createElement('div');
+    cols.className = 'tp2-cols';
+    cols.appendChild(buildCol('Hours', 13, function (n) { return String(n); }, stateH, function (v) { stateH = v; }));
+    cols.appendChild(buildCol('Minutes', 60, function (n) { return n < 10 ? '0' + n : String(n); }, stateM, function (v) { stateM = v; }));
+
+    el.appendChild(cols);
+
+    el.appendChild(makeFoot(p.close, function () {
+      onPick(stateH * 60 + stateM);
+      p.close();
+    }));
+
+    if (window.scrollColsToSelection) window.scrollColsToSelection(el);
+  };
+
+})();
+
+/* --- reminder picker, side by side --- */
+window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
+  var existing = document.querySelectorAll('.tp2');
+  for (var i = 0; i < existing.length; i++) {
+    if (existing[i].parentNode) existing[i].parentNode.removeChild(existing[i]);
+  }
+
+  var chosenDate = initDate || window.todayISO();
+  var chosenTime = initTime || "09:00";
+
+  var initParts = chosenDate.split('-');
+  var viewYear = parseInt(initParts[0], 10);
+  var viewMonth = parseInt(initParts[1], 10) - 1;
+
+  function pad(n) { return n < 10 ? '0' + n : '' + n; }
+  function ymd(y, m, d) { return y + '-' + pad(m + 1) + '-' + pad(d); }
+  function daysInMonth(y, m) { return new Date(y, m + 1, 0).getDate(); }
+  function firstDow(y, m) { return new Date(y, m, 1).getDay(); }
+  function monthName(m) {
+    return ['January','February','March','April','May','June','July','August','September','October','November','December'][m];
+  }
+
+  var panel = document.createElement('div');
+  panel.className = 'tp2 rp2';
+
+  function close() {
+    if (panel.parentNode) panel.parentNode.removeChild(panel);
+    document.removeEventListener('keydown', onKey);
+    document.removeEventListener('click', onClick, true);
+  }
+
+  function onKey(e) {
+    if (e.key === 'Escape' || e.keyCode === 27) close();
+  }
+
+  function onClick(e) {
+    if (!panel.parentNode) return;
+    if (!panel.contains(e.target)) close();
+  }
+
+  var body = document.createElement('div');
+  body.className = 'rp2-body';
+
+  var monthsWrap = document.createElement('div');
+  monthsWrap.className = 'dp2-months';
+  var mEl = document.createElement('div');
+  mEl.className = 'dp2-m';
+  monthsWrap.appendChild(mEl);
+
+  function renderMonth() {
+    while (mEl.firstChild) mEl.removeChild(mEl.firstChild);
+
+    var title = document.createElement('div');
+    title.className = 'dp2-title';
+
+    var prevBtn = document.createElement('button');
+    prevBtn.type = 'button';
+    prevBtn.appendChild(document.createTextNode('‹'));
+    prevBtn.onclick = function () {
+      viewMonth--;
+      if (viewMonth < 0) { viewMonth = 11; viewYear--; }
+      renderMonth();
+    };
+
+    var titleSpan = document.createElement('span');
+    titleSpan.appendChild(document.createTextNode(monthName(viewMonth) + ' ' + viewYear));
+
+    var nextBtn = document.createElement('button');
+    nextBtn.type = 'button';
+    nextBtn.appendChild(document.createTextNode('›'));
+    nextBtn.onclick = function () {
+      viewMonth++;
+      if (viewMonth > 11) { viewMonth = 0; viewYear++; }
+      renderMonth();
+    };
+
+    title.appendChild(prevBtn);
+    title.appendChild(titleSpan);
+    title.appendChild(nextBtn);
+    mEl.appendChild(title);
+
+    var grid = document.createElement('div');
+    grid.className = 'dp2-grid';
+
+    var dows = ['Su','Mo','Tu','We','Th','Fr','Sa'];
+    for (var i = 0; i < 7; i++) {
+      var d = document.createElement('div');
+      d.className = 'dp2-dow';
+      d.appendChild(document.createTextNode(dows[i]));
+      grid.appendChild(d);
+    }
+
+    var blanks = firstDow(viewYear, viewMonth);
+    for (var b = 0; b < blanks; b++) {
+      var blank = document.createElement('div');
+      blank.className = 'dp2-blank';
+      grid.appendChild(blank);
+    }
+
+    var totalDays = daysInMonth(viewYear, viewMonth);
+    var cp = chosenDate.split('-');
+    var cy = parseInt(cp[0], 10);
+    var cm = parseInt(cp[1], 10) - 1;
+    var cd = parseInt(cp[2], 10);
+
+    for (var day = 1; day <= totalDays; day++) {
+      var dayBtn = document.createElement('button');
+      dayBtn.type = 'button';
+      var isOn = (day === cd && viewMonth === cm && viewYear === cy);
+      dayBtn.className = isOn ? 'dp2-day dp2-on' : 'dp2-day';
+      dayBtn.appendChild(document.createTextNode(String(day)));
+      (function (dd) {
+        dayBtn.onclick = function () {
+          chosenDate = ymd(viewYear, viewMonth, dd);
+          renderMonth();
+        };
+      })(day);
+      grid.appendChild(dayBtn);
+    }
+
+    mEl.appendChild(grid);
+  }
+
+  renderMonth();
+  body.appendChild(monthsWrap);
+
+  var timeEl = window.buildTimeCols(chosenTime, function (newTime) {
+    chosenTime = newTime;
+  });
+  body.appendChild(timeEl);
+  panel.appendChild(body);
+
+  var foot = document.createElement('div');
+  foot.className = 'tp2-foot';
+
+  var cancelBtn = document.createElement('button');
+  cancelBtn.type = 'button';
+  cancelBtn.appendChild(document.createTextNode('Cancel'));
+  cancelBtn.onclick = close;
+
+  var setBtn = document.createElement('button');
+  setBtn.type = 'button';
+  setBtn.className = 'tp2-ok';
+  setBtn.appendChild(document.createTextNode('Set'));
+  setBtn.onclick = function () {
+    if (typeof onSet === 'function') onSet(chosenDate, chosenTime);
+    close();
+  };
+
+  foot.appendChild(cancelBtn);
+  foot.appendChild(setBtn);
+  panel.appendChild(foot);
+
+  document.body.appendChild(panel);
+
+  var rect = anchorEl.getBoundingClientRect();
+  var pageX = window.pageXOffset;
+  var pageY = window.pageYOffset;
+  /* 2026-09-03: panels were LEFT-aligned to the field, so a 150px panel under a field whose
+     left edge sits near the dialog's right edge spilled 9px past it. Right-align to the
+     field instead: the panel's right edge lands on the field's right edge, which is always
+     inside the dialog. The viewport clamp below still applies. */
+  var left = rect.right + pageX - (panel.offsetWidth || 150);
+  var top = rect.bottom + pageY + 6;
+  var panelW = panel.offsetWidth;
+  var panelH = panel.offsetHeight;
+  var vw = window.innerWidth;
+  var vh = window.innerHeight;
+
+  if (rect.left + panelW > vw - 8) {
+    left = pageX + (vw - panelW - 8);
+    if (left < pageX + 8) left = pageX + 8;
+  }
+  if (rect.bottom + 6 + panelH > vh - 8) {
+    top = pageY + (rect.top - panelH - 6);
+    if (top < pageY + 8) top = pageY + 8;
+  }
+
+  panel.style.position = 'absolute';
+  panel.style.left = left + 'px';
+  panel.style.top = top + 'px';
+
+  window.scrollColsToSelection(panel);
+
+  setTimeout(function () {
+    document.addEventListener('keydown', onKey);
+    document.addEventListener('click', onClick, true);
+  }, 0);
+};
+
+/* --- duration wiring --- */
+(function() {
+  if (window.__durWireInstalled) return;
+  window.__durWireInstalled = true;
+
+  document.addEventListener('click', function(e) {
+    var node = e.target;
+    var input = null;
+    while (node) {
+      if (node.nodeType === 1 && node.tagName === 'INPUT' && node.type === 'number') {
+        input = node;
+        break;
+      }
+      node = node.parentNode;
+    }
+    if (!input) return;
+
+    var ea = input.closest('.ea');
+    if (!ea) return;
+    if (!ea.closest('.modal')) return;
+
+    var row = input.closest('.ea-row');
+    if (!row) return;
+    var label = row.querySelector('.ea-label');
+    if (!label) return;
+    if (label.textContent.trim() !== 'Duration') return;
+
+    e.preventDefault();
+    input.readOnly = true;
+
+    var total = parseInt(input.value, 10) || 0;
+
+    window.openDurationPicker(input, total, function(totalMinutes) {
+      input.value = String(totalMinutes);
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+  }, true);
+})();
+</script>
+
+<script>
+/* 2026-09-03 - Priority and Colour / Area. Their closed boxes already matched the other fields
+   exactly (#16181c on a #2e323a border, measured); what did not match was the option list, which
+   a native <select> draws itself outside the page. Same answer as the time field: our own panel. */
+(function(){
+  if (window.__selPickInstalled) return;
+  window.__selPickInstalled = true;
+
+  function onKeyDown(e){
+    if (e.keyCode === 27 || e.which === 27) closePicker();
+  }
+
+  function onOutsideDown(e){
+    var tp = document.querySelector('.tp2');
+    if (tp && !tp.contains(e.target)) closePicker();
+  }
+
+  function closePicker(){
+    var existing = document.querySelector('.tp2');
+    if (existing && existing.parentNode) existing.parentNode.removeChild(existing);
+    document.removeEventListener('keydown', onKeyDown, true);
+    document.removeEventListener('mousedown', onOutsideDown, true);
+  }
+
+  function labelFor(selectEl){
+    var row = (selectEl.closest && selectEl.closest('.ea-row')) || null;
+    if (row) {
+      var lab = row.querySelector('.ea-label');
+      if (lab && lab.textContent) return lab.textContent;
+    }
+    return 'Choose';
+  }
+
+  window.openSelectPicker = function(selectEl){
+    closePicker();
+
+    var tp = document.createElement('div');
+    tp.className = 'tp2';
+
+    var lab = document.createElement('div');
+    lab.className = 'tp2-lab';
+    lab.textContent = labelFor(selectEl);
+    tp.appendChild(lab);
+
+    var list = document.createElement('div');
+    list.className = 'tp2-list';
+
+    var opts = selectEl.options;
+    var selectedBtn = null;
+    for (var i = 0; i < opts.length; i++) {
+      (function(opt){
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.textContent = opt.text;
+        btn.setAttribute('data-v', opt.value);
+        if (opt.value === selectEl.value) {
+          btn.className = 'tp2-opt tp2-on';
+          selectedBtn = btn;
+        } else {
+          btn.className = 'tp2-opt';
+        }
+        btn.addEventListener('click', function(){
+          selectEl.value = opt.value;
+          var ie = document.createEvent('Event');
+          ie.initEvent('input', true, true);
+          selectEl.dispatchEvent(ie);
+          var ce = document.createEvent('Event');
+          ce.initEvent('change', true, true);
+          selectEl.dispatchEvent(ce);
+          closePicker();
+        });
+        list.appendChild(btn);
+      })(opts[i]);
+    }
+
+    tp.appendChild(list);
+    tp.style.position = 'absolute';
+    tp.style.minWidth = selectEl.getBoundingClientRect().width + 'px';
+    document.body.appendChild(tp);
+
+    var r = selectEl.getBoundingClientRect();
+    var tpR = tp.getBoundingClientRect();
+    var vpW = window.innerWidth;
+    var vpH = window.innerHeight;
+    var pxX = window.pageXOffset;
+    var pxY = window.pageYOffset;
+    /* 2026-09-03: right-align to the field, same as the time and duration panels. Left-aligning
+       pushed a 150px panel 9px past the dialog's right edge. */
+    var left = r.right + pxX - (tp.offsetWidth || tpR.width || 150);
+    var top = r.bottom + pxY + 6;
+
+    if (left + tpR.width > vpW - 8 + pxX) {
+      left = vpW - 8 - tpR.width + pxX;
+      if (left < 8 + pxX) left = 8 + pxX;
+    }
+    if (top + tpR.height > vpH - 8 + pxY) {
+      var above = r.top + pxY - tpR.height - 6;
+      if (above >= 8 + pxY) {
+        top = above;
+      } else {
+        top = 8 + pxY;
+      }
+    }
+
+    tp.style.left = left + 'px';
+    tp.style.top = top + 'px';
+
+    if (selectedBtn) {
+      list.scrollTop = selectedBtn.offsetTop - list.clientHeight / 2 + selectedBtn.offsetHeight / 2;
+    }
+
+    setTimeout(function(){
+      document.addEventListener('keydown', onKeyDown, true);
+      document.addEventListener('mousedown', onOutsideDown, true);
+    }, 0);
+  };
+
+  document.addEventListener('mousedown', function(e){
+    var t = e.target;
+    var sel = null;
+    while (t && t !== document) {
+      if (t.tagName === 'SELECT') { sel = t; break; }
+      t = t.parentNode;
+    }
+    if (!sel) return;
+
+    var n = sel;
+    var hasEa = false;
+    var hitModal = false;
+    while (n && n !== document) {
+      if (n.classList) {
+        if (!hasEa && n.classList.contains('ea')) hasEa = true;
+        if (n.classList.contains('modal')) { hitModal = true; break; }
+      }
+      n = n.parentNode;
+    }
+    if (!hitModal || !hasEa) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+    window.openSelectPicker(sel);
+  }, true);
+})();
+</script>
+
+<script>
+/* 2026-09-03 - saved alarms as one-line chips. The old markup was trapped in the 112px field
+   column: a 43px date button wrapping four lines tall, an empty time input, and an 8px remove
+   button. One chip per alarm now: bell, "Thu, Sep 19, 2026 - 02:30 PM", and a proper 30px x. */
+(function () {
+  if (window.__alcInstalled) return;
+  window.__alcInstalled = true;
+
+  var DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+  function formatDate(dateStr) {
+    var parts = dateStr.split('-');
+    var y = parseInt(parts[0], 10);
+    var mo = parseInt(parts[1], 10) - 1;
+    var d = parseInt(parts[2], 10);
+    var dt = new Date(y, mo, d);
+    return DAYS[dt.getDay()] + ', ' + MONTHS[dt.getMonth()] + ' ' + d + ', ' + y;
+  }
+
+  function formatTime(hhmm) {
+    var parts = hhmm.split(':');
+    var h = parseInt(parts[0], 10);
+    var m = parseInt(parts[1], 10);
+    var ampm = h >= 12 ? 'PM' : 'AM';
+    var h12 = h % 12;
+    if (h12 === 0) h12 = 12;
+    var hStr = h12 < 10 ? '0' + h12 : '' + h12;
+    var mStr = m < 10 ? '0' + m : '' + m;
+    return hStr + ':' + mStr + ' ' + ampm;
+  }
+
+  function paint() {
+    var wrap = document.querySelector('.modal .ea .al-wrap');
+    if (!wrap) return;
+
+    /* findNode returns { node, parent, index } - not the node. Reading .reminders off the
+       wrapper made the list always empty, so the chip never drew. */
+    var found = window.findNode(window.__editingId);
+    var node = found && found.node;
+    if (!node) return;
+
+    var list = node.reminders || [];
+    var group = wrap.querySelector('.al-group');
+
+    if (list.length === 0) {
+      if (group && group.parentNode) group.parentNode.removeChild(group);
+      return;
+    }
+
+    if (!group) {
+      group = document.createElement('div');
+      group.className = 'al-group';
+      wrap.insertBefore(group, wrap.firstChild);
+    }
+
+    var sig = JSON.stringify(list);
+    if (group.getAttribute('data-alc') === sig) return;
+
+    group.setAttribute('data-alc', sig);
+    while (group.firstChild) group.removeChild(group.firstChild);
+
+    for (var i = 0; i < list.length; i++) {
+      var alarm = list[i];
+
+      var chip = document.createElement('div');
+      chip.className = 'alc';
+
+      var bell = document.createElement('span');
+      bell.className = 'alc-bell';
+      bell.textContent = '⏰';
+
+      var body = document.createElement('button');
+      body.type = 'button';
+      body.className = 'alc-body';
+      body.textContent = formatDate(alarm.date);
+
+      var timeSpan = document.createElement('span');
+      timeSpan.className = 'alc-time';
+      timeSpan.textContent = ' · ' + formatTime(alarm.time);
+      body.appendChild(timeSpan);
+
+      var x = document.createElement('button');
+      x.type = 'button';
+      x.className = 'alc-x';
+      x.title = 'Remove this alarm';
+      x.textContent = '✕';
+
+      chip.appendChild(bell);
+      chip.appendChild(body);
+      chip.appendChild(x);
+
+      (function (a, b, xBtn) {
+        b.addEventListener('click', function () {
+          window.openReminderPicker(b, a.date, a.time, function (newDate, newTime) {
+            a.date = newDate;
+            a.time = newTime;
+            window.Store.save();
+            paint();
+          });
+        });
+        xBtn.addEventListener('click', function () {
+          var idx = node.reminders.indexOf(a);
+          if (idx !== -1) node.reminders.splice(idx, 1);
+          window.Store.save();
+          paint();
+        });
+      })(alarm, body, x);
+
+      group.appendChild(chip);
+    }
+  }
+
+  paint();
+  setInterval(paint, 400);
+})();
+</script>
+
+
+
+<script>
+/* 2026-09-03 - every popup stays inside the edit dialog. One clamp for all of them, watching for
+   panels as they are added, instead of five positioning sites each getting it wrong its own way.
+   Right edge on the dialog's right edge; pushed back in if that would overflow the left. */
+(function () {
+  if (window.__clampInstalled) return;
+  window.__clampInstalled = true;
+
+  function clamp(el) {
+    if (!document.body.contains(el)) return;
+    var m = document.querySelector('.modal');
+    if (!m) return;
+    var mr = m.getBoundingClientRect();
+    var r = el.getBoundingClientRect();
+    if (r.width > mr.width - 16) {
+      el.style.maxWidth = (mr.width - 16) + 'px';
+      r = el.getBoundingClientRect();
+    }
+    var want = mr.right + window.pageXOffset - r.width;
+    if (want < mr.left + window.pageXOffset) want = mr.left + window.pageXOffset;
+    el.style.left = want + 'px';
+    if (r.bottom > window.innerHeight - 8) {
+      var ny = window.innerHeight - 8 - r.height + window.pageYOffset;
+      if (ny < 8 + window.pageYOffset) ny = 8 + window.pageYOffset;
+      el.style.top = ny + 'px';
+    }
+  }
+
+  function clampAll() {
+    var nodes = document.querySelectorAll('.tp2, .dp2');
+    for (var i = 0; i < nodes.length; i++) clamp(nodes[i]);
+  }
+
+  var mo = new MutationObserver(function (records) {
+    for (var i = 0; i < records.length; i++) {
+      var added = records[i].addedNodes;
+      for (var j = 0; j < added.length; j++) {
+        var n = added[j];
+        if (n.nodeType !== 1) continue;
+        if (n.matches('.tp2, .dp2')) {
+          clamp(n);
+          (function (node) {
+            setTimeout(function () { clamp(node); }, 0);
+          })(n);
+        }
+      }
+    }
+  });
+
+  mo.observe(document.body, { childList: true });
+
+  window.addEventListener('resize', clampAll);
+
+  /* 2026-09-03: the date picker is repositioned by two later modules after it is built, so a clamp
+     that runs once at insert time gets overwritten. Measured: it still hung 419px past the dialog.
+     Re-clamp on a short tick while any panel is open - it is a no-op when nothing is showing. */
+  setInterval(function () {
+    if (document.querySelector('.tp2, .dp2')) clampAll();
+  }, 150);
+})();
+</script>
+
+<script>
+/* 2026-09-03 - double-click an empty slot in the calendar to start a task there, and the rule
+   that a task must live in a branch before it can be saved. The branch requirement blocks the
+   click and SAYS why - it never disables the button, which is the mistake that made saving look
+   broken for weeks. */
+(function () {
+  if (window.__dblAdd2Installed) return;
+  window.__dblAdd2Installed = true;
+
+  /* 2026-09-03. Double-click an empty part of the calendar to start a task there.
+     Two things had to be got right:
+       - NO popup. The branch is chosen in the edit dialog's Location field, which already refuses
+         to save without one. The operator was explicit: a "Choose a branch" modal on add is not
+         acceptable.
+       - exactly ONE task. Creating one here produced two, because another dblclick listener
+         registered earlier in this file already creates one. Measured: one double-click left two
+         empty-titled tasks. So this no longer creates its own - it waits a moment, adopts whatever
+         empty task appeared, and only creates one if nothing did. */
+  document.addEventListener('dblclick', function (e) {
+    var col = e.target.closest ? e.target.closest('.tgcol') : null;
+    if (!col) return;
+    if (e.target.closest('.tgevent, .tgchip')) return;
+    var iso = col.getAttribute('data-iso') || (col.dataset ? col.dataset.iso : null);
+    if (!iso) return;
+    if (e.__dblAddHandled) return;
+    e.__dblAddHandled = true;
+
+    var y = e.clientY - col.getBoundingClientRect().top;
+    var hhmm = (typeof window.tgFromY === 'function' && window.tgFromY(y)) || '09:00';
+
+    var before = {};
+    window.walkTree(function (n) { if (n && n.id) before[n.id] = 1; });
+
+    setTimeout(function () {
+      var made = null;
+      window.walkTree(function (n) {
+        if (made || !n) return;
+        if ((n.title || '') !== '') return;
+        if (n.children && n.children.length) return;
+        made = n.id;                       // an empty task, whoever made it
+      });
+      if (!made) {
+        var host = null;
+        window.walkTree(function (n) {
+          if (host) return;
+          if (String(n.title || '').toLowerCase().trim() === 'unbranched') host = n.id;
+        });
+        made = 'n' + Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36);
+        var fresh = { id: made, title: '', children: [] };
+        var h = host ? (window.findNode(host) || {}).node : null;
+        if (h) { if (!h.children) h.children = []; h.children.push(fresh); h.collapsed = false; }
+        else { window.Store.data.tree.push(fresh); }
+      }
+      var f = window.findNode(made);
+      if (f && f.node) { f.node.date = iso; f.node.time = hhmm; }
+      window.Store.save();
+      window.renderAll();
+      setTimeout(function () {
+        if (window.editActivity) window.editActivity(made);
+      }, 0);
+    }, 260);
+  }, true);
+})();
+</script>
+
+<script>
+/* 2026-09-03 - a task must live in a REAL branch before it can be saved. "Unbranched" is the
+   holding pen, not a choice. The block is visible: the dialog stays open, the Location field
+   opens and is outlined red, and a message says why. The Save button is never disabled.
+   Restored after a bad splice wiped it - the previous edit cut from one module to the end of the
+   <script> and took this with it. Cut to a known marker, never to a closing tag. */
+(function () {
+  if (window.__branchGate2Installed) return;
+  window.__branchGate2Installed = true;
+
+  function hasRealBranch(id) {
+    var node = window.findNode(id);
+    if (!node) return false;
+    var parent = node.parent;
+    if (!parent) return false;
+    var title = (parent.title || '').toLowerCase().replace(/^\s+|\s+$/g, '');
+    return title !== 'unbranched';
+  }
+
+  function onSaveClick(e) {
+    var modal = document.querySelector('.modal .ea');
+    if (!modal) return;
+    var id = window.__editingId;
+    if (!id) return;
+    if (!window.findNode(id)) return;
+    if (hasRealBranch(id)) return;
+    if (e && typeof e.preventDefault === 'function') e.preventDefault();
+    if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
+    if (e && typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
+    window.toast('Pick a location first - every task lives in a branch.', 'err');
+    try {
+      var field = document.querySelector('.modal .ea .lf-field');
+      if (field) {
+        try { field.click(); } catch (_) {}
+        try { field.scrollIntoView({ block: 'nearest' }); } catch (_) {}
+        field.style.outline = '2px solid #e5484d';
+        field.style.outlineOffset = '2px';
+        setTimeout(function () {
+          field.style.outline = '';
+          field.style.outlineOffset = '';
+        }, 2500);
+      }
+    } catch (_) {}
+  }
+
+  function attach() {
+    var btns = document.querySelectorAll('.modal button');
+    for (var i = 0; i < btns.length; i++) {
+      var btn = btns[i];
+      if (btn.getAttribute('data-branchgate') === '1') continue;
+      if ((btn.textContent || '').replace(/^\s+|\s+$/g, '') === 'Save') {
+        btn.setAttribute('data-branchgate', '1');
+        btn.addEventListener('click', onSaveClick, true);
+      }
+    }
+  }
+
+  attach();
+  setInterval(attach, 300);
 })();
 </script>
 </body>
