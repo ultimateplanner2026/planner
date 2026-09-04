@@ -5073,7 +5073,7 @@ html:root #treeRoot .tree-row:not([data-depth="0"]){ height:32px !important; min
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-09-04 15:31</span>
+    <span id="buildStamp">build 2026-09-04 15:41</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -24691,6 +24691,54 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', tick);
   }
+})();
+</script>
+
+<script>
+/* 2026-09-04 - the tree footer blinked in and out: __renderTreeFooter re-created it on every
+   render while a 500ms timer deleted it. Two writers, four times a second - the flicker at the
+   bottom of the list. Replace the creator instead of racing it. */
+(function () {
+  if (window.__noFooterInstalled) return;
+  window.__noFooterInstalled = true;
+
+  function removeFooter() {
+    var footer = document.getElementById('treeFooter');
+    if (footer && footer.parentNode) {
+      footer.parentNode.removeChild(footer);
+    }
+    var root = document.getElementById('treeRoot');
+    if (root) {
+      var empties = root.querySelectorAll('.tree-empty');
+      for (var i = 0; i < empties.length; i++) {
+        var el = empties[i];
+        if (el && el.parentNode) {
+          el.parentNode.removeChild(el);
+        }
+      }
+    }
+  }
+
+  function install() {
+    var orig = window.__renderTreeFooter;
+    if (typeof orig !== 'function') return false;
+    window.__renderTreeFooter = function () {
+      removeFooter();
+    };
+    return true;
+  }
+
+  if (!install()) {
+    var attempts = 0;
+    var handle = setInterval(function () {
+      attempts++;
+      if (install() || attempts >= 50) {
+        clearInterval(handle);
+      }
+    }, 200);
+  }
+
+  removeFooter();
 })();
 </script>
 </body>
