@@ -4940,7 +4940,7 @@ html:root #treeRoot .tree-row:not([data-depth="0"]){ height:32px !important; min
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-09-04 00:11</span>
+    <span id="buildStamp">build 2026-09-04 01:00</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -24104,5 +24104,47 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
   setInterval(attach, 300);
 })();
 </script>
+
+<script>
+/* 2026-09-04 - THE two-day bug: "I save a title and it comes back as it was."
+   stampClocks() bumps a node's clock only when its hash differs from the one it recorded last
+   time it ran. That map starts empty at page load and is first filled by the first SAVE - so the
+   first edit after a load recorded its hash and bumped nothing. The edit went to disk with a
+   stale clock, lost the next cloud merge (winner() falls back to comparing device ids when the
+   clocks are equal, which is a coin flip), and the old text came back.
+   Measured before this fix: after the first edit, local clock 344, cloud clock 344 - identical.
+   Priming means running stampClocks once at load, before anyone can type. */
+(function () {
+    if (window.__primeHashesInstalled) return;
+    window.__primeHashesInstalled = true;
+
+    function prime() {
+        if (typeof window.stampClocks !== 'function') return false;
+        if (!window.Store || !window.Store.data || !window.Store.data.tree) return false;
+        try {
+            window.stampClocks();
+        } catch (e) {}
+        return true;
+    }
+
+    var attempts = 0;
+    function poll() {
+        if (prime()) return;
+        if (++attempts >= 50) return;
+        setTimeout(poll, 200);
+    }
+    poll();
+
+    setTimeout(function () {
+        prime();
+    }, 1500);
+})();
+</script>
+
+<!-- 2026-09-04: a month-grid double-click handler lived here and could never fire.
+     Measured: the handler reported 'no .mcell' on a real double-click, because the
+     FIRST click on a month cell already navigates to that day - by the second click
+     the app is showing the day view. Double-click belongs to Day and Week, where the
+     grid stays put. Removed rather than left as a handler that never runs. -->
 </body>
 </html>
