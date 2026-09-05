@@ -5073,7 +5073,7 @@ html:root #treeRoot .tree-row:not([data-depth="0"]){ height:32px !important; min
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-09-04 15:41</span>
+    <span id="buildStamp">build 2026-09-05 01:00</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -10777,6 +10777,14 @@ function surfaceArrivals() {
     }
 
     function save() {
+      /* 2026-09-05: `node` is captured when the dialog opens. A cloud pull calls
+         mergePlanner and REPLACES every node object in the tree, so after one lands this
+         reference points at an orphan and everything written here is thrown away - which is the
+         "I add a task and the title and notes disappear" the operator kept hitting. Re-resolve
+         by id at save time; fall back to the captured object only if the id has gone. */
+      var __f = (typeof window.findNode === 'function') ? window.findNode(id) : null;
+      if (__f && __f.node) node = __f.node;
+
       var t = title.value.trim();
       /* 2026-09-03: same guard. If the field is empty but the task already had a title, keep it -
          a save should never be the thing that deletes a name. */
@@ -24739,6 +24747,64 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
   }
 
   removeFooter();
+})();
+</script>
+
+<script>
+/* 2026-09-05 - THE cross-device bug. Every change schedules a cloud push on a 1500ms debounce and
+   NOTHING flushed it. The operator edited on another computer, signed out, and the edits never
+   left that machine: signOut() called auth.signOut() straight away, the debounce then fired with
+   no user, and docRef() returned null. Closing the tab within a second and a half lost it too.
+   Now: sign-out flushes first, and so does the page going hidden or away. */
+(function() {
+  if (window.__flushInstalled) return;
+  window.__flushInstalled = true;
+
+  window.__flushCloud = function() {
+    try {
+      if (!window.FB || !window.FB.on()) {
+        return Promise.resolve(false);
+      }
+      return window.FB.push().then(function() {
+        return true;
+      }, function() {
+        return false;
+      });
+    } catch (e) {
+      return Promise.resolve(false);
+    }
+  };
+
+  function wrap(original, thisArg, target, name) {
+    target[name] = function() {
+      var args = arguments;
+      return window.__flushCloud().then(function() {
+        return original.apply(thisArg, args);
+      }, function() {
+        return original.apply(thisArg, args);
+      });
+    };
+  }
+
+  if (window.FB && typeof window.FB.signOut === 'function') {
+    wrap(window.FB.signOut, window.FB, window.FB, 'signOut');
+  }
+
+  if (typeof window.signOut === 'function' && (!window.FB || window.signOut !== window.FB.signOut)) {
+    wrap(window.signOut, window, window, 'signOut');
+  }
+
+  document.addEventListener('visibilitychange', function() {
+    if (document.visibilityState === 'hidden') {
+      try { window.__flushCloud(); } catch (e) {}
+    }
+  });
+
+  window.addEventListener('pagehide', function() {
+    try { window.__flushCloud(); } catch (e) {}
+  });
+
+  window.__flushCloudReady = true;
 })();
 </script>
 </body>
