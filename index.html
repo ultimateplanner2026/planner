@@ -5150,7 +5150,7 @@ html:root #treeRoot .tree-row:not([data-depth="0"]){ height:32px !important; min
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-09-06 01:51</span>
+    <span id="buildStamp">build 2026-09-06 02:08</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -25425,7 +25425,9 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
     var ids = [], k;
     for (k = 0; k < picked.length; k++) ids.push(picked[k].id);
     openPath(ids);
-    if (typeof window.renderTree === 'function') window.renderTree();
+    /* renderAll, not renderTree - the calendar has to follow the same picks */
+    if (typeof window.renderAll === 'function') window.renderAll();
+    else if (typeof window.renderTree === 'function') window.renderTree();
     else applyFilter();
   }
 
@@ -25504,6 +25506,39 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
       setCls(rows[i], 'ps-hide', !(id && keep[id]));
     }
   }
+
+  /* the picked set, as a map, or null when nothing is picked */
+  window.__psKeep = function () {
+    if (!picked.length) return null;
+    var ids = [], k;
+    for (k = 0; k < picked.length; k++) ids.push(picked[k].id);
+    return keepFor(ids);
+  };
+
+  /* The calendar shows the same set as the tree. Filtering at scheduledOn - the one
+     source every view reads - rather than hiding chips after they are laid out, so the
+     stacking is computed for the reduced set and no gaps are left behind.
+     Anything not inside a picked branch is out, including standalone calendar events,
+     which is what "only the things within those branches" means. */
+  (function hookSchedule() {
+    if (typeof window.scheduledOn !== 'function') { setTimeout(hookSchedule, 30); return; }
+    if (window.scheduledOn.__psHooked) return;
+    var base = window.scheduledOn;
+    var wrapped = function (iso) {
+      var res = base.apply(this, arguments) || [];
+      var keep = window.__psKeep();
+      if (!keep) return res;
+      var out = [], i, e, id;
+      for (i = 0; i < res.length; i++) {
+        e = res[i];
+        id = (e && e.id) || (e && e.node && e.node.id) || null;
+        if (id && keep[id]) out.push(e);
+      }
+      return out;
+    };
+    wrapped.__psHooked = true;
+    window.scheduledOn = wrapped;
+  })();
 
   window.__psPicked = function () { return picked.slice(); };
   window.__psApply = applyFilter;
