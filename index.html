@@ -5147,7 +5147,7 @@ html:root #treeRoot .tree-row:not([data-depth="0"]){ height:32px !important; min
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-09-06 00:48</span>
+    <span id="buildStamp">build 2026-09-06 01:23</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -24598,6 +24598,24 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
   window.__odCount = function () { return Object.keys(overdueIds()).length; };
   window.__odToggle = function () { onOverdueClick(); };
 
+  /* 2026-09-06: hook the render, do not race it. renderTree rebuilds every row from
+     scratch, so a timer-only painter lets its own state flash on and off - measured at
+     four flashes across the first 1.6s of every refresh. Running inside the same
+     synchronous task as the render means the browser never paints the wrong state. The
+     interval stays as a cheap safety net for rows made outside renderTree. */
+  (function hookRender(){
+    if (typeof window.renderTree !== 'function') { setTimeout(hookRender, 30); return; }
+    if (window.renderTree.__odHooked) return;
+    var base = window.renderTree;
+    var wrapped = function () {
+      var r = base.apply(this, arguments);
+      try { paint(); } catch (e) {}
+      return r;
+    };
+    wrapped.__odHooked = true;
+    window.renderTree = wrapped;
+  })();
+
   paint();
   setInterval(paint, 400);
 
@@ -25117,6 +25135,24 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
       }
     }
   }
+
+  /* 2026-09-06: hook the render, do not race it. renderTree rebuilds every row from
+     scratch, so a timer-only painter lets its own state flash on and off - measured at
+     four flashes across the first 1.6s of every refresh. Running inside the same
+     synchronous task as the render means the browser never paints the wrong state. The
+     interval stays as a cheap safety net for rows made outside renderTree. */
+  (function hookRender(){
+    if (typeof window.renderTree !== 'function') { setTimeout(hookRender, 30); return; }
+    if (window.renderTree.__futHooked) return;
+    var base = window.renderTree;
+    var wrapped = function () {
+      var r = base.apply(this, arguments);
+      try { paint(); } catch (e) {}
+      return r;
+    };
+    wrapped.__futHooked = true;
+    window.renderTree = wrapped;
+  })();
 
   paint();
   setInterval(paint, 400);
