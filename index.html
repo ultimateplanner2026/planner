@@ -4711,7 +4711,10 @@ padding:0 14px;font-family:ui-sans-serif,system-ui,sans-serif;line-height:34px}
 .dp2 .dp2-day:hover{background:#3f4650 !important}
 .dp2 .dp2-day.dp2-on{background:#a8c7de !important;color:#1b1f25 !important}
 
-.dp2-quick{display:flex;gap:8px;margin-top:16px;padding-top:14px;border-top:1px solid #3a4049}
+/* 2026-09-06: Today / Tomorrow sit ABOVE the months - they are the common answer,
+   so they meet the cursor where the picker opens. Only the rule flipped; the buttons,
+   colours and sizes are untouched. */
+.dp2-quick{display:flex;gap:8px;margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid #3a4049}
 .dp2-quick button{flex:1 1 auto;background:#343a43;border:1px solid #3a4049;color:#e9ecf1;
   border-radius:8px;padding:8px 10px;font-size:12px;letter-spacing:.04em;text-transform:uppercase;
   cursor:pointer}
@@ -5147,7 +5150,7 @@ html:root #treeRoot .tree-row:not([data-depth="0"]){ height:32px !important; min
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-09-06 01:23</span>
+    <span id="buildStamp">build 2026-09-06 01:51</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -22999,7 +23002,8 @@ ancestor that can move.
         /* 2026-09-03: "Someday" removed at the operator's request - unnecessary. */
         box.appendChild(b1);
         box.appendChild(b2);
-        dp.appendChild(box);
+        // first child, not last - see the .dp2-quick rule
+        if (dp.firstChild) dp.insertBefore(box, dp.firstChild); else dp.appendChild(box);
       }
 
       var times = document.querySelectorAll('.modal .ea input[type="time"]');
@@ -25158,5 +25162,424 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
   setInterval(paint, 400);
 })();
 </script>
+
+<style>
+/* ===== ps  search that filters by CHOSEN items, 2026-09-06 =====
+   Typing offers what exists; picking makes a chip; a comma starts the next term.
+   The tree then shows exactly the picked branches, their insides and the path down
+   to them - a chosen set, not a text match.
+   This block sits AFTER the fb-hide rule on purpose: both are id+2class+pseudo, so
+   source order decides, and a branch you deliberately searched for must win over
+   "hidden until its date". */
+.ps-wrap{
+  position:relative; display:flex; align-items:center; gap:5px; flex-wrap:nowrap;
+  height:30px; padding:0 8px; flex:1 1 auto; min-width:0; overflow:visible;
+  border:1px solid var(--border); border-radius:6px; background:var(--surface);
+}
+/* the chips scroll sideways rather than wrapping - the toolbar is a fixed 47px row
+   and a second chip line was clipped straight through the middle of a chip */
+.ps-chips{ display:flex; align-items:center; gap:5px; overflow-x:auto; overflow-y:hidden;
+  flex:1 1 auto; min-width:0; scrollbar-width:none;
+  /* a soft right edge, so a chip list longer than the box reads as "more over here"
+     rather than as a chip sliced in half */
+  -webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 14px),transparent);
+  mask-image:linear-gradient(90deg,#000 calc(100% - 14px),transparent); }
+.ps-chips::-webkit-scrollbar{ display:none; }
+.ps-chips:empty{ display:none; }
+.ps-wrap.on{ border-color:#4d5461; }
+.ps-wrap #treeSearch{
+  border:none !important; background:transparent !important; height:28px;
+  flex:1 1 70px; min-width:70px; width:auto !important; padding:0 !important;
+  outline:none !important; box-shadow:none !important;
+}
+/* the ring belongs to the whole box, not to the bare input inside it */
+.ps-wrap:focus-within{ border-color:#4d5461; }
+/* once terms are picked they are the content; the box for the NEXT term shrinks to
+   a stub so the chips get the width. The pane is only ~430px wide.
+   These have to out-specify `.tree-toolbar #treeSearch{flex:1 1 auto !important;
+   min-width:110px !important}`, which is what used to pin the input at 110px and
+   squeeze the chips into a sliver. */
+.tree-toolbar .ps-wrap{ flex:1 1 auto !important; min-width:110px !important; }
+.tree-toolbar .ps-wrap #treeSearch{ flex:1 1 70px !important; min-width:70px !important; }
+.tree-toolbar .ps-wrap.on #treeSearch{ flex:0 1 58px !important; min-width:44px !important; }
+.ps-chip{
+  display:inline-flex; align-items:center; gap:5px; background:#2f343e;
+  border:1px solid #3a4049; border-radius:999px; padding:1px 7px;
+  font-size:11px; color:#cdd3dc; white-space:nowrap; max-width:120px; flex:0 0 auto;
+}
+.ps-chip .ps-lab{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  min-width:0; flex:1 1 auto; }
+/* the remove button is never what gets truncated */
+.ps-x{ color:#6b7280; cursor:pointer; font-size:11px; line-height:1; flex:0 0 auto; }
+.ps-x:hover{ color:var(--danger,#f87171); }
+.ps-menu{
+  position:absolute; top:100%; left:0; right:0; margin-top:6px; z-index:9999;
+  background:var(--surface-2,#24272e); border:1px solid var(--border); border-radius:8px;
+  padding:5px; box-shadow:0 8px 24px rgba(0,0,0,.45); max-height:320px; overflow-y:auto;
+}
+.ps-grp{ font-size:10px; letter-spacing:.06em; text-transform:uppercase;
+  color:#6b7280; padding:6px 8px 3px; }
+.ps-it{ display:flex; align-items:center; gap:8px; padding:6px 8px; border-radius:6px;
+  font-size:13px; cursor:pointer; }
+.ps-it.sel, .ps-it:hover{ background:#2f343e; }
+/* one line per row: a long title ellipsises rather than wrapping under the path,
+   so every row is the same height and the list scans cleanly */
+.ps-it > span:first-child{ flex:1 1 auto; min-width:0; overflow:hidden;
+  text-overflow:ellipsis; white-space:nowrap; }
+.ps-it em{ font-style:normal; color:var(--accent,#4d8bff); font-weight:600; }
+.ps-path{ margin-left:auto; font-size:10.5px; color:#6b7280; white-space:nowrap;
+  overflow:hidden; text-overflow:ellipsis; max-width:45%; }
+.ps-none{ padding:8px; font-size:12px; color:#6b7280; }
+.ps-hint{ border-top:1px solid var(--border); margin-top:5px; padding:7px 8px 3px;
+  font-size:10.5px; color:#6b7280; display:flex; gap:14px; }
+.ps-hint kbd{ background:#2f343e; border:1px solid #3a4049; border-radius:4px;
+  padding:0 4px; font-size:10px; color:#cdd3dc; }
+
+#treeRoot.ps-on .tree-row.ps-hide{ display:none !important; }
+#treeRoot.ps-on .tree-row:not(.ps-hide){ display:flex !important; }
+</style>
+
+<script>
+(function () {
+  if (window.__psInstalled) return;
+  window.__psInstalled = true;
+
+  var MAX = 8;
+  var picked = [];
+  var wrap = null, input = null, menu = null, selIdx = -1, matches = [];
+
+  function esc(s) { return String(s == null ? '' : s); }
+
+  function walk(cb) {
+    var tree = (window.Store && window.Store.data && window.Store.data.tree) || [];
+    (function rec(list, depth, path) {
+      for (var i = 0; i < list.length; i++) {
+        var n = list[i];
+        if (!n) continue;
+        cb(n, depth, path);
+        if (n.children && n.children.length) rec(n.children, depth + 1, path.concat([n]));
+      }
+    })(tree, 0, []);
+  }
+
+  function search(term) {
+    var low = term.toLowerCase(), out = [];
+    walk(function (n, depth, path) {
+      if (out.length >= MAX * 4) return;
+      var t = esc(n.title);
+      var at = t.toLowerCase().indexOf(low);
+      if (at === -1) return;
+      out.push({ id: n.id, title: t, depth: depth, path: path.slice(), at: at, len: term.length });
+    });
+    out.sort(function (a, b) { return (a.depth - b.depth) || (a.at - b.at); });
+    return out.slice(0, MAX);
+  }
+
+  /* the keep-set: the picked node, everything inside it, and the path down to it */
+  function keepFor(ids) {
+    var want = {}, keep = {}, i;
+    for (i = 0; i < ids.length; i++) want[ids[i]] = true;
+    (function rec(list, chain) {
+      for (var j = 0; j < list.length; j++) {
+        var n = list[j];
+        if (!n) continue;
+        var nowChain = chain.concat([n]);
+        if (want[n.id]) {
+          for (var c = 0; c < nowChain.length; c++) keep[nowChain[c].id] = true;
+          (function all(x) {
+            keep[x.id] = true;
+            var k = x.children || [];
+            for (var q = 0; q < k.length; q++) all(k[q]);
+          })(n);
+        }
+        if (n.children && n.children.length) rec(n.children, nowChain);
+      }
+    })((window.Store && window.Store.data && window.Store.data.tree) || [], []);
+    return keep;
+  }
+
+  function hideMenu() {
+    if (menu && menu.parentNode) menu.parentNode.removeChild(menu);
+    menu = null; selIdx = -1; matches = [];
+  }
+
+  function currentTerm() {
+    var v = input ? input.value : '';
+    var i = v.lastIndexOf(',');
+    return (i === -1 ? v : v.slice(i + 1)).replace(/^\s+|\s+$/g, '');
+  }
+
+  function titleNode(title, at, len) {
+    var span = document.createElement('span');
+    if (at < 0) { span.textContent = title; return span; }
+    span.appendChild(document.createTextNode(title.slice(0, at)));
+    var em = document.createElement('em');
+    em.textContent = title.slice(at, at + len);
+    span.appendChild(em);
+    span.appendChild(document.createTextNode(title.slice(at + len)));
+    return span;
+  }
+
+  function kbdSpan(keys, label) {
+    var s = document.createElement('span');
+    var k = document.createElement('kbd');
+    k.textContent = keys;
+    s.appendChild(k);
+    s.appendChild(document.createTextNode(' ' + label));
+    return s;
+  }
+
+  function itemRow(m, idx) {
+    var row = document.createElement('div');
+    row.className = 'ps-it';
+    row.setAttribute('data-idx', String(idx));
+    row.appendChild(titleNode(m.title, m.at, m.len));
+    var p = document.createElement('span');
+    p.className = 'ps-path';
+    if (m.depth === 0) {
+      p.textContent = 'top level';
+    } else {
+      var names = [], z;
+      for (z = 0; z < m.path.length; z++) names.push(esc(m.path[z].title));
+      p.textContent = names.join(' › ');
+    }
+    row.appendChild(p);
+    row.addEventListener('mousedown', function (e) { e.preventDefault(); pick(idx); });
+    return row;
+  }
+
+  function showMenu(list) {
+    hideMenu();
+    matches = list;
+    menu = document.createElement('div');
+    menu.className = 'ps-menu';
+    if (!list.length) {
+      var none = document.createElement('div');
+      none.className = 'ps-none';
+      none.textContent = 'Nothing matches';
+      menu.appendChild(none);
+    } else {
+      var groups = [['Branches', true], ['Subtasks', false]];
+      for (var g = 0; g < groups.length; g++) {
+        var wantBranch = groups[g][1], any = false, i;
+        for (i = 0; i < list.length; i++) {
+          if ((list[i].depth === 0) !== wantBranch) continue;
+          if (!any) {
+            var lab = document.createElement('div');
+            lab.className = 'ps-grp';
+            lab.textContent = groups[g][0];
+            menu.appendChild(lab);
+            any = true;
+          }
+          menu.appendChild(itemRow(list[i], i));
+        }
+      }
+      var hint = document.createElement('div');
+      hint.className = 'ps-hint';
+      hint.appendChild(kbdSpan('↑↓', 'move'));
+      hint.appendChild(kbdSpan('↵', 'pick'));
+      hint.appendChild(kbdSpan(',', 'add another'));
+      menu.appendChild(hint);
+    }
+    wrap.appendChild(menu);
+    setSel(list.length ? 0 : -1);
+  }
+
+  function setSel(i) {
+    selIdx = i;
+    if (!menu) return;
+    var its = menu.querySelectorAll('.ps-it'), k;
+    for (k = 0; k < its.length; k++) {
+      its[k].className = (String(i) === its[k].getAttribute('data-idx')) ? 'ps-it sel' : 'ps-it';
+    }
+  }
+
+  /* A collapsed branch renders no child rows at all, so filtering alone showed the
+     branch with its insides missing. Picking something means you want to see it: open
+     the picked node and every ancestor, then let renderTree build those rows. */
+  function openPath(ids) {
+    var want = {}, i, changed = false;
+    for (i = 0; i < ids.length; i++) want[ids[i]] = true;
+    (function rec(list, chain) {
+      for (var j = 0; j < list.length; j++) {
+        var nd = list[j];
+        if (!nd) continue;
+        var here = chain.concat([nd]);
+        if (want[nd.id]) {
+          for (var c = 0; c < here.length; c++) {
+            if (here[c].collapsed) { here[c].collapsed = false; changed = true; }
+          }
+          (function all(x) {
+            if (x.collapsed) { x.collapsed = false; changed = true; }
+            var k = x.children || [];
+            for (var q = 0; q < k.length; q++) all(k[q]);
+          })(nd);
+        }
+        if (nd.children && nd.children.length) rec(nd.children, here);
+      }
+    })((window.Store && window.Store.data && window.Store.data.tree) || [], []);
+    return changed;
+  }
+
+  function refresh() {
+    var ids = [], k;
+    for (k = 0; k < picked.length; k++) ids.push(picked[k].id);
+    openPath(ids);
+    if (typeof window.renderTree === 'function') window.renderTree();
+    else applyFilter();
+  }
+
+  function pick(idx) {
+    var m = matches[idx];
+    if (!m) return;
+    var dup = false, i;
+    for (i = 0; i < picked.length; i++) if (picked[i].id === m.id) dup = true;
+    if (!dup) picked.push({ id: m.id, title: m.title });
+    input.value = '';
+    hideMenu();
+    renderChips();
+    refresh();
+    if (input.focus) input.focus();
+  }
+
+  function removeAt(i) {
+    picked.splice(i, 1);
+    renderChips();
+    refresh();
+    if (input && input.focus) input.focus();
+  }
+
+  function renderChips() {
+    if (!wrap) return;
+    var bar = wrap.querySelector('.ps-chips');
+    if (!bar) { bar = document.createElement('div'); bar.className = 'ps-chips';
+                wrap.insertBefore(bar, wrap.firstChild); }
+    while (bar.firstChild) bar.removeChild(bar.firstChild);
+    var i;
+    for (i = 0; i < picked.length; i++) {
+      (function (idx) {
+        var c = document.createElement('span');
+        c.className = 'ps-chip';
+        var lab = document.createElement('span');
+        lab.className = 'ps-lab';
+        lab.textContent = picked[idx].title;
+        var x = document.createElement('span');
+        x.className = 'ps-x';
+        x.textContent = '×';
+        x.title = 'Remove';
+        x.addEventListener('mousedown', function (e) { e.preventDefault(); removeAt(idx); });
+        c.appendChild(lab);
+        c.appendChild(x);
+        bar.appendChild(c);
+      })(i);
+    }
+    wrap.className = picked.length ? 'ps-wrap on' : 'ps-wrap';
+    // 44px of stub: any word would be truncated, so let the caret speak
+    input.placeholder = picked.length ? '' : 'Search priorities';
+  }
+
+  function setCls(el, cls, on) {
+    var has = (' ' + el.className + ' ').indexOf(' ' + cls + ' ') !== -1;
+    if (on && !has) el.className = (el.className + ' ' + cls).replace(/\s+/g, ' ');
+    else if (!on && has)
+      el.className = (' ' + el.className + ' ').split(' ' + cls + ' ').join(' ')
+        .replace(/\s+/g, ' ').replace(/^\s|\s$/g, '');
+  }
+
+  function applyFilter() {
+    var root = document.getElementById('treeRoot');
+    if (!root) return;
+    var rows = root.querySelectorAll('.tree-row'), i;
+    if (!picked.length) {
+      setCls(root, 'ps-on', false);
+      for (i = 0; i < rows.length; i++) setCls(rows[i], 'ps-hide', false);
+      return;
+    }
+    setCls(root, 'ps-on', true);
+    var ids = [], k;
+    for (k = 0; k < picked.length; k++) ids.push(picked[k].id);
+    var keep = keepFor(ids);
+    for (i = 0; i < rows.length; i++) {
+      var id = rows[i].getAttribute('data-id');
+      setCls(rows[i], 'ps-hide', !(id && keep[id]));
+    }
+  }
+
+  window.__psPicked = function () { return picked.slice(); };
+  window.__psApply = applyFilter;
+  window.__psClear = function () { picked = []; renderChips(); refresh(); };
+
+  function install() {
+    input = document.getElementById('treeSearch');
+    if (!input || !input.parentNode) return false;
+    if (input.parentNode.className &&
+        input.parentNode.className.indexOf('ps-wrap') !== -1) return true;
+
+    wrap = document.createElement('div');
+    wrap.className = 'ps-wrap';
+    input.parentNode.insertBefore(wrap, input);
+    wrap.appendChild(input);
+
+    input.addEventListener('input', function () {
+      var v = input.value;
+      if (v.charAt(v.length - 1) === ',') { input.value = ''; hideMenu(); return; }
+      var t = currentTerm();
+      if (t.length < 1) { hideMenu(); return; }
+      showMenu(search(t));
+    });
+
+    input.addEventListener('keydown', function (e) {
+      var k = e.key;
+      if (k === 'ArrowDown' || k === 'ArrowUp') {
+        if (!matches.length) return;
+        e.preventDefault();
+        var n = selIdx + (k === 'ArrowDown' ? 1 : -1);
+        if (n < 0) n = matches.length - 1;
+        if (n >= matches.length) n = 0;
+        setSel(n);
+        return;
+      }
+      if (k === 'Enter') {
+        if (selIdx >= 0 && matches.length) { e.preventDefault(); pick(selIdx); }
+        return;
+      }
+      if (k === 'Escape') { hideMenu(); return; }
+      if (k === 'Backspace' && input.value === '' && picked.length) {
+        e.preventDefault();
+        removeAt(picked.length - 1);
+      }
+    });
+
+    document.addEventListener('mousedown', function (e) {
+      if (!menu) return;
+      if (wrap.contains && wrap.contains(e.target)) return;
+      hideMenu();
+    });
+
+    /* renderTree rebuilds every row, so the filter runs INSIDE it, never on a
+       timer - RULES 1a-36. */
+    (function hookRender() {
+      if (typeof window.renderTree !== 'function') { setTimeout(hookRender, 30); return; }
+      if (window.renderTree.__psHooked) return;
+      var base = window.renderTree;
+      var wrapped = function () {
+        var r = base.apply(this, arguments);
+        try { applyFilter(); } catch (err) {}
+        return r;
+      };
+      wrapped.__psHooked = true;
+      window.renderTree = wrapped;
+    })();
+
+    renderChips();
+    applyFilter();
+    return true;
+  }
+
+  var tries = 0;
+  (function poll() { if (install()) return; if (++tries < 200) setTimeout(poll, 40); })();
+})();
+</script>
+
 </body>
 </html>
