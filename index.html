@@ -1,6 +1,25 @@
 <!doctype html>
 <html lang="en">
 <head>
+<!-- prepaint: the tree pane's saved width must be right on frame one.
+     initSplitter only applies settings.treeWidth after Store loads, so the pane
+     painted at its 33% default (474px) and snapped to 293px ~850ms later. -->
+<style id="prepaintLayout"></style>
+<script>
+(function () {
+  if (window.__prepaintInstalled) { return; }
+  window.__prepaintInstalled = true;
+  try {
+    var raw = window.localStorage.getItem('planner.data.v1');
+    var data = JSON.parse(raw);
+    var w = data && data.settings && data.settings.treeWidth;
+    if (typeof w === 'number' && isFinite(w) && w >= 220 && w <= 900) {
+      var s = document.getElementById('prepaintLayout');
+      if (s) { s.textContent = 'aside#treePane{width:' + w + 'px;flex:0 0 ' + w + 'px;}'; }
+    }
+  } catch (e) { /* leave style empty on any failure */ }
+})();
+</script>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="color-scheme" content="light dark">
@@ -1996,7 +2015,10 @@ aside#treePane { overflow-y: auto; }
 /* Delete confirmation dialog. */
 .del-count { font-size: 12px; color: var(--text-dim); margin: 8px 0 4px; }
 .del-list {
-  max-height: 200px; overflow-y: auto; border: 1px solid var(--border);
+  /* No cap and no scroller of its own: the dialog body scrolls. The old
+     max-height:200px clipped the list the moment notes were added, and the
+     warning line rendered on top of the cut-off edge. */
+  border: 1px solid var(--border);
   border-radius: 6px; padding: 6px; background: var(--surface-2);
   font-size: 12px;
 }
@@ -2609,13 +2631,49 @@ aside#treePane { overflow-y: auto; }
 #treeRoot .tree-row.just-arrived .tree-title::after { content: none !important; }
 
 /* A confirmation chain must not move its buttons between steps: fix the box
-   size and always reserve the scrollbar so nothing shifts. */
+   size and always reserve the scrollbar so nothing shifts.
+   2026-09-06: it now lists every note and every subtask, so it takes the same
+   575px as Edit Activity rather than inventing a third dialog width. */
 .modal:has(.del-list), .modal:has(.del-warn) {
-  width: 460px !important;
-  max-width: 460px !important;
-  height: 380px !important;
-  min-height: 380px !important;
+  width: 575px !important;
+  max-width: 575px !important;
+  height: 520px !important;
+  min-height: 520px !important;
 }
+
+/* what each doomed item carries: its date, time, duration and alarms */
+.del-meta {
+  color: var(--t-3, #6b7280);
+  font-size: 11px;
+  line-height: 16px;
+  padding-bottom: 2px;
+  font-variant-numeric: tabular-nums;
+}
+/* and its notes, in full - this is the thing you cannot judge a delete without */
+.del-notes {
+  background: var(--surface, #1d2025);
+  border-left: 2px solid var(--border, #2e323a);
+  border-radius: 0 4px 4px 0;
+  color: var(--text-dim, #9aa1ab);
+  font-size: 11.5px;
+  line-height: 17px;
+  padding: 5px 8px;
+  margin: 3px 0 7px;
+  white-space: pre-line;
+}
+
+/* A destructive action lives far left, outlined rather than filled: the solid red
+   button belongs on the confirmation, not beside the Save you press all day. */
+.modal-btn-dangerline {
+  background: transparent;
+  border: 1px solid rgba(248, 113, 113, .55);
+  color: var(--danger, #f87171);
+}
+.modal-btn-dangerline:hover {
+  background: rgba(248, 113, 113, .12);
+  border-color: var(--danger, #f87171);
+}
+.modal-footer > .modal-btn-dangerline:first-child { margin-right: auto; }
 .modal:has(.del-list) .modal-body, .modal:has(.del-warn) .modal-body {
   flex: 1 1 auto;
   overflow-y: scroll;
@@ -4517,6 +4575,22 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
   text-underline-offset: 3px !important;
 }
 
+/* The pale future date is part of the future-branch view: it shows only while
+   'Show future branches' is on, and is otherwise off the tree entirely. */
+#treeRoot:not(.show-future) .future-date { display: none !important; }
+
+/* --- a branch hides until its date, Sep 05 --- */
+/* A dated TASK already hid until its day; a dated BRANCH did not, because its undated child kept it
+   on screen. Measured: branch VISIBLE, its dated child hidden. Hidden means GONE - no ghost, no
+   grey. CSS does the hiding so nothing fights a timer. */
+#treeRoot:not(.show-future) .tree-row.fb-hide{ display:none !important; }
+
+.tree-gearmenu .gearitem .kids{
+  margin-left:auto; font-size:10px; color:#6b7280; background:#2f343e;
+  border-radius:9px; padding:1px 6px; font-weight:400;
+}
+.tree-gearmenu .gearitem .kids + .gearcheck{ margin-left:8px }
+
 /* the future date - metadata, never competing with the task */
 #treeRoot .future-date {
   margin-left: 8px;
@@ -5073,7 +5147,7 @@ html:root #treeRoot .tree-row:not([data-depth="0"]){ height:32px !important; min
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-09-05 01:00</span>
+    <span id="buildStamp">build 2026-09-06 00:48</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -8085,6 +8159,7 @@ window.renderHabits = function () {
     var savedWidth = Store.data.settings && Store.data.settings.treeWidth;
     if (savedWidth) {
       treePane.style.width = savedWidth + 'px';
+      treePane.style.flexBasis = savedWidth + 'px';
     }
 
     splitter.addEventListener('pointerdown', function (e) {
@@ -8105,6 +8180,7 @@ window.renderHabits = function () {
       if (newWidth < minWidth) newWidth = minWidth;
       if (newWidth > maxWidth) newWidth = maxWidth;
       treePane.style.width = newWidth + 'px';
+      treePane.style.flexBasis = newWidth + 'px';
     });
 
     document.addEventListener('pointerup', function (e) {
@@ -8122,6 +8198,7 @@ window.renderHabits = function () {
       var max = Math.floor(window.innerWidth * 0.6);
       if (w > max) {
         treePane.style.width = max + 'px';
+        treePane.style.flexBasis = max + 'px';
       }
     });
   }
@@ -10813,6 +10890,13 @@ function surfaceArrivals() {
     }
 
     window.showModal('Edit Activity', body, [
+      // far left, and it hands straight to the same confirmation the row menu uses.
+      // Deferred a tick so this dialog is gone before the confirmation opens.
+      { label: 'Delete', kind: 'dangerline', onClick: function () {
+          setTimeout(function () {
+            if (typeof window.confirmDelete === 'function') window.confirmDelete(id);
+          }, 0);
+        } },
       { label: 'Cancel' },
       { label: 'Save', kind: 'primary', onClick: save }
     ]);
@@ -11201,37 +11285,118 @@ function surfaceArrivals() {
   window.confirmDelete = function (id) {
     var f = window.findNode(id);
     if (!f || !f.node) return;
-    var node = f.node;
-    var items = collect(node, 0, []);
+    var root = f.node;
+
+    function to12(hhmm) {
+      if (!hhmm) return '';
+      var pp = String(hhmm).split(':');
+      var h = parseInt(pp[0], 10);
+      if (isNaN(h)) return '';
+      var m = pp[1] || '00';
+      var ap = h >= 12 ? 'PM' : 'AM';
+      h = h % 12;
+      if (h === 0) h = 12;
+      return h + ':' + m + ' ' + ap;
+    }
+
+    // The notes are the whole reason this dialog exists: you cannot judge a delete
+    // from titles alone. notesHtml is the live model; notes is the older plain copy.
+    function plainNotes(n) {
+      var t = '';
+      if (n.notesHtml) {
+        // innerText only inserts newlines for RENDERED elements; this div is
+        // detached, so it silently behaved like textContent and ran every line
+        // together. Turn the block boundaries into newlines first.
+        var tmp = document.createElement('div');
+        tmp.innerHTML = String(n.notesHtml)
+          .replace(/<br\s*\/?>/gi, '\n')
+          .replace(/<\/(div|p|li|h[1-6]|tr)>/gi, '\n');
+        t = (tmp.textContent || '').replace(/\n{3,}/g, '\n\n');
+      } else if (n.notes) {
+        t = n.notes;
+      }
+      return t.replace(/^\s+|\s+$/g, '');
+    }
+
+    var flat = [];
+    (function walk(n, d) {
+      if (!n) return;
+      flat.push({ node: n, depth: d, notes: plainNotes(n) });
+      var kids = n.children || [];
+      for (var i = 0; i < kids.length; i++) walk(kids[i], d + 1);
+    })(root, 0);
 
     var body = document.createElement('div');
+
     var p1 = document.createElement('p');
-    p1.textContent = items.length === 1
-      ? 'Delete "' + (node.title || 'Untitled') + '"?'
-      : 'Delete "' + (node.title || 'Untitled') + '" and everything inside it?';
+    p1.textContent = flat.length === 1
+      ? 'Delete "' + (root.title || 'Untitled') + '"?'
+      : 'Delete "' + (root.title || 'Untitled') + '" and everything inside it?';
     body.appendChild(p1);
+
+    var withNotes = 0, alarms = 0, i2;
+    for (i2 = 0; i2 < flat.length; i2++) {
+      if (flat[i2].notes) withNotes++;
+      var rem = flat[i2].node.reminders;
+      if (rem && rem.length) alarms += rem.length;
+    }
+    var cparts = [flat.length + (flat.length === 1 ? ' item' : ' items')];
+    if (withNotes) cparts.push(withNotes + ' with notes');
+    if (alarms) cparts.push(alarms + (alarms === 1 ? ' alarm' : ' alarms'));
     var cnt = document.createElement('p');
     cnt.className = 'del-count';
-    cnt.textContent = items.length + (items.length === 1 ? ' item will be deleted:' : ' items will be deleted:');
+    cnt.textContent = cparts.join(' · ');
     body.appendChild(cnt);
+
     var list = document.createElement('div');
     list.className = 'del-list';
-    for (var i = 0; i < items.length; i++) {
-      var it = document.createElement('div');
-      it.className = 'del-item';
-      it.style.paddingLeft = (items[i].depth * 14) + 'px';
-      it.textContent = items[i].title;
-      list.appendChild(it);
+    for (var j = 0; j < flat.length; j++) {
+      var e = flat[j], n = e.node, pad = (e.depth * 14) + 'px';
+
+      var item = document.createElement('div');
+      item.className = 'del-item';
+      item.style.paddingLeft = pad;
+      var t = document.createElement(e.depth === 0 ? 'b' : 'span');
+      t.textContent = n.title || 'Untitled';
+      item.appendChild(t);
+      list.appendChild(item);
+
+      var rem2 = n.reminders || [];
+      if (n.date || n.time || n.duration || rem2.length) {
+        var mparts = [];
+        if (n.date && window.fmtDate) {
+          mparts.push(String(window.fmtDate(n.date, 'short') || '').toUpperCase());
+        }
+        if (n.time) mparts.push(to12(n.time));
+        if (n.duration) mparts.push(n.duration + ' min');
+        for (var k = 0; k < rem2.length; k++) {
+          var rt = to12(rem2[k] && rem2[k].time);
+          mparts.push('⏰' + (rt ? ' ' + rt : ''));
+        }
+        if (mparts.length) {
+          var meta = document.createElement('div');
+          meta.className = 'del-meta';
+          meta.style.paddingLeft = pad;
+          meta.textContent = mparts.join(' · ');
+          list.appendChild(meta);
+        }
+      }
+
+      if (e.notes) {
+        var nd = document.createElement('div');
+        nd.className = 'del-notes';
+        nd.style.marginLeft = pad;
+        nd.textContent = e.notes;
+        list.appendChild(nd);
+      }
     }
     body.appendChild(list);
+
     var note = document.createElement('p');
     note.className = 'del-warn';
     note.textContent = 'They will be moved to Deleted, where you can restore them.';
     body.appendChild(note);
 
-    // ONE popup, not a chain. The second step showed the same list again and only
-    // taught the operator to click through both. The button now says exactly what it
-    // does instead of "Continue".
     window.showModal('Delete', body, [
       { label: 'Cancel' },
       { label: 'Forever deleted', kind: 'danger', onClick: function () { window.__doDelete(id); } }
@@ -16087,7 +16252,10 @@ function firstConnect(remote, rAt, lAt) {
         nav.appendChild(b);
       })(TABS[i]);
     }
-    document.body.appendChild(nav);
+    // build it where it actually belongs. It used to be appended to <body> and
+    // reparented into #treePane ~1800ms later, which shoved the tree 55px.
+    var pane = document.getElementById('treePane');
+    (pane || document.body).appendChild(nav);
     return nav;
   }
 
@@ -16117,9 +16285,9 @@ function firstConnect(remote, rAt, lAt) {
   }
 
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', function () { setTimeout(start, 1500); });
+    document.addEventListener('DOMContentLoaded', function () { start(); });
   } else {
-    setTimeout(start, 1500);
+    start();
   }
   setTimeout(start, 2600);
 })();
@@ -16923,9 +17091,9 @@ function firstConnect(remote, rAt, lAt) {
   }
 
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', function () { setTimeout(start, 1800); });
+    document.addEventListener('DOMContentLoaded', function () { start(); });
   } else {
-    setTimeout(start, 1800);
+    start();
   }
   setTimeout(start, 3000);
 })();
@@ -24558,6 +24726,35 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
       closeMenu();
     };
     menuEl.appendChild(b3);
+    /* 2026-09-05: a fourth line - hide branches until their date. The count uses the same
+       pill the tree puts on a collapsed branch, so there is one number style, not two. */
+    var b4 = document.createElement('button');
+    b4.type = 'button';
+    b4.className = 'gearitem';
+    b4.textContent = 'Show future branches';
+    if (typeof window.__futCount === 'function') {
+      var fc = window.__futCount();
+      if (fc > 0) {
+        var k = document.createElement('span');
+        k.className = 'kids';
+        k.textContent = String(fc);
+        b4.appendChild(k);
+      }
+    }
+    if (window.__futShowing && window.__futShowing()) {
+      var ck = document.createElement('span');
+      ck.className = 'gearcheck';
+      ck.textContent = '\u2713';
+      b4.appendChild(ck);
+    }
+    b4.onclick = function () {
+      if (typeof window.__futToggle === 'function') {
+        window.__futToggle();
+      }
+      closeMenu();
+    };
+    menuEl.appendChild(b4);
+
 
     document.body.appendChild(menuEl);
     openMenu = menuEl;
@@ -24805,6 +25002,124 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
   });
 
   window.__flushCloudReady = true;
+})();
+</script>
+
+
+<script>
+/* 2026-09-05 - hide a branch until its date, with everything inside it. The gear's
+   "Show future branches" brings them back looking like any other branch. View filter only. */
+(function(){
+  if (window.__futBranchInstalled) return;
+  window.__futBranchInstalled = true;
+
+  function viewDay(){
+    return window.selectedDate || window.todayISO();
+  }
+
+  function collectInto(node, set){
+    if (!node || !node.id) return;
+    set[node.id] = true;
+    var kids = node.children || [];
+    for (var i = 0; i < kids.length; i++){
+      collectInto(kids[i], set);
+    }
+  }
+
+  function futureBranchIds(){
+    var set = {};
+    var matched = [];
+    window.walkTree(function(node){
+      if (node && node.children && node.children.length && node.date && node.date > viewDay()){
+        matched.push(node);
+      }
+    });
+    for (var i = 0; i < matched.length; i++){
+      collectInto(matched[i], set);
+    }
+    return set;
+  }
+
+  function showing(){
+    try {
+      return window.localStorage.getItem('planner.showFutureBranches') === '1';
+    } catch(e){
+      return false;
+    }
+  }
+
+  function setShowing(v){
+    try {
+      window.localStorage.setItem('planner.showFutureBranches', v ? '1' : '0');
+    } catch(e){}
+  }
+
+  function hasClass(el, cls){
+    if (!el) return false;
+    return (' ' + el.className + ' ').indexOf(' ' + cls + ' ') !== -1;
+  }
+
+  function addClass(el, cls){
+    if (!el || hasClass(el, cls)) return;
+    el.className = el.className ? (el.className + ' ' + cls) : cls;
+  }
+
+  function removeClass(el, cls){
+    if (!el || !hasClass(el, cls)) return;
+    var s = (' ' + el.className + ' ').replace(' ' + cls + ' ', ' ');
+    el.className = s.replace(/^\s+|\s+$/g, '');
+  }
+
+  window.__futCount = function(){
+    var n = 0;
+    window.walkTree(function(node){
+      if (node && node.children && node.children.length && node.date && node.date > viewDay()){
+        n++;
+      }
+    });
+    return n;
+  };
+
+  window.__futToggle = function(){
+    setShowing(!showing());
+    paint();
+  };
+
+  window.__futShowing = function(){
+    return showing();
+  };
+
+  function paint(){
+    if (!window.Store || !window.Store.data || !window.Store.data.tree) return;
+    if (typeof window.walkTree !== 'function') return;
+    if (typeof window.findNode !== 'function') return;
+
+    var root = document.getElementById('treeRoot');
+    if (!root) return;
+
+    if (showing()){
+      addClass(root, 'show-future');
+    } else {
+      removeClass(root, 'show-future');
+    }
+
+    var futureSet = futureBranchIds();
+    var rows = root.querySelectorAll ? root.querySelectorAll('.tree-row') : [];
+    for (var i = 0; i < rows.length; i++){
+      var row = rows[i];
+      if (!row) continue;
+      var id = row.getAttribute('data-id');
+      if (!id) continue;
+      if (futureSet[id] === true){
+        addClass(row, 'fb-hide');
+      } else {
+        removeClass(row, 'fb-hide');
+      }
+    }
+  }
+
+  paint();
+  setInterval(paint, 400);
 })();
 </script>
 </body>
