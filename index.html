@@ -5150,7 +5150,7 @@ html:root #treeRoot .tree-row:not([data-depth="0"]){ height:32px !important; min
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-09-07 01:21</span>
+    <span id="buildStamp">build 2026-09-07 03:29</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -26784,7 +26784,12 @@ body[data-bb="habits"] #treeRoot, body[data-bb="habits"] .tree-toolbar { visibil
 
 
 <style>
-/* ===== item 9 - Focus blocks, 2026-09-06 =====
+/* ===== item 9 - Focus sessions, 2026-09-06 (renamed from "blocks" 2026-09-07) =====
+   The operator picked "session" because the app has to name ONE of them repeatedly
+   ("delete this ...", "the Business ...") and session is the only countable word of the
+   three. It also frees up "block", which Design already uses for Calendar blocks.
+   The STORAGE names stay as focusBlocks / planner.focusBlocks.on - renaming those would
+   drop every session the operator already has and reset the toggle on first load. =====
    A band that owns a stretch of the day. Off until you ask for it. The name lives in a
    strip beside the hours so it can never collide with an event, and so a day with four
    or five blocks still reads. */
@@ -26803,13 +26808,29 @@ body[data-fb="on"] #fbNew {
 /* 2026-09-07: the band spans the whole column, so with pointer events it swallowed every
    drag aimed at a task sitting inside it - the tasks simply could not be moved. The band
    is now transparent to the pointer; only its strip and its two grips take input. */
+/* 2026-09-07: three blocks running 06-09, 09-12, 12-15 drew as ONE unbroken wash - the
+   operator called it "one big blop". Adjacent bands shared a tint, had no edge and no gap,
+   so nothing said where one ended. Each band is now its own card:
+     padding + background-clip  -> a 2px inset, so neighbours sit 4px apart
+     :after                     -> a hairline round its own edge
+   The OUTER box is unchanged, so the resize grips at top:-4px / bottom:-4px still land on
+   the real hour boundaries and the block's stored times are untouched.
+   Note: paint() must set backgroundColor, not the `background` shorthand - the shorthand
+   resets background-clip back to border-box and quietly undoes the gap. */
 .fb-band { position: absolute; left: 0; right: 0; border-radius: 0 8px 8px 0; display: none;
-  z-index: 1; pointer-events: none; }
+  z-index: 1; pointer-events: none;
+  box-sizing: border-box; padding: 3px 0; background-clip: content-box; }
+.fb-band:after { content: ""; position: absolute; left: 0; right: 0; top: 3px; bottom: 3px;
+  border: 1px solid rgba(255,255,255,.11); border-left: 0; border-radius: 0 8px 8px 0;
+  pointer-events: none; }
 .fb-band .fb-strip, .fb-band .fb-grip { pointer-events: auto; }
 body[data-fb="on"] .fb-band { display: block; }
 .fb-band .fb-strip {
-  position: absolute; left: 0; top: 0; bottom: 0; width: 15px;
+  position: absolute; left: 0; top: 3px; bottom: 3px; width: 15px;
   display: flex; align-items: center; justify-content: center; cursor: pointer;
+  /* the strip is capped at both ends so each block owns a distinct label chip - three
+     blocks back to back were reading as one continuous rail down the column */
+  border-radius: 0 3px 3px 0;
 }
 .fb-band .fb-strip span {
   font-size: 8px; letter-spacing: .06em; text-transform: uppercase; font-weight: 600;
@@ -26824,7 +26845,7 @@ body[data-fb="on"] .fb-band { display: block; }
 .fb-band:hover .fb-grip:before { opacity: .55; }
 .tgevent.fb-bad { outline: 1px solid rgba(217,140,43,.55); }
 .fb-flag { color: #d98c2b; font-size: 10px; margin-left: 5px; cursor: pointer; }
-.fb-draft { background: rgba(77,139,255,.13); outline: 1px dashed rgba(126,168,255,.75); }
+.fb-draft { background-color: rgba(77,139,255,.13); outline: 1px dashed rgba(126,168,255,.75); }
 
 .fb-pop {
   position: absolute; z-index: 2147483400; width: 262px; background: #1d2025;
@@ -26860,6 +26881,15 @@ body[data-fb="on"] .fb-band { display: block; }
 .fb-foot button { flex: 1; height: 28px; border-radius: 6px; font-size: 12px; cursor: pointer;
   background: #24272e; border: 1px solid #2e323a; color: #e6e8ec; }
 .fb-foot button.del { color: #f87171; border-color: rgba(248,113,113,.5); background: transparent; }
+/* 2026-09-07: both time guards used to just `return`. The session did not move and nothing
+   said why, which reads as the app being broken rather than as a rule. */
+.fb-hint { font-size: 11px; color: #d98c2b; margin-top: 8px; min-height: 14px;
+  line-height: 1.35; }
+.fb-hint-float { position: absolute; z-index: 2147483401; background: #2a2118;
+  border: 1px solid rgba(217,140,43,.55); color: #e8c78f; font-size: 11px;
+  padding: 4px 9px; border-radius: 7px; pointer-events: none; white-space: nowrap;
+  box-shadow: 0 6px 18px rgba(0,0,0,.45);
+  font-family: ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif; }
 </style>
 
 <script>
@@ -26932,6 +26962,91 @@ body[data-fb="on"] .fb-band { display: block; }
   }
   window.__fbOverlaps = overlaps;
 
+  /* Say why a change was refused. In the panel when it is open, otherwise as a note
+     beside whatever was being dragged. Clamped to the window - a note that opens off
+     screen is the same as no note at all. */
+  var hintTimer = null;
+  function fbHint(msg, anchorEl) {
+    var pop = document.querySelector('.fb-pop');
+    if (hintTimer) { clearTimeout(hintTimer); hintTimer = null; }
+    var stale = document.querySelector('.fb-hint-float');
+    if (stale && stale.parentNode) stale.parentNode.removeChild(stale);
+    if (pop) {
+      var h = pop.querySelector('.fb-hint');
+      if (!h) { h = document.createElement('div'); h.className = 'fb-hint'; pop.appendChild(h); }
+      h.textContent = msg;
+      hintTimer = setTimeout(function () { if (h) h.textContent = ''; }, 2600);
+      return;
+    }
+    if (!anchorEl) return;
+    var r = anchorEl.getBoundingClientRect();
+    var n = document.createElement('div');
+    n.className = 'fb-hint-float';
+    n.textContent = msg;
+    document.body.appendChild(n);
+    var w = n.offsetWidth, hgt = n.offsetHeight;
+    var left = r.left + window.pageXOffset + 24;
+    var top = r.top + window.pageYOffset - hgt - 4;
+    if (left + w > window.pageXOffset + window.innerWidth - 8)
+      left = window.pageXOffset + window.innerWidth - w - 8;
+    if (left < window.pageXOffset + 8) left = window.pageXOffset + 8;
+    if (top < window.pageYOffset + 8) top = r.bottom + window.pageYOffset + 4;
+    n.style.left = Math.round(left) + 'px';
+    n.style.top = Math.round(top) + 'px';
+    hintTimer = setTimeout(function () {
+      if (n.parentNode) n.parentNode.removeChild(n); }, 2200);
+  }
+
+  /* 2026-09-07: pressing + always built 09:00-12:00, so a second block landed exactly on
+     top of the first and hid it - measured as three bands all at top 369, height 180, one
+     drawn over the other. Find the first free slot instead.
+     "Busy" is only a block that could actually collide: a Saturday-only block does not
+     stop a Mon-Fri morning. Overlapping busy spans are merged before the walk, or a gap
+     can be reported that sits inside another block. */
+  var FB_NEWDAYS = [1, 2, 3, 4, 5], FB_DAYA = 6 * 60, FB_DAYB = 22 * 60,
+      FB_PREFA = 9 * 60, FB_PREFB = 12 * 60, FB_WANT = 180, FB_MINSLOT = 60;
+  function daysOf(bl) {
+    if (bl.date) return [dowOf(bl.date)];
+    if (!bl.days || !bl.days.length) return [0, 1, 2, 3, 4, 5, 6];
+    return bl.days;
+  }
+  function shareADay(a, b) {
+    var x = daysOf(a), y = daysOf(b), i, k;
+    for (i = 0; i < x.length; i++) for (k = 0; k < y.length; k++) if (x[i] === y[k]) return true;
+    return false;
+  }
+  function nextFreeSlot(list) {
+    var probe = { days: FB_NEWDAYS, date: null }, busy = [], i, last;
+    for (i = 0; i < list.length; i++)
+      if (shareADay(probe, list[i]))
+        busy.push({ a: toMin(list[i].from), b: toMin(list[i].to) });
+    busy.sort(function (p, q) { return p.a - q.a; });
+    var merged = [];
+    for (i = 0; i < busy.length; i++) {
+      last = merged.length ? merged[merged.length - 1] : null;
+      if (last && busy[i].a <= last.b) { if (busy[i].b > last.b) last.b = busy[i].b; }
+      else merged.push({ a: busy[i].a, b: busy[i].b });
+    }
+    /* keep the old 09:00-12:00 default whenever it is actually free, so the very first
+       block still lands where it always did */
+    var clash = false;
+    for (i = 0; i < merged.length; i++)
+      if (merged[i].a < FB_PREFB && FB_PREFA < merged[i].b) clash = true;
+    if (!clash) return { from: fromMin(FB_PREFA), to: fromMin(FB_PREFB) };
+    var cur = FB_DAYA;
+    for (i = 0; i < merged.length; i++) {
+      if (merged[i].a - cur >= FB_MINSLOT)
+        return { from: fromMin(cur), to: fromMin(cur + Math.min(FB_WANT, merged[i].a - cur)) };
+      if (merged[i].b > cur) cur = merged[i].b;
+    }
+    if (FB_DAYB - cur >= FB_MINSLOT)
+      return { from: fromMin(cur), to: fromMin(cur + Math.min(FB_WANT, FB_DAYB - cur)) };
+    /* a genuinely full day - put it at the very end rather than silently on top of
+       something the operator already has */
+    cur = Math.min(cur, 23 * 60);
+    return { from: fromMin(cur), to: fromMin(Math.min(cur + 60, 24 * 60 - 1)) };
+  }
+
   /* ---------- the toggle ---------- */
   /* 2026-09-07: the toggle lives in an ATTRIBUTE rather than document.body.className.
      It was moved while chasing bands that appeared to vanish - that turned out to be a
@@ -26952,18 +27067,19 @@ body[data-fb="on"] .fb-band { display: block; }
     var b = document.createElement('button');
     b.id = 'fbToggle';
     b.type = 'button';
-    b.innerHTML = '<span style="font-size:12px">&#9707;</span><span>Focus blocks</span>';
+    b.innerHTML = '<span style="font-size:12px">&#9707;</span><span>Focus sessions</span>';
     b.addEventListener('click', function () { setOn(!isOn()); });
     var plus = document.createElement('button');
     plus.id = 'fbNew';
     plus.type = 'button';
     plus.textContent = '+';
-    plus.title = 'New focus block';
+    plus.title = 'New focus session';
     plus.addEventListener('click', function (e) {
       e.stopPropagation();
       var list = store(); if (!list) return;
-      var bl = { id: uid(), name: 'Focus', branchId: null, from: '09:00', to: '12:00',
-                 days: [1, 2, 3, 4, 5], date: null };
+      var slot = nextFreeSlot(list);
+      var bl = { id: uid(), name: 'Focus', branchId: null, from: slot.from, to: slot.to,
+                 days: FB_NEWDAYS.slice(), date: null };
       list.push(bl); save(); paint();
       /* 2026-09-07: this passed no anchor, so the editor fell back to a fixed
          {left:120, top:120} corner of the window - which is the panel appearing "far
@@ -26999,13 +27115,17 @@ body[data-fb="on"] .fb-band { display: block; }
           if (!appliesTo(bl, iso)) continue;
           var top = window.tgToY(bl.from), bot = window.tgToY(bl.to);
           if (top === null || bot === null) continue;
+          /* A session whose end is not after its start cannot be made in the app, but it
+             can arrive from an import or an older build's sync. It used to paint a 12px
+             sliver at the wrong hour because of the Math.max clamp below. Skip it. */
+          if (bot - top < 1) continue;
           var band = document.createElement('div');
           band.className = 'fb-band';
           band.setAttribute('data-fb', bl.id);
           band.style.top = Math.round(top) + 'px';
           band.style.height = Math.max(12, Math.round(bot - top)) + 'px';
           var c = colourFor(bl);
-          band.style.background = hexA(c, 0.07);
+          band.style.backgroundColor = hexA(c, 0.07);
           /* grips first: dragging either edge resizes the block */
           var gTop = document.createElement('div');
           gTop.className = 'fb-grip top';
@@ -27057,12 +27177,19 @@ body[data-fb="on"] .fb-band { display: block; }
         mins = Math.round(mins / 15) * 15;
         var trial = { from: bl.from, to: bl.to };
         trial[key] = fromMin(mins);
-        if (toMin(trial.from) + 15 > toMin(trial.to)) return;
+        if (toMin(trial.from) + 15 > toMin(trial.to)) {
+          fbHint(key === 'to' ? 'The end has to stay after the start'
+                              : 'The start has to stay before the end', grip);
+          return;
+        }
         var list = store() || [], i;
         for (i = 0; i < list.length; i++) {
           if (list[i] === bl) continue;
           if (!sameWhen(list[i], bl)) continue;
-          if (overlaps(trial, list[i])) return;
+          if (overlaps(trial, list[i])) {
+            fbHint('That would run into ' + (list[i].name || 'another session'), grip);
+            return;
+          }
         }
         bl[key] = trial[key];
         paint();
@@ -27152,7 +27279,7 @@ body[data-fb="on"] .fb-band { display: block; }
           var flag = document.createElement('span');
           flag.className = 'fb-flag';
           flag.textContent = '⚠';
-          flag.title = 'Not part of ' + (branchOf(bl.branchId) ? branchOf(bl.branchId).title : 'this block');
+          flag.title = 'Not part of ' + (branchOf(bl.branchId) ? branchOf(bl.branchId).title : 'this session');
           /* 2026-09-06: the mark was drawn and inert - the click was never wired, so a
              flagged task could not be moved from where it was flagged. */
           (function (nodeId, dayIso, ownerBlock) {
@@ -27239,7 +27366,7 @@ body[data-fb="on"] .fb-band { display: block; }
     var hdr = document.createElement('div');
     hdr.className = 'fb-movehdr';
     hdr.textContent = title + ' — not part of '
-      + (branchOf(ownerBlock.branchId) ? branchOf(ownerBlock.branchId).title : 'this block');
+      + (branchOf(ownerBlock.branchId) ? branchOf(ownerBlock.branchId).title : 'this session');
     m.appendChild(hdr);
 
     function line(text, accent, run) {
@@ -27259,7 +27386,7 @@ body[data-fb="on"] .fb-band { display: block; }
       var target = owners[0];
       var slot = firstFreeIn(target, iso, nodeId);
       line('Move to the ' + (branchOf(target.branchId) ? branchOf(target.branchId).title : 'right')
-           + ' block' + (slot ? ' — ' + slot : ' (full)'), true,
+           + ' session' + (slot ? ' — ' + slot : ' (full)'), true,
            slot ? function () { moveTo(nodeId, slot); } : null);
     }
     var out = firstFreeOutside(iso, nodeId);
@@ -27308,7 +27435,7 @@ body[data-fb="on"] .fb-band { display: block; }
     dot.className = 'fb-dot';
     dot.style.background = colourFor(bl);
     h.appendChild(dot);
-    h.appendChild(document.createTextNode('Focus block'));
+    h.appendChild(document.createTextNode('Focus session'));
     pop.appendChild(h);
 
     function row(label) {
@@ -27391,12 +27518,19 @@ body[data-fb="on"] .fb-band { display: block; }
       var sp = window.buildTimeSpinner(bl[key], function (v) {
         var trial = { from: bl.from, to: bl.to };
         trial[key] = v;
-        if (toMin(trial.from) >= toMin(trial.to)) return;   /* end must follow start */
+        if (toMin(trial.from) >= toMin(trial.to)) {
+          fbHint(key === 'to' ? 'The end has to be after the start'
+                              : 'The start has to be before the end');
+          return;
+        }
         var list = store() || [], i;
         for (i = 0; i < list.length; i++) {
           if (list[i] === bl) continue;
           if (!sameWhen(list[i], bl)) continue;
-          if (overlaps(trial, list[i])) return;             /* blocks may not overlap */
+          if (overlaps(trial, list[i])) {
+            fbHint('That would run into ' + (list[i].name || 'another session'));
+            return;
+          }
         }
         bl[key] = v; save(); paint();
       });
