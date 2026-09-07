@@ -5150,7 +5150,7 @@ html:root #treeRoot .tree-row:not([data-depth="0"]){ height:32px !important; min
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-09-06 20:24</span>
+    <span id="buildStamp">build 2026-09-06 21:01</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -23877,7 +23877,9 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
   function daysInMonth(y, m) { return new Date(y, m + 1, 0).getDate(); }
   function firstDow(y, m) { return new Date(y, m, 1).getDay(); }
   function monthName(m) {
-    return ['January','February','March','April','May','June','July','August','September','October','November','December'][m];
+    /* short, to match the due-date picker exactly - it reads "Sep 2026", not
+       "September 2026", and item 1 is about the two being the same calendar */
+    return ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][m];
   }
 
   var panel = document.createElement('div');
@@ -23901,63 +23903,85 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
   var body = document.createElement('div');
   body.className = 'rp2-body';
 
+  /* ===== item 1, 2026-09-06 =====
+     The reminder now uses the SAME calendar as the due date - two months side by side,
+     identical cells - with the time on one line underneath rather than a column of
+     presets beside it. Stacking is what keeps the whole panel inside the 575px dialog;
+     side by side would be about 710px and hang outside it. */
   var monthsWrap = document.createElement('div');
   monthsWrap.className = 'dp2-months';
   var mEl = document.createElement('div');
   mEl.className = 'dp2-m';
+  var mEl2 = document.createElement('div');
+  mEl2.className = 'dp2-m';
   monthsWrap.appendChild(mEl);
+  monthsWrap.appendChild(mEl2);
 
-  function renderMonth() {
-    while (mEl.firstChild) mEl.removeChild(mEl.firstChild);
+  function drawMonth(host, yy, mm, withPrev, withNext) {
+    while (host.firstChild) host.removeChild(host.firstChild);
 
     var title = document.createElement('div');
     title.className = 'dp2-title';
+    /* A 200ms sweeper decorates every .dp2-title it finds: it wipes the element's
+       textContent - taking these buttons with it - and installs its own chevrons wired
+       to a .dp2-head that this picker does not have. Claiming the flag up front makes it
+       skip ours. Measured before the fix: the title read "<Sep 2026>" with four chevrons
+       and neither arrow worked. */
+    title.setAttribute('data-arrows', '1');
 
     var prevBtn = document.createElement('button');
     prevBtn.type = 'button';
-    prevBtn.appendChild(document.createTextNode('‹'));
-    prevBtn.onclick = function () {
-      viewMonth--;
-      if (viewMonth < 0) { viewMonth = 11; viewYear--; }
-      renderMonth();
-    };
+    prevBtn.appendChild(document.createTextNode('\u2039'));
+    if (withPrev) {
+      prevBtn.onclick = function () {
+        viewMonth--;
+        if (viewMonth < 0) { viewMonth = 11; viewYear--; }
+        renderMonth();
+      };
+    } else {
+      prevBtn.style.visibility = 'hidden';
+    }
 
     var titleSpan = document.createElement('span');
-    titleSpan.appendChild(document.createTextNode(monthName(viewMonth) + ' ' + viewYear));
+    titleSpan.appendChild(document.createTextNode(monthName(mm) + ' ' + yy));
 
     var nextBtn = document.createElement('button');
     nextBtn.type = 'button';
-    nextBtn.appendChild(document.createTextNode('›'));
-    nextBtn.onclick = function () {
-      viewMonth++;
-      if (viewMonth > 11) { viewMonth = 0; viewYear++; }
-      renderMonth();
-    };
+    nextBtn.appendChild(document.createTextNode('\u203a'));
+    if (withNext) {
+      nextBtn.onclick = function () {
+        viewMonth++;
+        if (viewMonth > 11) { viewMonth = 0; viewYear++; }
+        renderMonth();
+      };
+    } else {
+      nextBtn.style.visibility = 'hidden';
+    }
 
     title.appendChild(prevBtn);
     title.appendChild(titleSpan);
     title.appendChild(nextBtn);
-    mEl.appendChild(title);
+    host.appendChild(title);
 
     var grid = document.createElement('div');
     grid.className = 'dp2-grid';
 
-    var dows = ['Su','Mo','Tu','We','Th','Fr','Sa'];
-    for (var i = 0; i < 7; i++) {
+    var dows = ['Su','Mo','Tu','We','Th','Fr','Sa'], i;
+    for (i = 0; i < 7; i++) {
       var d = document.createElement('div');
       d.className = 'dp2-dow';
       d.appendChild(document.createTextNode(dows[i]));
       grid.appendChild(d);
     }
 
-    var blanks = firstDow(viewYear, viewMonth);
-    for (var b = 0; b < blanks; b++) {
+    var blanks = firstDow(yy, mm), b;
+    for (b = 0; b < blanks; b++) {
       var blank = document.createElement('div');
       blank.className = 'dp2-blank';
       grid.appendChild(blank);
     }
 
-    var totalDays = daysInMonth(viewYear, viewMonth);
+    var totalDays = daysInMonth(yy, mm);
     var cp = chosenDate.split('-');
     var cy = parseInt(cp[0], 10);
     var cm = parseInt(cp[1], 10) - 1;
@@ -23966,28 +23990,139 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
     for (var day = 1; day <= totalDays; day++) {
       var dayBtn = document.createElement('button');
       dayBtn.type = 'button';
-      var isOn = (day === cd && viewMonth === cm && viewYear === cy);
+      var isOn = (day === cd && mm === cm && yy === cy);
       dayBtn.className = isOn ? 'dp2-day dp2-on' : 'dp2-day';
       dayBtn.appendChild(document.createTextNode(String(day)));
-      (function (dd) {
+      (function (dd, yyy, mmm) {
         dayBtn.onclick = function () {
-          chosenDate = ymd(viewYear, viewMonth, dd);
+          chosenDate = ymd(yyy, mmm, dd);
           renderMonth();
         };
-      })(day);
+      })(day, yy, mm);
       grid.appendChild(dayBtn);
     }
 
-    mEl.appendChild(grid);
+    host.appendChild(grid);
+  }
+
+  function renderMonth() {
+    var y2 = viewYear, m2 = viewMonth + 1;
+    if (m2 > 11) { m2 = 0; y2++; }
+    drawMonth(mEl, viewYear, viewMonth, true, false);
+    drawMonth(mEl2, y2, m2, false, true);
+  }
+
+  /* the time, on one line: hour, minute, AM/PM. Every minute, not every five.
+     Each spinner is a real scroller - wheel it, drag it, or click a neighbour. */
+  function buildOneLineTime() {
+    var wrap = document.createElement('div');
+    wrap.className = 'rt1';
+
+    var parts = String(chosenTime || '09:00').split(':');
+    var h24 = parseInt(parts[0], 10); if (isNaN(h24)) h24 = 9;
+    var mins = parseInt(parts[1], 10); if (isNaN(mins)) mins = 0;
+    var isPm = h24 >= 12;
+    var h12 = h24 % 12; if (h12 === 0) h12 = 12;
+
+    function commit() {
+      var hh = h12 % 12;
+      if (isPm) hh += 12;
+      chosenTime = (hh < 10 ? '0' : '') + hh + ':' + (mins < 10 ? '0' : '') + mins;
+    }
+
+    var ROW = 18;
+    function spinner(values, current, onPick) {
+      var box = document.createElement('div');
+      box.className = 'rt1-spin';
+      var pad = document.createElement('div');
+      pad.className = 'rt1-pad';
+      box.appendChild(pad);
+      var i, sel = 0;
+      for (i = 0; i < values.length; i++) {
+        var r = document.createElement('div');
+        r.className = 'rt1-row';
+        r.appendChild(document.createTextNode(values[i]));
+        box.appendChild(r);
+        if (values[i] === current) sel = i;
+      }
+      var pad2 = document.createElement('div');
+      pad2.className = 'rt1-pad';
+      box.appendChild(pad2);
+
+      function mark() {
+        var idx = Math.round(box.scrollTop / ROW);
+        if (idx < 0) idx = 0;
+        if (idx > values.length - 1) idx = values.length - 1;
+        var rows = box.querySelectorAll('.rt1-row'), k;
+        for (k = 0; k < rows.length; k++) {
+          rows[k].className = (k === idx) ? 'rt1-row on' : 'rt1-row';
+        }
+        return idx;
+      }
+      var timer = null;
+      box.addEventListener('scroll', function () {
+        mark();
+        if (timer) clearTimeout(timer);
+        timer = setTimeout(function () {
+          var idx = mark();
+          box.scrollTop = idx * ROW;
+          onPick(values[idx]);
+        }, 90);
+      });
+      setTimeout(function () { box.scrollTop = sel * ROW; mark(); }, 0);
+      box.__set = function (v) {
+        var k;
+        for (k = 0; k < values.length; k++) if (values[k] === v) { box.scrollTop = k * ROW; mark(); return; }
+      };
+      return box;
+    }
+
+    var hours = [], mlist = [], q;
+    for (q = 1; q <= 12; q++) hours.push(String(q));
+    for (q = 0; q < 60; q++) mlist.push((q < 10 ? '0' : '') + q);
+
+    var hBox = spinner(hours, String(h12), function (v) { h12 = parseInt(v, 10); commit(); });
+    var colon = document.createElement('span');
+    colon.className = 'rt1-colon';
+    colon.appendChild(document.createTextNode(':'));
+    var mBox = spinner(mlist, (mins < 10 ? '0' : '') + mins, function (v) {
+      mins = parseInt(v, 10); commit();
+    });
+
+    var ap = document.createElement('div');
+    ap.className = 'rt1-ampm';
+    function apBtn(label, pm) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = (isPm === pm) ? 'on' : '';
+      b.appendChild(document.createTextNode(label));
+      b.onclick = function () {
+        isPm = pm;
+        var kids = ap.querySelectorAll('button'), k;
+        for (k = 0; k < kids.length; k++) kids[k].className = '';
+        b.className = 'on';
+        commit();
+      };
+      return b;
+    }
+    ap.appendChild(apBtn('AM', false));
+    ap.appendChild(apBtn('PM', true));
+
+    wrap.appendChild(hBox);
+    wrap.appendChild(colon);
+    wrap.appendChild(mBox);
+    wrap.appendChild(ap);
+    commit();
+    return wrap;
   }
 
   renderMonth();
   body.appendChild(monthsWrap);
 
-  var timeEl = window.buildTimeCols(chosenTime, function (newTime) {
-    chosenTime = newTime;
-  });
-  body.appendChild(timeEl);
+  var tsep = document.createElement('div');
+  tsep.className = 'rt1-sep';
+  body.appendChild(tsep);
+  body.appendChild(buildOneLineTime());
   panel.appendChild(body);
 
   var foot = document.createElement('div');
@@ -24034,6 +24169,16 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
   if (rect.bottom + 6 + panelH > vh - 8) {
     top = pageY + (rect.top - panelH - 6);
     if (top < pageY + 8) top = pageY + 8;
+  }
+
+  /* 2026-09-06: there was a clamp for the RIGHT edge only. Right-aligning a panel to its
+     field puts left at rect.right - panelW, which goes negative as soon as the panel is
+     wider than the field's distance from the left edge - and the two-month reminder is
+     560px. Measured: left = -230px, the first month off screen entirely. Clamp both ends. */
+  if (left < pageX + 8) left = pageX + 8;
+  if (left + panelW > pageX + vw - 8) {
+    left = pageX + vw - panelW - 8;
+    if (left < pageX + 8) left = pageX + 8;
   }
 
   panel.style.position = 'absolute';
@@ -25915,6 +26060,40 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
 <style>
 /* item 7: the divider above Expand / Contract, matching the row menu's separator */
 .tree-gearmenu .gearsep { height: 1px; background: #3a4049; margin: 5px 4px; }
+</style>
+
+
+<style>
+/* ===== item 1 - the reminder picker matches the due date, 2026-09-06 =====
+   Months stacked ABOVE the time, not beside it: two months plus a time column side by
+   side would be ~710px and hang outside the 575px dialog. */
+.rp2 .rp2-body { display: block !important; }
+.rp2 .dp2-months { display: flex !important; gap: 34px !important; }
+.rp2 .dp2-m { width: 252px !important; min-width: 252px !important; flex: 0 0 252px !important; }
+.rp2 .tp2-cols, .rp2 .tp2-list { display: none !important; }
+.rt1-sep { height: 1px; background: #3a4049; margin: 14px 0 12px; }
+
+/* the one line: hour, minute, AM / PM */
+.rt1 { display: flex; align-items: center; gap: 6px; }
+.rt1-spin {
+  width: 52px; height: 54px; background: #343a43; border: 1px solid #3a4049;
+  border-radius: 8px; overflow-y: auto; overflow-x: hidden;
+  scroll-snap-type: y mandatory; scrollbar-width: none; text-align: center;
+}
+.rt1-spin::-webkit-scrollbar { display: none; }
+.rt1-pad { height: 18px; }
+.rt1-row {
+  height: 18px; line-height: 18px; font-size: 11px; color: #5d646f;
+  scroll-snap-align: center; cursor: pointer; font-variant-numeric: tabular-nums;
+}
+.rt1-row.on { font-size: 15px; font-weight: 600; color: #e9ecf1; }
+.rt1-colon { font-size: 15px; font-weight: 600; color: #8b93a1; margin: 0 1px; }
+.rt1-ampm { display: flex; flex-direction: column; gap: 3px; margin-left: 4px; }
+.rt1-ampm button {
+  font-size: 10px; letter-spacing: .04em; background: #343a43; border: 1px solid #3a4049;
+  border-radius: 6px; padding: 3px 9px; color: #aeb6c2; cursor: pointer;
+}
+.rt1-ampm button.on { background: #a8c7de; color: #1b1f25; font-weight: 600; border-color: #a8c7de; }
 </style>
 
 </body>
