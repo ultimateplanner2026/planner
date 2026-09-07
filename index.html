@@ -5150,7 +5150,7 @@ html:root #treeRoot .tree-row:not([data-depth="0"]){ height:32px !important; min
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-09-06 21:01</span>
+    <span id="buildStamp">build 2026-09-06 21:30</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -26095,6 +26095,908 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
 }
 .rt1-ampm button.on { background: #a8c7de; color: #1b1f25; font-weight: 600; border-color: #a8c7de; }
 </style>
+
+
+<style>
+/* ===== item 8 - Habits, 2026-09-06 =====
+   The bottom bar is Plan / Alarms / Habits. Settings has left it for the top right.
+   Every icon is one grey with a single blue detail; the glyph grows 30% under the
+   cursor and nothing else changes - no fill, no white, no background. */
+#bottomBar [data-tab] svg { display: block; margin: 0 auto; transition: transform 120ms ease; }
+#bottomBar [data-tab]:hover svg,
+#bottomBar [data-tab].hovering svg { transform: scale(1.30); }
+#bottomBar [data-tab] { color: #8b93a1 !important; }
+#bottomBar [data-tab].on { color: #8b93a1 !important; }
+#bottomBar [data-tab].on span:last-child { color: #e6e8ec; font-weight: 600; }
+
+/* Settings, top right, beside Export */
+#btnAppSettings {
+  display: inline-flex; align-items: center; gap: 6px;
+}
+
+/* the calendar loses its Habits tab - the tracker moved whole into the new pane */
+#tabsBar .tab[data-tab="habits"] { display: none !important; }
+
+/* the Habits pane takes the whole tree pane */
+#habitsPane {
+  position: absolute; left: 0; right: 0; top: 0; bottom: 0; z-index: 6;
+  background: var(--surface, #1c1f26); display: none; flex-direction: column;
+}
+body[data-bb="habits"] #habitsPane { display: flex; }
+body[data-bb="habits"] #treeRoot, body[data-bb="habits"] .tree-toolbar { visibility: hidden; }
+#habitsPane .hp-head {
+  display: flex; align-items: center; gap: 8px; padding: 9px 11px;
+  border-bottom: 1px solid var(--border, #2e323a); background: #20242c; flex: 0 0 auto;
+}
+#habitsPane .hp-head .ttl { font-size: 13px; font-weight: 600; }
+#habitsPane .hp-head .cnt { font-size: 10px; color: #6b7280; }
+#habitsPane .hp-head .btn {
+  margin-left: auto; font-size: 11px; background: #24272e; color: #cdd3dc; cursor: pointer;
+  border: 1px solid var(--border, #2e323a); border-radius: 6px; padding: 3px 9px;
+}
+#habitsPane .hp-head .btn.on { background: rgba(77,139,255,.18); border-color: rgba(77,139,255,.5); color: #cfe0ff; }
+#habitsPane .hp-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 8px; }
+#habitsPane .hp-grp { font-size: 10px; letter-spacing: .05em; text-transform: uppercase;
+  color: #6b7280; padding: 8px 6px 4px; }
+#habitsPane .hp-row { display: flex; align-items: center; gap: 9px; background: #20242c;
+  border: 1px solid var(--border, #2e323a); border-radius: 8px; padding: 7px 9px; margin-bottom: 6px; }
+#habitsPane .hp-row .txt { flex: 1 1 auto; min-width: 0; }
+#habitsPane .hp-row .ti { font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#habitsPane .hp-row .sc { font-size: 10px; color: #6b7280; margin-top: 1px; }
+#habitsPane .hp-row .stk { font-size: 10px; color: #4ade80; text-align: right; line-height: 1.25; flex: 0 0 auto; }
+#habitsPane .hp-row .stk s { text-decoration: none; display: block; color: #6b7280; font-size: 8.5px; }
+#habitsPane .hp-empty { color: #6b7280; font-size: 12px; padding: 22px 8px; text-align: center; font-style: italic; }
+#habitsPane .hp-m { display: flex; align-items: center; gap: 10px; padding: 7px 6px;
+  border-bottom: 1px solid #22262e; }
+#habitsPane .hp-m:last-child { border: none; }
+#habitsPane .hp-m .nm { width: 130px; font-size: 11.5px; white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis; }
+#habitsPane .hp-dots { display: flex; gap: 3px; flex: 1 1 auto; }
+#habitsPane .hp-dots i { width: 11px; height: 11px; border-radius: 3px; background: #262b33; display: block; }
+#habitsPane .hp-dots i.y { background: rgba(74,222,128,.75); }
+#habitsPane .hp-dots i.n { background: #33272a; }
+#habitsPane .hp-m .pct { font-size: 11px; color: #9aa1ab; width: 40px; text-align: right; }
+#habitsPane .hp-m.ended { opacity: .55; }
+#habitsPane #habitsView { padding: 0; }
+
+/* a repeating task never clutters the Missed view - it has already come round again */
+#treeRoot.overdue-only .tree-row.is-repeat { display: none !important; }
+</style>
+
+<script>
+(function () {
+  if (window.__habitsInstalled) return;
+  window.__habitsInstalled = true;
+
+  var A = '#4d8bff';
+  function svg(kind) {
+    var g = 'stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"';
+    var b = 'stroke="' + A + '" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none"';
+    var inner = '';
+    if (kind === 'plan') {
+      inner = '<rect x="3.9" y="4.6" width="16.2" height="15.2" rx="4.2" ' + g + '/>'
+            + '<path d="M8.4 12.5l2.4 2.4 4.6-5" ' + b + '/>';
+    } else if (kind === 'alarm') {
+      inner = '<circle cx="12" cy="13.2" r="6.9" ' + g + '/>'
+            + '<path d="M4.9 5.2 7.3 3M19.1 5.2 16.7 3" ' + g + '/>'
+            + '<path d="M12 9.7v3.5l2.3 1.4" ' + b + '/>';
+    } else if (kind === 'habit') {
+      inner = '<path d="M20.2 8.4A8.4 8.4 0 1 0 20.7 14.6" ' + g + '/>'
+            + '<path d="M20.6 3.9v4.6h-4.6" ' + g + '/>'
+            + '<path d="M9.3 12.1l2.1 2.1 3.6-4.1" ' + b + '/>';
+    } else if (kind === 'gear') {
+      inner = '<circle cx="12" cy="12" r="3.1" ' + g + '/>'
+            + '<path d="M12 3.4v2.2M12 18.4v2.2M5.2 5.2l1.6 1.6M17.2 17.2l1.6 1.6'
+            + 'M3.4 12h2.2M18.4 12h2.2M5.2 18.8l1.6-1.6M17.2 6.8l1.6-1.6" ' + g + '/>';
+    }
+    return '<svg width="21" height="21" viewBox="0 0 24 24" fill="none">' + inner + '</svg>';
+  }
+
+  function todayISO() {
+    return (typeof window.todayISO === 'function') ? window.todayISO()
+      : new Date().toISOString().slice(0, 10);
+  }
+  function isRepeat(n) { return !!(n && n.repeat); }
+
+  function walk(cb) {
+    var tree = (window.Store && window.Store.data && window.Store.data.tree) || [];
+    (function rec(list, path) {
+      for (var i = 0; i < list.length; i++) {
+        var n = list[i];
+        if (!n) continue;
+        cb(n, path);
+        if (n.children && n.children.length) rec(n.children, path.concat([n]));
+      }
+    })(tree, []);
+  }
+
+  function routines() {
+    var out = [];
+    walk(function (n, path) {
+      if (!isRepeat(n)) return;
+      out.push({ node: n, branch: path.length ? String(path[0].title || 'Untitled') : null });
+    });
+    return out;
+  }
+
+  /* ---------- the bar ---------- */
+
+  function rebuildBar() {
+    var bar = document.getElementById('bottomBar');
+    if (!bar) return false;
+    if (bar.getAttribute('data-habits') === '1') return true;
+    bar.setAttribute('data-habits', '1');
+    while (bar.firstChild) bar.removeChild(bar.firstChild);
+    var defs = [['plan', 'Plan'], ['alarms', 'Alarms'], ['habits', 'Habits']];
+    for (var i = 0; i < defs.length; i++) {
+      (function (id, label) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.setAttribute('data-tab', id);
+        var ic = document.createElement('span');
+        ic.innerHTML = svg(id === 'habits' ? 'habit' : (id === 'alarms' ? 'alarm' : 'plan'));
+        var lb = document.createElement('span');
+        lb.textContent = label;
+        b.appendChild(ic);
+        b.appendChild(lb);
+        /* :hover is not observable from synthetic events, so drive it both ways */
+        b.addEventListener('mouseover', function () { b.className = (b.className.replace(/\s*hovering/, '')) + ' hovering'; });
+        b.addEventListener('mouseout',  function () { b.className = b.className.replace(/\s*hovering/, ''); });
+        b.addEventListener('click', function (e) {
+          e.preventDefault();
+          show(id);
+        });
+        bar.appendChild(b);
+      })(defs[i][0], defs[i][1]);
+    }
+    return true;
+  }
+
+  function show(id) {
+    document.body.setAttribute('data-bb', id);
+    var b = document.querySelectorAll('#bottomBar [data-tab]'), i;
+    for (i = 0; i < b.length; i++) {
+      b[i].className = (b[i].getAttribute('data-tab') === id)
+        ? b[i].className.replace(/\s*on/, '') + ' on'
+        : b[i].className.replace(/\s*on/, '');
+    }
+    if (id === 'habits') renderPane();
+    if (id === 'alarms' && window.showAlarmsList) window.showAlarmsList();
+  }
+  window.__habitsShow = show;
+
+  /* ---------- Settings moves to the top right ---------- */
+
+  function placeSettings() {
+    if (document.getElementById('btnAppSettings')) return;
+    var ex = document.getElementById('btnExport');
+    if (!ex || !ex.parentNode) return;
+    var b = document.createElement('button');
+    b.id = 'btnAppSettings';
+    b.type = 'button';
+    b.title = 'Settings';
+    b.innerHTML = svg('gear').replace('width="21" height="21"', 'width="14" height="14"');
+    var t = document.createElement('span');
+    t.textContent = 'Settings';
+    b.appendChild(t);
+    b.addEventListener('click', function () {
+      if (window.plannerOpenSettings) window.plannerOpenSettings();
+      else {
+        var d = document.getElementById('treeDrawer');
+        if (d) { d.removeAttribute('hidden'); d.className = String(d.className).replace(/\bhidden\b/, ''); }
+      }
+    });
+    if (ex.nextSibling) ex.parentNode.insertBefore(b, ex.nextSibling);
+    else ex.parentNode.appendChild(b);
+  }
+
+  /* ---------- the pane ---------- */
+
+  var mode = 'list';
+
+  function ensurePane() {
+    var host = document.getElementById('treePane');
+    if (!host) return null;
+    var pane = document.getElementById('habitsPane');
+    if (pane) return pane;
+    if (getComputedStyle(host).position === 'static') host.style.position = 'relative';
+    pane = document.createElement('div');
+    pane.id = 'habitsPane';
+    var head = document.createElement('div');
+    head.className = 'hp-head';
+    var ic = document.createElement('span');
+    ic.innerHTML = svg('habit').replace('width="21" height="21"', 'width="17" height="17"');
+    ic.style.color = '#c3c9d4';
+    var ttl = document.createElement('span');
+    ttl.className = 'ttl';
+    ttl.textContent = 'Habits';
+    var cnt = document.createElement('span');
+    cnt.className = 'cnt';
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn';
+    btn.textContent = 'Metrics';
+    btn.addEventListener('click', function () {
+      mode = (mode === 'list') ? 'metrics' : 'list';
+      renderPane();
+    });
+    head.appendChild(ic); head.appendChild(ttl); head.appendChild(cnt); head.appendChild(btn);
+    var body = document.createElement('div');
+    body.className = 'hp-body';
+    pane.appendChild(head);
+    pane.appendChild(body);
+    host.appendChild(pane);
+    return pane;
+  }
+
+  function summary(n) {
+    if (window.plannerRepeatSummary) {
+      try { return window.plannerRepeatSummary(n); } catch (e) {}
+    }
+    return 'Repeats';
+  }
+
+  function streakOf(n) {
+    var done = (n && n.repeatDone) || {};
+    var d = new Date(), k = 0, i;
+    for (i = 0; i < 400; i++) {
+      var iso = d.toISOString().slice(0, 10);
+      if (done[iso]) k++;
+      else if (i > 0) break;
+      d.setDate(d.getDate() - 1);
+    }
+    return k;
+  }
+
+  function renderPane() {
+    var pane = ensurePane();
+    if (!pane) return;
+    var head = pane.querySelector('.hp-head');
+    var body = pane.querySelector('.hp-body');
+    var btn = head.querySelector('.btn');
+    var cnt = head.querySelector('.cnt');
+    var list = routines();
+    while (body.firstChild) body.removeChild(body.firstChild);
+
+    if (mode === 'metrics') {
+      btn.className = 'btn on';
+      cnt.textContent = 'last 21 days';
+      if (!list.length) {
+        var e2 = document.createElement('div');
+        e2.className = 'hp-empty';
+        e2.textContent = 'Nothing repeats yet';
+        body.appendChild(e2);
+        return;
+      }
+      for (var i = 0; i < list.length; i++) {
+        (function (r) {
+          var row = document.createElement('div');
+          row.className = 'hp-m';
+          var nm = document.createElement('div');
+          nm.className = 'nm';
+          nm.textContent = r.node.title || 'Untitled';
+          var dots = document.createElement('div');
+          dots.className = 'hp-dots';
+          var done = r.node.repeatDone || {}, hit = 0, d = new Date();
+          d.setDate(d.getDate() - 20);
+          for (var k = 0; k < 21; k++) {
+            var iso = d.toISOString().slice(0, 10);
+            var dot = document.createElement('i');
+            dot.className = done[iso] ? 'y' : 'n';
+            if (done[iso]) hit++;
+            dots.appendChild(dot);
+            d.setDate(d.getDate() + 1);
+          }
+          var pct = document.createElement('div');
+          pct.className = 'pct';
+          var ended = r.node.repeat && r.node.repeat.end && r.node.repeat.end < todayISO();
+          pct.textContent = ended ? 'ended' : (Math.round(hit / 21 * 100) + '%');
+          if (ended) row.className = 'hp-m ended';
+          row.appendChild(nm); row.appendChild(dots); row.appendChild(pct);
+          body.appendChild(row);
+        })(list[i]);
+      }
+      return;
+    }
+
+    btn.className = 'btn';
+    cnt.textContent = String(list.length);
+    /* ended routines are not in the list - they live in Metrics */
+    var live = [], t = todayISO(), q;
+    for (q = 0; q < list.length; q++) {
+      var rp = list[q].node.repeat;
+      if (rp && rp.end && rp.end < t) continue;
+      live.push(list[q]);
+    }
+    if (!live.length) {
+      var e = document.createElement('div');
+      e.className = 'hp-empty';
+      e.textContent = 'Nothing repeats yet';
+      body.appendChild(e);
+      return;
+    }
+    var groups = {}, order = [];
+    for (q = 0; q < live.length; q++) {
+      var key = live[q].branch || 'No branch';
+      if (!groups[key]) { groups[key] = []; order.push(key); }
+      groups[key].push(live[q]);
+    }
+    for (q = 0; q < order.length; q++) {
+      var g = document.createElement('div');
+      g.className = 'hp-grp';
+      g.textContent = order[q];
+      body.appendChild(g);
+      var arr = groups[order[q]], z;
+      for (z = 0; z < arr.length; z++) {
+        (function (r) {
+          var row = document.createElement('div');
+          row.className = 'hp-row';
+          var txt = document.createElement('div');
+          txt.className = 'txt';
+          var ti = document.createElement('div');
+          ti.className = 'ti';
+          ti.textContent = r.node.title || 'Untitled';
+          var sc = document.createElement('div');
+          sc.className = 'sc';
+          sc.textContent = summary(r.node) + (r.node.time ? ' · ' + r.node.time : '');
+          txt.appendChild(ti); txt.appendChild(sc);
+          var stk = document.createElement('div');
+          stk.className = 'stk';
+          var lab = document.createElement('s');
+          lab.textContent = 'streak';
+          stk.appendChild(lab);
+          stk.appendChild(document.createTextNode(String(streakOf(r.node))));
+          row.appendChild(txt); row.appendChild(stk);
+          row.addEventListener('click', function () {
+            if (window.editActivity) window.editActivity(r.node.id);
+          });
+          body.appendChild(row);
+        })(arr[z]);
+      }
+    }
+  }
+  window.__habitsRender = renderPane;
+
+  /* ---------- a past occurrence leaves the calendar ---------- */
+
+  (function hookSchedule() {
+    if (typeof window.scheduledOn !== 'function') { setTimeout(hookSchedule, 40); return; }
+    if (window.scheduledOn.__habitsHooked) return;
+    var base = window.scheduledOn;
+    var w = function (iso) {
+      var res = base.apply(this, arguments) || [];
+      if (!iso || iso >= todayISO()) return res;
+      /* strictly BEFORE today: a repeat you ticked stays as a record, one you did not
+         is simply not there - it has already come round again. */
+      var out = [], i;
+      for (i = 0; i < res.length; i++) {
+        var e = res[i];
+        var nd = (e && e.node) || null;
+        if (nd && isRepeat(nd) && !e.done) continue;
+        out.push(e);
+      }
+      return out;
+    };
+    w.__habitsHooked = true;
+    window.scheduledOn = w;
+  })();
+
+  /* ---------- and leaves the Missed counter ---------- */
+
+  (function hookCount() {
+    if (typeof window.__odCount !== 'function') { setTimeout(hookCount, 40); return; }
+    if (window.__odCount.__habitsHooked) return;
+    var base = window.__odCount;
+    var w = function () {
+      var n = base.apply(this, arguments);
+      var drop = 0, t = todayISO();
+      walk(function (nd) {
+        if (isRepeat(nd) && nd.date && nd.date < t && !nd.done) drop++;
+      });
+      var v = n - drop;
+      return v < 0 ? 0 : v;
+    };
+    w.__habitsHooked = true;
+    window.__odCount = w;
+  })();
+
+  /* mark repeating rows so the Missed view can leave them out */
+  function markRows() {
+    var root = document.getElementById('treeRoot');
+    if (!root || !window.findNode) return;
+    var rows = root.querySelectorAll('.tree-row'), i;
+    for (i = 0; i < rows.length; i++) {
+      var id = rows[i].getAttribute('data-id');
+      var f = id ? window.findNode(id) : null;
+      var on = f && f.node && isRepeat(f.node);
+      var has = (' ' + rows[i].className + ' ').indexOf(' is-repeat ') !== -1;
+      if (on && !has) rows[i].className += ' is-repeat';
+      else if (!on && has) rows[i].className = rows[i].className.replace(/\s*is-repeat/, '');
+    }
+  }
+  (function hookRender() {
+    if (typeof window.renderTree !== 'function') { setTimeout(hookRender, 30); return; }
+    if (window.renderTree.__habitsHooked) return;
+    var base = window.renderTree;
+    var w = function () { var r = base.apply(this, arguments); try { markRows(); } catch (e) {} return r; };
+    w.__habitsHooked = true;
+    window.renderTree = w;
+  })();
+
+  /* ---------- boot ---------- */
+  var tries = 0;
+  (function boot() {
+    var ok = rebuildBar();
+    placeSettings();
+    if (!document.body.getAttribute('data-bb')) show('plan');
+    if (++tries < 200 && !ok) setTimeout(boot, 60);
+  })();
+  setInterval(function () { rebuildBar(); placeSettings(); }, 1500);
+})();
+</script>
+
+
+<style>
+/* ===== item 9 - Focus blocks, 2026-09-06 =====
+   A band that owns a stretch of the day. Off until you ask for it. The name lives in a
+   strip beside the hours so it can never collide with an event, and so a day with four
+   or five blocks still reads. */
+#fbToggle {
+  margin-left: auto; display: inline-flex; align-items: center; gap: 6px;
+  background: none; border: 0; color: #6b7280; font-size: 12px; cursor: pointer;
+  padding: 8px 10px;
+}
+#fbToggle.on { color: #cfe0ff; }
+#fbNew { display: none; }
+body.fb-on #fbNew {
+  display: inline-flex; align-items: center; background: #24272e; color: #cdd3dc;
+  border: 1px solid #2e323a; border-radius: 6px; font-size: 11px; padding: 2px 8px;
+  margin-left: 6px; cursor: pointer;
+}
+.fb-band { position: absolute; left: 0; right: 0; border-radius: 0 8px 8px 0; display: none; z-index: 1; }
+body.fb-on .fb-band { display: block; }
+.fb-band .fb-strip {
+  position: absolute; left: 0; top: 0; bottom: 0; width: 15px;
+  display: flex; align-items: center; justify-content: center; cursor: pointer;
+}
+.fb-band .fb-strip span {
+  font-size: 8px; letter-spacing: .06em; text-transform: uppercase; font-weight: 600;
+  writing-mode: vertical-rl; transform: rotate(180deg); white-space: nowrap;
+  overflow: hidden; max-height: 100%;
+}
+.fb-band .fb-grip { position: absolute; left: 15px; right: 0; height: 5px; cursor: ns-resize; }
+.fb-band .fb-grip.top { top: -2px; } .fb-band .fb-grip.bot { bottom: -2px; }
+.tgevent.fb-bad { outline: 1px solid rgba(217,140,43,.55); }
+.fb-flag { color: #d98c2b; font-size: 10px; margin-left: 5px; cursor: pointer; }
+.fb-draft { background: rgba(77,139,255,.13); outline: 1px dashed rgba(126,168,255,.75); }
+
+.fb-pop {
+  position: absolute; z-index: 2147483400; width: 262px; background: #1d2025;
+  border: 1px solid #2e323a; border-radius: 10px; padding: 12px;
+  box-shadow: 0 16px 40px rgba(0,0,0,.45); color: #e6e8ec;
+  font: 13px ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+.fb-pop h4 { margin: 0 0 10px; font-size: 12.5px; font-weight: 600; display: flex;
+  align-items: center; gap: 7px; }
+.fb-row { display: flex; align-items: center; justify-content: space-between;
+  font-size: 11.5px; padding: 7px 0; border-bottom: 1px solid #22262e; position: relative; }
+.fb-row:last-child { border: none; }
+.fb-row > span { color: #6b7280; }
+.fb-row input[type="text"], .fb-row input[type="time"] {
+  background: #24272e; border: 1px solid #2e323a; border-radius: 6px; color: #e6e8ec;
+  font-size: 11px; padding: 3px 8px; width: 116px;
+}
+.fb-pick { background: #24272e; border: 1px solid #2e323a; border-radius: 6px; color: #e6e8ec;
+  font-size: 11px; padding: 3px 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+.fb-dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+.fb-menu { position: absolute; right: 0; top: 30px; width: 186px; background: #1d2025;
+  border: 1px solid #2e323a; border-radius: 8px; padding: 5px; z-index: 9;
+  box-shadow: 0 14px 34px rgba(0,0,0,.5); }
+.fb-menu div { padding: 6px 9px; border-radius: 5px; font-size: 11.5px; display: flex;
+  align-items: center; gap: 8px; cursor: pointer; }
+.fb-menu div:hover { background: #24272e; }
+.fb-days { display: flex; gap: 3px; }
+.fb-days b { width: 19px; height: 19px; border-radius: 5px; background: #24272e;
+  border: 1px solid #2e323a; font-size: 9px; font-weight: 400; display: flex;
+  align-items: center; justify-content: center; color: #6b7280; cursor: pointer; }
+.fb-days b.on { background: rgba(77,139,255,.22); border-color: rgba(77,139,255,.55); color: #cfe0ff; }
+.fb-foot { display: flex; gap: 8px; margin-top: 11px; }
+.fb-foot button { flex: 1; height: 28px; border-radius: 6px; font-size: 12px; cursor: pointer;
+  background: #24272e; border: 1px solid #2e323a; color: #e6e8ec; }
+.fb-foot button.del { color: #f87171; border-color: rgba(248,113,113,.5); background: transparent; }
+</style>
+
+<script>
+(function () {
+  if (window.__fbInstalled) return;
+  window.__fbInstalled = true;
+
+  var PALETTE = ['#2f6feb', '#16a34a', '#db2777', '#ea580c', '#7c3aed', '#0891b2', '#ca8a04', '#64748b'];
+
+  function store() {
+    if (!window.Store || !window.Store.data) return null;
+    if (!window.Store.data.focusBlocks) window.Store.data.focusBlocks = [];
+    return window.Store.data.focusBlocks;
+  }
+  function save() { if (window.Store && window.Store.save) window.Store.save(); }
+  function uid() { return 'fb' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+
+  function branches() {
+    var t = (window.Store && window.Store.data && window.Store.data.tree) || [], o = [], i;
+    for (i = 0; i < t.length; i++) if (t[i]) o.push(t[i]);
+    return o;
+  }
+  function branchOf(id) {
+    var b = branches(), i;
+    for (i = 0; i < b.length; i++) if (b[i].id === id) return b[i];
+    return null;
+  }
+  function colourFor(bl) {
+    if (!bl.branchId) return '#6b7280';
+    var nd = branchOf(bl.branchId);
+    if (nd && nd.areaId && window.areaById) {
+      var a = window.areaById(nd.areaId);
+      if (a && a.color) return a.color;
+    }
+    var b = branches(), i;
+    for (i = 0; i < b.length; i++) if (b[i].id === bl.branchId) return PALETTE[i % PALETTE.length];
+    return '#6b7280';
+  }
+  function subtreeIds(id) {
+    var set = {}, nd = branchOf(id);
+    if (!nd) return set;
+    (function rec(n) { set[n.id] = true; var k = n.children || [], i;
+      for (i = 0; i < k.length; i++) rec(k[i]); })(nd);
+    return set;
+  }
+  function toMin(t) { var p = String(t || '').split(':');
+    return parseInt(p[0], 10) * 60 + parseInt(p[1], 10); }
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+  function fromMin(m) { m = Math.max(0, Math.min(24 * 60 - 1, Math.round(m)));
+    return pad(Math.floor(m / 60)) + ':' + pad(m % 60); }
+  function dowOf(iso) { var p = String(iso).split('-');
+    return new Date(+p[0], +p[1] - 1, +p[2]).getDay(); }
+
+  function appliesTo(bl, iso) {
+    if (bl.date) return bl.date === iso;
+    if (!bl.days || !bl.days.length) return true;
+    var d = dowOf(iso), i;
+    for (i = 0; i < bl.days.length; i++) if (bl.days[i] === d) return true;
+    return false;
+  }
+  function overlaps(a, b) {
+    return toMin(a.from) < toMin(b.to) && toMin(b.from) < toMin(a.to);
+  }
+  window.__fbOverlaps = overlaps;
+
+  /* ---------- the toggle ---------- */
+  function isOn() { return String(document.body.className).indexOf('fb-on') !== -1; }
+  function setOn(v) {
+    document.body.className = String(document.body.className).replace(/\s*fb-on/, '') + (v ? ' fb-on' : '');
+    var t = document.getElementById('fbToggle');
+    if (t) t.className = v ? 'on' : '';
+    try { localStorage.setItem('planner.focusBlocks.on', v ? '1' : '0'); } catch (e) {}
+    paint();
+  }
+  function ensureToggle() {
+    var bar = document.getElementById('tabsBar');
+    if (!bar || document.getElementById('fbToggle')) return;
+    var b = document.createElement('button');
+    b.id = 'fbToggle';
+    b.type = 'button';
+    b.innerHTML = '<span style="font-size:12px">&#9707;</span><span>Focus blocks</span>';
+    b.addEventListener('click', function () { setOn(!isOn()); });
+    var plus = document.createElement('button');
+    plus.id = 'fbNew';
+    plus.type = 'button';
+    plus.textContent = '+';
+    plus.title = 'New focus block';
+    plus.addEventListener('click', function (e) {
+      e.stopPropagation();
+      var list = store(); if (!list) return;
+      var bl = { id: uid(), name: 'Focus', branchId: null, from: '09:00', to: '12:00',
+                 days: [1, 2, 3, 4, 5], date: null };
+      list.push(bl); save(); paint(); openEditor(bl, null);
+    });
+    bar.appendChild(b);
+    bar.appendChild(plus);
+    var was = '0';
+    try { was = localStorage.getItem('planner.focusBlocks.on') || '0'; } catch (e) {}
+    if (was === '1') setOn(true);
+  }
+
+  /* ---------- drawing ---------- */
+  function paint() {
+    var cols = document.querySelectorAll('.tgcol'), i;
+    for (i = 0; i < cols.length; i++) {
+      var old = cols[i].querySelectorAll('.fb-band'), k;
+      for (k = 0; k < old.length; k++) old[k].parentNode.removeChild(old[k]);
+    }
+    if (!isOn()) { flagConflicts(); return; }
+    var list = store() || [];
+    for (i = 0; i < cols.length; i++) {
+      (function (col) {
+        var iso = col.getAttribute('data-iso') || col.dataset.iso;
+        if (!iso) return;
+        var j;
+        for (j = 0; j < list.length; j++) {
+          var bl = list[j];
+          if (!appliesTo(bl, iso)) continue;
+          var top = window.tgToY(bl.from), bot = window.tgToY(bl.to);
+          if (top === null || bot === null) continue;
+          var band = document.createElement('div');
+          band.className = 'fb-band';
+          band.setAttribute('data-fb', bl.id);
+          band.style.top = Math.round(top) + 'px';
+          band.style.height = Math.max(12, Math.round(bot - top)) + 'px';
+          var c = colourFor(bl);
+          band.style.background = hexA(c, 0.07);
+          var strip = document.createElement('div');
+          strip.className = 'fb-strip';
+          strip.style.background = hexA(c, 0.20);
+          var nm = document.createElement('span');
+          nm.style.color = c;
+          nm.textContent = bl.name || 'Focus';
+          strip.appendChild(nm);
+          band.appendChild(strip);
+          (function (b) {
+            strip.addEventListener('click', function (e) { e.stopPropagation(); openEditor(b, band); });
+          })(bl);
+          col.appendChild(band);
+        }
+      })(cols[i]);
+    }
+    flagConflicts();
+  }
+  window.__fbPaint = paint;
+
+  function hexA(hex, a) {
+    var h = String(hex).replace('#', '');
+    if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+    var r = parseInt(h.slice(0, 2), 16), g = parseInt(h.slice(2, 4), 16), b = parseInt(h.slice(4, 6), 16);
+    return 'rgba(' + r + ',' + g + ',' + b + ',' + a + ')';
+  }
+
+  /* ---------- conflicts ---------- */
+  function flagConflicts() {
+    var evs = document.querySelectorAll('.tgevent'), i;
+    for (i = 0; i < evs.length; i++) {
+      evs[i].className = String(evs[i].className).replace(/\s*fb-bad/, '');
+      var f = evs[i].querySelector('.fb-flag');
+      if (f) f.parentNode.removeChild(f);
+    }
+    if (!isOn()) return;
+    var list = store() || [];
+    for (i = 0; i < evs.length; i++) {
+      (function (el) {
+        var col = el.closest ? el.closest('.tgcol') : null;
+        if (!col) return;
+        var iso = col.getAttribute('data-iso') || col.dataset.iso;
+        /* a calendar event is identified by data-node-id, not data-id. Reading the
+           wrong one meant every conflict check silently returned early and nothing was
+           ever flagged - measured: 0 flags on a dentist sitting inside a Business block. */
+        var id = el.getAttribute('data-node-id') || el.getAttribute('data-id')
+              || (el.dataset ? (el.dataset.nodeId || el.dataset.id) : null);
+        if (!id || !window.findNode) return;
+        var f = window.findNode(id);
+        if (!f || !f.node || !f.node.time) return;
+        var st = toMin(f.node.time);
+        var j;
+        for (j = 0; j < list.length; j++) {
+          var bl = list[j];
+          if (!bl.branchId) continue;             /* owns nothing, flags nothing */
+          if (!appliesTo(bl, iso)) continue;
+          if (st < toMin(bl.from) || st >= toMin(bl.to)) continue;
+          if (subtreeIds(bl.branchId)[id]) return;   /* belongs here */
+          el.className += ' fb-bad';
+          var flag = document.createElement('span');
+          flag.className = 'fb-flag';
+          flag.textContent = '⚠';
+          flag.title = 'Not part of ' + (branchOf(bl.branchId) ? branchOf(bl.branchId).title : 'this block');
+          el.appendChild(flag);
+          return;
+        }
+      })(evs[i]);
+    }
+  }
+
+  /* ---------- the editor ---------- */
+  function closeEditor() {
+    var p = document.querySelectorAll('.fb-pop'), i;
+    for (i = 0; i < p.length; i++) p[i].parentNode.removeChild(p[i]);
+  }
+  window.__fbCloseEditor = closeEditor;
+
+  function openEditor(bl, anchor) {
+    closeEditor();
+    var pop = document.createElement('div');
+    pop.className = 'fb-pop';
+    pop.setAttribute('data-fb-edit', bl.id);
+
+    var h = document.createElement('h4');
+    var dot = document.createElement('span');
+    dot.className = 'fb-dot';
+    dot.style.background = colourFor(bl);
+    h.appendChild(dot);
+    h.appendChild(document.createTextNode('Focus block'));
+    pop.appendChild(h);
+
+    function row(label) {
+      var r = document.createElement('div');
+      r.className = 'fb-row';
+      var s = document.createElement('span');
+      s.textContent = label;
+      r.appendChild(s);
+      pop.appendChild(r);
+      return r;
+    }
+
+    var rName = row('Name');
+    var nameIn = document.createElement('input');
+    nameIn.type = 'text';
+    nameIn.value = bl.name || '';
+    nameIn.addEventListener('input', function () { bl.name = nameIn.value; save(); paint(); });
+    rName.appendChild(nameIn);
+
+    var rBr = row('Priority branch');
+    var pick = document.createElement('button');
+    pick.type = 'button';
+    pick.className = 'fb-pick';
+    function label() {
+      while (pick.firstChild) pick.removeChild(pick.firstChild);
+      var d = document.createElement('span');
+      d.className = 'fb-dot';
+      d.style.background = colourFor(bl);
+      pick.appendChild(d);
+      var nd = bl.branchId ? branchOf(bl.branchId) : null;
+      pick.appendChild(document.createTextNode(nd ? String(nd.title).slice(0, 14) : 'None'));
+    }
+    label();
+    pick.addEventListener('click', function (e) {
+      e.stopPropagation();
+      var ex = rBr.querySelector('.fb-menu');
+      if (ex) { ex.parentNode.removeChild(ex); return; }
+      var m = document.createElement('div');
+      m.className = 'fb-menu';
+      function opt(id, title, colour) {
+        var o = document.createElement('div');
+        var d = document.createElement('span');
+        d.className = 'fb-dot';
+        d.style.background = colour;
+        o.appendChild(d);
+        o.appendChild(document.createTextNode(title));
+        o.addEventListener('click', function (ev) {
+          ev.stopPropagation();
+          bl.branchId = id; save(); label();
+          dot.style.background = colourFor(bl);
+          if (m.parentNode) m.parentNode.removeChild(m);
+          paint();
+        });
+        m.appendChild(o);
+      }
+      opt(null, 'None — just time', '#6b7280');
+      var b = branches(), i;
+      for (i = 0; i < b.length; i++) {
+        opt(b[i].id, String(b[i].title).slice(0, 16),
+            (b[i].areaId && window.areaById && window.areaById(b[i].areaId))
+              ? window.areaById(b[i].areaId).color : PALETTE[i % PALETTE.length]);
+      }
+      rBr.appendChild(m);
+    });
+    rBr.appendChild(pick);
+
+    function timeRow(lab, key) {
+      var r = row(lab);
+      var t = document.createElement('input');
+      t.type = 'time';
+      t.value = bl[key];
+      t.addEventListener('change', function () {
+        var v = t.value || bl[key];
+        var trial = { from: bl.from, to: bl.to };
+        trial[key] = v;
+        if (toMin(trial.from) >= toMin(trial.to)) { t.value = bl[key]; return; }
+        /* no overlap: two owners for one hour defeats the point */
+        var list = store() || [], i;
+        for (i = 0; i < list.length; i++) {
+          if (list[i] === bl) continue;
+          if (!sameWhen(list[i], bl)) continue;
+          if (overlaps(trial, list[i])) { t.value = bl[key]; return; }
+        }
+        bl[key] = v; save(); paint();
+      });
+      r.appendChild(t);
+    }
+    timeRow('From', 'from');
+    timeRow('To', 'to');
+
+    var rD = row('Days');
+    var days = document.createElement('div');
+    days.className = 'fb-days';
+    var names = ['S', 'M', 'T', 'W', 'T', 'F', 'S'], i;
+    for (i = 0; i < 7; i++) {
+      (function (d) {
+        var b = document.createElement('b');
+        b.textContent = names[d];
+        if (!bl.days || bl.days.indexOf(d) !== -1) b.className = 'on';
+        b.addEventListener('click', function () {
+          if (!bl.days) bl.days = [0, 1, 2, 3, 4, 5, 6];
+          var k = bl.days.indexOf(d);
+          if (k === -1) bl.days.push(d); else bl.days.splice(k, 1);
+          b.className = (bl.days.indexOf(d) !== -1) ? 'on' : '';
+          save(); paint();
+        });
+        days.appendChild(b);
+      })(i);
+    }
+    rD.appendChild(days);
+
+    var foot = document.createElement('div');
+    foot.className = 'fb-foot';
+    var del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'del';
+    del.textContent = 'Delete';
+    del.addEventListener('click', function () {
+      var list = store() || [], k = list.indexOf(bl);
+      if (k !== -1) list.splice(k, 1);
+      save(); closeEditor(); paint();
+    });
+    var done = document.createElement('button');
+    done.type = 'button';
+    done.textContent = 'Done';
+    done.addEventListener('click', function () { closeEditor(); });
+    foot.appendChild(del);
+    foot.appendChild(done);
+    pop.appendChild(foot);
+
+    document.body.appendChild(pop);
+    var r = anchor ? anchor.getBoundingClientRect() : { left: 120, bottom: 140 };
+    var left = r.left + window.pageXOffset + 20;
+    var top = r.top + window.pageYOffset;
+    var w = pop.offsetWidth, hgt = pop.offsetHeight;
+    if (left + w > window.pageXOffset + window.innerWidth - 8)
+      left = window.pageXOffset + window.innerWidth - w - 8;
+    if (left < window.pageXOffset + 8) left = window.pageXOffset + 8;
+    if (top + hgt > window.pageYOffset + window.innerHeight - 8)
+      top = window.pageYOffset + window.innerHeight - hgt - 8;
+    if (top < window.pageYOffset + 8) top = window.pageYOffset + 8;
+    pop.style.left = Math.round(left) + 'px';
+    pop.style.top = Math.round(top) + 'px';
+    pop.addEventListener('click', function (e) { e.stopPropagation(); });
+  }
+  window.__fbOpenEditor = openEditor;
+
+  function sameWhen(a, b) {
+    if (a.date || b.date) return a.date === b.date;
+    var da = a.days || [0,1,2,3,4,5,6], db = b.days || [0,1,2,3,4,5,6], i;
+    for (i = 0; i < da.length; i++) if (db.indexOf(da[i]) !== -1) return true;
+    return false;
+  }
+
+  document.addEventListener('click', function () { closeEditor(); });
+
+  /* repaint whenever the calendar is rebuilt */
+  (function hook() {
+    if (typeof window.renderAll !== 'function') { setTimeout(hook, 40); return; }
+    if (window.renderAll.__fbHooked) return;
+    var base = window.renderAll;
+    var w = function () {
+      var r = base.apply(this, arguments);
+      try { ensureToggle(); paint(); } catch (e) {}
+      return r;
+    };
+    w.__fbHooked = true;
+    window.renderAll = w;
+  })();
+
+  var tries = 0;
+  (function boot() {
+    ensureToggle();
+    paint();
+    if (++tries < 200) setTimeout(boot, 400);
+  })();
+})();
+</script>
 
 </body>
 </html>
