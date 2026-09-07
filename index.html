@@ -5150,7 +5150,7 @@ html:root #treeRoot .tree-row:not([data-depth="0"]){ height:32px !important; min
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-09-06 02:08</span>
+    <span id="buildStamp">build 2026-09-06 20:24</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -10981,8 +10981,101 @@ function surfaceArrivals() {
     menu.style.left = Math.round(x) + 'px';
     menu.style.top = Math.round(y) + 'px';
     var items = actions(id);
+
+    /* 2026-09-06. The menu now reads: Edit, the two bare arrows, then everything else.
+       'Due today' and 'Due tomorrow' are folded into Reschedule - one line that opens
+       two chips, and opens the calendar if you press it again. */
+    (function reorder() {
+      var byLabel = {}, i, out = [];
+      for (i = 0; i < items.length; i++) {
+        if (!items[i].sep && items[i].label) byLabel[items[i].label] = items[i];
+      }
+      var edit = byLabel['Edit'];
+      var today = byLabel['Due today'];
+      var tom = byLabel['Due tomorrow'];
+      var resch = byLabel['Reschedule...'];
+      if (!edit || !resch) return;                   /* leave the menu alone if it moved */
+
+      out.push(edit);
+      out.push({ arrows: true });
+      out.push({ sep: true });
+      for (i = 0; i < items.length; i++) {
+        var it = items[i];
+        if (it === edit || it === today || it === tom || it === resch) continue;
+        if (it.sep) continue;
+        if (it.label === 'Complete' || it.label === 'Mark not complete') {
+          out.push(it);
+          out.push({ reschedule: true, today: today, tomorrow: tom, open: resch });
+          continue;
+        }
+        if (it.kind === 'danger') { out.push({ sep: true }); out.push(it); continue; }
+        out.push(it);
+      }
+      items = out;
+    })();
+
     for (var i = 0; i < items.length; i++) {
-      if (items[i].sep) {
+      if (items[i].arrows) {
+        var ar = document.createElement('div');
+        ar.className = 'actmenu-arrows';
+        (function (row) {
+          var pair = [['\u2190', 'Move out one level', window.__outdentNode],
+                      ['\u2192', 'Make a subtask of the one above', window.__indentNode]];
+          for (var k = 0; k < pair.length; k++) {
+            (function (glyph, tip, fn) {
+              var b = document.createElement('button');
+              b.className = 'actmenu-arrow';
+              b.type = 'button';
+              b.title = tip;
+              b.textContent = glyph;
+              b.addEventListener('click', function (e) {
+                e.stopPropagation();
+                closeMenus();
+                if (typeof fn === 'function') fn(id);
+              });
+              row.appendChild(b);
+            })(pair[k][0], pair[k][1], pair[k][2]);
+          }
+        })(ar);
+        menu.appendChild(ar);
+      } else if (items[i].reschedule) {
+        (function (spec) {
+          var wrap = document.createElement('div');
+          wrap.className = 'actmenu-resched';
+          var lab = document.createElement('button');
+          lab.type = 'button';
+          lab.className = 'actmenu-reschedlab';
+          lab.textContent = 'Reschedule';
+          var chips = document.createElement('span');
+          chips.className = 'actmenu-chips';
+          function chip(text, run) {
+            var c = document.createElement('button');
+            c.type = 'button';
+            c.className = 'actmenu-chip';
+            c.textContent = text;
+            c.addEventListener('click', function (e) {
+              e.stopPropagation();
+              closeMenus();
+              if (run) run();
+            });
+            return c;
+          }
+          if (spec.today) chips.appendChild(chip('Today', spec.today.run));
+          if (spec.tomorrow) chips.appendChild(chip('Tomorrow', spec.tomorrow.run));
+          lab.addEventListener('click', function (e) {
+            e.stopPropagation();
+            if (wrap.className.indexOf('open') === -1) {
+              wrap.className = 'actmenu-resched open';   /* first press: show the chips */
+            } else {
+              closeMenus();                              /* second press: the calendar */
+              if (spec.open && spec.open.run) spec.open.run();
+            }
+          });
+          wrap.appendChild(lab);
+          wrap.appendChild(chips);
+          menu.appendChild(wrap);
+        })(items[i]);
+      } else if (items[i].sep) {
         var sep = document.createElement('div');
         sep.className = 'actmenu-sep';
         menu.appendChild(sep);
@@ -19766,10 +19859,11 @@ if (r.freq === 'yearly') {
    Show/Hide future tasks - a tree-only view toggle with nothing to act on in a
    calendar. Delete stays last and stays danger-styled in both. */
 (function () {
-  var CAL   = ['Edit', 'Complete', 'Mark not complete', 'Due today', 'Due tomorrow',
-               'Reschedule...', 'Delete'];
-  var TREE  = ['Edit', 'Complete', 'Mark not complete', 'Due today', 'Due tomorrow',
-               'Reschedule...', 'Show future tasks', 'Hide future tasks', 'Delete'];
+  /* 2026-09-06: Due today, Due tomorrow and Reschedule... are no longer plain items.
+     They are one folding Reschedule row built in openMenu, so they never reach here. */
+  var CAL   = ['Edit', 'Complete', 'Mark not complete', 'Delete'];
+  var TREE  = ['Edit', 'Complete', 'Mark not complete',
+               'Show future tasks', 'Hide future tasks', 'Delete'];
 
   /* The hidden-tasks control used to be ONE item that changed its own label, so you
      could never see both states. Operator asked for both, stacked, with whichever is
@@ -19841,6 +19935,28 @@ if (r.freq === 'yearly') {
     });
     for (i = 0; i < keep.length; i++) menu.appendChild(keep[i]);
 
+    /* 2026-09-06: this sorter only knows about .actmenu-item buttons, so the two custom
+       rows would be left stranded at the top. Put them back: the arrows directly under
+       Edit, the folding Reschedule directly under Complete. */
+    (function replaceRows() {
+      function itemNamed() {
+        var b = menu.querySelectorAll('.actmenu-item'), k;
+        for (k = 0; k < b.length; k++) {
+          var t = b[k].textContent.trim(), a;
+          for (a = 0; a < arguments.length; a++) if (t === arguments[a]) return b[k];
+        }
+        return null;
+      }
+      function after(node, ref) {
+        if (!node || !ref || !ref.parentNode) return;
+        if (ref.nextSibling) ref.parentNode.insertBefore(node, ref.nextSibling);
+        else ref.parentNode.appendChild(node);
+      }
+      after(menu.querySelector('.actmenu-arrows'), itemNamed('Edit'));
+      after(menu.querySelector('.actmenu-resched'),
+            itemNamed('Complete', 'Mark not complete'));
+    })();
+
     // Operator: drop the line after Complete and the line after Reschedule. Keep only
     // the one above Delete, so the destructive item stays visually set apart.
     var seps = menu.querySelectorAll('.actmenu-sep'), s;
@@ -19851,6 +19967,15 @@ if (r.freq === 'yearly') {
     for (s = 0; s < kids.length; s++) {
       if (kids[s].textContent.trim() === 'Delete') del = kids[s];
     }
+    /* one line under the arrows, so Edit + the arrows read as their own group */
+    var arrowsRow = menu.querySelector('.actmenu-arrows');
+    if (arrowsRow && arrowsRow.parentNode) {
+      var asep = document.createElement('div');
+      asep.className = 'actmenu-sep';
+      if (arrowsRow.nextSibling) arrowsRow.parentNode.insertBefore(asep, arrowsRow.nextSibling);
+      else arrowsRow.parentNode.appendChild(asep);
+    }
+
     if (del) {
       var sep = document.createElement('div');
       sep.className = 'actmenu-sep';
@@ -24777,6 +24902,52 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
     };
     menuEl.appendChild(b4);
 
+    /* ===== item 7 - Expand all / Contract all, 2026-09-06 =====
+       Two plain lines under a divider. They change the view, so they sit apart from
+       the four above them, which add or filter things. */
+    var gsep = document.createElement('div');
+    gsep.className = 'gearsep';
+    menuEl.appendChild(gsep);
+
+    function setAllCollapsed(flag) {
+      if (!window.Store || !window.Store.data || !window.Store.data.tree) return;
+      var ids = [];
+      (function rec(list) {
+        for (var i = 0; i < list.length; i++) {
+          var n = list[i];
+          if (!n) continue;
+          if (n.children && n.children.length) { n.collapsed = flag; ids.push(n.id); }
+          if (n.children) rec(n.children);
+        }
+      })(window.Store.data.tree);
+
+      /* The collapse state ALSO lives in localStorage under planner.collapsed.v1, and a
+         module re-applies it as collapsed:true on every render. Setting the node flags
+         alone made Contract all look like it worked and Expand all do nothing at all -
+         the enforcer put every branch straight back. Write the set as well. */
+      try {
+        localStorage.setItem('planner.collapsed.v1', JSON.stringify(flag ? ids : []));
+      } catch (e) {}
+
+      window.Store.save();
+      if (window.renderAll) window.renderAll();
+      else if (window.renderTree) window.renderTree();
+    }
+
+    var bExp = document.createElement('button');
+    bExp.type = 'button';
+    bExp.className = 'gearitem';
+    bExp.textContent = 'Expand all';
+    bExp.onclick = function () { setAllCollapsed(false); closeMenu(); };
+    menuEl.appendChild(bExp);
+
+    var bCon = document.createElement('button');
+    bCon.type = 'button';
+    bCon.className = 'gearitem';
+    bCon.textContent = 'Contract all';
+    bCon.onclick = function () { setAllCollapsed(true); closeMenu(); };
+    menuEl.appendChild(bCon);
+
 
     document.body.appendChild(menuEl);
     openMenu = menuEl;
@@ -25615,6 +25786,136 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
   (function poll() { if (install()) return; if (++tries < 200) setTimeout(poll, 40); })();
 })();
 </script>
+
+
+<style>
+/* ===== items 2, 3, 4 - the row carries four marks, 2026-09-06 =====
+   Right to left: menu, plus, clock only when dated, pen only when there are notes.
+   The indent / outdent arrows leave the row entirely for the row menu. */
+#treeRoot .tree-row .tree-actions .rowquick.q-out,
+#treeRoot .tree-row .tree-actions .rowquick.q-in { display: none !important; }
+
+#treeRoot .tree-row .tree-actions .rowquick.q-add,
+#treeRoot .tree-row .tree-actions .rowmenu,
+#treeRoot .tree-row .tree-actions .tree-datechip,
+#treeRoot .tree-row .tree-actions .tree-notepen {
+  width: 15px !important; height: 15px !important; min-width: 15px !important;
+  padding: 0 !important; margin: 0 !important; font-size: 11px !important;
+  line-height: 1 !important; display: inline-flex !important;
+  align-items: center !important; justify-content: center !important;
+  flex: 0 0 15px !important; background: none !important; border: 0 !important;
+}
+#treeRoot .tree-row .tree-actions .tree-notepen   { order: 0 !important; }
+#treeRoot .tree-row .tree-actions .tree-datechip  { order: 1 !important; margin-left: 0 !important; }
+#treeRoot .tree-row .tree-actions .rowquick.q-add { order: 2 !important; }
+#treeRoot .tree-row .tree-actions .rowmenu        { order: 3 !important; }
+#treeRoot .tree-row .tree-actions { gap: 0 !important; padding-right: 4px !important; }
+#treeRoot .tree-row .tree-actions .rowquick.q-add,
+#treeRoot .tree-row .tree-actions .rowmenu { opacity: 1 !important; }
+#treeRoot .tree-row .tree-actions svg { width: 11px !important; height: 11px !important; }
+
+/* the pen: only when the task actually has notes, in the future-date amber */
+.tree-notepen { color: rgba(245, 158, 11, .32) !important; cursor: default; }
+
+/* the future date: 8px, same amber. It is written only for dates still ahead, so the
+   colour already means "not yet". Tasks always show it; a BRANCH shows it only while
+   Show future branches is on - that rule is the operator's. */
+#treeRoot .future-date { font-size: 8px !important; }
+#treeRoot:not(.show-future) .tree-row[data-depth="0"] .future-date { display: none !important; }
+#treeRoot .tree-row:not([data-depth="0"]) .future-date { display: inline !important; }
+</style>
+
+<script>
+(function () {
+  if (window.__rowMarksInstalled) return;
+  window.__rowMarksInstalled = true;
+
+  function hasNotes(n) {
+    if (!n) return false;
+    if (n.notesHtml) {
+      var t = String(n.notesHtml).replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ');
+      return t.replace(/^\s+|\s+$/g, '').length > 0;
+    }
+    return !!(n.notes && String(n.notes).replace(/^\s+|\s+$/g, '').length);
+  }
+
+  function paint() {
+    var root = document.getElementById('treeRoot');
+    if (!root || !window.findNode) return;
+    var rows = root.querySelectorAll('.tree-row'), i;
+    for (i = 0; i < rows.length; i++) {
+      var row = rows[i];
+      var host = row.querySelector('.tree-actions');
+      if (!host) continue;
+      var id = row.getAttribute('data-id');
+      var f = id ? window.findNode(id) : null;
+      var node = f && f.node;
+      var pen = host.querySelector('.tree-notepen');
+      if (node && hasNotes(node)) {
+        if (!pen) {
+          pen = document.createElement('span');
+          pen.className = 'tree-notepen';
+          pen.title = 'This task has notes';
+          pen.textContent = '\u270E';
+          host.insertBefore(pen, host.firstChild);
+        }
+      } else if (pen && pen.parentNode) {
+        pen.parentNode.removeChild(pen);
+      }
+    }
+  }
+
+  /* inside the render, never on a timer - RULES 1a-36 */
+  (function hook() {
+    if (typeof window.renderTree !== 'function') { setTimeout(hook, 30); return; }
+    if (window.renderTree.__marksHooked) return;
+    var base = window.renderTree;
+    var w = function () { var r = base.apply(this, arguments); try { paint(); } catch (e) {} return r; };
+    w.__marksHooked = true;
+    window.renderTree = w;
+  })();
+
+  window.__rowMarksPaint = paint;
+  paint();
+  setInterval(paint, 800);
+})();
+</script>
+
+
+<style>
+/* ===== items 5 + 6 - the row menu, 2026-09-06 =====
+   The arrows are two bare glyphs on the same 12px left edge as every label, with no
+   background at rest, on hover or on press. Reschedule holds its own chips. */
+.actmenu-arrows { display: flex; align-items: center; gap: 14px; padding: 8px 12px; }
+.actmenu-arrow {
+  background: none !important; border: 0 !important; padding: 0 !important;
+  width: 14px; text-align: left; color: #cdd3dc; font-size: 14px; line-height: 1;
+  cursor: pointer; box-shadow: none !important;
+}
+.actmenu-arrow:hover, .actmenu-arrow:active, .actmenu-arrow:focus {
+  background: none !important; outline: none !important; box-shadow: none !important;
+}
+.actmenu-resched { display: flex; align-items: center; gap: 7px; padding: 8px 12px;
+  border-radius: 6px; }
+.actmenu-reschedlab {
+  background: none !important; border: 0 !important; padding: 0 !important;
+  color: var(--text, #e6e8ec); font-size: 13px; cursor: pointer; text-align: left;
+}
+.actmenu-chips { display: none; gap: 6px; }
+.actmenu-resched.open .actmenu-chips { display: flex; }
+.actmenu-chip {
+  font-size: 11px; color: #cdd3dc; background: var(--surface-2, #24272e);
+  border: 1px solid var(--border, #2e323a); border-radius: 5px; padding: 2px 7px;
+  line-height: 15px; cursor: pointer;
+}
+.actmenu-chip:hover { background: #2f343e; color: #fff; }
+</style>
+
+
+<style>
+/* item 7: the divider above Expand / Contract, matching the row menu's separator */
+.tree-gearmenu .gearsep { height: 1px; background: #3a4049; margin: 5px 4px; }
+</style>
 
 </body>
 </html>
