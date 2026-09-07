@@ -5150,7 +5150,7 @@ html:root #treeRoot .tree-row:not([data-depth="0"]){ height:32px !important; min
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-09-07 00:20</span>
+    <span id="buildStamp">build 2026-09-07 01:21</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -26964,7 +26964,14 @@ body[data-fb="on"] .fb-band { display: block; }
       var list = store(); if (!list) return;
       var bl = { id: uid(), name: 'Focus', branchId: null, from: '09:00', to: '12:00',
                  days: [1, 2, 3, 4, 5], date: null };
-      list.push(bl); save(); paint(); openEditor(bl, null);
+      list.push(bl); save(); paint();
+      /* 2026-09-07: this passed no anchor, so the editor fell back to a fixed
+         {left:120, top:120} corner of the window - which is the panel appearing "far
+         away". Anchor it to the + that was pressed. */
+      /* +26 because openEditor lifts a click point by 20 to centre it on the cursor;
+         from a button we want it to land just under the button instead. */
+      openEditor(bl, plus, { x: plus.getBoundingClientRect().left,
+                             y: plus.getBoundingClientRect().bottom + 26 });
     });
     bar.appendChild(b);
     bar.appendChild(plus);
@@ -27078,7 +27085,39 @@ body[data-fb="on"] .fb-band { display: block; }
   }
 
   /* ---------- conflicts ---------- */
+  /* Option D, 2026-09-07: a task inside a block drops its accent bar entirely. The band
+     already carries the colour, and a blue bar on a blue wash was the thing that looked
+     wrong. Tasks outside a block are untouched. */
+  function markInside() {
+    var evs = document.querySelectorAll('.tgevent'), i;
+    for (i = 0; i < evs.length; i++) {
+      evs[i].className = String(evs[i].className).replace(/\s*fb-inside/, '');
+    }
+    if (!isOn()) return;
+    var list = store() || [];
+    for (i = 0; i < evs.length; i++) {
+      var el = evs[i];
+      var col = el.closest ? el.closest('.tgcol') : null;
+      if (!col) continue;
+      var iso = col.getAttribute('data-iso') || col.dataset.iso;
+      var id = el.getAttribute('data-node-id') || el.getAttribute('data-id');
+      if (!iso || !id || !window.findNode) continue;
+      var f = window.findNode(id);
+      if (!f || !f.node || !f.node.time) continue;
+      var st = toMin(f.node.time), j;
+      for (j = 0; j < list.length; j++) {
+        var bl = list[j];
+        if (!appliesTo(bl, iso)) continue;
+        if (st < toMin(bl.from) || st >= toMin(bl.to)) continue;
+        el.className += ' fb-inside';
+        break;
+      }
+    }
+  }
+  window.__fbMarkInside = markInside;
+
   function flagConflicts() {
+    try { markInside(); } catch (e) {}
     var evs = document.querySelectorAll('.tgevent'), i;
     for (i = 0; i < evs.length; i++) {
       evs[i].className = String(evs[i].className).replace(/\s*fb-bad/, '');
@@ -27407,7 +27446,13 @@ body[data-fb="on"] .fb-band { display: block; }
     pop.appendChild(foot);
 
     document.body.appendChild(pop);
-    var r = anchor ? anchor.getBoundingClientRect() : { left: 120, top: 120, bottom: 140 };
+    var fallback = (function () {
+      var g = document.querySelector('#dayView .tgcol') || document.querySelector('.tgcol');
+      if (g) { var b = g.getBoundingClientRect();
+               return { left: b.left + 40, top: b.top + 60, bottom: b.top + 60 }; }
+      return { left: 120, top: 120, bottom: 140 };
+    })();
+    var r = anchor ? anchor.getBoundingClientRect() : fallback;
     var left, top;
     if (at && typeof at.x === 'number') {
       left = at.x + window.pageXOffset + 12;
@@ -27417,6 +27462,12 @@ body[data-fb="on"] .fb-band { display: block; }
       top = r.top + window.pageYOffset;
     }
     var w = pop.offsetWidth, hgt = pop.offsetHeight;
+    /* If it will not fit to the RIGHT of what was pressed, right-align it to that thing
+       rather than slamming it against the window edge - clamping alone put the panel
+       238px away from the + that opened it. */
+    if (left + w > window.pageXOffset + window.innerWidth - 8) {
+      left = r.right + window.pageXOffset - w;
+    }
     if (left + w > window.pageXOffset + window.innerWidth - 8)
       left = window.pageXOffset + window.innerWidth - w - 8;
     if (left < window.pageXOffset + 8) left = window.pageXOffset + 8;
@@ -27658,6 +27709,86 @@ body[data-fb="on"] .fb-band { display: block; }
 .hp-cal i.y { background: rgba(74,222,128,.75); }
 .hp-dline { font-size: 11.5px; color: #9aa1ab; line-height: 1.5; }
 </style>
+
+
+<style>
+/* Option D - inside a block a task has no accent bar, and sits inset so the band frames it.
+   The selector has to out-specify `:root[data-v-event] #dayView .tgevent`, which sets the
+   border with !important - a plain .tgevent.fb-inside lost to it and the bar stayed 3px. */
+:root body[data-fb="on"] #dayView .tgevent.fb-inside,
+:root body[data-fb="on"] #weekGrid .tgevent.fb-inside,
+:root body[data-fb="on"] .tgevent.fb-inside {
+  border-left-width: 0 !important;
+  border-left-style: none !important;
+  padding-left: 10px !important;
+  margin-left: 6px !important;
+  margin-right: 6px !important;
+}
+/* a flagged stranger keeps its amber edge - that mark still has to read */
+:root body[data-fb="on"] #dayView .tgevent.fb-inside.fb-bad,
+:root body[data-fb="on"] #weekGrid .tgevent.fb-inside.fb-bad,
+:root body[data-fb="on"] .tgevent.fb-inside.fb-bad {
+  border-left-width: 3px !important;
+  border-left-style: solid !important;
+  border-left-color: #d98c2b !important;
+  padding-left: 7px !important;
+}
+</style>
+
+
+<style>
+/* ===== item 2, option B - 2026-09-07 =====
+   Measured before: the clock and the plus kept 15px each while invisible, leaving two
+   empty slots between the pen and the menu on a plain row. Now they collapse to nothing,
+   and they sit to the LEFT of the pen - so when they appear on hover they grow into the
+   title's spare room and the pen and the menu never move. */
+#treeRoot .tree-row .tree-actions .tree-datechip  { order: 0 !important; }
+#treeRoot .tree-row .tree-actions .rowquick.q-add { order: 1 !important; }
+#treeRoot .tree-row .tree-actions .tree-notepen   { order: 2 !important; }
+#treeRoot .tree-row .tree-actions .rowmenu        { order: 3 !important; }
+
+/* an undated row's clock, and the plus, take no room until the row is hovered */
+#treeRoot .tree-row:not(:hover):not(.row-hover) .tree-actions .rowquick.q-add,
+#treeRoot .tree-row:not(:hover):not(.row-hover) .tree-actions .tree-datechip:not(.hasdate) {
+  width: 0 !important; min-width: 0 !important; flex: 0 0 0 !important;
+  padding: 0 !important; margin: 0 !important; overflow: hidden !important;
+  opacity: 0 !important;
+}
+#treeRoot .tree-row:hover .tree-actions .rowquick.q-add,
+#treeRoot .tree-row.row-hover .tree-actions .rowquick.q-add,
+#treeRoot .tree-row:hover .tree-actions .tree-datechip,
+#treeRoot .tree-row.row-hover .tree-actions .tree-datechip {
+  width: 15px !important; min-width: 15px !important; flex: 0 0 15px !important;
+  opacity: 1 !important; visibility: visible !important;
+}
+/* a dated row keeps its clock at all times - it is telling you something */
+#treeRoot .tree-row .tree-actions .tree-datechip.hasdate {
+  width: 15px !important; flex: 0 0 15px !important; visibility: visible !important;
+}
+</style>
+
+
+<script>
+(function () {
+  if (window.__rowHoverInstalled) return;
+  window.__rowHoverInstalled = true;
+  /* :hover alone is not observable from synthetic events, so the same state is also
+     driven by listeners. Both paths do exactly one thing: reveal the collapsed marks. */
+  function on(e) {
+    var r = e.target.closest ? e.target.closest('#treeRoot .tree-row') : null;
+    if (!r) return;
+    if (String(r.className).indexOf('row-hover') === -1) r.className += ' row-hover';
+  }
+  function off(e) {
+    var r = e.target.closest ? e.target.closest('#treeRoot .tree-row') : null;
+    if (!r) return;
+    if (e.relatedTarget && r.contains(e.relatedTarget)) return;
+    r.className = String(r.className).replace(/\s*row-hover/, '');
+  }
+  document.addEventListener('mouseover', on, true);
+  document.addEventListener('mouseout', off, true);
+})();
+</script>
 
 </body>
 </html>
