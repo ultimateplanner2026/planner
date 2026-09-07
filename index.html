@@ -5150,7 +5150,7 @@ html:root #treeRoot .tree-row:not([data-depth="0"]){ height:32px !important; min
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-09-06 22:54</span>
+    <span id="buildStamp">build 2026-09-07 00:20</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -26795,13 +26795,18 @@ body[data-bb="habits"] #treeRoot, body[data-bb="habits"] .tree-toolbar { visibil
 }
 #fbToggle.on { color: #cfe0ff; }
 #fbNew { display: none; }
-body.fb-on #fbNew {
+body[data-fb="on"] #fbNew {
   display: inline-flex; align-items: center; background: #24272e; color: #cdd3dc;
   border: 1px solid #2e323a; border-radius: 6px; font-size: 11px; padding: 2px 8px;
   margin-left: 6px; cursor: pointer;
 }
-.fb-band { position: absolute; left: 0; right: 0; border-radius: 0 8px 8px 0; display: none; z-index: 1; }
-body.fb-on .fb-band { display: block; }
+/* 2026-09-07: the band spans the whole column, so with pointer events it swallowed every
+   drag aimed at a task sitting inside it - the tasks simply could not be moved. The band
+   is now transparent to the pointer; only its strip and its two grips take input. */
+.fb-band { position: absolute; left: 0; right: 0; border-radius: 0 8px 8px 0; display: none;
+  z-index: 1; pointer-events: none; }
+.fb-band .fb-strip, .fb-band .fb-grip { pointer-events: auto; }
+body[data-fb="on"] .fb-band { display: block; }
 .fb-band .fb-strip {
   position: absolute; left: 0; top: 0; bottom: 0; width: 15px;
   display: flex; align-items: center; justify-content: center; cursor: pointer;
@@ -26811,8 +26816,12 @@ body.fb-on .fb-band { display: block; }
   writing-mode: vertical-rl; transform: rotate(180deg); white-space: nowrap;
   overflow: hidden; max-height: 100%;
 }
-.fb-band .fb-grip { position: absolute; left: 15px; right: 0; height: 5px; cursor: ns-resize; }
-.fb-band .fb-grip.top { top: -2px; } .fb-band .fb-grip.bot { bottom: -2px; }
+.fb-band .fb-grip { position: absolute; left: 15px; right: 0; height: 8px; cursor: ns-resize;
+  z-index: 3; }
+.fb-band .fb-grip.top { top: -4px; } .fb-band .fb-grip.bot { bottom: -4px; }
+.fb-band .fb-grip:before { content: ""; position: absolute; left: 50%; top: 3px; width: 34px;
+  height: 2px; margin-left: -17px; border-radius: 2px; background: currentColor; opacity: 0; }
+.fb-band:hover .fb-grip:before { opacity: .55; }
 .tgevent.fb-bad { outline: 1px solid rgba(217,140,43,.55); }
 .fb-flag { color: #d98c2b; font-size: 10px; margin-left: 5px; cursor: pointer; }
 .fb-draft { background: rgba(77,139,255,.13); outline: 1px dashed rgba(126,168,255,.75); }
@@ -26869,8 +26878,15 @@ body.fb-on .fb-band { display: block; }
   function uid() { return 'fb' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
 
   function branches() {
+    /* A branch is a TOP-LEVEL node that has children - the same rule the Location list
+       uses. A bare top-level task is not a branch and has no business owning hours. */
     var t = (window.Store && window.Store.data && window.Store.data.tree) || [], o = [], i;
-    for (i = 0; i < t.length; i++) if (t[i]) o.push(t[i]);
+    for (i = 0; i < t.length; i++) {
+      var n = t[i];
+      if (!n || !n.id) continue;
+      if (!n.children || !n.children.length) continue;
+      o.push(n);
+    }
     return o;
   }
   function branchOf(id) {
@@ -26917,9 +26933,14 @@ body.fb-on .fb-band { display: block; }
   window.__fbOverlaps = overlaps;
 
   /* ---------- the toggle ---------- */
-  function isOn() { return String(document.body.className).indexOf('fb-on') !== -1; }
+  /* 2026-09-07: the toggle lives in an ATTRIBUTE rather than document.body.className.
+     It was moved while chasing bands that appeared to vanish - that turned out to be a
+     test running its checks after the toggle-off, not a clobbered class. The attribute
+     is kept anyway: several modules assign body.className wholesale, so a class here
+     would be a real hazard even though it had not bitten yet. */
+  function isOn() { return document.body.getAttribute('data-fb') === 'on'; }
   function setOn(v) {
-    document.body.className = String(document.body.className).replace(/\s*fb-on/, '') + (v ? ' fb-on' : '');
+    document.body.setAttribute('data-fb', v ? 'on' : 'off');
     var t = document.getElementById('fbToggle');
     if (t) t.className = v ? 'on' : '';
     try { localStorage.setItem('planner.focusBlocks.on', v ? '1' : '0'); } catch (e) {}
@@ -26978,6 +26999,18 @@ body.fb-on .fb-band { display: block; }
           band.style.height = Math.max(12, Math.round(bot - top)) + 'px';
           var c = colourFor(bl);
           band.style.background = hexA(c, 0.07);
+          /* grips first: dragging either edge resizes the block */
+          var gTop = document.createElement('div');
+          gTop.className = 'fb-grip top';
+          var gBot = document.createElement('div');
+          gBot.className = 'fb-grip bot';
+          band.appendChild(gTop);
+          band.appendChild(gBot);
+          (function (b, top0, bot0) {
+            wireGrip(gTop, b, 'from');
+            wireGrip(gBot, b, 'to');
+          })(bl);
+
           var strip = document.createElement('div');
           strip.className = 'fb-strip';
           strip.style.background = hexA(c, 0.20);
@@ -26987,7 +27020,12 @@ body.fb-on .fb-band { display: block; }
           strip.appendChild(nm);
           band.appendChild(strip);
           (function (b) {
-            strip.addEventListener('click', function (e) { e.stopPropagation(); openEditor(b, band); });
+            strip.addEventListener('click', function (e) {
+              e.stopPropagation();
+              /* open where the cursor is, not at the band's left edge - the band spans the
+                 whole column, so anchoring to it threw the panel to the far left. */
+              openEditor(b, band, { x: e.clientX, y: e.clientY });
+            });
           })(bl);
           col.appendChild(band);
         }
@@ -26996,6 +27034,41 @@ body.fb-on .fb-band { display: block; }
     flagConflicts();
   }
   window.__fbPaint = paint;
+
+  /* drag an edge to resize. Snapped to 15 minutes, never past the other edge, and
+     never into another block - two owners for one hour defeats the point. */
+  function wireGrip(grip, bl, key) {
+    grip.addEventListener('pointerdown', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      var startY = e.clientY;
+      var start = toMin(bl[key]);
+      var HOUR = (window.TG && window.TG.HOUR_PX) ? window.TG.HOUR_PX : 60;
+      function move(ev) {
+        var dy = ev.clientY - startY;
+        var mins = start + (dy / HOUR) * 60;
+        mins = Math.round(mins / 15) * 15;
+        var trial = { from: bl.from, to: bl.to };
+        trial[key] = fromMin(mins);
+        if (toMin(trial.from) + 15 > toMin(trial.to)) return;
+        var list = store() || [], i;
+        for (i = 0; i < list.length; i++) {
+          if (list[i] === bl) continue;
+          if (!sameWhen(list[i], bl)) continue;
+          if (overlaps(trial, list[i])) return;
+        }
+        bl[key] = trial[key];
+        paint();
+      }
+      function up() {
+        document.removeEventListener('pointermove', move);
+        document.removeEventListener('pointerup', up);
+        save();
+      }
+      document.addEventListener('pointermove', move);
+      document.addEventListener('pointerup', up);
+    });
+  }
 
   function hexA(hex, a) {
     var h = String(hex).replace('#', '');
@@ -27185,7 +27258,7 @@ body.fb-on .fb-band { display: block; }
   }
   window.__fbCloseEditor = closeEditor;
 
-  function openEditor(bl, anchor) {
+  function openEditor(bl, anchor, at) {
     closeEditor();
     var pop = document.createElement('div');
     pop.className = 'fb-pop';
@@ -27334,9 +27407,15 @@ body.fb-on .fb-band { display: block; }
     pop.appendChild(foot);
 
     document.body.appendChild(pop);
-    var r = anchor ? anchor.getBoundingClientRect() : { left: 120, bottom: 140 };
-    var left = r.left + window.pageXOffset + 20;
-    var top = r.top + window.pageYOffset;
+    var r = anchor ? anchor.getBoundingClientRect() : { left: 120, top: 120, bottom: 140 };
+    var left, top;
+    if (at && typeof at.x === 'number') {
+      left = at.x + window.pageXOffset + 12;
+      top = at.y + window.pageYOffset - 20;
+    } else {
+      left = r.left + window.pageXOffset + 20;
+      top = r.top + window.pageYOffset;
+    }
     var w = pop.offsetWidth, hgt = pop.offsetHeight;
     if (left + w > window.pageXOffset + window.innerWidth - 8)
       left = window.pageXOffset + window.innerWidth - w - 8;
