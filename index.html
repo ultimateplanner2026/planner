@@ -5150,7 +5150,7 @@ html:root #treeRoot .tree-row:not([data-depth="0"]){ height:32px !important; min
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-09-06 21:30</span>
+    <span id="buildStamp">build 2026-09-06 22:54</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -10741,7 +10741,22 @@ function surfaceArrivals() {
 
     var time = document.createElement('input');
     time.type = 'time'; time.className = 'ea-input'; time.value = node.time || '';
-    body.appendChild(row('Time', time));
+    /* 2026-09-06: the Time field is the shared spinner, the same control as the alarm
+       and both ends of a focus block. The native input stays as the value carrier so
+       save() keeps reading time.value and nothing downstream changes. */
+    (function () {
+      if (!window.buildTimeSpinner) { body.appendChild(row('Time', time)); return; }
+      var host = document.createElement('div');
+      host.className = 'ea-timehost';
+      time.style.display = 'none';
+      host.appendChild(time);
+      host.appendChild(window.buildTimeSpinner(node.time || '09:00', function (v) {
+        time.value = v;
+      }));
+      var r = row('Time', host);
+      r.className = (r.className || '') + ' ea-row-time';
+      body.appendChild(r);
+    })();
 
     var dur = document.createElement('input');
     dur.type = 'number'; dur.min = '0'; dur.step = '5'; dur.className = 'ea-input';
@@ -11548,6 +11563,11 @@ function surfaceArrivals() {
     var el = e.target.closest ? e.target.closest('.tgevent, .tgchip, .mchip') : null;
     if (!el) return;
     if (e.target.closest && e.target.closest('.actbtn')) return;   // the menu button is fine
+    /* 2026-09-06: the focus-block conflict flag is a real control on the event, so it
+       needs the same exemption. Without it this capture listener called
+       stopImmediatePropagation before the flag's own handler ever ran, and pressing the
+       mark did nothing at all - which is exactly what was reported. */
+    if (e.target.closest && e.target.closest('.fb-flag')) return;
     e.preventDefault();
     e.stopPropagation();
     e.stopImmediatePropagation();
@@ -26119,9 +26139,14 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
 
 /* the Habits pane takes the whole tree pane */
 #habitsPane {
+  /* bottom is set from the bar's real height at paint time. Measured 2026-09-06: the
+     pane ran to 913px while the bar sat at 854px, so .hp-body covered Plan and there
+     was no way back out of Habits at all. */
   position: absolute; left: 0; right: 0; top: 0; bottom: 0; z-index: 6;
   background: var(--surface, #1c1f26); display: none; flex-direction: column;
 }
+/* and the bar always sits above it, whatever else happens */
+#treePane > #bottomBar { z-index: 8 !important; }
 body[data-bb="habits"] #habitsPane { display: flex; }
 body[data-bb="habits"] #treeRoot, body[data-bb="habits"] .tree-toolbar { visibility: hidden; }
 #habitsPane .hp-head {
@@ -26312,22 +26337,41 @@ body[data-bb="habits"] #treeRoot, body[data-bb="habits"] .tree-toolbar { visibil
     ttl.textContent = 'Habits';
     var cnt = document.createElement('span');
     cnt.className = 'cnt';
+    /* 2026-09-06: two buttons, not one that changes its own label. You can see which
+       view you are in and which one you are going to. */
+    var sp = document.createElement('span');
+    sp.className = 'hp-sp';
+    var bList = document.createElement('button');
+    bList.type = 'button';
+    bList.className = 'btn';
+    bList.textContent = 'List';
+    bList.addEventListener('click', function () { mode = 'list'; renderPane(); });
     var btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'btn';
     btn.textContent = 'Metrics';
-    btn.addEventListener('click', function () {
-      mode = (mode === 'list') ? 'metrics' : 'list';
-      renderPane();
-    });
-    head.appendChild(ic); head.appendChild(ttl); head.appendChild(cnt); head.appendChild(btn);
+    btn.addEventListener('click', function () { mode = 'metrics'; renderPane(); });
+    sp.appendChild(bList); sp.appendChild(btn);
+    head.appendChild(ic); head.appendChild(ttl); head.appendChild(cnt); head.appendChild(sp);
     var body = document.createElement('div');
     body.className = 'hp-body';
     pane.appendChild(head);
     pane.appendChild(body);
     host.appendChild(pane);
+    fitPane(pane);
     return pane;
   }
+
+  /* keep the pane clear of the bottom bar - it is the only way back to Plan */
+  function fitPane(pane) {
+    pane = pane || document.getElementById('habitsPane');
+    if (!pane) return;
+    var bar = document.getElementById('bottomBar');
+    var h = 0;
+    if (bar && bar.parentNode === pane.parentNode) h = bar.offsetHeight || 0;
+    pane.style.bottom = h + 'px';
+  }
+  window.__habitsFit = fitPane;
 
   function summary(n) {
     if (window.plannerRepeatSummary) {
@@ -26335,6 +26379,95 @@ body[data-bb="habits"] #treeRoot, body[data-bb="habits"] .tree-toolbar { visibil
     }
     return 'Repeats';
   }
+
+  function bestStreak(n) {
+    var done = (n && n.repeatDone) || {}, best = 0, run = 0, d = new Date(), i;
+    for (i = 0; i < 365; i++) {
+      var iso = d.toISOString().slice(0, 10);
+      if (done[iso]) { run++; if (run > best) best = run; } else { run = 0; }
+      d.setDate(d.getDate() - 1);
+    }
+    return best;
+  }
+
+  function openDetail(node) {
+    var old = document.getElementById('hpDetail');
+    if (old) old.parentNode.removeChild(old);
+    var done = node.repeatDone || {};
+    function isoBack(k) { var d = new Date(); d.setDate(d.getDate() - k);
+      return d.toISOString().slice(0, 10); }
+
+    var wrap = document.createElement('div');
+    wrap.id = 'hpDetail';
+    var box = document.createElement('div');
+    box.className = 'hp-detail';
+    var h = document.createElement('div');
+    h.className = 'hp-dhead';
+    h.textContent = node.title || 'Untitled';
+    var x = document.createElement('button');
+    x.type = 'button';
+    x.className = 'hp-dx';
+    x.textContent = '\u2715';
+    x.addEventListener('click', function () { wrap.parentNode.removeChild(wrap); });
+    h.appendChild(x);
+    box.appendChild(h);
+
+    var stats = document.createElement('div');
+    stats.className = 'hp-dstats';
+    function stat(v, l) {
+      var d2 = document.createElement('div');
+      var a = document.createElement('b');
+      a.textContent = v;
+      var b2 = document.createElement('span');
+      b2.textContent = l;
+      d2.appendChild(a); d2.appendChild(b2);
+      return d2;
+    }
+    var hits84 = 0, k;
+    for (k = 0; k < 84; k++) if (done[isoBack(k)]) hits84++;
+    stats.appendChild(stat(String(streakOf(node)), 'current streak'));
+    stats.appendChild(stat(String(bestStreak(node)), 'best ever'));
+    stats.appendChild(stat(Math.round(hits84 / 84 * 100) + '%', '12 weeks'));
+    box.appendChild(stats);
+
+    var cal = document.createElement('div');
+    cal.className = 'hp-cal';
+    for (k = 83; k >= 0; k--) {
+      var c = document.createElement('i');
+      if (done[isoBack(k)]) c.className = 'y';
+      c.title = isoBack(k);
+      cal.appendChild(c);
+    }
+    box.appendChild(cal);
+
+    /* which weekday you miss most - the one worth knowing */
+    var per = [0,0,0,0,0,0,0], tot = [0,0,0,0,0,0,0];
+    for (k = 0; k < 84; k++) {
+      var iso = isoBack(k), p = iso.split('-');
+      var dow = new Date(+p[0], +p[1] - 1, +p[2]).getDay();
+      tot[dow]++;
+      if (done[iso]) per[dow]++;
+    }
+    var worst = 0, worstRate = 2, i2;
+    for (i2 = 0; i2 < 7; i2++) {
+      var rate = tot[i2] ? per[i2] / tot[i2] : 1;
+      if (rate < worstRate) { worstRate = rate; worst = i2; }
+    }
+    var names = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+    var line = document.createElement('div');
+    line.className = 'hp-dline';
+    line.textContent = hits84
+      ? ('You miss ' + names[worst] + ' most — ' + Math.round(worstRate * 100) + '% kept.')
+      : 'Nothing ticked yet, so there is nothing to read into.';
+    box.appendChild(line);
+
+    wrap.appendChild(box);
+    wrap.addEventListener('click', function (e) {
+      if (e.target === wrap) wrap.parentNode.removeChild(wrap);
+    });
+    document.body.appendChild(wrap);
+  }
+  window.__habitsDetail = openDetail;
 
   function streakOf(n) {
     var done = (n && n.repeatDone) || {};
@@ -26353,14 +26486,15 @@ body[data-bb="habits"] #treeRoot, body[data-bb="habits"] .tree-toolbar { visibil
     if (!pane) return;
     var head = pane.querySelector('.hp-head');
     var body = pane.querySelector('.hp-body');
-    var btn = head.querySelector('.btn');
+    var btns = head.querySelectorAll('.btn');
+    var bList = btns[0], btn = btns[1];
     var cnt = head.querySelector('.cnt');
     var list = routines();
     while (body.firstChild) body.removeChild(body.firstChild);
 
     if (mode === 'metrics') {
-      btn.className = 'btn on';
-      cnt.textContent = 'last 21 days';
+      btn.className = 'btn on'; bList.className = 'btn';
+      cnt.textContent = 'last 30 days';
       if (!list.length) {
         var e2 = document.createElement('div');
         e2.className = 'hp-empty';
@@ -26370,37 +26504,85 @@ body[data-bb="habits"] #treeRoot, body[data-bb="habits"] .tree-toolbar { visibil
       }
       for (var i = 0; i < list.length; i++) {
         (function (r) {
-          var row = document.createElement('div');
-          row.className = 'hp-m';
-          var nm = document.createElement('div');
+          var done = r.node.repeatDone || {};
+          function isoBack(k) { var d = new Date(); d.setDate(d.getDate() - k);
+            return d.toISOString().slice(0, 10); }
+          var hits = 0, recent = 0, prior = 0, k;
+          for (k = 0; k < 30; k++) if (done[isoBack(k)]) hits++;
+          for (k = 0; k < 10; k++) if (done[isoBack(k)]) recent++;
+          for (k = 10; k < 20; k++) if (done[isoBack(k)]) prior++;
+
+          var card = document.createElement('div');
+          card.className = 'hp-card';
+          var top = document.createElement('div');
+          top.className = 'hp-ctop';
+          var nm = document.createElement('span');
           nm.className = 'nm';
           nm.textContent = r.node.title || 'Untitled';
-          var dots = document.createElement('div');
-          dots.className = 'hp-dots';
-          var done = r.node.repeatDone || {}, hit = 0, d = new Date();
-          d.setDate(d.getDate() - 20);
-          for (var k = 0; k < 21; k++) {
-            var iso = d.toISOString().slice(0, 10);
-            var dot = document.createElement('i');
-            dot.className = done[iso] ? 'y' : 'n';
-            if (done[iso]) hit++;
-            dots.appendChild(dot);
-            d.setDate(d.getDate() + 1);
+          var big = document.createElement('span');
+          var st = streakOf(r.node);
+          big.className = 'big' + (st === 0 ? ' zero' : '');
+          big.textContent = String(st);
+          var sm = document.createElement('span');
+          sm.className = 'small';
+          sm.textContent = 'day streak';
+          top.appendChild(nm); top.appendChild(big); top.appendChild(sm);
+          card.appendChild(top);
+
+          var heat = document.createElement('div');
+          heat.className = 'hp-heat';
+          for (k = 29; k >= 0; k--) {
+            var cell = document.createElement('i');
+            if (done[isoBack(k)]) cell.className = 'y';
+            cell.title = isoBack(k);
+            heat.appendChild(cell);
           }
-          var pct = document.createElement('div');
-          pct.className = 'pct';
+          card.appendChild(heat);
+
+          var foot = document.createElement('div');
+          foot.className = 'hp-cfoot';
+          function bit(label, value) {
+            var sp2 = document.createElement('span');
+            sp2.appendChild(document.createTextNode(label + ' '));
+            var b2 = document.createElement('b');
+            b2.textContent = value;
+            sp2.appendChild(b2);
+            return sp2;
+          }
+          foot.appendChild(bit('30 days', Math.round(hits / 30 * 100) + '%'));
+          foot.appendChild(bit('best', String(bestStreak(r.node))));
+          var tr = document.createElement('span');
+          if (recent > prior) { tr.className = 'tr up'; tr.textContent = '\u25B2 improving'; }
+          else if (recent < prior) { tr.className = 'tr dn'; tr.textContent = '\u25BC slipping'; }
+          else { tr.className = 'tr flat'; tr.textContent = '\u2014 steady'; }
+          foot.appendChild(tr);
+          card.appendChild(foot);
+
           var ended = r.node.repeat && r.node.repeat.end && r.node.repeat.end < todayISO();
-          pct.textContent = ended ? 'ended' : (Math.round(hit / 21 * 100) + '%');
-          if (ended) row.className = 'hp-m ended';
-          row.appendChild(nm); row.appendChild(dots); row.appendChild(pct);
-          body.appendChild(row);
+          if (ended) card.className = 'hp-card ended';
+          /* double-click opens this one habit in full */
+          card.addEventListener('dblclick', function () { openDetail(r.node); });
+          body.appendChild(card);
         })(list[i]);
       }
       return;
     }
 
-    btn.className = 'btn';
+    btn.className = 'btn'; bList.className = 'btn on';
     cnt.textContent = String(list.length);
+
+    /* a view setting, so it sits above the habits rather than among them */
+    var opt = document.createElement('div');
+    opt.className = 'hp-opt';
+    var lab = document.createElement('span');
+    lab.textContent = 'Show in calendar';
+    var sw = document.createElement('span');
+    sw.className = window.__habitsShowPast ? 'hp-sw on' : 'hp-sw';
+    sw.appendChild(document.createElement('i'));
+    opt.appendChild(lab);
+    opt.appendChild(sw);
+    opt.addEventListener('click', function () { setShowPast(!window.__habitsShowPast); });
+    body.appendChild(opt);
     /* ended routines are not in the list - they live in Metrics */
     var live = [], t = todayISO(), q;
     for (q = 0; q < list.length; q++) {
@@ -26446,7 +26628,15 @@ body[data-bb="habits"] #treeRoot, body[data-bb="habits"] .tree-toolbar { visibil
           lab.textContent = 'streak';
           stk.appendChild(lab);
           stk.appendChild(document.createTextNode(String(streakOf(r.node))));
-          row.appendChild(txt); row.appendChild(stk);
+          var pen = document.createElement('span');
+          pen.className = 'hp-pen';
+          pen.title = 'Edit this habit';
+          pen.textContent = '\u270E';
+          pen.addEventListener('click', function (e) {
+            e.stopPropagation();
+            if (window.editActivity) window.editActivity(r.node.id);
+          });
+          row.appendChild(txt); row.appendChild(pen); row.appendChild(stk);
           row.addEventListener('click', function () {
             if (window.editActivity) window.editActivity(r.node.id);
           });
@@ -26466,6 +26656,8 @@ body[data-bb="habits"] #treeRoot, body[data-bb="habits"] .tree-toolbar { visibil
     var w = function (iso) {
       var res = base.apply(this, arguments) || [];
       if (!iso || iso >= todayISO()) return res;
+      /* Show in calendar puts them back, struck through, for when you want to look. */
+      if (window.__habitsShowPast) return res;
       /* strictly BEFORE today: a repeat you ticked stays as a record, one you did not
          is simply not there - it has already come round again. */
       var out = [], i;
@@ -26500,8 +26692,44 @@ body[data-bb="habits"] #treeRoot, body[data-bb="habits"] .tree-toolbar { visibil
     window.__odCount = w;
   })();
 
+  /* the switch itself */
+  window.__habitsShowPast = (function () {
+    try { return localStorage.getItem('planner.habits.showPast') === '1'; } catch (e) { return false; }
+  })();
+  function setShowPast(v) {
+    window.__habitsShowPast = !!v;
+    try { localStorage.setItem('planner.habits.showPast', v ? '1' : '0'); } catch (e) {}
+    if (window.renderAll) window.renderAll();
+    renderPane();
+  }
+  window.__habitsSetShowPast = setShowPast;
+
+  /* a past occurrence that is back on the calendar is drawn crossed off - it is history,
+     not something owed */
+  function markPast() {
+    var evs = document.querySelectorAll('.tgevent'), i;
+    for (i = 0; i < evs.length; i++) {
+      evs[i].className = String(evs[i].className).replace(/\s*routine-past/, '');
+    }
+    if (!window.__habitsShowPast) return;
+    var t = todayISO();
+    for (i = 0; i < evs.length; i++) {
+      var el = evs[i];
+      var col = el.closest ? el.closest('.tgcol') : null;
+      var iso = col ? (col.getAttribute('data-iso') || col.dataset.iso) : null;
+      if (!iso || iso >= t) continue;
+      var id = el.getAttribute('data-node-id') || el.getAttribute('data-id');
+      if (!id || !window.findNode) continue;
+      var f = window.findNode(id);
+      if (!f || !f.node || !isRepeat(f.node)) continue;
+      el.className += ' routine-past';
+    }
+  }
+  window.__habitsMarkPast = markPast;
+
   /* mark repeating rows so the Missed view can leave them out */
   function markRows() {
+    try { markPast(); } catch (e) {}
     var root = document.getElementById('treeRoot');
     if (!root || !window.findNode) return;
     var rows = root.querySelectorAll('.tree-row'), i;
@@ -26523,6 +26751,24 @@ body[data-bb="habits"] #treeRoot, body[data-bb="habits"] .tree-toolbar { visibil
     window.renderTree = w;
   })();
 
+  /* Crossing off past occurrences has to happen after the CALENDAR is drawn, not the
+     tree. Hanging it on renderTree marked nothing at all: the tree renders first, so
+     the events did not exist yet. */
+  (function hookAll() {
+    if (typeof window.renderAll !== 'function') { setTimeout(hookAll, 40); return; }
+    if (window.renderAll.__habitsPastHooked) return;
+    var base = window.renderAll;
+    var w = function () {
+      var r = base.apply(this, arguments);
+      try { markPast(); } catch (e) {}
+      try { fitPane(); } catch (e) {}
+      return r;
+    };
+    w.__habitsPastHooked = true;
+    window.renderAll = w;
+  })();
+  setInterval(function () { try { markPast(); } catch (e) {} }, 1200);
+
   /* ---------- boot ---------- */
   var tries = 0;
   (function boot() {
@@ -26531,7 +26777,8 @@ body[data-bb="habits"] #treeRoot, body[data-bb="habits"] .tree-toolbar { visibil
     if (!document.body.getAttribute('data-bb')) show('plan');
     if (++tries < 200 && !ok) setTimeout(boot, 60);
   })();
-  setInterval(function () { rebuildBar(); placeSettings(); }, 1500);
+  setInterval(function () { rebuildBar(); placeSettings(); fitPane(); }, 1500);
+  window.addEventListener('resize', function () { fitPane(); });
 })();
 </script>
 
@@ -26778,6 +27025,7 @@ body.fb-on .fb-band { display: block; }
         var id = el.getAttribute('data-node-id') || el.getAttribute('data-id')
               || (el.dataset ? (el.dataset.nodeId || el.dataset.id) : null);
         if (!id || !window.findNode) return;
+        if (window.__fbDismissed && window.__fbDismissed[id + '|' + iso]) return;
         var f = window.findNode(id);
         if (!f || !f.node || !f.node.time) return;
         var st = toMin(f.node.time);
@@ -26793,12 +27041,142 @@ body.fb-on .fb-band { display: block; }
           flag.className = 'fb-flag';
           flag.textContent = '⚠';
           flag.title = 'Not part of ' + (branchOf(bl.branchId) ? branchOf(bl.branchId).title : 'this block');
+          /* 2026-09-06: the mark was drawn and inert - the click was never wired, so a
+             flagged task could not be moved from where it was flagged. */
+          (function (nodeId, dayIso, ownerBlock) {
+            flag.addEventListener('click', function (ev) {
+              ev.preventDefault();
+              ev.stopPropagation();
+              openMoveMenu(flag, nodeId, dayIso, ownerBlock);
+            });
+          })(id, iso, bl);
           el.appendChild(flag);
           return;
         }
       })(evs[i]);
     }
   }
+
+  /* ---------- moving a flagged task ---------- */
+
+  function blocksOwning(nodeId, iso) {
+    var list = store() || [], out = [], i;
+    for (i = 0; i < list.length; i++) {
+      var bl = list[i];
+      if (!bl.branchId) continue;
+      if (!appliesTo(bl, iso)) continue;
+      if (subtreeIds(bl.branchId)[nodeId]) out.push(bl);
+    }
+    return out;
+  }
+
+  function busyAt(iso, min, skipId) {
+    var res = (window.scheduledOn ? window.scheduledOn(iso) : []) || [], i;
+    for (i = 0; i < res.length; i++) {
+      var e = res[i], nd = e && e.node;
+      if (!nd || !nd.time) continue;
+      if (nd.id === skipId) continue;
+      var st = toMin(nd.time), dur = (nd.duration || 30);
+      if (min < st + dur && st < min + 30) return true;
+    }
+    return false;
+  }
+
+  function firstFreeIn(bl, iso, nodeId) {
+    var m = toMin(bl.from), end = toMin(bl.to);
+    while (m + 30 <= end) {
+      if (!busyAt(iso, m, nodeId)) return fromMin(m);
+      m += 15;
+    }
+    return null;
+  }
+
+  function firstFreeOutside(iso, nodeId) {
+    var list = store() || [];
+    var m = 6 * 60;
+    while (m < 22 * 60) {
+      var inside = false, i;
+      for (i = 0; i < list.length; i++) {
+        if (!appliesTo(list[i], iso)) continue;
+        if (m >= toMin(list[i].from) && m < toMin(list[i].to)) { inside = true; break; }
+      }
+      if (!inside && !busyAt(iso, m, nodeId)) return fromMin(m);
+      m += 15;
+    }
+    return null;
+  }
+
+  function moveTo(nodeId, time) {
+    var f = window.findNode ? window.findNode(nodeId) : null;
+    if (!f || !f.node || !time) return;
+    f.node.time = time;
+    save();
+    if (window.renderAll) window.renderAll();
+    if (window.toast) window.toast('Moved to ' + time, 'ok');
+  }
+
+  var dismissed = {};
+  function openMoveMenu(anchor, nodeId, iso, ownerBlock) {
+    closeEditor();
+    var f = window.findNode ? window.findNode(nodeId) : null;
+    var title = (f && f.node && f.node.title) || 'This task';
+    var owners = blocksOwning(nodeId, iso);
+
+    var m = document.createElement('div');
+    m.className = 'fb-pop fb-move';
+    var hdr = document.createElement('div');
+    hdr.className = 'fb-movehdr';
+    hdr.textContent = title + ' — not part of '
+      + (branchOf(ownerBlock.branchId) ? branchOf(ownerBlock.branchId).title : 'this block');
+    m.appendChild(hdr);
+
+    function line(text, accent, run) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'fb-moveitem' + (accent ? ' hi' : '');
+      b.textContent = text;
+      b.addEventListener('click', function (e) {
+        e.stopPropagation();
+        closeEditor();
+        if (run) run();
+      });
+      m.appendChild(b);
+    }
+
+    if (owners.length) {
+      var target = owners[0];
+      var slot = firstFreeIn(target, iso, nodeId);
+      line('Move to the ' + (branchOf(target.branchId) ? branchOf(target.branchId).title : 'right')
+           + ' block' + (slot ? ' — ' + slot : ' (full)'), true,
+           slot ? function () { moveTo(nodeId, slot); } : null);
+    }
+    var out = firstFreeOutside(iso, nodeId);
+    line('Move to the next free hour' + (out ? ' — ' + out : ''), false,
+         out ? function () { moveTo(nodeId, out); } : null);
+    line('Leave it here', false, function () {
+      dismissed[nodeId + '|' + iso] = true;
+      flagConflicts();
+    });
+    line('Edit', false, function () {
+      if (window.editActivity) window.editActivity(nodeId);
+    });
+
+    document.body.appendChild(m);
+    var r = anchor.getBoundingClientRect();
+    var left = r.left + window.pageXOffset;
+    var top = r.bottom + window.pageYOffset + 6;
+    var w = m.offsetWidth, h = m.offsetHeight;
+    if (left + w > window.pageXOffset + window.innerWidth - 8)
+      left = window.pageXOffset + window.innerWidth - w - 8;
+    if (left < window.pageXOffset + 8) left = window.pageXOffset + 8;
+    if (top + h > window.pageYOffset + window.innerHeight - 8)
+      top = r.top + window.pageYOffset - h - 6;
+    m.style.left = Math.round(left) + 'px';
+    m.style.top = Math.round(top) + 'px';
+    m.addEventListener('click', function (e) { e.stopPropagation(); });
+  }
+  window.__fbMoveMenu = openMoveMenu;
+  window.__fbDismissed = dismissed;
 
   /* ---------- the editor ---------- */
   function closeEditor() {
@@ -26885,26 +27263,32 @@ body.fb-on .fb-band { display: block; }
     });
     rBr.appendChild(pick);
 
+    /* 2026-09-06: both ends use the shared spinner, the same control as the alarm and
+       Edit Activity. One control, one behaviour, nothing pops up. */
     function timeRow(lab, key) {
       var r = row(lab);
-      var t = document.createElement('input');
-      t.type = 'time';
-      t.value = bl[key];
-      t.addEventListener('change', function () {
-        var v = t.value || bl[key];
+      r.className = 'fb-row fb-timerow';
+      if (!window.buildTimeSpinner) {
+        var t = document.createElement('input');
+        t.type = 'time';
+        t.value = bl[key];
+        t.addEventListener('change', function () { bl[key] = t.value; save(); paint(); });
+        r.appendChild(t);
+        return;
+      }
+      var sp = window.buildTimeSpinner(bl[key], function (v) {
         var trial = { from: bl.from, to: bl.to };
         trial[key] = v;
-        if (toMin(trial.from) >= toMin(trial.to)) { t.value = bl[key]; return; }
-        /* no overlap: two owners for one hour defeats the point */
+        if (toMin(trial.from) >= toMin(trial.to)) return;   /* end must follow start */
         var list = store() || [], i;
         for (i = 0; i < list.length; i++) {
           if (list[i] === bl) continue;
           if (!sameWhen(list[i], bl)) continue;
-          if (overlaps(trial, list[i])) { t.value = bl[key]; return; }
+          if (overlaps(trial, list[i])) return;             /* blocks may not overlap */
         }
         bl[key] = v; save(); paint();
       });
-      r.appendChild(t);
+      r.appendChild(sp);
     }
     timeRow('From', 'from');
     timeRow('To', 'to');
@@ -26997,6 +27381,204 @@ body.fb-on .fb-band { display: block; }
   })();
 })();
 </script>
+
+
+<style>
+/* item 4 - the flag opens a menu */
+.fb-flag { cursor: pointer; padding: 0 2px; }
+.fb-flag:hover { color: #f0a94a; }
+.fb-move { width: 236px; padding: 5px; }
+.fb-movehdr { font-size: 9.5px; color: #d98c2b; padding: 5px 9px 6px; line-height: 1.4; }
+.fb-moveitem {
+  display: block; width: 100%; text-align: left; background: none; border: 0;
+  color: #e6e8ec; font-size: 11.5px; padding: 6px 9px; border-radius: 6px; cursor: pointer;
+}
+.fb-moveitem.hi { color: #4d8bff; }
+.fb-moveitem:hover { background: #24272e; }
+.fb-moveitem:disabled { opacity: .45; cursor: default; }
+
+/* item 5 - a past routine, shown crossed off */
+.tgevent.routine-past { opacity: .5; }
+.tgevent.routine-past .tgevent-title,
+.tgevent.routine-past .tgtitle { text-decoration: line-through; }
+.tgevent.routine-past { text-decoration: line-through; }
+#habitsPane .hp-opt {
+  display: flex; align-items: center; padding: 8px 9px; border-radius: 7px; font-size: 11.5px;
+  background: #20242c; border: 1px solid var(--border, #2e323a); margin-bottom: 6px;
+}
+#habitsPane .hp-sw { margin-left: auto; width: 30px; height: 17px; border-radius: 999px;
+  background: #3f4650; position: relative; flex: 0 0 auto; cursor: pointer; }
+#habitsPane .hp-sw i { position: absolute; top: 2px; left: 2px; width: 13px; height: 13px;
+  border-radius: 50%; background: #8b93a1; display: block; transition: left 120ms ease; }
+#habitsPane .hp-sw.on { background: #4d8bff; }
+#habitsPane .hp-sw.on i { left: 15px; background: #fff; }
+</style>
+
+
+<script>
+(function () {
+  if (window.__timeSpinnerInstalled) return;
+  window.__timeSpinnerInstalled = true;
+
+  var ROW = 18;
+
+  /* One time control, used by every field that sets a time: the alarm it started in,
+     Edit Activity's Time, and both ends of a focus block. Hour and minute are real
+     scrollers - wheel, drag, or click a neighbour - and nothing pops up. */
+  window.buildTimeSpinner = function (initTime, onChange) {
+    var wrap = document.createElement('div');
+    wrap.className = 'rt1';
+
+    var parts = String(initTime || '09:00').split(':');
+    var h24 = parseInt(parts[0], 10); if (isNaN(h24)) h24 = 9;
+    var mins = parseInt(parts[1], 10); if (isNaN(mins)) mins = 0;
+    var isPm = h24 >= 12;
+    var h12 = h24 % 12; if (h12 === 0) h12 = 12;
+
+    function commit() {
+      var hh = h12 % 12;
+      if (isPm) hh += 12;
+      var v = (hh < 10 ? '0' : '') + hh + ':' + (mins < 10 ? '0' : '') + mins;
+      if (onChange) onChange(v);
+      return v;
+    }
+
+    function spinner(values, current, pick) {
+      var box = document.createElement('div');
+      box.className = 'rt1-spin';
+      var pad = document.createElement('div');
+      pad.className = 'rt1-pad';
+      box.appendChild(pad);
+      var i, sel = 0;
+      for (i = 0; i < values.length; i++) {
+        var r = document.createElement('div');
+        r.className = 'rt1-row';
+        r.appendChild(document.createTextNode(values[i]));
+        box.appendChild(r);
+        if (values[i] === current) sel = i;
+      }
+      var pad2 = document.createElement('div');
+      pad2.className = 'rt1-pad';
+      box.appendChild(pad2);
+      function mark() {
+        var idx = Math.round(box.scrollTop / ROW);
+        if (idx < 0) idx = 0;
+        if (idx > values.length - 1) idx = values.length - 1;
+        var rows = box.querySelectorAll('.rt1-row'), k;
+        for (k = 0; k < rows.length; k++) rows[k].className = (k === idx) ? 'rt1-row on' : 'rt1-row';
+        return idx;
+      }
+      var timer = null;
+      box.addEventListener('scroll', function () {
+        mark();
+        if (timer) clearTimeout(timer);
+        timer = setTimeout(function () {
+          var idx = mark();
+          box.scrollTop = idx * ROW;
+          pick(values[idx]);
+        }, 90);
+      });
+      setTimeout(function () { box.scrollTop = sel * ROW; mark(); }, 0);
+      return box;
+    }
+
+    var hours = [], mlist = [], q;
+    for (q = 1; q <= 12; q++) hours.push(String(q));
+    for (q = 0; q < 60; q++) mlist.push((q < 10 ? '0' : '') + q);
+
+    var hBox = spinner(hours, String(h12), function (v) { h12 = parseInt(v, 10); commit(); });
+    var colon = document.createElement('span');
+    colon.className = 'rt1-colon';
+    colon.appendChild(document.createTextNode(':'));
+    var mBox = spinner(mlist, (mins < 10 ? '0' : '') + mins, function (v) {
+      mins = parseInt(v, 10); commit();
+    });
+
+    var ap = document.createElement('div');
+    ap.className = 'rt1-ampm';
+    function apBtn(label, pm) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = (isPm === pm) ? 'on' : '';
+      b.appendChild(document.createTextNode(label));
+      b.onclick = function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        isPm = pm;
+        var kids = ap.querySelectorAll('button'), k;
+        for (k = 0; k < kids.length; k++) kids[k].className = '';
+        b.className = 'on';
+        commit();
+      };
+      return b;
+    }
+    ap.appendChild(apBtn('AM', false));
+    ap.appendChild(apBtn('PM', true));
+
+    wrap.appendChild(hBox);
+    wrap.appendChild(colon);
+    wrap.appendChild(mBox);
+    wrap.appendChild(ap);
+    return wrap;
+  };
+})();
+</script>
+
+
+<style>
+/* the shared spinner inside narrower hosts */
+.fb-row.fb-timerow { align-items: flex-start; padding: 9px 0; }
+.fb-row.fb-timerow .rt1 { transform-origin: right center; }
+.ea-row .rt1 { margin-left: auto; }
+</style>
+
+
+<style>
+.ea-timehost { display: flex; align-items: center; justify-content: flex-end; }
+.ea-row.ea-row-time { align-items: center; }
+</style>
+
+
+<style>
+/* item 3 - metrics that say whether you are getting better */
+#habitsPane .hp-sp { margin-left: auto; display: flex; gap: 5px; }
+#habitsPane .hp-pen { color: #6b7280; font-size: 11px; flex: 0 0 auto; cursor: pointer; padding: 0 3px; }
+#habitsPane .hp-pen:hover { color: #cdd3dc; }
+#habitsPane .hp-card { background: #20242c; border: 1px solid var(--border, #2e323a);
+  border-radius: 9px; padding: 9px 10px; margin-bottom: 7px; cursor: default; }
+#habitsPane .hp-card.ended { opacity: .55; }
+#habitsPane .hp-ctop { display: flex; align-items: baseline; gap: 8px; margin-bottom: 7px; }
+#habitsPane .hp-ctop .nm { font-size: 11.5px; font-weight: 600; flex: 1 1 auto;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#habitsPane .hp-ctop .big { font-size: 15px; font-weight: 600; color: #4ade80; }
+#habitsPane .hp-ctop .big.zero { color: #6b7280; }
+#habitsPane .hp-ctop .small { font-size: 9px; color: #6b7280; }
+#habitsPane .hp-heat { display: grid; grid-template-columns: repeat(30, 1fr); gap: 2px; margin-bottom: 6px; }
+#habitsPane .hp-heat i { aspect-ratio: 1; border-radius: 2px; background: #262b33; display: block; }
+#habitsPane .hp-heat i.y { background: rgba(74,222,128,.75); }
+#habitsPane .hp-cfoot { display: flex; gap: 12px; font-size: 9.5px; color: #6b7280; }
+#habitsPane .hp-cfoot b { color: #cdd3dc; font-weight: 600; }
+#habitsPane .hp-cfoot .tr.up { color: #4ade80; }
+#habitsPane .hp-cfoot .tr.dn { color: #d98c2b; }
+#habitsPane .hp-cfoot .tr.flat { color: #6b7280; }
+
+/* one habit in full, on a double-click */
+#hpDetail { position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 2147483300;
+  display: flex; align-items: center; justify-content: center; }
+.hp-detail { width: 380px; background: #1d2025; border: 1px solid #2e323a; border-radius: 12px;
+  padding: 16px; box-shadow: 0 20px 50px rgba(0,0,0,.55);
+  font: 13px ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif; color: #e6e8ec; }
+.hp-dhead { font-size: 14px; font-weight: 600; display: flex; align-items: center; margin-bottom: 12px; }
+.hp-dx { margin-left: auto; background: none; border: 0; color: #6b7280; font-size: 13px; cursor: pointer; }
+.hp-dstats { display: flex; gap: 22px; margin-bottom: 14px; }
+.hp-dstats div { display: flex; flex-direction: column; }
+.hp-dstats b { font-size: 20px; font-weight: 600; line-height: 1.1; }
+.hp-dstats span { font-size: 9.5px; color: #6b7280; margin-top: 2px; }
+.hp-cal { display: grid; grid-template-columns: repeat(12, 1fr); grid-auto-rows: 1fr; gap: 3px; margin-bottom: 12px; }
+.hp-cal i { aspect-ratio: 1; border-radius: 3px; background: #262b33; display: block; }
+.hp-cal i.y { background: rgba(74,222,128,.75); }
+.hp-dline { font-size: 11.5px; color: #9aa1ab; line-height: 1.5; }
+</style>
 
 </body>
 </html>
