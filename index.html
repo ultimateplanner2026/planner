@@ -5150,7 +5150,7 @@ html:root #treeRoot .tree-row:not([data-depth="0"]){ height:32px !important; min
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-09-07 03:29</span>
+    <span id="buildStamp">build 2026-09-07 03:43</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -26837,10 +26837,15 @@ body[data-fb="on"] .fb-band { display: block; }
   writing-mode: vertical-rl; transform: rotate(180deg); white-space: nowrap;
   overflow: hidden; max-height: 100%;
 }
-.fb-band .fb-grip { position: absolute; left: 15px; right: 0; height: 8px; cursor: ns-resize;
+/* 2026-09-07: the grips used to overhang the band by 4px (top:-4px / bottom:-4px). Two
+   sessions running back to back have boxes that touch, so the lower one's TOP grip and the
+   upper one's BOTTOM grip occupied the very same 8 pixels - you grabbed one session's edge
+   and a different session moved. The operator hit this straight away. They sit INSIDE the
+   band now, so adjacent grips meet without ever overlapping. */
+.fb-band .fb-grip { position: absolute; left: 15px; right: 0; height: 10px; cursor: ns-resize;
   z-index: 3; }
-.fb-band .fb-grip.top { top: -4px; } .fb-band .fb-grip.bot { bottom: -4px; }
-.fb-band .fb-grip:before { content: ""; position: absolute; left: 50%; top: 3px; width: 34px;
+.fb-band .fb-grip.top { top: 0; } .fb-band .fb-grip.bot { bottom: 0; }
+.fb-band .fb-grip:before { content: ""; position: absolute; left: 50%; top: 4px; width: 34px;
   height: 2px; margin-left: -17px; border-radius: 2px; background: currentColor; opacity: 0; }
 .fb-band:hover .fb-grip:before { opacity: .55; }
 .tgevent.fb-bad { outline: 1px solid rgba(217,140,43,.55); }
@@ -26965,6 +26970,15 @@ body[data-fb="on"] .fb-band { display: block; }
   /* Say why a change was refused. In the panel when it is open, otherwise as a note
      beside whatever was being dragged. Clamped to the window - a note that opens off
      screen is the same as no note at all. */
+  function describeSession(o) {
+    var nm = String(o.name || '').trim();
+    var when = o.from + '\u2013' + o.to;
+    /* every session is named "Focus" until you rename it, so leading with the name is
+       useless and reads like a mode. Lead with the hours; add the name only when it
+       actually distinguishes anything. */
+    if (nm && nm.toLowerCase() !== 'focus') return '\u201c' + nm + '\u201d (' + when + ')';
+    return 'the ' + when + ' session';
+  }
   var hintTimer = null;
   function fbHint(msg, anchorEl) {
     var pop = document.querySelector('.fb-pop');
@@ -27004,7 +27018,13 @@ body[data-fb="on"] .fb-band { display: block; }
      stop a Mon-Fri morning. Overlapping busy spans are merged before the walk, or a gap
      can be reported that sits inside another block. */
   var FB_NEWDAYS = [1, 2, 3, 4, 5], FB_DAYA = 6 * 60, FB_DAYB = 22 * 60,
-      FB_PREFA = 9 * 60, FB_PREFB = 12 * 60, FB_WANT = 180, FB_MINSLOT = 60;
+      FB_PREFA = 9 * 60, FB_PREFB = 12 * 60, FB_WANT = 180, FB_MINSLOT = 60,
+      /* 2026-09-07: a new session used to land flush against the one before it. Sessions
+         may not overlap, so a session with a neighbour on both sides could not be made
+         longer at either end - three presses of + left a solid wall the operator could
+         not adjust. Auto-placed sessions now keep a break either side, so there is always
+         somewhere to drag. You can still butt two together by hand if you want to. */
+      FB_BUFFER = 30;
   function daysOf(bl) {
     if (bl.date) return [dowOf(bl.date)];
     if (!bl.days || !bl.days.length) return [0, 1, 2, 3, 4, 5, 6];
@@ -27035,12 +27055,16 @@ body[data-fb="on"] .fb-band { display: block; }
     if (!clash) return { from: fromMin(FB_PREFA), to: fromMin(FB_PREFB) };
     var cur = FB_DAYA;
     for (i = 0; i < merged.length; i++) {
-      if (merged[i].a - cur >= FB_MINSLOT)
-        return { from: fromMin(cur), to: fromMin(cur + Math.min(FB_WANT, merged[i].a - cur)) };
+      if (merged[i].a - cur >= FB_MINSLOT + FB_BUFFER) {
+        var a1 = cur + (cur > FB_DAYA ? FB_BUFFER : 0);
+        var b1 = Math.min(a1 + FB_WANT, merged[i].a - FB_BUFFER);
+        if (b1 - a1 >= FB_MINSLOT) return { from: fromMin(a1), to: fromMin(b1) };
+      }
       if (merged[i].b > cur) cur = merged[i].b;
     }
-    if (FB_DAYB - cur >= FB_MINSLOT)
-      return { from: fromMin(cur), to: fromMin(cur + Math.min(FB_WANT, FB_DAYB - cur)) };
+    var a2 = cur + (cur > FB_DAYA ? FB_BUFFER : 0);
+    if (FB_DAYB - a2 >= FB_MINSLOT)
+      return { from: fromMin(a2), to: fromMin(Math.min(a2 + FB_WANT, FB_DAYB)) };
     /* a genuinely full day - put it at the very end rather than silently on top of
        something the operator already has */
     cur = Math.min(cur, 23 * 60);
@@ -27187,7 +27211,7 @@ body[data-fb="on"] .fb-band { display: block; }
           if (list[i] === bl) continue;
           if (!sameWhen(list[i], bl)) continue;
           if (overlaps(trial, list[i])) {
-            fbHint('That would run into ' + (list[i].name || 'another session'), grip);
+            fbHint('No room \u2014 that runs into ' + describeSession(list[i]), grip);
             return;
           }
         }
@@ -27528,7 +27552,7 @@ body[data-fb="on"] .fb-band { display: block; }
           if (list[i] === bl) continue;
           if (!sameWhen(list[i], bl)) continue;
           if (overlaps(trial, list[i])) {
-            fbHint('That would run into ' + (list[i].name || 'another session'));
+            fbHint('No room \u2014 that runs into ' + describeSession(list[i]));
             return;
           }
         }
