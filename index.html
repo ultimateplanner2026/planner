@@ -5150,7 +5150,7 @@ html:root #treeRoot .tree-row:not([data-depth="0"]){ height:32px !important; min
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-09-07 03:43</span>
+    <span id="buildStamp">build 2026-09-08 22:36</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -26817,9 +26817,16 @@ body[data-fb="on"] #fbNew {
    the real hour boundaries and the block's stored times are untouched.
    Note: paint() must set backgroundColor, not the `background` shorthand - the shorthand
    resets background-clip back to border-box and quietly undoes the gap. */
+/* 2026-09-08: the body of a session is now the handle you drag to MOVE it, so the band
+   takes pointer events again. That is only safe because the band was moved BELOW the tasks
+   - it used to be appended last with z-index 1, painting and hit-testing over everything
+   inside it, and making it grabbable in that state is what broke dragging those tasks
+   once before. z-index 0 + inserted first in the column = tasks sit on top and keep their
+   own presses; a press on empty session area reaches the band. */
 .fb-band { position: absolute; left: 0; right: 0; border-radius: 0 8px 8px 0; display: none;
-  z-index: 1; pointer-events: none;
+  z-index: 0; pointer-events: auto; cursor: grab;
   box-sizing: border-box; padding: 3px 0; background-clip: content-box; }
+.fb-band.fb-dragging, .fb-band.fb-dragging * { cursor: grabbing; }
 .fb-band:after { content: ""; position: absolute; left: 0; right: 0; top: 3px; bottom: 3px;
   border: 1px solid rgba(255,255,255,.11); border-left: 0; border-radius: 0 8px 8px 0;
   pointer-events: none; }
@@ -26843,6 +26850,7 @@ body[data-fb="on"] .fb-band { display: block; }
    and a different session moved. The operator hit this straight away. They sit INSIDE the
    band now, so adjacent grips meet without ever overlapping. */
 .fb-band .fb-grip { position: absolute; left: 15px; right: 0; height: 10px; cursor: ns-resize;
+  pointer-events: auto;
   z-index: 3; }
 .fb-band .fb-grip.top { top: 0; } .fb-band .fb-grip.bot { bottom: 0; }
 .fb-band .fb-grip:before { content: ""; position: absolute; left: 50%; top: 4px; width: 34px;
@@ -27178,16 +27186,89 @@ body[data-fb="on"] .fb-band { display: block; }
               openEditor(b, band, { x: e.clientX, y: e.clientY });
             });
           })(bl);
-          col.appendChild(band);
+          /* FIRST, not last - see the .fb-band note. Order here decides whether a press
+             on a task inside the session reaches the task or the band. */
+          col.insertBefore(band, col.firstChild);
+          wireMove(band, bl);
         }
       })(cols[i]);
     }
     flagConflicts();
   }
+  /* 2026-09-08: dropping a session made it disappear from the day view until the next
+     full render. Measured: dayView bands 0 right after the drop, 1 after a renderAll.
+     Cause - Store.save is debounced 800ms and fires Store.emit at the end of it; a
+     listener on that re-renders the day column and throws the bands away. paint() is
+     hooked to renderAll, which is NOT what that path calls, and calling paint() straight
+     after save() just paints before the render that wipes it. Repaint on the change
+     itself. No timer: RULES 1a-36 - painters hook a render, never a clock. */
+  if (window.Store && window.Store.onChange) window.Store.onChange(function () { paint(); });
+
   window.__fbPaint = paint;
 
   /* drag an edge to resize. Snapped to 15 minutes, never past the other edge, and
      never into another block - two owners for one hour defeats the point. */
+  /* the live band for a session - paint() throws the old elements away on every change,
+     so anything held across a drag has to be looked up again or it anchors to a detached
+     node whose rect is all zeroes. */
+  function liveBand(id) { return document.querySelector('.fb-band[data-fb="' + id + '"]'); }
+
+  function inGrip(el) {
+    var n = el, d = 0;
+    while (n && d < 5) {
+      if (n.className && String(n.className).indexOf('fb-grip') !== -1) return true;
+      n = n.parentNode; d++;
+    }
+    return false;
+  }
+
+  /* 2026-09-08: a session could be lengthened but never MOVED. Drag the body to move it -
+     whole session, same length, snapped to 15 minutes, and it will not walk over another
+     session or off the end of the day. A press that does not travel is left alone, so the
+     strip's click-to-open still works. */
+  function wireMove(band, bl) {
+    band.addEventListener('pointerdown', function (e) {
+      if (e.button !== 0 || inGrip(e.target)) return;
+      var startY = e.clientY, moved = false;
+      var HOUR = (window.TG && window.TG.HOUR_PX) ? window.TG.HOUR_PX : 60;
+      var span = toMin(bl.to) - toMin(bl.from), from0 = toMin(bl.from);
+      function move(ev) {
+        var dy = ev.clientY - startY;
+        if (!moved) {
+          if (Math.abs(dy) < 4) return;
+          moved = true;
+          var b0 = liveBand(bl.id); if (b0) b0.className += ' fb-dragging';
+        }
+        var mins = Math.round((from0 + (dy / HOUR) * 60) / 15) * 15;
+        mins = Math.max(0, Math.min(24 * 60 - span, mins));
+        var trial = { from: fromMin(mins), to: fromMin(mins + span) };
+        if (trial.from === bl.from) return;
+        var list = store() || [], i;
+        for (i = 0; i < list.length; i++) {
+          if (list[i] === bl) continue;
+          if (!sameWhen(list[i], bl)) continue;
+          if (overlaps(trial, list[i])) {
+            fbHint('No room \u2014 that runs into ' + describeSession(list[i]),
+                   liveBand(bl.id));
+            return;
+          }
+        }
+        bl.from = trial.from; bl.to = trial.to;
+        paint();
+        var b = liveBand(bl.id); if (b) b.className += ' fb-dragging';
+      }
+      function up() {
+        document.removeEventListener('pointermove', move);
+        document.removeEventListener('pointerup', up);
+        var b = liveBand(bl.id);
+        if (b) b.className = b.className.replace(/ ?fb-dragging/g, '');
+        if (moved) save();
+      }
+      document.addEventListener('pointermove', move);
+      document.addEventListener('pointerup', up);
+    });
+  }
+
   function wireGrip(grip, bl, key) {
     grip.addEventListener('pointerdown', function (e) {
       e.preventDefault();
@@ -27211,7 +27292,8 @@ body[data-fb="on"] .fb-band { display: block; }
           if (list[i] === bl) continue;
           if (!sameWhen(list[i], bl)) continue;
           if (overlaps(trial, list[i])) {
-            fbHint('No room \u2014 that runs into ' + describeSession(list[i]), grip);
+            fbHint('No room \u2014 that runs into ' + describeSession(list[i]),
+                 liveBand(bl.id) || grip);
             return;
           }
         }
@@ -27221,6 +27303,11 @@ body[data-fb="on"] .fb-band { display: block; }
       function up() {
         document.removeEventListener('pointermove', move);
         document.removeEventListener('pointerup', up);
+        /* 2026-09-08: save() re-renders the day column, which throws the bands away, and
+           that render path is not one of the ones paint() is hooked to - so the session
+           vanished from the day view the moment you let go and only came back on the next
+           full render. Measured: dayView bands 0 after a drop, 1 after a renderAll. Paint
+           AFTER saving, not before. */
         save();
       }
       document.addEventListener('pointermove', move);
