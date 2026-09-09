@@ -5150,7 +5150,7 @@ html:root #treeRoot .tree-row:not([data-depth="0"]){ height:32px !important; min
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-09-09 03:14</span>
+    <span id="buildStamp">build 2026-09-09 13:37</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -28820,6 +28820,32 @@ body[data-fb="on"] .fb-band { display: block; }
       if (active()) { day = window.selectedDate || day || today(); draw(); }
       return r;
     };
+    /* 2026-09-09: renderAll alone is NOT enough. Clicking the Journal tab goes
+       setTab -> renderMap[name]() and calls the old renderJournal DIRECTLY - it never
+       reaches renderAll - so on the real click path the old journal drew and this module
+       never ran. My own gate hid it by calling renderAll() by hand after setTab, which is
+       exactly the precondition a person never satisfies. Wrap the tab switch too. */
+    if (typeof window.setTab === 'function') {
+      var baseTab = window.setTab;
+      window.setTab = function (name) {
+        var r = baseTab.apply(this, arguments);
+        if (name === 'journal' || active()) {
+          day = window.selectedDate || day || today();
+          draw();
+        }
+        return r;
+      };
+    }
+    /* last resort: if anything else ever repaints that panel without going through either
+       of the two above, put our page back. */
+    if (window.MutationObserver) {
+      var v0 = document.getElementById('journalView');
+      if (v0) {
+        new MutationObserver(function () {
+          if (active() && !document.getElementById('snRoot')) draw();
+        }).observe(v0, { childList: true });
+      }
+    }
     if (window.Store && window.Store.onChange)
       window.Store.onChange(function () { if (active()) draw(); });
     return true;
