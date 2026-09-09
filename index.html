@@ -5150,7 +5150,7 @@ html:root #treeRoot .tree-row:not([data-depth="0"]){ height:32px !important; min
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-09-08 22:36</span>
+    <span id="buildStamp">build 2026-09-09 03:14</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -28032,6 +28032,803 @@ body[data-fb="on"] .fb-band { display: block; }
   }
   document.addEventListener('mouseover', on, true);
   document.addEventListener('mouseout', off, true);
+})();
+</script>
+
+
+<!-- ===== Journal, rebuilt 2026-09-09 =====
+     Six sections down the page, a commitment loop across days, and a Notes tab.
+     Structure follows Robbins' RPM (Result -> Purpose -> plan) and his Ultimate Success
+     Formula (notice the result, then CHANGE THE APPROACH - which is why Re-commit asks
+     what is different rather than repeating the same step with a later date).
+
+     Storage lives in Store.data so it syncs:
+       Store.data.journal[iso]   the day - legacy `text` is preserved untouched
+       Store.data.journalGoal    { result, purpose } - carried forward, not a daily field
+       Store.data.journalNotes   an OBJECT keyed by id, never an array: the sync merges
+                                 objects key by key and replaces arrays wholesale, which
+                                 would drop whatever the other side alone had.
+     The renderer is hooked onto renderAll rather than replacing window.renderJournal -
+     the tab map captured that reference by value at load, so reassigning it does nothing. -->
+<style>
+#snRoot{--sbg:#16181c;--ssurf:#1c1f26;--ssurf2:#20232a;--sline:#2e323a;--stext:#e6e8ec;
+  --sdim:#9aa1ab;--st3:#6b7280;--sacc:#4d8bff;--samber:#d98c2b;--sgood:#22a06b;--sbad:#e0857f;
+  height:100%;overflow:auto;background:var(--sbg);color:var(--stext);
+  font:14px/1.55 ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif}
+#snRoot *{box-sizing:border-box}
+#snRoot .wrap{max-width:760px;margin:0 auto;padding:16px 18px 70px}
+#snRoot .tabs{display:flex;gap:4px}
+#snRoot .stab{background:none;border:1px solid transparent;border-bottom:none;color:var(--st3);
+  border-radius:8px 8px 0 0;padding:6px 15px;font-size:12.5px;cursor:pointer;font-family:inherit}
+#snRoot .stab:hover{color:var(--sdim)}
+#snRoot .stab.on{background:var(--ssurf);border-color:var(--sline);color:var(--stext);font-weight:600}
+#snRoot .nav{flex-wrap:nowrap;position:sticky;top:0;z-index:5;background:var(--sbg);display:flex;
+  align-items:center;gap:8px;padding:10px 0 12px;border-bottom:1px solid var(--sline);margin-bottom:18px}
+#snRoot .nav button{flex:0 0 auto;background:var(--ssurf2);border:1px solid var(--sline);
+  color:var(--stext);border-radius:7px;padding:4px 10px;font-size:12px;cursor:pointer;font-family:inherit}
+#snRoot .nav button:hover{background:#262a32}
+#snRoot .nav .date{font-size:15px;font-weight:600;margin-left:4px;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis;min-width:0}
+#snRoot .nav .sp{flex:1}
+#snRoot .saved{font-size:11px;color:var(--sgood);opacity:0;transition:opacity .25s}
+#snRoot .saved.on{opacity:1}
+#snRoot #jPause.on{border-color:rgba(217,140,43,.6);color:#e8c78f;background:rgba(217,140,43,.10)}
+
+#snRoot .goal{border:1px solid rgba(77,139,255,.35);background:rgba(77,139,255,.05);
+  border-radius:10px;padding:11px 13px;margin-bottom:16px}
+#snRoot .goal .lab{font-size:10px;letter-spacing:.05em;text-transform:uppercase;color:#7fa6f0;
+  font-weight:600;margin-bottom:3px}
+#snRoot .goal input{width:100%;background:transparent;border:none;color:var(--stext);
+  font:13.5px inherit;font-family:inherit;padding:1px 0 7px;outline:none;border-bottom:1px solid transparent}
+#snRoot .goal input:focus{border-bottom-color:rgba(77,139,255,.45)}
+#snRoot .goal input::placeholder{color:#4e555f}
+#snRoot .goal .foot{font-size:10.5px;color:#5d646f;margin-top:4px}
+
+#snRoot .sec{margin-bottom:20px}
+#snRoot .sec h4{font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--st3);
+  margin:0 0 8px;font-weight:600;display:flex;align-items:baseline;gap:8px}
+#snRoot .sec h4 .n{width:18px;height:18px;border-radius:5px;background:var(--ssurf2);
+  border:1px solid var(--sline);color:var(--sdim);font-size:10px;display:inline-flex;
+  align-items:center;justify-content:center;flex:0 0 18px}
+#snRoot .sec h4 .why{margin-left:auto;text-transform:none;letter-spacing:0;font-weight:400;
+  color:#565d68;font-size:10.5px}
+#snRoot .card{background:var(--ssurf);border:1px solid var(--sline);border-radius:10px;padding:12px 13px}
+#snRoot textarea,#snRoot input[type=text],#snRoot input[type=date]{width:100%;
+  background:var(--ssurf2);color:var(--stext);border:1px solid var(--sline);border-radius:8px;
+  padding:9px 11px;font:14px/1.55 inherit;font-family:inherit;resize:vertical;outline:none;
+  min-height:0}
+#snRoot textarea{min-height:64px}
+#snRoot textarea:focus,#snRoot input:focus{border-color:rgba(77,139,255,.55)}
+#snRoot textarea::placeholder,#snRoot input::placeholder{color:#4e555f}
+#snRoot .lead{display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap}
+#snRoot .lead .stem{color:var(--sdim);font-size:13px;white-space:nowrap}
+#snRoot .lead input{flex:1;min-width:180px}
+
+#snRoot .carry{border:1px solid var(--sline);border-left:3px solid var(--samber);border-radius:10px;
+  background:var(--ssurf);padding:12px 13px;margin-bottom:18px}
+#snRoot .carry.answered{border-left-color:var(--sline)}
+#snRoot .carry .k{font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--samber);
+  font-weight:600;margin-bottom:6px}
+#snRoot .carry .txt{font-size:14px;margin-bottom:10px}
+#snRoot .carry .txt.none{color:var(--st3);font-size:12.5px}
+#snRoot .carry .ans b{color:#7fd0a8}
+#snRoot .carry .ans b.d{color:var(--sbad)} #snRoot .carry .ans b.l{color:var(--samber)}
+#snRoot .states{display:flex;gap:6px;flex-wrap:wrap}
+#snRoot .states button{background:var(--ssurf2);border:1px solid var(--sline);color:var(--sdim);
+  border-radius:999px;padding:4px 12px;font-size:12px;cursor:pointer;font-family:inherit}
+#snRoot .states button.on[data-s=done]{border-color:rgba(34,160,107,.6);color:#7fd0a8;background:rgba(34,160,107,.10)}
+#snRoot .states button.on[data-s=again]{border-color:rgba(217,140,43,.6);color:#e8c78f;background:rgba(217,140,43,.10)}
+#snRoot .states button.on[data-s=drop]{border-color:rgba(224,133,127,.6);color:#f0a3a0;background:rgba(224,133,127,.10)}
+#snRoot .ask{border:1px solid rgba(77,139,255,.35);border-radius:9px;background:rgba(77,139,255,.05);
+  padding:11px 12px;margin-top:11px}
+#snRoot .ask .q{font-size:12.5px;color:#a9c6ff;margin-bottom:9px}
+#snRoot .ask .opt{display:flex;gap:8px;margin-bottom:9px}
+#snRoot .ask .opt button{flex:1;text-align:left;border:1px solid var(--sline);background:var(--ssurf2);
+  border-radius:8px;padding:8px 10px;font-size:11.5px;color:var(--sdim);line-height:1.45;
+  cursor:pointer;font-family:inherit}
+#snRoot .ask .opt button.on{border-color:rgba(77,139,255,.6);background:rgba(77,139,255,.10);color:#c9d8f5}
+#snRoot .ask .opt button b{display:block;color:var(--stext);font-size:12px;margin-bottom:2px}
+
+#snRoot .step{display:flex;gap:9px;align-items:flex-start;margin-bottom:7px}
+#snRoot .step .dot{flex:0 0 20px;height:20px;border-radius:50%;background:var(--ssurf2);
+  border:1px solid var(--sline);color:var(--sdim);font-size:10px;display:flex;align-items:center;
+  justify-content:center;margin-top:8px}
+#snRoot .step input{flex:1}
+#snRoot .step .x{flex:0 0 24px;height:24px;margin-top:6px;background:none;border:none;color:#4e555f;
+  cursor:pointer;font-size:15px;border-radius:6px;font-family:inherit}
+#snRoot .step .x:hover{color:var(--sbad);background:var(--ssurf2)}
+#snRoot .step.first input[readonly]{background:#191c22;color:var(--sdim);cursor:default;border-style:dashed}
+#snRoot .lockmsg{font-size:10.5px;color:#5d646f;margin:2px 0 8px 29px}
+#snRoot .addstep{background:var(--ssurf2);border:1px dashed var(--sline);color:var(--sdim);
+  border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;margin-top:3px;font-family:inherit}
+#snRoot .by{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:12.5px;
+  color:var(--sdim);flex-wrap:wrap}
+#snRoot .by input[type=date]{width:auto;padding:5px 9px;font-size:12.5px;color-scheme:dark}
+#snRoot .pill{display:inline-block;font-size:9.5px;letter-spacing:.05em;text-transform:uppercase;
+  border-radius:999px;padding:1px 8px;white-space:nowrap}
+#snRoot .pill.late{color:var(--sbad);border:1px solid rgba(224,133,127,.55)}
+#snRoot .pill.due{color:#7fd0a8;border:1px solid rgba(34,160,107,.5)}
+#snRoot .pill.later{color:#7d848f;border:1px solid var(--sline)}
+#snRoot .pill.note{color:#5d646f;border:1px solid #2a2e36}
+#snRoot .mustrow{display:flex;align-items:center;gap:7px;margin-top:9px;font-size:12px;color:var(--sdim)}
+#snRoot .mustrow button{background:var(--ssurf2);border:1px solid var(--sline);color:var(--sdim);
+  border-radius:999px;padding:2px 11px;font-size:11.5px;cursor:pointer;font-family:inherit}
+#snRoot .mustrow button.on{border-color:rgba(217,140,43,.6);color:#e8c78f;background:rgba(217,140,43,.10)}
+
+#snRoot .legacy{border:1px solid var(--sline);border-radius:10px;background:#191c22;
+  padding:11px 13px;margin-bottom:18px}
+#snRoot .legacy .k{font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:#8d94a0;
+  font-weight:600;margin-bottom:6px}
+#snRoot .legacy pre{margin:0;white-space:pre-wrap;font:13px/1.6 inherit;font-family:inherit;
+  color:var(--stext)}
+
+#snRoot .paused-note{color:var(--samber);font-size:12px;margin-bottom:16px;
+  border:1px solid rgba(217,140,43,.35);border-radius:9px;padding:9px 12px;background:var(--ssurf)}
+#snRoot .note-card{background:var(--ssurf);border:1px solid var(--sline);border-radius:10px;
+  margin-bottom:10px;overflow:hidden}
+#snRoot .note-card .hd{display:flex;align-items:center;gap:9px;padding:10px 12px;cursor:pointer}
+#snRoot .note-card .hd:hover{background:var(--ssurf2)}
+#snRoot .note-card .tw{flex:1;min-width:0}
+#snRoot .note-card .ti{font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis}
+#snRoot .note-card .ti.blank{color:var(--st3);font-weight:400}
+#snRoot .note-card .pv{font-size:11.5px;color:var(--st3);white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis;margin-top:1px}
+#snRoot .note-card .when{font-size:10.5px;color:#4e555f;white-space:nowrap}
+#snRoot .note-card .car{color:#4e555f;font-size:10px;width:12px;text-align:center}
+#snRoot .note-card .bd{display:none;padding:0 12px 12px}
+#snRoot .note-card.open .bd{display:block}
+#snRoot .note-card.open .pv{display:none}
+#snRoot .note-card .bd input{margin-bottom:8px;font-weight:600}
+#snRoot .note-card .bd textarea{min-height:150px}
+#snRoot .note-card .del{background:none;border:1px solid var(--sline);color:#7d848f;border-radius:7px;
+  padding:3px 10px;font-size:11.5px;cursor:pointer;margin-top:9px;font-family:inherit}
+#snRoot .note-card .del:hover{color:var(--sbad);border-color:rgba(224,133,127,.5)}
+#snRoot .empty{color:var(--st3);font-size:12.5px;line-height:1.6;padding:20px 2px;max-width:520px}
+#snRoot .foot{display:flex;align-items:center;gap:14px;font-size:11.5px;color:var(--st3);
+  border-top:1px solid var(--sline);padding-top:14px;margin-top:24px;flex-wrap:wrap}
+#snRoot .foot b{color:var(--sdim);font-weight:600}
+#snRoot .strip{display:flex;gap:3px;margin-left:auto}
+#snRoot .strip i{width:11px;height:11px;border-radius:3px;background:var(--ssurf2);display:block}
+#snRoot .strip i.w{background:rgba(77,139,255,.5)}
+#snRoot .strip i.t{background:rgba(77,139,255,.95)}
+#snRoot .fnote{font-size:11px;color:#4e555f;margin-top:12px;line-height:1.6}
+</style>
+<script>
+(function () {
+  if (window.__journal2Installed) return;
+  window.__journal2Installed = true;
+
+  var FLOOR = 7, STEP_MAX = 5;
+  var DOW = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  var MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var day = null, tab = 'daily', openNote = null, savedTimer = null;
+  /* the open "what is different?" prompt. Held in state, NOT appended to the DOM
+     after a draw - Store.save is debounced, its change event repaints, and anything
+     appended outside the render is wiped a moment later. */
+  var pending = null, pendingKind = '', pendingNote = '';
+
+  function S() { return (window.Store && window.Store.data) ? window.Store.data : null; }
+  function jd() { var d = S(); if (!d) return null; if (!d.journal) d.journal = {}; return d.journal; }
+  function goal() {
+    var d = S(); if (!d) return { result:'', purpose:'' };
+    if (!d.journalGoal || typeof d.journalGoal !== 'object') d.journalGoal = { result:'', purpose:'' };
+    return d.journalGoal;
+  }
+  function notes() {
+    var d = S(); if (!d) return {};
+    /* an OBJECT keyed by id, never an array: the sync merges plain objects key by key but
+       replaces arrays wholesale, which would drop whatever the other side alone had. */
+    if (!d.journalNotes || typeof d.journalNotes !== 'object' || d.journalNotes.length !== undefined)
+      d.journalNotes = {};
+    return d.journalNotes;
+  }
+  function save() { if (window.Store && window.Store.save) window.Store.save(); }
+  function uid() { return 'j' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5); }
+  function iso(d) { return d.getFullYear() + '-' + ('0'+(d.getMonth()+1)).slice(-2) + '-' + ('0'+d.getDate()).slice(-2); }
+  function parse(s) { var p = String(s).split('-'); return new Date(+p[0], +p[1]-1, +p[2]); }
+  function shift(s, n) { var d = parse(s); d.setDate(d.getDate()+n); return iso(d); }
+  function label(s) { var d = parse(s); return DOW[d.getDay()] + ', ' + MON[d.getMonth()] + ' ' + d.getDate(); }
+  function shortLabel(s) { var d = parse(s); return MON[d.getMonth()] + ' ' + d.getDate(); }
+  function today() { return iso(new Date()); }
+  function el(t, c, x) { var e = document.createElement(t); if (c) e.className = c;
+    if (x !== undefined) e.textContent = x; return e; }
+
+  function blank() {
+    return { well:'', better:'', identity:'', iff:'', then:'', vis:'', steps:[''], by:'',
+             must:false, outcome:'', answeredOn:'', recommit:'', recommitNote:'', paused:false };
+  }
+  function entry(k) {
+    var j = jd(), b = blank(), p;
+    var e = j ? j[k] : null;
+    if (!e) return b;
+    for (p in b) if (e[p] !== undefined && e[p] !== null) b[p] = e[p];
+    if (!b.steps || !b.steps.length) b.steps = [''];
+    /* legacy fields ride along untouched - there is a real 2026-08-24 entry in `text` */
+    b.text = e.text || '';
+    return b;
+  }
+  function hasContent(e) {
+    if (!e) return false;
+    if (e.well || e.better || e.identity || e.iff || e.then || e.vis || e.by || e.text) return true;
+    if (e.outcome || e.paused) return true;
+    for (var i = 0; i < (e.steps||[]).length; i++) if (String(e.steps[i]).trim()) return true;
+    return false;
+  }
+
+  /* ---------- the commitment loop ---------- */
+  function commitOf(k) {
+    var j = jd(); var e = j ? j[k] : null;
+    if (!e || e.paused) return null;
+    var t = (e.steps && e.steps[0]) ? String(e.steps[0]).trim() : '';
+    /* a dated step 1 is a PROMISE; without a date it is only a note */
+    if (!t || !e.by) return null;
+    return { day:k, text:t, by:e.by, outcome:e.outcome || '', must:!!e.must };
+  }
+  function lapseOld(ref) {
+    var j = jd(); if (!j) return;
+    var k, changed = false;
+    for (k in j) {
+      if (k >= ref) continue;
+      var c = commitOf(k);
+      if (!c || c.outcome) continue;
+      if (Math.round((parse(ref) - parse(k)) / 86400000) > FLOOR) {
+        /* LAPSED, never "dropped": dropped is a choice they made, lapsed is what happened,
+           and writing down a choice they did not make would poison this record */
+        j[k].outcome = 'lapsed'; j[k].answeredOn = ref; changed = true;
+      }
+    }
+    if (changed) save();
+  }
+  function openCommit(ref) {
+    for (var i = 1; i <= FLOOR; i++) { var c = commitOf(shift(ref, -i)); if (c && !c.outcome) return c; }
+    return null;
+  }
+  function isLocked(k) {
+    var j = jd(); if (!j) return false;
+    for (var x in j) if (x > k && hasContent(j[x])) return true;
+    return false;
+  }
+  function ago(a, b) {
+    var n = Math.round((parse(b) - parse(a)) / 86400000);
+    return n <= 0 ? 'today' : (n === 1 ? 'yesterday' : n + ' days ago');
+  }
+  function dueState(by, ref) { if (!by) return null; return by < ref ? 'late' : (by === ref ? 'due' : 'later'); }
+  function priorMisses(txt) {
+    var j = jd(), n = 0, k;
+    if (!j) return 0;
+    for (k in j) {
+      var e = j[k];
+      if (!e || !e.steps || !e.steps[0]) continue;
+      if (String(e.steps[0]).trim() !== txt) continue;
+      if (e.outcome === 'again' || e.outcome === 'lapsed') n++;
+    }
+    return n;
+  }
+
+  function flashSaved() {
+    var s = document.getElementById('jSaved'); if (!s) return;
+    s.className = 'saved on';
+    if (savedTimer) clearTimeout(savedTimer);
+    savedTimer = setTimeout(function () { if (s) s.className = 'saved'; }, 1400);
+  }
+  function put(k, e) {
+    var j = jd(); if (!j) return;
+    var cur = j[k] || {};
+    var p; for (p in e) if (e.hasOwnProperty(p)) cur[p] = e[p];
+    cur.updatedAt = new Date().toISOString();
+    j[k] = cur;
+  }
+  window.__journal2 = { commitOf:commitOf, openCommit:openCommit, isLocked:isLocked,
+                        lapseOld:lapseOld, priorMisses:priorMisses, dueState:dueState };
+
+  /* ---------- rendering ---------- */
+  function build(root) {
+    root.innerHTML = '';
+    var wrap = el('div', 'wrap');
+
+    var tabs = el('div', 'tabs');
+    var tD = el('button', 'stab' + (tab === 'daily' ? ' on' : ''), 'Daily'); tD.type = 'button';
+    var tN = el('button', 'stab' + (tab === 'notes' ? ' on' : ''), 'Notes'); tN.type = 'button';
+    tD.addEventListener('click', function () { tab = 'daily'; draw(); });
+    tN.addEventListener('click', function () { tab = 'notes'; draw(); });
+    tabs.appendChild(tD); tabs.appendChild(tN);
+    wrap.appendChild(tabs);
+
+    var nav = el('div', 'nav');
+    if (tab === 'daily') {
+      var bp = el('button', '', '◀'); bp.type = 'button';
+      var bt = el('button', '', 'Today'); bt.type = 'button';
+      var bn = el('button', '', '▶'); bn.type = 'button';
+      bp.addEventListener('click', function () { day = shift(day, -1); draw(); });
+      bn.addEventListener('click', function () { day = shift(day, 1); draw(); });
+      bt.addEventListener('click', function () { day = today(); draw(); });
+      nav.appendChild(bp); nav.appendChild(bt);
+      nav.appendChild(el('span', 'date', label(day)));
+      nav.appendChild(bn);
+      nav.appendChild(el('span', 'sp'));
+      var e0 = entry(day);
+      var bpz = el('button', e0.paused ? 'on' : '', e0.paused ? 'Paused' : 'Pause day');
+      bpz.type = 'button'; bpz.id = 'jPause';
+      bpz.addEventListener('click', function () {
+        put(day, { paused: !entry(day).paused }); save(); flashSaved(); draw();
+      });
+      nav.appendChild(bpz);
+    } else {
+      var bnew = el('button', '', '+ New note'); bnew.type = 'button';
+      bnew.addEventListener('click', function () {
+        var n = notes(), id = uid();
+        n[id] = { id:id, title:'', body:'', updatedAt:new Date().toISOString() };
+        openNote = id; save(); flashSaved(); draw();
+        var f = document.querySelector('#snRoot .note-card.open .bd input'); if (f) f.focus();
+      });
+      nav.appendChild(bnew);
+      var cnt = 0, kk; for (kk in notes()) cnt++;
+      nav.appendChild(el('span', 'date', cnt ? cnt + (cnt === 1 ? ' note' : ' notes') : ''));
+      nav.appendChild(el('span', 'sp'));
+    }
+    var sv = el('span', 'saved', 'Saved'); sv.id = 'jSaved';
+    nav.appendChild(sv);
+    wrap.appendChild(nav);
+
+    /* 2026-09-09: the wrapper goes into the document BEFORE the panes are built. Both
+       drawSteps() and paintByHint() find their targets with getElementById, and while the
+       tree was still detached those lookups returned null - so the step list was silently
+       never populated and the due-date pill never painted. Nothing threw; it just quietly
+       rendered a section 6 with no steps in it. */
+    root.appendChild(wrap);
+    if (tab === 'daily') buildDaily(wrap); else buildNotes(wrap);
+    wrap.appendChild(buildFoot());
+  }
+
+  function field(tag, id, ph, val, onInput) {
+    var e = document.createElement(tag);
+    if (tag === 'input') e.type = 'text';
+    e.id = id; e.placeholder = ph || ''; e.value = val || '';
+    e.addEventListener('input', onInput);
+    return e;
+  }
+  function section(n, title, why) {
+    var s = el('div', 'sec'), h = el('h4');
+    h.appendChild(el('span', 'n', String(n)));
+    h.appendChild(document.createTextNode(title));
+    h.appendChild(el('span', 'why', why));
+    s.appendChild(h);
+    var c = el('div', 'card'); s.appendChild(c);
+    s.card = c;
+    return s;
+  }
+
+  function buildDaily(wrap) {
+    var e = entry(day), g = goal();
+
+    /* Result and Purpose sit ABOVE the sections: in RPM they drive the plan rather than
+       introducing it. They carry forward - a result belongs to a week, not to a Tuesday -
+       so they are not rewritten nightly. */
+    var gw = el('div', 'goal');
+    gw.appendChild(el('div', 'lab', 'Result'));
+    gw.appendChild(field('input', 'jResult', 'What specifically are you after?', g.result,
+      function () { goal().result = this.value; save(); flashSaved(); }));
+    gw.appendChild(el('div', 'lab', 'Because'));
+    gw.appendChild(field('input', 'jPurpose', 'Why does it matter enough to keep going?', g.purpose,
+      function () { goal().purpose = this.value; save(); flashSaved(); }));
+    gw.appendChild(el('div', 'foot', 'Carried forward every day · change it whenever it changes'));
+    wrap.appendChild(gw);
+
+    if (e.paused) wrap.appendChild(el('div', 'paused-note',
+      'This day is paused. Nothing here is carried forward or counted as a broken commitment.'));
+
+    wrap.appendChild(buildCarry());
+
+    /* anything written in the old journal is shown, never overwritten */
+    if (e.text && String(e.text).trim()) {
+      var lg = el('div', 'legacy');
+      lg.appendChild(el('div', 'k', 'Written here before'));
+      var pre = el('pre'); pre.textContent = e.text; lg.appendChild(pre);
+      wrap.appendChild(lg);
+    }
+
+    var s1 = section(1, 'What went well', 'what worked');
+    s1.card.appendChild(field('textarea', 'jWell', 'One thing. It can be small.', e.well, onEdit));
+    wrap.appendChild(s1);
+
+    var s2 = section(2, 'What can I do differently / better', 'the correction');
+    s2.card.appendChild(field('textarea', 'jBetter', 'What would you change?', e.better, onEdit));
+    wrap.appendChild(s2);
+
+    var s3 = section(3, 'Who do I need to become', 'a behaviour, not an adjective');
+    var l3 = el('div', 'lead'); l3.appendChild(el('span', 'stem', 'Someone who'));
+    l3.appendChild(field('input', 'jIdentity', 'finishes the hard thing first', e.identity, onEdit));
+    s3.card.appendChild(l3);
+    wrap.appendChild(s3);
+
+    var s4 = section(4, 'How to overcome obstacles', 'the block, and the answer');
+    var l4a = el('div', 'lead'); l4a.appendChild(el('span', 'stem', 'If'));
+    l4a.appendChild(field('input', 'jIf', 'the morning gets eaten by messages', e.iff, onEdit));
+    var l4b = el('div', 'lead'); l4b.style.marginBottom = '0';
+    l4b.appendChild(el('span', 'stem', 'I will'));
+    l4b.appendChild(field('input', 'jThen', 'close the inbox and start at 9 anyway', e.then, onEdit));
+    s4.card.appendChild(l4a); s4.card.appendChild(l4b);
+    wrap.appendChild(s4);
+
+    var s5 = section(5, 'Process visualization', 'run the steps, including the hard part');
+    s5.card.appendChild(field('textarea', 'jVis',
+      'Run steps 1 to the end in your head, in order — including the moment it gets hard.',
+      e.vis, onEdit));
+    wrap.appendChild(s5);
+
+    var s6 = section(6, 'The process', 'the steps, in order');
+    var sw = el('div'); sw.id = 'jSteps'; s6.card.appendChild(sw);
+    var add = el('button', 'addstep', '+ step'); add.type = 'button'; add.id = 'jAddStep';
+    add.addEventListener('click', function () {
+      var cur = collectSteps(); if (cur.length >= STEP_MAX) return;
+      cur.push(''); put(day, { steps: cur }); save(); drawSteps(cur);
+      var ins = sw.querySelectorAll('input'); ins[ins.length-1].focus();
+    });
+    s6.card.appendChild(add);
+
+    var by = el('div', 'by');
+    by.appendChild(el('span', 'First step done by'));
+    var din = document.createElement('input'); din.type = 'date'; din.id = 'jBy'; din.value = e.by || '';
+    din.addEventListener('change', function () { put(day, { by: din.value }); save(); flashSaved(); draw(); });
+    by.appendChild(din);
+    by.appendChild(el('span', 'pill', '')).id = 'jByHint';
+    s6.card.appendChild(by);
+
+    /* should vs must - it only changes what happens when the commitment lapses */
+    var mr = el('div', 'mustrow');
+    mr.appendChild(el('span', 'This is a'));
+    var bM = el('button', e.must ? 'on' : '', 'Must'); bM.type = 'button';
+    var bS = el('button', !e.must ? 'on' : '', 'Should'); bS.type = 'button';
+    bM.addEventListener('click', function () { put(day, { must:true }); save(); flashSaved(); draw(); });
+    bS.addEventListener('click', function () { put(day, { must:false }); save(); flashSaved(); draw(); });
+    mr.appendChild(bM); mr.appendChild(bS);
+    s6.card.appendChild(mr);
+    wrap.appendChild(s6);
+
+    drawSteps(e.steps);
+    paintByHint();
+  }
+
+  function onEdit() {
+    var o = {};
+    o[{ jWell:'well', jBetter:'better', jIdentity:'identity', jIf:'iff', jThen:'then', jVis:'vis' }[this.id]]
+      = this.value;
+    put(day, o); save(); flashSaved(); stats();
+  }
+  function collectSteps() {
+    var sw = document.getElementById('jSteps'), out = [], i;
+    if (!sw) return [''];
+    var ins = sw.querySelectorAll('input');
+    for (i = 0; i < ins.length; i++) out.push(ins[i].value);
+    return out.length ? out : [''];
+  }
+  function drawSteps(list) {
+    var sw = document.getElementById('jSteps'); if (!sw) return;
+    sw.innerHTML = '';
+    var locked = isLocked(day);
+    for (var i = 0; i < list.length; i++) {
+      (function (i) {
+        var row = el('div', 'step' + (i === 0 ? ' first' : ''));
+        row.appendChild(el('span', 'dot', String(i+1)));
+        var inp = document.createElement('input'); inp.type = 'text'; inp.value = list[i];
+        inp.placeholder = i === 0 ? 'the very next physical action' : 'then…';
+        if (i === 0 && locked) {
+          /* the promise cannot move under the answer once later days exist */
+          inp.readOnly = true;
+          inp.title = 'Later days exist, so what was promised here is fixed.';
+        } else {
+          inp.addEventListener('input', function () {
+            put(day, { steps: collectSteps() }); save(); flashSaved(); stats();
+          });
+        }
+        row.appendChild(inp);
+        var x = el('button', 'x', '×'); x.type = 'button'; x.title = 'remove this step';
+        x.addEventListener('click', function () {
+          var cur = collectSteps(); cur.splice(i, 1); if (!cur.length) cur = [''];
+          put(day, { steps: cur }); save(); drawSteps(cur); flashSaved();
+        });
+        row.appendChild(x);
+        sw.appendChild(row);
+      })(i);
+    }
+    if (locked && String(list[0]||'').trim())
+      sw.appendChild(el('div', 'lockmsg',
+        'Locked — later days exist, so what was promised here cannot change.'));
+    var a = document.getElementById('jAddStep');
+    if (a) a.style.display = list.length >= STEP_MAX ? 'none' : '';
+  }
+  function paintByHint() {
+    var h = document.getElementById('jByHint'); if (!h) return;
+    var e = entry(day), first = String((e.steps && e.steps[0]) || '').trim();
+    var st = dueState(e.by, today());
+    if (!first) { h.className = ''; h.textContent = ''; }
+    else if (!e.by) { h.className = 'pill note'; h.textContent = 'no date — a note, not a commitment'; }
+    else if (st === 'late') { h.className = 'pill late'; h.textContent = 'overdue'; }
+    else if (st === 'due') { h.className = 'pill due'; h.textContent = 'due today'; }
+    else { h.className = 'pill later'; h.textContent = 'due ' + shortLabel(e.by); }
+  }
+
+  function buildCarry() {
+    lapseOld(day);
+    var box = el('div', 'carry'), c = openCommit(day);
+    if (!c) {
+      box.className = 'carry answered';
+      var last = null, i;
+      for (i = 1; i <= FLOOR && !last; i++) { var q = commitOf(shift(day, -i)); if (q) last = q; }
+      if (!last) {
+        box.appendChild(el('div', 'k', 'No open commitment'));
+        var t0 = el('div', 'txt none');
+        t0.innerHTML = 'Give step 1 a <b>done by</b> date and it becomes a commitment you will be asked about.';
+        box.appendChild(t0);
+      } else {
+        box.appendChild(el('div', 'k', 'From ' + label(last.day) + ' · ' + ago(last.day, day)));
+        var word = { done:'Done', again:'Re-committed', drop:'Dropped', lapsed:'Lapsed' }[last.outcome]
+                   || last.outcome;
+        var t1 = el('div', 'txt ans');
+        t1.appendChild(document.createTextNode('“' + last.text + '” — '));
+        var b = el('b', last.outcome === 'drop' ? 'd' : (last.outcome === 'lapsed' ? 'l' : ''), word);
+        t1.appendChild(b);
+        box.appendChild(t1);
+      }
+      if (pending) box.appendChild(buildAsk(pending));
+      return box;
+    }
+    var st = dueState(c.by, day);
+    box.appendChild(el('div', 'k', 'From ' + label(c.day) + ' · ' + ago(c.day, day) +
+      (st === 'late' ? ' · was due ' + shortLabel(c.by) : '') +
+      (c.must ? ' · you tagged this a MUST' : '')));
+    box.appendChild(el('div', 'txt', '“' + c.text + '”'));
+    var states = el('div', 'states');
+    var mk = function (s, lab) {
+      var b = el('button', '', lab); b.type = 'button'; b.setAttribute('data-s', s);
+      b.addEventListener('click', function () { answer(c, s); });
+      return b;
+    };
+    states.appendChild(mk('done', 'Done'));
+    states.appendChild(mk('again', 'Re-commit'));
+    states.appendChild(mk('drop', 'Drop'));
+    box.appendChild(states);
+
+    /* A should that has already lapsed twice is asked the honest question rather than
+       being quietly forgiven - a repeated miss is information. */
+    if (pending && pending.day === c.day) box.appendChild(buildAsk(c));
+    if (!c.must && priorMisses(c.text) >= 2) {
+      var esc = el('div', 'ask');
+      esc.appendChild(el('div', 'q',
+        'This has slipped ' + priorMisses(c.text) + ' times. Is it actually a must, or do you drop it?'));
+      box.appendChild(esc);
+    }
+    return box;
+  }
+
+  function buildAsk(c) {
+    var ask = el('div', 'ask');
+    ask.appendChild(el('div', 'q', 'It did not happen. What is different this time?'));
+    var opt = el('div', 'opt');
+    var mkOpt = function (kind, title, sub) {
+      var b = el('button', pendingKind === kind ? 'on' : ''); b.type = 'button';
+      b.appendChild(el('b', '', title));
+      b.appendChild(document.createTextNode(sub));
+      b.addEventListener('click', function () {
+        pendingKind = kind; pendingNote = note.value; draw();
+        var t = document.querySelector('#snRoot .ask textarea'); if (t) t.focus();
+      });
+      return b;
+    };
+    opt.appendChild(mkOpt('approach', 'Change the approach',
+      'Same result, a different way of getting at it.'));
+    /* a miss is not always a bad method. Forcing a method change after a sick afternoon
+       would have you inventing fixes for something that was not broken. */
+    opt.appendChild(mkOpt('blocker', 'Name the blocker',
+      'The method was fine \u2014 something got in the way.'));
+    ask.appendChild(opt);
+    var note = document.createElement('textarea');
+    note.style.minHeight = '54px';
+    note.value = pendingNote;
+    note.placeholder = pendingKind === 'blocker' ? 'What actually got in the way'
+                                                 : 'The different way you will go at it';
+    if (!pendingKind) note.style.display = 'none';
+    note.addEventListener('input', function () { pendingNote = note.value; });
+    ask.appendChild(note);
+    var go = el('button', 'addstep', 'Carry it forward'); go.type = 'button';
+    go.style.marginTop = '9px';
+    go.addEventListener('click', function () {
+      var cur = entry(day).steps.slice();
+      if (!String(cur[0] || '').trim()) cur[0] = c.text;
+      /* the RESULT is carried forward, not the method - if they named a different way of
+         getting at it, that becomes step 1 */
+      var live = note && note.value !== undefined ? note.value : pendingNote;
+      if (String(live).trim()) pendingNote = live;
+      if (pendingKind === 'approach' && String(pendingNote).trim()) cur[0] = pendingNote.trim();
+      var patch = { steps: cur, recommit: pendingKind || 'approach',
+                    recommitNote: pendingNote, must: c.must };
+      if (!entry(day).by) patch.by = shift(day, 1);
+      put(day, patch);
+      pending = null; pendingKind = ''; pendingNote = '';
+      save(); flashSaved(); draw();
+    });
+    ask.appendChild(go);
+    return ask;
+  }
+
+  function answer(c, s) {
+    var j = jd(); if (!j || !j[c.day]) return;
+    /* the verdict is written on the day the commitment CAME FROM, with the day it was
+       answered - that is what makes it a record instead of a mood, and it can never be
+       asked twice */
+    j[c.day].outcome = s;
+    j[c.day].answeredOn = day;
+    if (s !== 'again') {
+      pending = null; pendingKind = ''; pendingNote = '';
+      save(); flashSaved(); draw(); return;
+    }
+    pending = c; pendingKind = ''; pendingNote = '';
+    save(); flashSaved(); draw();
+  }
+
+  /* ---------- notes ---------- */
+  function noteList() {
+    var n = notes(), out = [], k;
+    for (k in n) if (n.hasOwnProperty(k)) out.push(n[k]);
+    out.sort(function (a, b) { return String(b.updatedAt||'').localeCompare(String(a.updatedAt||'')); });
+    return out;
+  }
+  function firstLine(s) {
+    var t = String(s || '').replace(/\s+/g, ' ').trim();
+    return t.length > 78 ? t.slice(0, 78) + '…' : t;
+  }
+  function buildNotes(wrap) {
+    var list = noteList();
+    if (!list.length) {
+      wrap.appendChild(el('div', 'empty',
+        'Nothing here yet. A note is for anything that is not tied to a day — a plan, a list, ' +
+        'something you want to keep.'));
+      return;
+    }
+    for (var i = 0; i < list.length; i++) {
+      (function (n) {
+        var card = el('div', 'note-card' + (n.id === openNote ? ' open' : ''));
+        var hd = el('div', 'hd');
+        hd.appendChild(el('span', 'car', n.id === openNote ? '▾' : '▸'));
+        var tw = el('div', 'tw');
+        var ti = el('div', 'ti' + (String(n.title||'').trim() ? '' : ' blank'),
+                    String(n.title||'').trim() || 'Untitled note');
+        var pv = el('div', 'pv', firstLine(n.body) || 'empty');
+        tw.appendChild(ti); tw.appendChild(pv);
+        hd.appendChild(tw);
+        var wn = el('span', 'when', n.updatedAt ? shortLabel(String(n.updatedAt).slice(0,10)) : '');
+        hd.appendChild(wn);
+        hd.addEventListener('click', function () {
+          openNote = (openNote === n.id) ? null : n.id; draw();
+          if (openNote === n.id) {
+            var t = document.querySelector('#snRoot .note-card.open .bd textarea'); if (t) t.focus();
+          }
+        });
+        var bd = el('div', 'bd');
+        var ti2 = document.createElement('input'); ti2.type = 'text';
+        ti2.value = n.title || ''; ti2.placeholder = 'Title';
+        var body = document.createElement('textarea');
+        body.value = n.body || ''; body.placeholder = 'Write anything.';
+        var touch = function () {
+          var store = notes();
+          store[n.id] = { id:n.id, title:ti2.value, body:body.value,
+                          updatedAt:new Date().toISOString() };
+          save(); flashSaved();
+          ti.textContent = String(ti2.value).trim() || 'Untitled note';
+          ti.className = 'ti' + (String(ti2.value).trim() ? '' : ' blank');
+          pv.textContent = firstLine(body.value) || 'empty';
+        };
+        ti2.addEventListener('input', touch);
+        body.addEventListener('input', touch);
+        var del = el('button', 'del', 'Delete this note'); del.type = 'button';
+        del.addEventListener('click', function () {
+          /* one confirm - this is the operator's own writing and there is no undo */
+          if (!window.confirm('Delete this note? It cannot be undone.')) return;
+          var store = notes(); delete store[n.id];
+          if (openNote === n.id) openNote = null;
+          save(); flashSaved(); draw();
+        });
+        bd.appendChild(ti2); bd.appendChild(body); bd.appendChild(del);
+        card.appendChild(hd); card.appendChild(bd);
+        wrap.appendChild(card);
+      })(list[i]);
+    }
+  }
+
+  function buildFoot() {
+    var f = el('div', 'foot');
+    var wc = el('span'); wc.appendChild(el('b', '', '0')); wc.appendChild(document.createTextNode(' words'));
+    wc.querySelector('b').id = 'jWc'; f.appendChild(wc);
+    if (tab === 'daily') {
+      var st = el('span'); st.appendChild(el('b', '', '0')); st.appendChild(document.createTextNode(' day streak'));
+      st.querySelector('b').id = 'jStreak'; f.appendChild(st);
+      var kp = el('span'); kp.id = 'jKept'; f.appendChild(kp);
+      var strip = el('span', 'strip'); strip.id = 'jStrip'; f.appendChild(strip);
+    } else {
+      var nc = el('span'); nc.appendChild(el('b', '', '0')); nc.appendChild(document.createTextNode(' notes'));
+      nc.querySelector('b').id = 'jNoteCount'; f.appendChild(nc);
+    }
+    var fn = el('div', 'fnote'); fn.id = 'jFootNote';
+    var w = el('div'); w.appendChild(f); w.appendChild(fn);
+    return w;
+  }
+
+  function stats() {
+    var j = jd() || {}, k, text = '', i;
+    if (tab === 'notes') {
+      var l = noteList(), n = 0;
+      for (i = 0; i < l.length; i++) { text += ' ' + (l[i].title||'') + ' ' + (l[i].body||''); n++; }
+      var nc = document.getElementById('jNoteCount'); if (nc) nc.textContent = n;
+    } else {
+      var e = entry(day);
+      text = [e.well, e.better, e.identity, e.iff, e.then, e.vis].join(' ');
+      for (i = 0; i < (e.steps||[]).length; i++) text += ' ' + e.steps[i];
+      var cur = today(), n2 = 0;
+      if (!hasContent(j[cur])) cur = shift(cur, -1);
+      while (j[cur] && hasContent(j[cur])) { n2++; cur = shift(cur, -1); }
+      var sEl = document.getElementById('jStreak'); if (sEl) sEl.textContent = n2;
+      var kept = 0, total = 0;
+      for (k in j) { var c = commitOf(k); if (!c || !c.outcome) continue;
+        total++; if (c.outcome === 'done') kept++; }
+      var kEl = document.getElementById('jKept');
+      if (kEl) kEl.textContent = total ? ('kept ' + kept + ' of ' + total) : '';
+      var strip = document.getElementById('jStrip');
+      if (strip) {
+        strip.innerHTML = '';
+        for (i = 13; i >= 0; i--) {
+          var dd = shift(today(), -i), sq = el('i');
+          sq.className = (dd === day) ? 't' : (hasContent(j[dd]) ? 'w' : '');
+          sq.title = label(dd) + (hasContent(j[dd]) ? ' — written' : '');
+          strip.appendChild(sq);
+        }
+      }
+    }
+    text = String(text).replace(/\s+/g, ' ').trim();
+    var w = document.getElementById('jWc');
+    if (w) w.textContent = text ? text.split(' ').length : 0;
+    var fn = document.getElementById('jFootNote');
+    if (fn) fn.textContent = tab === 'daily'
+      ? 'Six sections, deliberately. Result and Because sit above them and carry forward.'
+      : 'Notes are not tied to a day.';
+  }
+
+  function draw() {
+    var v = document.getElementById('journalView');
+    if (!v) return;
+    if (!day) day = window.selectedDate || today();
+    var root = document.getElementById('snRoot');
+    if (!root || root.parentNode !== v) {
+      v.innerHTML = ''; v.style.padding = '0'; v.style.overflow = 'hidden';
+      root = el('div'); root.id = 'snRoot'; v.appendChild(root);
+    }
+    build(root);
+    stats();
+  }
+
+  function active() {
+    var p = document.getElementById('tabJournal');
+    return !!p && getComputedStyle(p).display !== 'none';
+  }
+  /* hook the render rather than replacing window.renderJournal: the tab map captured that
+     reference by value when the page loaded, so reassigning it would do nothing. */
+  function hook() {
+    var base = window.renderAll;
+    if (typeof base !== 'function') return false;
+    window.renderAll = function () {
+      var r = base.apply(this, arguments);
+      if (active()) { day = window.selectedDate || day || today(); draw(); }
+      return r;
+    };
+    if (window.Store && window.Store.onChange)
+      window.Store.onChange(function () { if (active()) draw(); });
+    return true;
+  }
+  var tries = 0;
+  (function boot() {
+    if (hook()) { if (active()) draw(); return; }
+    if (++tries < 60) setTimeout(boot, 200);
+  })();
 })();
 </script>
 
