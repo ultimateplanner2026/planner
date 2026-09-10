@@ -5158,7 +5158,7 @@ html:root #treeRoot .tree-row:not([data-depth="0"]){ height:32px !important; min
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-09-10 01:29</span>
+    <span id="buildStamp">build 2026-09-10 19:18</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -10774,40 +10774,32 @@ function surfaceArrivals() {
 
     var date = document.createElement('input');
     date.type = 'date'; date.className = 'ea-input'; date.value = node.date || '';
-    /* 2026-09-10: a date could only be cleared by a small x on the chip in the tree, which
-       is not where anyone looks for it. Clearing here takes it off the calendar and leaves
-       it in the tree with no date - nothing is deleted. It applies to a branch as well: a
-       branch is not obliged to have a due date. */
+    /* 2026-09-10: the operator did not want a Clear button - "I just need to have the
+       access to backspace, and it would delete the date". So the field is simply editable:
+       empty it and the date is gone. Emptying applies straight away, because this dialog's
+       Save does nothing at all on a BRANCH (measured: the save function is never reached,
+       and the same on the build that was already live) and a date they cleared should not
+       be hostage to that. */
     (function () {
-      var wrapd = document.createElement('div');
-      wrapd.className = 'ea-clearwrap';
-      wrapd.appendChild(date);
-      var cd = document.createElement('button');
-      cd.type = 'button'; cd.className = 'ea-clear'; cd.textContent = 'Clear';
-      cd.title = 'Remove the date - it stays in the tree, just not on the calendar';
-      cd.addEventListener('click', function () {
-        /* Applies straight away, exactly like the small x on the chip in the tree - it does
-           NOT wait for Save. Two reasons. The two-month picker listens for a change event
-           and writes its remembered date back, so a deferred clear looked empty while
-           save() still read the old value. And separately, this dialog's Save button does
-           nothing at all on a BRANCH - measured: Store.save called 0 times, the title edit
-           discarded too, and the same on the build that is live, so it is not new. That is
-           its own bug and is written up; a date the operator asked to remove should not be
-           hostage to it. */
-        date.value = '';
-        time.value = '';
-        var f2 = (typeof window.findNode === 'function') ? window.findNode(id) : null;
-        var n2 = (f2 && f2.node) ? f2.node : node;
-        n2.date = null;
-        n2.time = null;
-        n2.block = null;
-        if (window.Store && window.Store.save) window.Store.save();
-        if (typeof window.renderAll === 'function') window.renderAll();
-      });
-      wrapd.appendChild(cd);
-      var rd = row('Due Date', wrapd);
+      var rd = row('Due Date', date);
       rd.className = (rd.className || '') + ' ea-row-date';
       body.appendChild(rd);
+      function clearIfEmpty() {
+        if (String(date.value || '').trim() !== '') return;
+        var f2 = (typeof window.findNode === 'function') ? window.findNode(id) : null;
+        var n2 = (f2 && f2.node) ? f2.node : node;
+        if (!n2.date && !n2.time) return;
+        n2.date = null; n2.time = null; n2.block = null;
+        time.value = '';
+        if (window.Store && window.Store.save) window.Store.save();
+        if (typeof window.renderAll === 'function') window.renderAll();
+      }
+      date.addEventListener('input', clearIfEmpty);
+      date.addEventListener('keyup', function (e) {
+        var k = e.key || '';
+        if (k === 'Backspace' || k === 'Delete') clearIfEmpty();
+      });
+      date.addEventListener('change', clearIfEmpty);
     })();
 
     /* created above the date row, which clears it too */
@@ -11270,6 +11262,24 @@ function surfaceArrivals() {
     var index = f.index;
     var node = window.removeNode(id);
     if (!node) return null;
+    /* 2026-09-10 - THE DELETED-THINGS-COME-BACK BUG.
+       Moving a node to the bin left its clock exactly as it was. The merge picks a winner
+       by clock, so a tombstone here and a still-live copy on the other machine had the SAME
+       clock - and the tie-break is a string compare of device ids. Half the time the live
+       copy won and the item reappeared; and if the other machine so much as touched it
+       afterwards its clock went higher and the delete was lost for good.
+       A delete is a change, so it has to carry a newer clock than anything it is deleting.
+       Store.save() runs stampClocks first, which keeps data.clock at or above every node's,
+       so one past it is strictly newest. */
+    (function () {
+      var d = window.Store && window.Store.data;
+      if (d) {
+        var next = (Number(d.clock) || 0) + 1;
+        node.clock = next;
+        d.clock = next;
+        if (d.deviceId) node.by = d.deviceId;
+      }
+    })();
     trash().push({
       node: node,
       parentId: parentId,
