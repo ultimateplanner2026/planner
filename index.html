@@ -5158,7 +5158,7 @@ html:root #treeRoot .tree-row:not([data-depth="0"]){ height:32px !important; min
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-09-10 19:18</span>
+    <span id="buildStamp">build 2026-09-10 19:23</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -27828,11 +27828,20 @@ body[data-fb="on"] .fb-band { display: block; }
     window.renderAll = w;
   })();
 
+  /* 2026-09-10: this used to re-run ensureToggle() and paint() every 400ms, two hundred
+     times - eighty seconds of tearing every band down and rebuilding it four times a
+     second. That is the flicker the operator sees on the calendar right after a save: for
+     a frame the events are back in their plain form before the bands and the inside-a-
+     session styling are put back. It also breaks RULES 1a-36 - a painter hooks a render,
+     never a clock.
+     Retry only until the toggle actually exists, then stop and let the renderAll hook and
+     Store.onChange do the work. */
   var tries = 0;
   (function boot() {
     ensureToggle();
     paint();
-    if (++tries < 200) setTimeout(boot, 400);
+    if (document.getElementById('fbToggle')) return;   /* installed - no more polling */
+    if (++tries < 40) setTimeout(boot, 200);
   })();
 })();
 </script>
