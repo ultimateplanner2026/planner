@@ -2286,6 +2286,14 @@ aside#treePane { overflow-y: auto; }
 .actmenu-sep { height: 1px; background: var(--border); margin: 6px 8px; }
 
 /* Edit Activity dialog */
+.ea-clearwrap { display: flex; align-items: center; gap: 8px; flex: 1; }
+.ea-clearwrap .ea-input { flex: 1; }
+.ea-clear {
+  background: transparent; border: 1px solid rgba(224,133,127,.45); color: #e0857f;
+  border-radius: 7px; padding: 4px 11px; font-size: 12px; cursor: pointer;
+  font-family: inherit; white-space: nowrap;
+}
+.ea-clear:hover { background: rgba(224,133,127,.10); border-color: rgba(224,133,127,.75); }
 .ea { display: flex; flex-direction: column; gap: 10px; }
 .ea-title {
   width: 100%; height: 40px; padding: 0 12px; font-size: 15px;
@@ -5150,7 +5158,7 @@ html:root #treeRoot .tree-row:not([data-depth="0"]){ height:32px !important; min
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-09-09 13:37</span>
+    <span id="buildStamp">build 2026-09-10 01:29</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -8140,10 +8148,36 @@ window.renderHabits = function () {
     rendering = true;
     try {
       if (typeof renderTree === 'function') renderTree();
-      if (typeof renderMonth === 'function') renderMonth();
-      if (typeof renderDay === 'function') renderDay();
-      if (typeof renderJournal === 'function') renderJournal();
-      if (typeof renderHabits === 'function') renderHabits();
+      /* 2026-09-10: this rebuilt EVERY view on every render, including the ones behind the
+         tab you are looking at - which is the flicker when saving inside a focus session.
+         Only the visible one is drawn now. A hidden panel is rebuilt when you switch to it
+         anyway, through setTab.
+         Deliberately fails OPEN: if the panel cannot be found, or nothing looks visible, we
+         draw them all exactly as before. A view that silently stops rendering would be far
+         worse than a flicker. */
+      var __shown = function (id) {
+        var p = document.getElementById(id);
+        if (!p) return null;
+        return getComputedStyle(p).display !== 'none';
+      };
+      var __states = [__shown('tabMonth'), __shown('tabDay'), __shown('tabJournal'), __shown('tabHabits')];
+      var __known = true, __any = false, __k;
+      for (__k = 0; __k < __states.length; __k++) {
+        if (__states[__k] === null) __known = false;
+        if (__states[__k] === true) __any = true;
+      }
+      var __all = !(__known && __any);
+      if (__all || __states[0]) { if (typeof renderMonth === 'function') renderMonth(); }
+      if (__all || __states[1]) { if (typeof renderDay === 'function') renderDay(); }
+      if (__all || __states[2]) {
+        /* The rebuilt journal owns this panel. Calling the old renderJournal here wiped it
+           on every render, and the observer then rebuilt it - which is what threw away a
+           textarea the operator had dragged taller. Hand the render to whoever owns it. */
+        if (window.__journal2Installed && typeof window.__journal2Draw === 'function')
+          window.__journal2Draw();
+        else if (typeof renderJournal === 'function') renderJournal();
+      }
+      if (__all || __states[3]) { if (typeof renderHabits === 'function') renderHabits(); }
     } finally {
       rendering = false;
     }
@@ -10735,12 +10769,48 @@ function surfaceArrivals() {
     note.placeholder = 'Enter note..'; note.value = node.notes || '';
     body.appendChild(note);
 
-    var date = document.createElement('input');
-    date.type = 'date'; date.className = 'ea-input'; date.value = node.date || '';
-    body.appendChild(row('Due Date', date));
-
     var time = document.createElement('input');
     time.type = 'time'; time.className = 'ea-input'; time.value = node.time || '';
+
+    var date = document.createElement('input');
+    date.type = 'date'; date.className = 'ea-input'; date.value = node.date || '';
+    /* 2026-09-10: a date could only be cleared by a small x on the chip in the tree, which
+       is not where anyone looks for it. Clearing here takes it off the calendar and leaves
+       it in the tree with no date - nothing is deleted. It applies to a branch as well: a
+       branch is not obliged to have a due date. */
+    (function () {
+      var wrapd = document.createElement('div');
+      wrapd.className = 'ea-clearwrap';
+      wrapd.appendChild(date);
+      var cd = document.createElement('button');
+      cd.type = 'button'; cd.className = 'ea-clear'; cd.textContent = 'Clear';
+      cd.title = 'Remove the date - it stays in the tree, just not on the calendar';
+      cd.addEventListener('click', function () {
+        /* Applies straight away, exactly like the small x on the chip in the tree - it does
+           NOT wait for Save. Two reasons. The two-month picker listens for a change event
+           and writes its remembered date back, so a deferred clear looked empty while
+           save() still read the old value. And separately, this dialog's Save button does
+           nothing at all on a BRANCH - measured: Store.save called 0 times, the title edit
+           discarded too, and the same on the build that is live, so it is not new. That is
+           its own bug and is written up; a date the operator asked to remove should not be
+           hostage to it. */
+        date.value = '';
+        time.value = '';
+        var f2 = (typeof window.findNode === 'function') ? window.findNode(id) : null;
+        var n2 = (f2 && f2.node) ? f2.node : node;
+        n2.date = null;
+        n2.time = null;
+        n2.block = null;
+        if (window.Store && window.Store.save) window.Store.save();
+        if (typeof window.renderAll === 'function') window.renderAll();
+      });
+      wrapd.appendChild(cd);
+      var rd = row('Due Date', wrapd);
+      rd.className = (rd.className || '') + ' ea-row-date';
+      body.appendChild(rd);
+    })();
+
+    /* created above the date row, which clears it too */
     /* 2026-09-06: the Time field is the shared spinner, the same control as the alarm
        and both ends of a focus block. The native input stays as the value carrier so
        save() keeps reading time.value and nothing downstream changes. */
@@ -28319,6 +28389,7 @@ body[data-fb="on"] .fb-band { display: block; }
     cur.updatedAt = new Date().toISOString();
     j[k] = cur;
   }
+  window.__journal2Draw = function () { draw(); };
   window.__journal2 = { commitOf:commitOf, openCommit:openCommit, isLocked:isLocked,
                         lapseOld:lapseOld, priorMisses:priorMisses, dueState:dueState };
 
@@ -28798,11 +28869,20 @@ body[data-fb="on"] .fb-band { display: block; }
     if (!v) return;
     if (!day) day = window.selectedDate || today();
     var root = document.getElementById('snRoot');
+    /* 2026-09-10: never rebuild while a field in here has focus. Rebuilding threw away
+       the operator's drag-resize on a textarea, the caret, and the scroll position - the
+       box "snapped back" the moment they stopped typing. The stats line is cheap and has
+       no focus, so keep that live. */
+    if (root && root.contains(document.activeElement) &&
+        document.activeElement !== root) { stats(); return; }
     if (!root || root.parentNode !== v) {
       v.innerHTML = ''; v.style.padding = '0'; v.style.overflow = 'hidden';
       root = el('div'); root.id = 'snRoot'; v.appendChild(root);
     }
+    /* keep where they were reading */
+    var top = root.scrollTop;
     build(root);
+    if (top) root.scrollTop = top;
     stats();
   }
 
