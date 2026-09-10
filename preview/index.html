@@ -1,0 +1,175 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+:root{--dim:#9aa1ab;--t3:#6b7280;--accent:#4d8bff;--text:#e6e8ec;--border:#2e323a;
+  --amber:#d98c2b;--bad:#e0857f;--surf:#1c1f26;--surf2:#20232a}
+*{box-sizing:border-box}
+body{margin:0;background:#12141a;color:var(--text);padding:26px 30px 44px;width:1400px;
+  font:13px ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif}
+h1{font-size:19px;margin:0 0 3px}
+.sub{color:var(--dim);font-size:12px;margin:0 0 20px}
+h2{font-size:13px;margin:30px 0 8px;padding-bottom:8px;border-bottom:1px solid #262b34;color:#c9cdd6}
+b.hl{color:var(--accent)} b.am{color:var(--amber)}
+.px{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10.5px}
+table{border-collapse:collapse;width:1340px;font-size:11.5px}
+th{text-align:left;font-size:10px;letter-spacing:.05em;text-transform:uppercase;color:#8d94a0;
+  font-weight:600;padding:0 12px 8px 0;border-bottom:1px solid #262b34}
+td{padding:12px 12px 12px 0;border-bottom:1px solid #1e222a;vertical-align:top;
+  color:var(--dim);line-height:1.5}
+td.n{width:34px;padding-right:8px}
+td.n span{width:24px;height:22px;border-radius:6px;background:var(--surf2);
+  border:1px solid var(--border);color:#c9cdd6;font-size:11px;display:flex;
+  align-items:center;justify-content:center;font-weight:600}
+td.said{width:250px;color:var(--text)}
+td.found{width:360px}
+td.plan{width:absolute}
+td.st{width:110px;text-align:right;padding-right:0}
+.chip{display:inline-block;font-size:9.5px;letter-spacing:.05em;text-transform:uppercase;
+  border-radius:999px;padding:2px 9px;white-space:nowrap}
+.chip.g{color:#22a06b;border:1px solid rgba(34,160,107,.5)}
+.chip.a{color:#c99a3a;border:1px solid rgba(201,154,58,.5)}
+.chip.r{color:var(--bad);border:1px solid rgba(224,133,127,.5)}
+.row{display:flex;gap:20px;align-items:flex-start;margin-top:6px}
+.pic{background:#16181c;border:1px solid var(--border);border-radius:10px;padding:14px 15px;
+  width:326px}
+.pic .t{font-size:11px;color:#8d94a0;letter-spacing:.04em;text-transform:uppercase;
+  font-weight:600;margin-bottom:11px}
+.pic .cap{font-size:10.5px;color:#5d646f;margin-top:9px;line-height:1.5}
+.bar{display:flex;gap:5px;align-items:center;background:var(--surf);border:1px solid var(--border);
+  border-radius:8px;padding:6px 8px;font-size:11.5px}
+.bar .tabx{border:1px solid transparent;border-radius:6px;padding:3px 10px;color:var(--t3)}
+.bar .tabx.on{background:var(--surf2);border-color:var(--border);color:var(--text);font-weight:600}
+.fieldrow{display:flex;align-items:center;gap:8px;background:var(--surf);border:1px solid var(--border);
+  border-radius:8px;padding:8px 10px;font-size:11.5px;margin-bottom:7px}
+.fieldrow .lab{color:var(--dim);width:52px}
+.fieldrow .val{flex:1;background:var(--surf2);border:1px solid var(--border);border-radius:6px;
+  padding:3px 9px;color:var(--text)}
+.fieldrow .clr{border:1px solid rgba(224,133,127,.5);color:#f0a3a0;border-radius:6px;
+  padding:3px 9px;font-size:11px}
+.ba{display:flex;gap:12px;align-items:stretch}
+.ba > div{flex:1}
+.ba .h{font-size:10px;letter-spacing:.05em;text-transform:uppercase;font-weight:600;margin-bottom:6px}
+.ba .h.was{color:var(--bad)} .ba .h.now{color:#7fd0a8}
+.box{background:var(--surf);border:1px solid var(--border);border-radius:8px;padding:8px 10px;
+  font-size:11.5px;color:var(--dim);min-height:64px;line-height:1.5}
+.box .grow{border:1px dashed rgba(77,139,255,.5);border-radius:6px;padding:6px 8px;color:var(--text)}
+.foot{border-top:1px solid #262b34;padding-top:15px;margin-top:26px;font-size:11.5px;
+  color:var(--dim);line-height:1.7}
+.foot b{color:var(--text)}
+</style></head><body>
+
+<h1>Eleven things &mdash; what I found, and what I would do</h1>
+<p class="sub">nothing built yet &middot; three of them I could not reproduce on the data I have here, and I say so rather than guess</p>
+
+<table>
+  <tr><th>#</th><th>What you said</th><th>What I found</th><th>What I would do</th><th></th></tr>
+  <tr>
+      <td class="n"><span>1</span></td>
+      <td class="said">The link works in Safari and IE but not Chrome.</td>
+      <td class="found">Chrome refuses a <span class="px">file://</span> navigation started from another app, and it treats a bare <span class="px">127.0.0.1:8787</span> as a search. Safari does not.</td>
+      <td class="plan">Stop relying on a local link. Publish the preview to <b class="hl">the same https site as the planner</b> — <span class="px">…/planner/preview/</span>. One URL, works in every browser, nothing to keep running.</td>
+      <td class="st"><span class="chip g">ready</span></td>
+    </tr><tr>
+      <td class="n"><span>2</span></td>
+      <td class="said">A login page, then the planner.</td>
+      <td class="found">The app has <i>Connect GitHub / Sign in to sync</i>, but nothing gates the planner itself.</td>
+      <td class="plan">A proper sign-in page that hands off to the planner. <b class="am">One thing to know before you pick this:</b> a login drawn in the page is a curtain, not a lock — anyone can read the file. Real protection means gating on the sync account you already have. I would build it that way.</td>
+      <td class="st"><span class="chip a">your call</span></td>
+    </tr><tr>
+      <td class="n"><span>3</span></td>
+      <td class="said">Remove a date on a task; branches need no due date.</td>
+      <td class="found">There <b>is</b> a clear — a small <span class="px">×</span> on the date chip in the tree. It is not in the <b>Edit</b> dialog, which is where you looked.</td>
+      <td class="plan">Put <b class="hl">Clear date</b> in the Edit dialog next to the date, for tasks and branches alike. Clearing takes it off the calendar and leaves it in the tree, undated. Nothing is deleted.</td>
+      <td class="st"><span class="chip g">ready</span></td>
+    </tr><tr>
+      <td class="n"><span>4</span></td>
+      <td class="said">Something I updated came back as missed today.</td>
+      <td class="found">Not yet reproduced — I need to see it happen on your data. My suspicion is a completed-for-today mark being read against the wrong day.</td>
+      <td class="plan">Instrument it in the app so the next time it happens I can see which day it compared against, then fix the comparison. I would rather find it than guess.</td>
+      <td class="st"><span class="chip r">need your data</span></td>
+    </tr><tr>
+      <td class="n"><span>5</span></td>
+      <td class="said">The clock sign should use the nice calendar.</td>
+      <td class="found">Two different controls: the due date opens the two-month picker, the alarm opens only the time spinner.</td>
+      <td class="plan">Give the clock the <b class="hl">same picker</b> — date on the left, time on the right, one control everywhere.</td>
+      <td class="st"><span class="chip g">ready</span></td>
+    </tr><tr>
+      <td class="n"><span>6</span></td>
+      <td class="said">The read section duplicates — top and bottom.</td>
+      <td class="found">Not reproduced yet. Typing in a tree title did not duplicate a row in my test, so it is something more specific to that item.</td>
+      <td class="plan">Reproduce from your real data first. If it is what I think — a row drawn once by the tree and again by a later painter — the fix is one owner for that row.</td>
+      <td class="st"><span class="chip r">need your data</span></td>
+    </tr><tr>
+      <td class="n"><span>7</span></td>
+      <td class="said">Split habits and routines.</td>
+      <td class="found">A routines engine already exists and routines already appear on the calendar. There is <b>no UI</b> for them — no way to see or set one up.</td>
+      <td class="plan">A <b class="hl">Routines</b> tab beside Habits, top left of that pane, with the set-up living there. Both listed in the Location section.</td>
+      <td class="st"><span class="chip g">ready</span></td>
+    </tr><tr>
+      <td class="n"><span>8</span></td>
+      <td class="said">Saving in focus mode flickers the other tabs.</td>
+      <td class="found">Almost certainly the same repaint I added for focus sessions — a save fires a change event and every pane redraws.</td>
+      <td class="plan">Repaint <b class="hl">only the pane you are looking at</b>, not all of them.</td>
+      <td class="st"><span class="chip g">ready</span></td>
+    </tr><tr>
+      <td class="n"><span>9</span></td>
+      <td class="said">In the journal, expanding a box snaps back when I stop typing.</td>
+      <td class="found">This one is mine. A repaint rebuilds the box from scratch, so your drag-resize — and the cursor — are thrown away.</td>
+      <td class="plan">Never rebuild a field you are typing in. Update the page around it and leave the focused box alone.</td>
+      <td class="st"><span class="chip g">ready</span></td>
+    </tr><tr>
+      <td class="n"><span>10</span></td>
+      <td class="said">A link in notes turns into plain words.</td>
+      <td class="found">Notes are stored and drawn as plain text, so a URL is just characters.</td>
+      <td class="plan">Draw links as links while <b>keeping what you typed</b> exactly as typed. Clickable, still editable.</td>
+      <td class="st"><span class="chip g">ready</span></td>
+    </tr><tr>
+      <td class="n"><span>11</span></td>
+      <td class="said">Movies shows SEP 26 ten times over.</td>
+      <td class="found">Could not reproduce — the export on this machine has no Movies task, so I am looking at stale data.</td>
+      <td class="plan">A chip appended each time instead of replaced would do exactly this. I will reproduce it on your data and fix the redraw, not paper over the text.</td>
+      <td class="st"><span class="chip r">need your data</span></td>
+    </tr>
+</table>
+
+<h2>The three worth a picture</h2>
+<div class="row">
+  <div class="pic">
+    <div class="t">3 &middot; clearing a date</div>
+    <div class="fieldrow"><span class="lab">Date</span><span class="val">Sep 26</span>
+      <span class="clr">Clear</span></div>
+    <div class="fieldrow"><span class="lab">Time</span><span class="val">09:00</span>
+      <span class="clr">Clear</span></div>
+    <div class="cap">In the Edit dialog, where you looked for it. Clearing drops it off the
+      calendar and leaves it in the tree with no date. Works on a branch too.</div>
+  </div>
+  <div class="pic">
+    <div class="t">7 &middot; habits and routines</div>
+    <div class="bar"><span class="tabx on">Habits</span><span class="tabx">Routines</span></div>
+    <div class="cap">A tab beside Habits, top left of that pane. The routines engine already
+      exists and they already draw on the calendar &mdash; there has never been anywhere to
+      see or set one up. Both appear in the Location list.</div>
+  </div>
+  <div class="pic">
+    <div class="t">9 &middot; the box that snaps back</div>
+    <div class="ba">
+      <div><div class="h was">Now</div><div class="box">you drag it taller, type, stop &mdash;
+        and it jumps back to one line</div></div>
+      <div><div class="h now">Fixed</div><div class="box"><div class="grow">stays where you
+        put it, cursor kept</div></div></div>
+    </div>
+    <div class="cap">Mine. A repaint rebuilds the box from scratch. The fix is to never
+      rebuild a field you are typing in.</div>
+  </div>
+</div>
+
+<div class="foot">
+  <b>Seven are ready to build.</b> <b>2</b> needs a decision from you first &mdash; whether the
+  login should be a page-level curtain or gated on the sync account you already have. I would
+  do the second; the first stops nobody who can open the file.
+  <div style="margin-top:10px"><b>4, 6 and 11 I could not reproduce.</b> The export on this
+  machine has no Movies task, so I am looking at stale data. Rather than guess at a fix, I
+  would add a small diagnostic to the app for those three, and catch them the next time they
+  happen on your copy. Guessing here risks a fix that hides the fault instead of removing it.</div>
+  <div style="margin-top:10px">Say which numbers and I will start. If you want them all, I
+  will do the seven ready ones first and come back to you on 2.</div>
+</div>
+</body></html>
