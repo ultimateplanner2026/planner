@@ -5189,7 +5189,7 @@ html:root #treeRoot .tree-row:not([data-depth="0"]){ height:32px !important; min
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-09-11 01:45</span>
+    <span id="buildStamp">build 2026-09-11 02:05</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -28317,6 +28317,23 @@ body[data-fb="on"] .fb-band { display: block; }
 #snRoot .lead .stem{color:var(--sdim);font-size:13px;white-space:nowrap}
 #snRoot .lead input{flex:1;min-width:180px}
 
+#snRoot .yday{border:1px solid var(--sline);border-radius:10px;background:var(--ssurf);
+  padding:12px 13px;margin-bottom:18px}
+#snRoot .yday h4{margin:0 0 9px;font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;
+  color:var(--st3);font-weight:600}
+#snRoot .yday ul{margin:0;padding:0;list-style:none}
+#snRoot .yday li{display:flex;align-items:center;gap:9px;font-size:12.5px;color:var(--sdim);padding:4px 0}
+#snRoot .yday .ic{width:15px;text-align:center;color:var(--st3);font-size:11px;flex:0 0 15px}
+#snRoot .yday em{font-style:normal;color:var(--stext);font-weight:600}
+#snRoot .yday .none{color:var(--st3);font-size:12px;line-height:1.5}
+#snRoot .moodrow{display:flex;align-items:center;gap:9px;margin-top:11px;padding-top:10px;
+  border-top:1px solid #1e222a;font-size:12px;color:var(--sdim)}
+#snRoot .moodrow .dots{display:flex;gap:6px}
+#snRoot .moodrow button{width:19px;height:19px;border-radius:50%;border:1px solid var(--sline);
+  background:var(--ssurf2);cursor:pointer;padding:0}
+#snRoot .moodrow button:hover{border-color:#4e555f}
+#snRoot .moodrow button.on{border-color:transparent}
+#snRoot .moodrow .lab{margin-left:auto;font-size:11px;color:var(--st3)}
 #snRoot .carry{border:1px solid var(--sline);border-left:3px solid var(--samber);border-radius:10px;
   background:var(--ssurf);padding:12px 13px;margin-bottom:18px}
 #snRoot .carry.answered{border-left-color:var(--sline)}
@@ -28449,6 +28466,7 @@ body[data-fb="on"] .fb-band { display: block; }
 
   function blank() {
     return { well:'', better:'', identity:'', iff:'', then:'', vis:'', steps:[''], by:'',
+             mood:null,
              must:false, outcome:'', answeredOn:'', recommit:'', recommitNote:'', paused:false };
   }
   function entry(k) {
@@ -28633,6 +28651,7 @@ body[data-fb="on"] .fb-band { display: block; }
       'This day is paused. Nothing here is carried forward or counted as a broken commitment.'));
 
     wrap.appendChild(buildCarry());
+    wrap.appendChild(buildYourDay());
 
     /* anything written in the old journal is shown, never overwritten */
     if (e.text && String(e.text).trim()) {
@@ -28761,6 +28780,111 @@ body[data-fb="on"] .fb-band { display: block; }
     else if (st === 'late') { h.className = 'pill late'; h.textContent = 'overdue'; }
     else if (st === 'due') { h.className = 'pill due'; h.textContent = 'due today'; }
     else { h.className = 'pill later'; h.textContent = 'due ' + shortLabel(e.by); }
+  }
+
+  /* ---------- what you actually did that day ----------
+     Designed with the very first journal proposal and never built - the one thing a journal
+     inside a planner can do that a notes app cannot. It reads only what the app already
+     records; nothing new is stored.
+     Two honesty notes, because a label has to match what the data really is:
+      - the app records THAT a task is done, never WHEN. So this counts tasks DATED that day
+        which are ticked. It is not "finished today", and saying so would be a lie the
+        operator could not see from the outside.
+      - focus hours are hours SET ASIDE, not hours spent. */
+  var MOODS = ['#e0857f', '#d98c2b', '#8d94a0', '#7fb069', '#22a06b'];
+  var MOODWORD = ['Rough', 'Hard', 'Middling', 'Good', 'Very good'];
+  function toMinOf(t) { var q = String(t || '').split(':');
+    return (parseInt(q[0], 10) || 0) * 60 + (parseInt(q[1], 10) || 0); }
+  function appliesToDay(b, iso) {
+    if (!b) return false;
+    if (b.date) return b.date === iso;
+    if (!b.days || !b.days.length) return true;
+    var q = String(iso).split('-');
+    var dw = new Date(+q[0], +q[1] - 1, +q[2]).getDay(), i;
+    for (i = 0; i < b.days.length; i++) if (b.days[i] === dw) return true;
+    return false;
+  }
+  function minutesSetAside(iso) {
+    var d = S(), list = (d && d.focusBlocks) || [], mins = 0, i;
+    for (i = 0; i < list.length; i++) {
+      if (!appliesToDay(list[i], iso)) continue;
+      mins += Math.max(0, toMinOf(list[i].to) - toMinOf(list[i].from));
+    }
+    return mins;
+  }
+  function tasksOn(iso) {
+    var out = { done: 0, total: 0, top: '' };
+    if (!window.walkTree) return out;
+    var d = S(), tops = (d && d.tree) || [], counts = {}, i;
+    for (i = 0; i < tops.length; i++) {
+      (function (branch) {
+        (function rec(n) {
+          if (n && n.date === iso) {
+            out.total++;
+            if (n.done || n.completed) out.done++;
+            var t = branch.title || '';
+            if (t) counts[t] = (counts[t] || 0) + 1;
+          }
+          var k = (n && n.children) || [], j;
+          for (j = 0; j < k.length; j++) rec(k[j]);
+        })(branch);
+      })(tops[i]);
+    }
+    var best = 0, k2;
+    for (k2 in counts) if (counts[k2] > best) { best = counts[k2]; out.top = k2; }
+    return out;
+  }
+  function habitsOn(iso) {
+    var d = S(), log = (d && d.habitLog) || {}, held = 0, total = 0, k;
+    for (k in log) { total++; if (log[k] && log[k][iso]) held++; }
+    return { held: held, total: total };
+  }
+
+  function buildYourDay() {
+    var box = el('div', 'yday');
+    box.appendChild(el('h4', '', 'Your day'));
+    var t = tasksOn(day), mins = minutesSetAside(day), h = habitsOn(day);
+    var ul = document.createElement('ul'), any = false;
+    function li(icon, strong, rest) {
+      var e = document.createElement('li');
+      e.appendChild(el('span', 'ic', icon));
+      e.appendChild(el('em', '', strong));
+      e.appendChild(document.createTextNode(' ' + rest));
+      ul.appendChild(e); any = true;
+    }
+    if (t.total) li('\u2713', t.done + ' of ' + t.total, 'tasks dated this day are ticked');
+    if (mins) {
+      var hh = Math.floor(mins / 60), mm = mins % 60;
+      li('\u25f7', (hh ? hh + 'h' : '') + (mm ? (hh ? ' ' : '') + mm + 'm' : ''), 'set aside for focus');
+    }
+    if (h.total) li('\u25cf', h.held + ' of ' + h.total, 'habits held');
+    if (t.top) li('\u25cb', t.top, 'had the most on');
+    if (any) box.appendChild(ul);
+    else box.appendChild(el('div', 'none',
+      'Nothing was scheduled for this day \u2014 no dated tasks, no focus sessions, no habits.'));
+
+    var e0 = entry(day);
+    var row = el('div', 'moodrow');
+    row.appendChild(el('span', '', 'How was it?'));
+    var dots = el('div', 'dots');
+    for (var i = 0; i < 5; i++) {
+      (function (n) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.title = MOODWORD[n];
+        if (Number(e0.mood) === n + 1) { b.className = 'on'; b.style.background = MOODS[n]; }
+        b.addEventListener('click', function () {
+          var cur = Number(entry(day).mood);
+          put(day, { mood: (cur === n + 1) ? null : (n + 1) });
+          save(); flashSaved(); draw(true);
+        });
+        dots.appendChild(b);
+      })(i);
+    }
+    row.appendChild(dots);
+    row.appendChild(el('span', 'lab', e0.mood ? MOODWORD[Number(e0.mood) - 1] : ''));
+    box.appendChild(row);
+    return box;
   }
 
   function buildCarry() {
