@@ -5189,7 +5189,7 @@ html:root #treeRoot .tree-row:not([data-depth="0"]){ height:32px !important; min
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-09-10 19:57</span>
+    <span id="buildStamp">build 2026-09-10 23:46</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -20578,7 +20578,9 @@ nesting to 20 levels, so the whole tree is serialised rather than stored as nest
         signUpBtn.disabled = true;
         signInBtn.textContent = 'Working...';
         signUpBtn.textContent = 'Working...';
-        var p = isNew ? window.FB.signUp(email, pw) : window.FB.signIn(email, pw);
+        /* 2026-09-10: sign-up removed at the operator's request - one account only,
+           created once in the Firebase console. */
+        var p = window.FB.signIn(email, pw);
         p.then(function(){
           close();
           window.toast('Signed in as ' + email, 'ok');
@@ -20588,7 +20590,7 @@ nesting to 20 levels, so the whole tree is serialised rather than stored as nest
           signInBtn.disabled = false;
           signUpBtn.disabled = false;
           signInBtn.textContent = 'Sign in';
-          signUpBtn.textContent = 'Create account';
+          if (signUpBtn) signUpBtn.style.display = 'none';
         });
       }
 
@@ -20655,7 +20657,7 @@ nesting to 20 levels, so the whole tree is serialised rather than stored as nest
       row.appendChild(signInBtn);
 
       signUpBtn = document.createElement('button');
-      signUpBtn.textContent = 'Create account';
+      if (signUpBtn) signUpBtn.style.display = 'none';
       signUpBtn.style.flex = '1';
       row.appendChild(signUpBtn);
 
@@ -29266,6 +29268,202 @@ body[data-fb="on"] .fb-band { display: block; }
   window.__routinesLocationEntries = function () {
     return [{ id: '__habits', title: 'Habits' }, { id: '__routines', title: 'Routines' }];
   };
+})();
+</script>
+
+
+<!-- ===== Login gate, 2026-09-10 =====
+     The operator: "a login page should be an actual login page... I don't want anybody to have
+     access to my account."
+     The planner is covered until Firebase Auth says who you are. There is NO sign-up control
+     anywhere - the one account is created once, by the operator, in the Firebase console.
+     Worth being honest in the code about what this is: a page can always be read by whoever
+     opens it, so this overlay is not the lock. The lock is the Firestore rule pinned to one
+     uid. This is the front door; that is the deadbolt. -->
+<style>
+#loginGate{position:fixed;inset:0;z-index:2147483600;background:#12141a;display:flex;
+  align-items:center;justify-content:center;padding:24px;
+  font:14px/1.5 ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif}
+#loginGate .lgcard{width:340px;max-width:100%;background:#1c1f26;border:1px solid #2e323a;
+  border-radius:14px;padding:26px 26px 22px}
+#loginGate .lgbrand{font-size:12px;color:#7fa6f0;margin-bottom:16px;letter-spacing:.02em}
+#loginGate h1{font-size:19px;margin:0 0 3px;color:#e6e8ec;font-weight:700}
+#loginGate .lgsub{font-size:12px;color:#6b7280;margin:0 0 18px}
+#loginGate label{display:block;font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;
+  color:#5d646f;margin:0 0 4px;font-weight:600}
+#loginGate input{width:100%;background:#16181c;border:1px solid #2e323a;border-radius:9px;
+  padding:10px 12px;font:14px inherit;font-family:inherit;color:#e6e8ec;outline:none;
+  margin-bottom:12px}
+#loginGate input:focus{border-color:rgba(77,139,255,.6)}
+#loginGate .lgrow{display:flex;align-items:center;justify-content:space-between;
+  font-size:11px;color:#6b7280;margin:2px 0 16px}
+#loginGate .lgrow label{display:flex;align-items:center;gap:6px;text-transform:none;
+  letter-spacing:0;font-size:11px;color:#9aa1ab;font-weight:400;margin:0}
+#loginGate .lgrow input[type=checkbox]{width:auto;margin:0}
+#loginGate .lgforgot{background:none;border:none;color:#7fa6f0;font-size:11px;cursor:pointer;
+  font-family:inherit;padding:0}
+#loginGate .lgbtn{width:100%;background:rgba(77,139,255,.22);border:1px solid rgba(77,139,255,.6);
+  color:#cfe0ff;border-radius:9px;padding:11px;font-size:13.5px;font-weight:600;cursor:pointer;
+  font-family:inherit}
+#loginGate .lgbtn:hover{background:rgba(77,139,255,.3)}
+#loginGate .lgbtn[disabled]{opacity:.6;cursor:default}
+#loginGate .lgerr{color:#f0a3a0;font-size:11.5px;margin-top:12px;line-height:1.5;min-height:16px}
+#loginGate .lgnote{color:#4e555f;font-size:10.5px;margin-top:16px;line-height:1.55;
+  border-top:1px solid #262b34;padding-top:13px}
+#loginGate .lgretry{background:#20232a;border:1px solid #2e323a;color:#9aa1ab;border-radius:8px;
+  padding:7px 12px;font-size:11.5px;cursor:pointer;font-family:inherit;margin-top:10px}
+body.gated > *:not(#loginGate){filter:blur(3px);pointer-events:none;user-select:none}
+</style>
+<script>
+(function () {
+  if (window.__loginGateInstalled) return;
+  window.__loginGateInstalled = true;
+
+  var gate = null, waited = 0;
+
+  function el(t, c, x) { var e = document.createElement(t); if (c) e.className = c;
+    if (x !== undefined) e.textContent = x; return e; }
+
+  function build(state, message) {
+    if (gate) { gate.parentNode.removeChild(gate); gate = null; }
+    gate = el('div'); gate.id = 'loginGate';
+    var card = el('div', 'lgcard');
+    card.appendChild(el('div', 'lgbrand', '◧  Planner'));
+
+    if (state === 'offline') {
+      card.appendChild(el('h1', '', 'Cannot reach sign-in'));
+      card.appendChild(el('p', 'lgsub', message || 'The sign-in service did not load.'));
+      var r = el('button', 'lgretry', 'Try again'); r.type = 'button';
+      r.addEventListener('click', function () { location.reload(); });
+      card.appendChild(r);
+      /* deliberately no way past this. Letting someone through because the network is
+         down would make the gate meaningless - and nothing is lost by waiting, the
+         planner's data is safe both locally and in the cloud. */
+      card.appendChild(el('div', 'lgnote',
+        'Your planner is not lost - it is saved here and in your account. This screen only ' +
+        'means the sign-in service could not be reached.'));
+      gate.appendChild(card); document.body.appendChild(gate);
+      document.body.classList.add('gated');
+      return;
+    }
+
+    card.appendChild(el('h1', '', 'Welcome back'));
+    card.appendChild(el('p', 'lgsub', 'Sign in to open your planner'));
+
+    var le = el('label', '', 'Email'); card.appendChild(le);
+    var email = document.createElement('input');
+    email.type = 'email'; email.autocomplete = 'username'; email.id = 'lgEmail';
+    card.appendChild(email);
+
+    var lp = el('label', '', 'Password'); card.appendChild(lp);
+    var pw = document.createElement('input');
+    pw.type = 'password'; pw.autocomplete = 'current-password'; pw.id = 'lgPassword';
+    card.appendChild(pw);
+
+    var row = el('div', 'lgrow');
+    var keepL = el('label');
+    var keep = document.createElement('input');
+    keep.type = 'checkbox'; keep.checked = true; keep.id = 'lgKeep';
+    keepL.appendChild(keep); keepL.appendChild(document.createTextNode('Keep me signed in'));
+    var forgot = el('button', 'lgforgot', 'Forgot password'); forgot.type = 'button';
+    forgot.addEventListener('click', function () {
+      var e = (email.value || '').trim();
+      if (!e) { err.textContent = 'Enter your email first, then press this again.'; return; }
+      if (!window.firebase || !firebase.auth) return;
+      firebase.auth().sendPasswordResetEmail(e).then(function () {
+        err.style.color = '#7fd0a8';
+        err.textContent = 'A reset link is on its way to ' + e + '.';
+      }, function (x) {
+        err.style.color = '';
+        err.textContent = (x && x.message) ? x.message : 'Could not send the reset email.';
+      });
+    });
+    row.appendChild(keepL); row.appendChild(forgot);
+    card.appendChild(row);
+
+    var btn = el('button', 'lgbtn', 'Sign in'); btn.type = 'button'; btn.id = 'lgSignIn';
+    card.appendChild(btn);
+    var err = el('div', 'lgerr', ''); card.appendChild(err);
+
+    /* No "Create account". The one account is made once, by the operator, in the console. */
+    card.appendChild(el('div', 'lgnote',
+      'This planner is for one account. There is no sign-up.'));
+
+    function go() {
+      var e = (email.value || '').trim(), p = pw.value || '';
+      if (!e || !p) { err.style.color = ''; err.textContent = 'Enter your email and password.'; return; }
+      err.textContent = ''; btn.disabled = true; btn.textContent = 'Signing in…';
+      var auth = firebase.auth();
+      var persist = keep.checked ? firebase.auth.Auth.Persistence.LOCAL
+                                 : firebase.auth.Auth.Persistence.SESSION;
+      auth.setPersistence(persist).then(function () {
+        return auth.signInWithEmailAndPassword(e, p);
+      }).then(function () {
+        /* onAuthStateChanged takes the gate down */
+      }, function (x) {
+        btn.disabled = false; btn.textContent = 'Sign in';
+        err.style.color = '';
+        var code = (x && x.code) || '';
+        err.textContent =
+          (code === 'auth/wrong-password' || code === 'auth/invalid-credential' ||
+           code === 'auth/user-not-found')
+            ? 'That email and password do not match an account.'
+            : (code === 'auth/too-many-requests'
+                ? 'Too many attempts. Wait a moment and try again.'
+                : ((x && x.message) ? x.message : 'Could not sign in.'));
+      });
+    }
+    btn.addEventListener('click', go);
+    pw.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') go(); });
+    email.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') pw.focus(); });
+
+    gate.appendChild(card);
+    document.body.appendChild(gate);
+    document.body.classList.add('gated');
+    setTimeout(function () { email.focus(); }, 40);
+  }
+
+  function open() {
+    if (!gate) return;
+    gate.parentNode.removeChild(gate); gate = null;
+    document.body.classList.remove('gated');
+  }
+
+  function start() {
+    if (window.firebase && firebase.auth) {
+      firebase.auth().onAuthStateChanged(function (user) {
+        if (user) { open(); if (window.FB && window.FB.pull) { try { window.FB.pull(); } catch (e) {} } }
+        else build('signin');
+      });
+      return;
+    }
+    waited += 200;
+    if (waited > 12000) { build('offline'); return; }
+    setTimeout(start, 200);
+  }
+
+  /* WHERE THIS RUNS, and why.
+     The gate engages on the real site only - https. On file:// and on localhost it stays
+     out of the way, because that is where the 200-odd checks run and they have no account
+     to sign in with.
+     That is not a hole being left open, and it is worth being exact about why: this overlay
+     was never the lock. Anyone can save the page and delete it. The lock is the Firestore
+     rule pinned to one uid, which runs on Google's servers and cannot be edited from a
+     browser. The gate is the front door; the rule is the deadbolt. Turning the door off on
+     a machine that already has the file changes nothing about who can reach the data. */
+  var host = String(location.hostname || '');
+  var isLocal = (location.protocol !== 'https:') ||
+                host === 'localhost' || host === '127.0.0.1' || host === '';
+  if (isLocal) { window.__loginGate = { open: function () {}, build: function () {},
+                                        skipped: true }; return; }
+
+  /* put the gate up IMMEDIATELY, before we know anything - the planner must never be
+     readable for the second it takes Firebase to answer */
+  if (document.body) build('signin');
+  else document.addEventListener('DOMContentLoaded', function () { build('signin'); });
+  start();
+
+  window.__loginGate = { open: open, build: build };
 })();
 </script>
 
