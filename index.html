@@ -5189,7 +5189,7 @@ html:root #treeRoot .tree-row:not([data-depth="0"]){ height:32px !important; min
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-09-11 02:05</span>
+    <span id="buildStamp">build 2026-09-11 15:37</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -11332,6 +11332,7 @@ function surfaceArrivals() {
       if (d) {
         var next = (Number(d.clock) || 0) + 1;
         node.clock = next;
+        node.at = Date.now();      /* real time, for the same reason as winner() */
         d.clock = next;
         if (d.deviceId) node.by = d.deviceId;
       }
@@ -14046,8 +14047,10 @@ function firstConnect(remote, rAt, lAt) {
       if (!c.map.hasOwnProperty(id)) continue;
       e = c.map[id];
       h = hashOf(e.node);
-      if (!e.node.clock) { next = next + 1; e.node.clock = next; e.node.by = dev; hashes[id] = h; continue; }
-      if (hashes[id] !== undefined && hashes[id] !== h) { next = next + 1; e.node.clock = next; e.node.by = dev; }
+      if (!e.node.clock) { next = next + 1; e.node.clock = next; e.node.by = dev;
+        e.node.at = Date.now(); hashes[id] = h; continue; }
+      if (hashes[id] !== undefined && hashes[id] !== h) { next = next + 1; e.node.clock = next;
+        e.node.by = dev; e.node.at = Date.now(); }
       hashes[id] = h;
     }
     d.clock = next; d.deviceId = dev; d.version = 3;
@@ -14056,6 +14059,23 @@ function firstConnect(remote, rAt, lAt) {
   function winner(a, b) {
     if (!a) return b;
     if (!b) return a;
+    /* 2026-09-11 - THE STALE BROWSER BUG.
+       `clock` is a per-device COUNTER, not a time. A browser that made 900 edits back in
+       August carries a higher counter than a machine that made 12 edits this morning, so
+       the old copy won every comparison - and then got pushed up over the good one.
+       Measured before the fix: a document stamped Aug 1 with clock 900 beat one stamped
+       minutes ago with clock 12, in BOTH merge directions.
+       Real time decides now, whenever both sides carry it. Nodes written before this have
+       no `at`, so those fall back to the counter exactly as before - the change can only
+       help, never make an existing comparison worse. */
+    var ta = Number(a.node.at) || 0, tb = Number(b.node.at) || 0;
+    if (ta && tb && ta !== tb) { return ta > tb ? a : b; }
+    /* One side carries a real time and the other does not. The one that has been written
+       since this shipped is the more recent by definition, and this has to be decided
+       BEFORE the counter - otherwise a stale node with a big counter still wins, which is
+       the whole bug. A check caught exactly that ordering. */
+    if (ta && !tb) return a;
+    if (tb && !ta) return b;
     var ca = Number(a.node.clock) || 0, cb = Number(b.node.clock) || 0;
     if (ca !== cb) { return ca > cb ? a : b; }
     var da = String(a.node.by || ''), db = String(b.node.by || '');
@@ -14174,7 +14194,12 @@ function firstConnect(remote, rAt, lAt) {
       return res;
     }
     var merged = {}, key;
-    var src = (Number(remote.clock) || 0) > (Number(local.clock) || 0) ? remote : local;
+    /* same flaw at document level: this picked whichever side had the bigger counter.
+       Real time first, counter only when one side has no time. */
+    var lt = Date.parse(local.updatedAt || '') || 0, rt = Date.parse(remote.updatedAt || '') || 0;
+    var src;
+    if (lt && rt && lt !== rt) src = (rt > lt) ? remote : local;
+    else src = (Number(remote.clock) || 0) > (Number(local.clock) || 0) ? remote : local;
     // Start from LOCAL so no key can vanish. Taking only the winner's keys
     // dropped whatever the other side happened not to have - journal, habitLog,
     // timeLog - and renderAll then threw on the missing object, aborting the
