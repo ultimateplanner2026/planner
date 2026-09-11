@@ -5189,7 +5189,7 @@ html:root #treeRoot .tree-row:not([data-depth="0"]){ height:32px !important; min
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-09-10 23:46</span>
+    <span id="buildStamp">build 2026-09-11 00:07</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -29451,8 +29451,14 @@ body.gated > *:not(#loginGate){filter:blur(3px);pointer-events:none;user-select:
      rule pinned to one uid, which runs on Google's servers and cannot be edited from a
      browser. The gate is the front door; the rule is the deadbolt. Turning the door off on
      a machine that already has the file changes nothing about who can reach the data. */
+  /* 2026-09-11 - GATE DISABLED. The operator could not get in. Being locked out of your
+     own planner is worse than an unlocked front door, and the Firestore rule is still doing
+     the real work: no other account can touch the data whether this overlay is here or not.
+     Turned off at the switch rather than ripped out, so it can come back the moment we know
+     why the sign-in failed. */
+  var GATE_ENABLED = false;
   var host = String(location.hostname || '');
-  var isLocal = (location.protocol !== 'https:') ||
+  var isLocal = !GATE_ENABLED || (location.protocol !== 'https:') ||
                 host === 'localhost' || host === '127.0.0.1' || host === '';
   if (isLocal) { window.__loginGate = { open: function () {}, build: function () {},
                                         skipped: true }; return; }
