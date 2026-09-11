@@ -5189,7 +5189,7 @@ html:root #treeRoot .tree-row:not([data-depth="0"]){ height:32px !important; min
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-09-11 01:26</span>
+    <span id="buildStamp">build 2026-09-11 01:45</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -28544,8 +28544,8 @@ body[data-fb="on"] .fb-band { display: block; }
     var tabs = el('div', 'tabs');
     var tD = el('button', 'stab' + (tab === 'daily' ? ' on' : ''), 'Daily'); tD.type = 'button';
     var tN = el('button', 'stab' + (tab === 'notes' ? ' on' : ''), 'Notes'); tN.type = 'button';
-    tD.addEventListener('click', function () { tab = 'daily'; draw(); });
-    tN.addEventListener('click', function () { tab = 'notes'; draw(); });
+    tD.addEventListener('click', function () { tab = 'daily'; draw(true); });
+    tN.addEventListener('click', function () { tab = 'notes'; draw(true); });
     tabs.appendChild(tD); tabs.appendChild(tN);
     wrap.appendChild(tabs);
 
@@ -28554,9 +28554,9 @@ body[data-fb="on"] .fb-band { display: block; }
       var bp = el('button', '', '◀'); bp.type = 'button';
       var bt = el('button', '', 'Today'); bt.type = 'button';
       var bn = el('button', '', '▶'); bn.type = 'button';
-      bp.addEventListener('click', function () { day = shift(day, -1); draw(); });
-      bn.addEventListener('click', function () { day = shift(day, 1); draw(); });
-      bt.addEventListener('click', function () { day = today(); draw(); });
+      bp.addEventListener('click', function () { day = shift(day, -1); draw(true); });
+      bn.addEventListener('click', function () { day = shift(day, 1); draw(true); });
+      bt.addEventListener('click', function () { day = today(); draw(true); });
       nav.appendChild(bp); nav.appendChild(bt);
       nav.appendChild(el('span', 'date', label(day)));
       nav.appendChild(bn);
@@ -28565,7 +28565,7 @@ body[data-fb="on"] .fb-band { display: block; }
       var bpz = el('button', e0.paused ? 'on' : '', e0.paused ? 'Paused' : 'Pause day');
       bpz.type = 'button'; bpz.id = 'jPause';
       bpz.addEventListener('click', function () {
-        put(day, { paused: !entry(day).paused }); save(); flashSaved(); draw();
+        put(day, { paused: !entry(day).paused }); save(); flashSaved(); draw(true);
       });
       nav.appendChild(bpz);
     } else {
@@ -28573,7 +28573,7 @@ body[data-fb="on"] .fb-band { display: block; }
       bnew.addEventListener('click', function () {
         var n = notes(), id = uid();
         n[id] = { id:id, title:'', body:'', updatedAt:new Date().toISOString() };
-        openNote = id; save(); flashSaved(); draw();
+        openNote = id; save(); flashSaved(); draw(true);
         var f = document.querySelector('#snRoot .note-card.open .bd input'); if (f) f.focus();
       });
       nav.appendChild(bnew);
@@ -28684,7 +28684,7 @@ body[data-fb="on"] .fb-band { display: block; }
     var by = el('div', 'by');
     by.appendChild(el('span', 'First step done by'));
     var din = document.createElement('input'); din.type = 'date'; din.id = 'jBy'; din.value = e.by || '';
-    din.addEventListener('change', function () { put(day, { by: din.value }); save(); flashSaved(); draw(); });
+    din.addEventListener('change', function () { put(day, { by: din.value }); save(); flashSaved(); draw(true); });
     by.appendChild(din);
     by.appendChild(el('span', 'pill', '')).id = 'jByHint';
     s6.card.appendChild(by);
@@ -28694,8 +28694,8 @@ body[data-fb="on"] .fb-band { display: block; }
     mr.appendChild(el('span', 'This is a'));
     var bM = el('button', e.must ? 'on' : '', 'Must'); bM.type = 'button';
     var bS = el('button', !e.must ? 'on' : '', 'Should'); bS.type = 'button';
-    bM.addEventListener('click', function () { put(day, { must:true }); save(); flashSaved(); draw(); });
-    bS.addEventListener('click', function () { put(day, { must:false }); save(); flashSaved(); draw(); });
+    bM.addEventListener('click', function () { put(day, { must:true }); save(); flashSaved(); draw(true); });
+    bS.addEventListener('click', function () { put(day, { must:false }); save(); flashSaved(); draw(true); });
     mr.appendChild(bM); mr.appendChild(bS);
     s6.card.appendChild(mr);
     wrap.appendChild(s6);
@@ -28825,7 +28825,7 @@ body[data-fb="on"] .fb-band { display: block; }
       b.appendChild(el('b', '', title));
       b.appendChild(document.createTextNode(sub));
       b.addEventListener('click', function () {
-        pendingKind = kind; pendingNote = note.value; draw();
+        pendingKind = kind; pendingNote = note.value; draw(true);
         var t = document.querySelector('#snRoot .ask textarea'); if (t) t.focus();
       });
       return b;
@@ -28860,7 +28860,7 @@ body[data-fb="on"] .fb-band { display: block; }
       if (!entry(day).by) patch.by = shift(day, 1);
       put(day, patch);
       pending = null; pendingKind = ''; pendingNote = '';
-      save(); flashSaved(); draw();
+      save(); flashSaved(); draw(true);
     });
     ask.appendChild(go);
     return ask;
@@ -28875,10 +28875,10 @@ body[data-fb="on"] .fb-band { display: block; }
     j[c.day].answeredOn = day;
     if (s !== 'again') {
       pending = null; pendingKind = ''; pendingNote = '';
-      save(); flashSaved(); draw(); return;
+      save(); flashSaved(); draw(true); return;
     }
     pending = c; pendingKind = ''; pendingNote = '';
-    save(); flashSaved(); draw();
+    save(); flashSaved(); draw(true);
   }
 
   /* ---------- notes ---------- */
@@ -28914,7 +28914,7 @@ body[data-fb="on"] .fb-band { display: block; }
         var wn = el('span', 'when', n.updatedAt ? shortLabel(String(n.updatedAt).slice(0,10)) : '');
         hd.appendChild(wn);
         hd.addEventListener('click', function () {
-          openNote = (openNote === n.id) ? null : n.id; draw();
+          openNote = (openNote === n.id) ? null : n.id; draw(true);
           if (openNote === n.id) {
             var t = document.querySelector('#snRoot .note-card.open .bd textarea'); if (t) t.focus();
           }
@@ -28941,7 +28941,7 @@ body[data-fb="on"] .fb-band { display: block; }
           if (!window.confirm('Delete this note? It cannot be undone.')) return;
           var store = notes(); delete store[n.id];
           if (openNote === n.id) openNote = null;
-          save(); flashSaved(); draw();
+          save(); flashSaved(); draw(true);
         });
         bd.appendChild(ti2); bd.appendChild(body); bd.appendChild(del);
         card.appendChild(hd); card.appendChild(bd);
@@ -29007,16 +29007,20 @@ body[data-fb="on"] .fb-band { display: block; }
       : 'Notes are not tied to a day.';
   }
 
-  function draw() {
+  function draw(force) {
     var v = document.getElementById('journalView');
     if (!v) return;
     if (!day) day = window.selectedDate || today();
     var root = document.getElementById('snRoot');
-    /* 2026-09-10: never rebuild while a field in here has focus. Rebuilding threw away
-       the operator's drag-resize on a textarea, the caret, and the scroll position - the
-       box "snapped back" the moment they stopped typing. The stats line is cheap and has
-       no focus, so keep that live. */
-    if (root && root.contains(document.activeElement) &&
+    /* 2026-09-10: never rebuild while a field in here has focus. Rebuilding threw away the
+       operator's drag-resize on a textarea, the caret, and the scroll position - the box
+       "snapped back" the moment they stopped typing.
+       2026-09-11: but ONLY for the passive repaints. Pressing a button in here is a
+       deliberate act and must redraw even though focus is still sitting in a field - without
+       the exception, "Carry it forward" and the tab buttons did nothing visible, because the
+       click left focus in the textarea and the redraw was skipped. Four checks caught it.
+       force = a person just did something. No force = the app repainted on its own. */
+    if (!force && root && root.contains(document.activeElement) &&
         document.activeElement !== root) { stats(); return; }
     if (!root || root.parentNode !== v) {
       v.innerHTML = ''; v.style.padding = '0'; v.style.overflow = 'hidden';
