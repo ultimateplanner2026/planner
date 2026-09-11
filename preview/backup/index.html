@@ -1,0 +1,202 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Planner backup — check it</title>
+<style>
+:root{--bg:#16181c;--surf:#1c1f26;--surf2:#20232a;--line:#2e323a;--text:#e6e8ec;
+  --dim:#9aa1ab;--t3:#6b7280;--acc:#4d8bff;--good:#22a06b;--bad:#e0857f;--amber:#d98c2b}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);
+  font:14px/1.55 ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:900px;margin:0 auto;padding:26px 20px 70px}
+h1{font-size:20px;margin:0 0 4px}
+.sub{color:var(--dim);font-size:12.5px;margin:0 0 20px}
+.drop{border:2px dashed var(--line);border-radius:14px;padding:34px 20px;text-align:center;
+  background:var(--surf);cursor:pointer;transition:border-color .15s,background .15s}
+.drop:hover,.drop.over{border-color:rgba(77,139,255,.7);background:#1e222a}
+.drop b{display:block;font-size:15px;margin-bottom:5px}
+.drop span{color:var(--t3);font-size:12px}
+.or{text-align:center;color:#4e555f;font-size:11px;margin:14px 0}
+textarea{width:100%;min-height:90px;background:var(--surf2);border:1px solid var(--line);
+  border-radius:10px;padding:11px 13px;color:var(--text);font:12px ui-monospace,Menlo,monospace;
+  outline:none;resize:vertical}
+textarea:focus{border-color:rgba(77,139,255,.55)}
+button{background:rgba(77,139,255,.2);border:1px solid rgba(77,139,255,.55);color:#cfe0ff;
+  border-radius:9px;padding:9px 16px;font-size:13px;font-weight:600;cursor:pointer;
+  font-family:inherit;margin-top:10px}
+button:hover{background:rgba(77,139,255,.3)}
+.err{color:var(--bad);font-size:12.5px;margin-top:12px;min-height:18px;line-height:1.5}
+.sum{display:none;margin-top:24px}
+.cards{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:18px}
+.card{background:var(--surf);border:1px solid var(--line);border-radius:11px;padding:12px 15px;
+  flex:1 1 150px}
+.card .k{font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:#5d646f;
+  font-weight:600;margin-bottom:5px}
+.card .v{font-size:19px;font-weight:700}
+.card .v.small{font-size:13px;font-weight:600;line-height:1.4}
+h2{font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:#8d94a0;
+  margin:22px 0 10px;font-weight:600}
+.tree{background:var(--surf);border:1px solid var(--line);border-radius:11px;padding:8px 4px}
+.row{display:flex;align-items:baseline;gap:9px;padding:4px 12px;font-size:13px}
+.row:hover{background:var(--surf2)}
+.row .dot{width:7px;height:7px;border-radius:50%;background:var(--acc);flex:0 0 7px;
+  position:relative;top:-1px}
+.row.kid .dot{background:#3f4650}
+.row .t{flex:1;min-width:0}
+.row.done .t{text-decoration:line-through;color:var(--t3)}
+.row .meta{color:#5d646f;font-size:10.5px;white-space:nowrap}
+.row .meta b{color:var(--amber);font-weight:400}
+.more{color:#5d646f;font-size:11.5px;padding:8px 12px}
+.note{color:#4e555f;font-size:11px;margin-top:18px;line-height:1.6;border-top:1px solid #262b34;
+  padding-top:14px}
+.ok{color:#7fd0a8}
+</style></head><body>
+<div class="wrap">
+  <h1>Is this your real planner?</h1>
+  <p class="sub">Open your backup here and read it with your own eyes. Nothing is uploaded —
+    this page runs entirely in your browser and sends nothing anywhere.</p>
+
+  <div class="drop" id="drop">
+    <b>Drop your backup file here</b>
+    <span>or click to choose it — the file Export gives you</span>
+    <input type="file" id="file" accept=".json,.txt,application/json" hidden>
+  </div>
+  <div class="or">or paste it</div>
+  <textarea id="paste" placeholder="Paste the contents of the backup, or the doc field copied out of Firestore"></textarea>
+  <button id="go" type="button">Read it</button>
+  <div class="err" id="err"></div>
+
+  <div class="sum" id="sum">
+    <div class="cards">
+      <div class="card"><div class="k">Last saved</div><div class="v small" id="cWhen">—</div></div>
+      <div class="card"><div class="k">Branches</div><div class="v" id="cBranches">0</div></div>
+      <div class="card"><div class="k">Tasks in total</div><div class="v" id="cTasks">0</div></div>
+      <div class="card"><div class="k">With a date</div><div class="v" id="cDated">0</div></div>
+      <div class="card"><div class="k">Journal entries</div><div class="v" id="cJournal">0</div></div>
+    </div>
+    <h2 id="treeHead">Your tree</h2>
+    <div class="tree" id="tree"></div>
+    <div class="note" id="verdict"></div>
+  </div>
+</div>
+<script>
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+  var MAX = 400;
+
+  function parse(raw) {
+    var text = String(raw || '').trim();
+    if (!text) throw new Error('Nothing to read.');
+    var d;
+    try { d = JSON.parse(text); }
+    catch (e) { throw new Error('That is not readable JSON. Paste the whole file, from the first { to the last }.'); }
+    /* Firestore keeps the whole planner as one JSON STRING in a field called doc, so a
+       copy taken from there arrives wrapped one layer deeper. Unwrap it either way. */
+    if (d && typeof d.doc === 'string') {
+      try { d = JSON.parse(d.doc); } catch (e) { throw new Error('The doc field did not parse.'); }
+    }
+    if (d && d.data && d.data.tree) d = d.data;
+    if (!d || !Array.isArray(d.tree)) {
+      throw new Error('No tree in there. This may be the wrong file — the backup should have a "tree".');
+    }
+    return d;
+  }
+
+  function fmt(v) {
+    if (!v) return 'unknown';
+    var dt = (typeof v === 'number') ? new Date(v) : new Date(String(v));
+    if (isNaN(dt.getTime())) return String(v);
+    var M = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    var h = dt.getHours(), m = ('0' + dt.getMinutes()).slice(-2);
+    return M[dt.getMonth()] + ' ' + dt.getDate() + ', ' + dt.getFullYear() + '  ' + h + ':' + m;
+  }
+
+  function show(d) {
+    var branches = 0, tasks = 0, dated = 0, shown = 0;
+    var tree = $('tree'); tree.textContent = '';
+
+    function walk(list, depth) {
+      for (var i = 0; i < list.length; i++) {
+        var n = list[i];
+        if (!n) continue;
+        tasks++;
+        if (depth === 0) branches++;
+        if (n.date) dated++;
+        if (shown < MAX) {
+          shown++;
+          var row = document.createElement('div');
+          row.className = 'row' + (depth ? ' kid' : '') + (n.done || n.completed ? ' done' : '');
+          row.style.paddingLeft = (12 + depth * 18) + 'px';
+          var dot = document.createElement('span'); dot.className = 'dot';
+          var t = document.createElement('span'); t.className = 't';
+          t.textContent = (n.title && String(n.title).trim()) ? n.title : '(untitled)';
+          var meta = document.createElement('span'); meta.className = 'meta';
+          var bits = [];
+          if (n.date) bits.push(n.date);
+          if (n.time) bits.push(n.time);
+          if (n.repeat) bits.push('repeats');
+          meta.innerHTML = bits.length ? '<b>' + bits.join(' · ') + '</b>' : '';
+          row.appendChild(dot); row.appendChild(t); row.appendChild(meta);
+          tree.appendChild(row);
+        }
+        if (n.children && n.children.length) walk(n.children, depth + 1);
+      }
+    }
+    walk(d.tree, 0);
+
+    if (tasks > shown) {
+      var m = document.createElement('div');
+      m.className = 'more';
+      m.textContent = '… and ' + (tasks - shown) + ' more, not listed here';
+      tree.appendChild(m);
+    }
+
+    var jcount = 0, k;
+    if (d.journal) for (k in d.journal) if (d.journal.hasOwnProperty(k)) jcount++;
+
+    $('cWhen').textContent = fmt(d.updatedAt);
+    $('cBranches').textContent = branches;
+    $('cTasks').textContent = tasks;
+    $('cDated').textContent = dated;
+    $('cJournal').textContent = jcount;
+    $('treeHead').textContent = 'Your tree — ' + branches + ' branches, ' + tasks + ' items';
+
+    var v = $('verdict');
+    v.innerHTML = tasks > 5
+      ? '<span class="ok">There is real work in this file.</span> If the names above are ' +
+        'yours, this is a good backup — keep the file somewhere safe.'
+      : 'This file has very little in it. If your planner has more than this, it is probably ' +
+        'not the right backup.';
+    $('sum').style.display = 'block';
+    $('err').textContent = '';
+  }
+
+  function handle(raw) {
+    try { show(parse(raw)); }
+    catch (e) { $('sum').style.display = 'none'; $('err').textContent = e.message; }
+  }
+
+  $('drop').addEventListener('click', function () { $('file').click(); });
+  $('file').addEventListener('change', function () {
+    var f = this.files && this.files[0]; if (!f) return;
+    var r = new FileReader();
+    r.onload = function () { handle(r.result); };
+    r.readAsText(f);
+  });
+  ['dragenter','dragover'].forEach(function (ev) {
+    $('drop').addEventListener(ev, function (e) { e.preventDefault(); this.classList.add('over'); });
+  });
+  ['dragleave','drop'].forEach(function (ev) {
+    $('drop').addEventListener(ev, function (e) { e.preventDefault(); this.classList.remove('over'); });
+  });
+  $('drop').addEventListener('drop', function (e) {
+    var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if (!f) return;
+    var r = new FileReader();
+    r.onload = function () { handle(r.result); };
+    r.readAsText(f);
+  });
+  $('go').addEventListener('click', function () { handle($('paste').value); });
+})();
+</script>
+</body></html>
