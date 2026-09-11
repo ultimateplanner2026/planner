@@ -5189,7 +5189,7 @@ html:root #treeRoot .tree-row:not([data-depth="0"]){ height:32px !important; min
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-09-10 19:43</span>
+    <span id="buildStamp">build 2026-09-10 19:57</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
@@ -29076,6 +29076,196 @@ body[data-fb="on"] .fb-band { display: block; }
     if (hook()) { if (active()) draw(); return; }
     if (++tries < 60) setTimeout(boot, 200);
   })();
+})();
+</script>
+
+
+<!-- ===== Routines tab, 2026-09-10 =====
+     Approved by the operator: a Routines tab beside Habits, top left of that pane, with the
+     set-up living there; and both listed in the Location section.
+     A routine is a tree node carrying a `repeat` - the engine and the calendar drawing have
+     existed for a while, there has simply never been anywhere to SEE them. -->
+<style>
+#habitsView .rt-tabs{display:flex;gap:4px;margin:0 0 14px}
+#habitsView .rt-tab{background:none;border:1px solid transparent;border-bottom:none;
+  color:var(--text-3,#6b7280);border-radius:8px 8px 0 0;padding:6px 15px;font-size:12.5px;
+  cursor:pointer;font-family:inherit}
+#habitsView .rt-tab:hover{color:var(--text-2,#9aa1ab)}
+#habitsView .rt-tab.on{background:#1c1f26;border-color:#2e323a;color:#e6e8ec;font-weight:600}
+#habitsView .rt-list{display:flex;flex-direction:column;gap:8px}
+#habitsView .rt-row{display:flex;align-items:center;gap:11px;background:#1c1f26;
+  border:1px solid #2e323a;border-radius:10px;padding:10px 12px}
+#habitsView .rt-dot{width:9px;height:9px;border-radius:50%;background:#4d8bff;flex:0 0 9px}
+#habitsView .rt-name{font-size:13px;color:#e6e8ec;flex:1;min-width:0;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+#habitsView .rt-where{font-size:10.5px;color:#5d646f;margin-top:2px}
+#habitsView .rt-when{font-size:11px;color:#9aa1ab;flex:0 0 auto;white-space:nowrap}
+#habitsView .rt-btn{background:#20232a;border:1px solid #2e323a;color:#9aa1ab;border-radius:7px;
+  padding:4px 10px;font-size:11.5px;cursor:pointer;font-family:inherit;flex:0 0 auto}
+#habitsView .rt-btn:hover{color:#e6e8ec}
+#habitsView .rt-btn.stop:hover{color:#e0857f;border-color:rgba(224,133,127,.5)}
+#habitsView .rt-empty{color:#6b7280;font-size:12.5px;line-height:1.6;padding:18px 2px;max-width:560px}
+#habitsView .rt-help{color:#5d646f;font-size:11px;margin-top:14px;line-height:1.6;max-width:560px}
+</style>
+<script>
+(function () {
+  if (window.__routinesTabInstalled) return;
+  window.__routinesTabInstalled = true;
+
+  var pane = 'habits';   /* 'habits' | 'routines' */
+  var DOW = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+  function routines() {
+    var out = [];
+    if (!window.walkTree) return out;
+    window.walkTree(function (n) { if (n && n.repeat) out.push(n); });
+    return out;
+  }
+  function whereIs(id) {
+    var chain = [], cur = window.findNode(id), guard = 0;
+    while (cur && cur.node && guard++ < 40) {
+      chain.unshift(cur.node.title || 'Untitled');
+      if (!cur.parent) break;
+      cur = window.findNode(cur.parent.id);
+    }
+    return chain.length > 1 ? chain.slice(0, -1).join(' › ') : '';
+  }
+  /* say the pattern the way a person would */
+  function describe(r) {
+    if (!r) return '';
+    var every = Number(r.interval) || 1;
+    var unit = String(r.unit || r.freq || 'day').toLowerCase();
+    if (unit.indexOf('week') !== -1) {
+      var days = r.days || r.weekdays;
+      if (days && days.length) {
+        var names = [], i;
+        for (i = 0; i < days.length; i++) names.push(DOW[days[i]]);
+        return (every > 1 ? 'every ' + every + ' weeks · ' : '') + names.join(' ');
+      }
+      return every > 1 ? 'every ' + every + ' weeks' : 'weekly';
+    }
+    if (unit.indexOf('month') !== -1) return every > 1 ? 'every ' + every + ' months' : 'monthly';
+    if (unit.indexOf('year') !== -1) return every > 1 ? 'every ' + every + ' years' : 'yearly';
+    return every > 1 ? 'every ' + every + ' days' : 'daily';
+  }
+
+  function buildRoutines(view) {
+    var list = routines();
+    if (!list.length) {
+      var e = document.createElement('div');
+      e.className = 'rt-empty';
+      e.textContent = 'No routines yet. A routine is a task that repeats — open any task, ' +
+        'set it to repeat, and it will appear here and on your calendar.';
+      view.appendChild(e);
+      return;
+    }
+    var wrap = document.createElement('div');
+    wrap.className = 'rt-list';
+    for (var i = 0; i < list.length; i++) {
+      (function (n) {
+        var row = document.createElement('div');
+        row.className = 'rt-row';
+        var dot = document.createElement('span');
+        dot.className = 'rt-dot';
+        if (n.areaId && window.areaById) {
+          var a = window.areaById(n.areaId);
+          if (a && a.color) dot.style.background = a.color;
+        }
+        var mid = document.createElement('div');
+        mid.style.flex = '1'; mid.style.minWidth = '0';
+        var nm = document.createElement('div');
+        nm.className = 'rt-name';
+        nm.textContent = n.title || 'Untitled';
+        mid.appendChild(nm);
+        var wh = whereIs(n.id);
+        if (wh) {
+          var w = document.createElement('div');
+          w.className = 'rt-where'; w.textContent = 'in ' + wh;
+          mid.appendChild(w);
+        }
+        var when = document.createElement('span');
+        when.className = 'rt-when';
+        when.textContent = describe(n.repeat);
+        var edit = document.createElement('button');
+        edit.type = 'button'; edit.className = 'rt-btn'; edit.textContent = 'Edit';
+        edit.addEventListener('click', function () {
+          if (typeof window.editActivity === 'function') window.editActivity(n.id);
+        });
+        var stop = document.createElement('button');
+        stop.type = 'button'; stop.className = 'rt-btn stop'; stop.textContent = 'Stop repeating';
+        stop.addEventListener('click', function () {
+          /* the task itself is never deleted here - only the repeat is removed */
+          if (!window.confirm('Stop "' + (n.title || 'this') +
+                              '" from repeating? The task itself stays where it is.')) return;
+          var f = window.findNode(n.id);
+          if (f && f.node) { f.node.repeat = null; window.Store.save(); window.renderAll(); }
+        });
+        row.appendChild(dot); row.appendChild(mid); row.appendChild(when);
+        row.appendChild(edit); row.appendChild(stop);
+        wrap.appendChild(row);
+      })(list[i]);
+    }
+    view.appendChild(wrap);
+    var help = document.createElement('div');
+    help.className = 'rt-help';
+    help.textContent = 'Routines already draw on your calendar. Completing one finishes that ' +
+      'day only — the routine itself carries on.';
+    view.appendChild(help);
+  }
+
+  function decorate() {
+    var view = document.getElementById('habitsView');
+    if (!view) return;
+    if (view.querySelector('.rt-tabs')) return;   /* already done this render */
+
+    var tabs = document.createElement('div');
+    tabs.className = 'rt-tabs';
+    function tab(name, label) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'rt-tab' + (pane === name ? ' on' : '');
+      b.textContent = label;
+      b.addEventListener('click', function () {
+        if (pane === name) return;
+        pane = name;
+        if (typeof window.renderHabits === 'function') window.renderHabits();
+        decorate();
+      });
+      return b;
+    }
+    tabs.appendChild(tab('habits', 'Habits'));
+    tabs.appendChild(tab('routines', 'Routines'));
+
+    if (pane === 'routines') {
+      /* the habits view has already drawn itself - replace its body, keep the tabs */
+      view.innerHTML = '';
+      view.appendChild(tabs);
+      buildRoutines(view);
+    } else {
+      if (view.firstChild) view.insertBefore(tabs, view.firstChild);
+      else view.appendChild(tabs);
+    }
+  }
+
+  /* renderHabits is called by renderAll and by the bottom bar; decorate after either */
+  (function hook() {
+    if (typeof window.renderHabits !== 'function') { setTimeout(hook, 150); return; }
+    if (window.renderHabits.__rtHooked) return;
+    var base = window.renderHabits;
+    var w = function () {
+      var r = base.apply(this, arguments);
+      try { decorate(); } catch (e) {}
+      return r;
+    };
+    w.__rtHooked = true;
+    window.renderHabits = w;
+    decorate();
+  })();
+
+  /* both belong in the Location list, as asked */
+  window.__routinesLocationEntries = function () {
+    return [{ id: '__habits', title: 'Habits' }, { id: '__routines', title: 'Routines' }];
+  };
 })();
 </script>
 
