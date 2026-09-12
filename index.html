@@ -19,6 +19,109 @@
     }
   } catch (e) { /* leave style empty on any failure */ }
 })();
+
+/* ===== 2026-09-12  BACKSPACE REALLY CLEARS A DATE OR TIME =====
+   The operator, 10 Sep: "I just need to have the access to backspace, and it would delete
+   the date." That was built by making the field editable and relying on the browser - and it
+   does not work. Measured on the live build, through real key events: click the field
+   (activeElement confirmed), press Backspace eight times and Delete four times, and the value
+   stays 2026-09-12. A native <input type="date"> only responds once a specific mm/dd/yyyy
+   SEGMENT is selected, so pressing backspace at the field does nothing at all.
+   Why the check missed it: it did `input.value = ''` - it ASSIGNED the empty value instead of
+   typing it. That proved the save path handles an empty field; it never proved a person can
+   empty one. The user path was never tested.
+   So do it explicitly, on every date and time field in the app, so the behaviour is identical
+   wherever the operator meets one. */
+window.__wireClearable = function (input) {
+  if (!input || input.__clearWired) return input;
+  input.__clearWired = true;
+  input.addEventListener('keydown', function (e) {
+    if (e.key !== 'Backspace' && e.key !== 'Delete') return;
+    e.preventDefault();
+    if (!input.value) return;
+    input.value = '';
+    /* both events: 'input' for anything listening live, 'change' for the commit handlers */
+    try { input.dispatchEvent(new Event('input', { bubbles: true })); } catch (err) {}
+    try { input.dispatchEvent(new Event('change', { bubbles: true })); } catch (err) {}
+  });
+  return input;
+};
+
+/* ===== 2026-09-12  ONE REMOVAL DIALOG, REUSED EVERYWHERE =====
+   Operator rule: "whenever I approve a certain setup and I make a new feature and it has that
+   same setup - for example the delete - it should already pick it up and have the same exact
+   way."
+   So the approved shape lives HERE, once, and every delete in the app calls it. Four different
+   removals were each doing their own thing: the tree's two-step dialog, a browser confirm on a
+   tree row (which also skipped the bin entirely), a browser confirm for a habit, and another
+   for stopping a routine. A second Delete that looks different from the first Delete is a
+   defect even when both work.
+
+   confirmRemoval({
+     what:     'this note'            what is going, for the sentence
+     items:    [{title, meta}]        the list, so you can judge it before pressing
+     warn:     'It will be moved...'  what happens afterwards, in red
+     confirm:  'Forever deleted'      the danger button's words (defaults to the approved one)
+     onConfirm: fn
+   })
+   Single step, sized to its content. The tree's own two-step chain keeps its extra step
+   because a subtree delete deserves it - it calls this for the second step's shape. */
+window.confirmRemoval = function (opt) {
+  opt = opt || {};
+  if (typeof window.showModal !== 'function') {
+    /* no dialog host - do not silently delete, and do not fall back to a browser popup */
+    if (window.toast) window.toast('Cannot open the delete dialog.', 'err');
+    return;
+  }
+  var items = opt.items || [];
+  var body = document.createElement('div');
+
+  var q = document.createElement('p');
+  q.textContent = 'Are you sure? This removes ' + (opt.what || 'this item') + '.';
+  body.appendChild(q);
+
+  var cnt = document.createElement('p');
+  cnt.className = 'del-count';
+  cnt.textContent = items.length + (items.length === 1 ? ' item:' : ' items:');
+  body.appendChild(cnt);
+
+  var list = document.createElement('div');
+  list.className = 'del-list';
+  for (var i = 0; i < items.length; i++) {
+    var it = items[i] || {};
+    var row = document.createElement('div');
+    row.className = 'del-item';
+    if (it.depth) row.style.paddingLeft = (it.depth * 14) + 'px';
+    var t = document.createElement(it.depth ? 'span' : 'b');
+    t.textContent = it.title || 'Untitled';
+    row.appendChild(t);
+    list.appendChild(row);
+    if (it.meta) {
+      var m = document.createElement('div');
+      m.className = 'del-meta';
+      if (it.depth) m.style.paddingLeft = (it.depth * 14) + 'px';
+      m.textContent = it.meta;
+      list.appendChild(m);
+    }
+  }
+  body.appendChild(list);
+
+  var warn = document.createElement('p');
+  warn.className = 'del-warn';
+  warn.textContent = opt.warn || 'It will be moved to Deleted, where you can restore it.';
+  body.appendChild(warn);
+
+  /* one step, so the dialog sizes to its content rather than reserving the chain's height */
+  body.className = (body.className ? body.className + ' ' : '') + 'del-single';
+
+  window.showModal('Delete', body, [
+    { label: 'Cancel' },
+    { label: opt.confirm || 'Forever deleted', kind: 'danger', onClick: function () {
+        if (typeof opt.onConfirm === 'function') opt.onConfirm();
+      } }
+  ]);
+  if (typeof window.__pinDialog === 'function') window.__pinDialog();
+};
 </script>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -37,6 +140,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Planner">
   <meta name="theme-color" content="#14161a">
+  <link rel="icon" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAALQAAAC0CAIAAACyr5FlAAABiklEQVR42u3asQnAIBBAUYcIFhks02VNJZ0OoCCxMZIHv73meN1dOOIpdQtWIDgEh+AQHIJDcAgOwSE4BIcEh+AQHIJDcAgOwSE4BIfgkOAQHIJDcAgOwSE4BIfgEBwSHIJDcAgOwSE4BIfgEByCQ3BIcAgOwSE4BIfgEByCQ3AIjldddxnWTqX8aCI4BIfggAMOOOCAAw444IADDjjggAMOOOCAQ7vjkMOb4JDgEByCQ3AIDsEhOASH4BAcEhyCQ3AIDsEhOASH4PCc7MEYDjjggAMOOOCAAw444IADDjjggAMOOOCAAw444JDDmwSH4BAcgkNwCA7BITgEh+CQ4BAcgkNwCA7BITgEh+BY3z+fk+GAAw444IADDjjggAMOOOCAAw444IADDjjggAMOOOTwJjgEh+AQHLYgOASH4BAcgkNwCA7BITgEhwSH4BAcgkNwCA7BITgEh+CQ4BAcgkNwCA7BITgEh+AQHILDCgSH4BAcgkNwCA7BITgEh+CQ4BAcgkNwCA59qgqNwmxOXaCNcwAAAABJRU5ErkJggg==">
   <link rel="apple-touch-icon" sizes="180x180" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAALQAAAC0CAIAAACyr5FlAAABiklEQVR42u3asQnAIBBAUYcIFhks02VNJZ0OoCCxMZIHv73meN1dOOIpdQtWIDgEh+AQHIJDcAgOwSE4BIcEh+AQHIJDcAgOwSE4BIfgkOAQHIJDcAgOwSE4BIfgEBwSHIJDcAgOwSE4BIfgEByCQ3BIcAgOwSE4BIfgEByCQ3AIjldddxnWTqX8aCI4BIfggAMOOOCAAw444IADDjjggAMOOOCAQ7vjkMOb4JDgEByCQ3AIDsEhOASH4BAcEhyCQ3AIDsEhOASH4PCc7MEYDjjggAMOOOCAAw444IADDjjggAMOOOCAAw444JDDmwSH4BAcgkNwCA7BITgEh+CQ4BAcgkNwCA7BITgEh+BY3z+fk+GAAw444IADDjjggAMOOOCAAw444IADDjjggAMOOOTwJjgEh+AQHLYgOASH4BAcgkNwCA7BITgEhwSH4BAcgkNwCA7BITgEh+CQ4BAcgkNwCA7BITgEh+AQHILDCgSH4BAcgkNwCA7BITgEh+CQ4BAcgkNwCA59qgqNwmxOXaCNcwAAAABJRU5ErkJggg==">
   <!-- Deliberately NO <link rel="manifest">. iOS ignores the web manifest for
        Add to Home Screen, and Chrome refuses a data: URI manifest for install
@@ -62,19 +166,28 @@ img, svg { display: block; max-width: 100%; }
 :focus { outline: none; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; border-radius: 3px; }
 
-/* ---------- tokens: light theme (default) ---------- */
+/* ---------- tokens ----------
+   2026-09-12. The operator: "the crescent is gone, great, but make sure the background is a
+   dark background."
+   This block was the DEFAULT and it was LIGHT (#fafafa). Dark arrived only via
+   prefers-color-scheme or a data-theme attribute, so the planner went light the moment either
+   was absent - and with the theme toggle removed there is no longer any way to correct that
+   from inside the app. There is one theme now and it is dark, so the default says so.
+   The light values are NOT deleted - they still live under :root[data-theme="light"] below,
+   so anything referencing them still resolves. They are simply not the default. */
 :root {
-  --bg:          #fafafa;
-  --surface:     #ffffff;
-  --surface-2:   #f4f4f5;
-  --border:      #e4e4e7;
-  --text:        #18181b;
-  --text-dim:    #71717a;
-  --accent:      #2563eb;
-  --accent-soft: #dbeafe;
-  --danger:      #dc2626;
-  --ok:          #16a34a;
-  --warn:        #d97706;
+  color-scheme: dark;
+  --bg:          #09090b;
+  --surface:     #18181b;
+  --surface-2:   #27272a;
+  --border:      #3f3f46;
+  --text:        #fafafa;
+  --text-dim:    #a1a1aa;
+  --accent:      #60a5fa;
+  --accent-soft: #1e3a5f;
+  --danger:      #f87171;
+  --ok:          #4ade80;
+  --warn:        #fbbf24;
 
   --radius:      6px;
   --shadow:      0 1px 2px rgba(0,0,0,.04), 0 4px 12px rgba(0,0,0,.06);
@@ -1538,7 +1651,13 @@ section#rightPane {
 }
 
 
-:root{--bg:#f7f8fa;--surface:#ffffff;--surface-2:#f2f3f5;--border:#e3e5e9;--text:#1a1d21;--text-dim:#6b7280;--accent:#2f6feb;--accent-soft:#e8f0fe;--radius:6px;--warn:#f59e0b;--ok:#10b981;--danger:#ef4444}
+/* 2026-09-12: THIS was the light background, not the block a thousand lines above. A second
+   bare :root, later in the file, so it won on source order - and it is why #calTopbar and
+   #tabsBar measured pure white and #dayView near-white whenever the OS preference was light
+   and no data-theme attribute was set. Measured element by element rather than guessed.
+   One theme now, and it is dark, so the bare :root carries the dark values. The light set is
+   still available under [data-theme="light"] below. */
+:root{--bg:#16181c;--surface:#1d2025;--surface-2:#24272e;--border:#2e323a;--text:#e6e8ec;--text-dim:#9aa1ab;--accent:#4d8bff;--accent-soft:#1e2a3f;--radius:6px;--warn:#f59e0b;--ok:#10b981;--danger:#ef4444}
 @media(prefers-color-scheme:dark){:root{--bg:#16181c;--surface:#1d2025;--surface-2:#24272e;--border:#2e323a;--text:#e6e8ec;--text-dim:#9aa1ab;--accent:#4d8bff;--accent-soft:#1e2a3f}}
 :root[data-theme="dark"]{--bg:#16181c;--surface:#1d2025;--surface-2:#24272e;--border:#2e323a;--text:#e6e8ec;--text-dim:#9aa1ab;--accent:#4d8bff;--accent-soft:#1e2a3f}
 :root[data-theme="light"]{--bg:#f7f8fa;--surface:#ffffff;--surface-2:#f2f3f5;--border:#e3e5e9;--text:#1a1d21;--text-dim:#6b7280;--accent:#2f6feb;--accent-soft:#e8f0fe}
@@ -1548,6 +1667,11 @@ body{font-family:ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif;font-s
 #topbar{height:48px;padding:0 12px;gap:8px;background:var(--surface);border-bottom:1px solid var(--border);box-shadow:none}
 #topbar button{height:28px;padding:0 10px;border-radius:var(--radius);font-size:12px;color:var(--text);background:transparent;border:1px solid transparent;transition:background 120ms}
 #topbar button:hover{background:var(--surface-2);border-color:var(--border)}
+/* 2026-09-12: the pill is a button now, so it has to look like one. It was flat text on a
+   flat chip, which is exactly why the operator asked where the sync button was. */
+#syncPill.sync-btn{cursor:pointer;border:1px solid var(--border,#2e323a)}
+#syncPill.sync-btn:hover{background:var(--surface-2,#22262e);border-color:#3a4049}
+#syncPill.sync-btn:focus-visible{outline:2px solid var(--accent-q,#4c9aff);outline-offset:1px}
 #syncPill{height:22px;padding:0 8px 0 6px;border-radius:999px;font-size:11px;background:var(--surface-2);color:var(--text-dim);display:inline-flex;align-items:center;gap:6px}
 #syncPill::before{content:"";width:6px;height:6px;border-radius:999px;background:var(--text-dim)}
 #syncPill[data-state="connecting"]::before,#syncPill[data-state="syncing"]::before{background:var(--warn)}
@@ -2676,6 +2800,20 @@ aside#treePane { overflow-y: auto; }
   max-width: 575px !important;
   height: 520px !important;
   min-height: 520px !important;
+}
+
+/* 2026-09-12: the 520px above is a RESERVATION for the tree delete, which is a two-step
+   chain - the buttons must not jump between steps. Deleting a journal note is one step, so
+   the reservation just left a big empty panel under three lines of text. Same width, same
+   dialog, height from its content. Placed after the rule above on purpose: both selectors
+   score the same, so source order decides, and the note dialog carries both classes. */
+.modal:has(.del-single) {
+  height: auto !important;
+  min-height: 0 !important;
+}
+.modal:has(.del-single) .modal-body {
+  flex: 0 1 auto;
+  overflow-y: auto;
 }
 
 /* what each doomed item carries: its date, time, duration and alarms */
@@ -5189,10 +5327,15 @@ html:root #treeRoot .tree-row:not([data-depth="0"]){ height:32px !important; min
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-09-11 15:37</span>
+    <span id="buildStamp">build 2026-09-12 12:57</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
-    <button id="btnSignIn" type="button" title="Sync through a private GitHub gist">Connect GitHub</button>
+    <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
+         "Calendar feed" button is gone from view but NOT deleted - other code reads
+         #btnSignIn (the Cloud module writes its label, and the regression suite asserts on
+         it), and the iPhone calendar still publishes through that module. Hidden, not
+         removed, so nothing that depends on it breaks. -->
+    <button id="btnSignIn" type="button" hidden aria-hidden="true" title="Publish your planner as a calendar your phone can subscribe to">Calendar feed</button>
     <button id="btnExport" type="button" title="Export data to JSON">
       <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M12 4v12m0 0l-4-4m4 4l4-4M5 20h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
       <span>Export</span>
@@ -5202,9 +5345,13 @@ html:root #treeRoot .tree-row:not([data-depth="0"]){ height:32px !important; min
       <span>Import</span>
     </button>
     <input id="fileImport" type="file" accept="application/json,.json" hidden>
-    <button id="btnTheme" type="button" title="Toggle theme" aria-label="Toggle theme">
-      <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
-    </button>
+    <!-- 2026-09-12: theme toggle removed at the operator's request - one dark
+         background, no light mode. The light palette is left in the stylesheet
+         rather than ripped out, so nothing that references it breaks. -->
+    <!-- 2026-09-12: the account menu, last thing on the bar. Built as a three-dot
+         button because that is what the app already uses for "more actions" on a
+         tree row and on a calendar block - same glyph, same menu shape. -->
+    <button id="btnAccount" type="button" class="acct-dots" title="Account" aria-haspopup="true" aria-expanded="false">&#8942;</button>
   </header>
 
   <main id="main">
@@ -5442,6 +5589,11 @@ html:root #treeRoot .tree-row:not([data-depth="0"]){ height:32px !important; min
     journal: {},
     habits: [],
     habitLog: {},
+    /* 2026-09-12: Routines is the same kind of record as a habit and is drawn by the same
+       renderer, so it gets the same pair. Plain object for the log, never an array - the
+       sync merges objects key by key and replaces arrays wholesale. */
+    routines: [],
+    routineLog: {},
     areas: [],
     settings: {
       theme: 'auto',
@@ -6219,7 +6371,7 @@ document.addEventListener("DOMContentLoaded", function() {
   }
 
   const btnTheme = document.getElementById("btnTheme");
-  if (btnTheme) {
+  if (false && btnTheme) {
     btnTheme.addEventListener("click", function() {
       const settings = Store.data.settings || {};
       const order = ["auto", "light", "dark"];
@@ -6369,13 +6521,23 @@ document.addEventListener("DOMContentLoaded", function() {
     delBtn.innerHTML = '<svg viewBox="0 0 16 16" width="14" height="14"><path fill="currentColor" d="M5 2V1h6v1h4v2H1V2h4zm1 4v8h1V6H6zm3 0v8h1V6H9z"/></svg>';
     delBtn.addEventListener('click', function(e) {
       e.stopPropagation();
-      var hasChildren = node.children && node.children.length > 0;
-      if (hasChildren) {
-        if (!confirm('Delete "' + node.title + '" and all its children?')) return;
+      /* 2026-09-12: this used to show a browser confirm - and only when the item had
+         children - then call removeNode(), which does NOT put anything in the bin. So the
+         quickest delete in the app was both the odd one out and the only unrecoverable one.
+         It now goes through the same dialog and the same bin as every other delete. */
+      if (typeof window.confirmDelete === 'function') { window.confirmDelete(node.id); return; }
+      if (typeof window.confirmRemoval === 'function') {
+        var kids = (node.children || []).length;
+        window.confirmRemoval({
+          what: '"' + (node.title || 'Untitled') + '"' + (kids ? ' and ' + kids + ' item(s) inside it' : ''),
+          items: [{ title: node.title || 'Untitled' }],
+          onConfirm: function () {
+            if (typeof window.trashNode === 'function') window.trashNode(node.id);
+            else { removeNode(node.id); Store.save(); window.renderAll(); }
+          }
+        });
+        return;
       }
-      removeNode(node.id);
-      Store.save();
-      window.renderAll();
     });
 
     actions.appendChild(addBtn);
@@ -6731,6 +6893,7 @@ document.addEventListener("DOMContentLoaded", function() {
     var found = findNode(id);
     if (!found || !found.parent) return;
     var parent = found.parent;
+    var leaving = parent.id;                       /* see __keepVisibleAfterMove */
     var node = found.node;
     var siblings = parent.children;
     var idx = found.index;
@@ -6754,6 +6917,7 @@ document.addEventListener("DOMContentLoaded", function() {
     }
     targetArr.splice(targetIdx, 0, node);
 
+    if (window.__keepVisibleAfterMove) window.__keepVisibleAfterMove(leaving);
     Store.save();
     renderAll();
     focusNode(id);
@@ -6998,7 +7162,12 @@ document.addEventListener("DOMContentLoaded", function() {
           title: ev.title,
           kind: "event",
           priority: "normal",
-          done: false,
+          /* 2026-09-12 - MARK COMPLETE DID NOTHING IN THE CALENDAR.
+             This read `done: false` literally, so a calendar event was reported as
+             not-done on every single render. The CSS was fine (.tgevent.done dims and
+             strikes through) and the click handler was fine; the entry simply never
+             carried the flag, so nothing could ever show as complete. */
+          done: !!ev.done,
           block: ev.block || null,
           duration: ev.duration || null,
           source: "event",
@@ -7032,6 +7201,11 @@ document.addEventListener("DOMContentLoaded", function() {
       Store.save();
     } else if (entry.source === "tree" && entry.node) {
       entry.node.done = done;
+      Store.save();
+    } else if (entry.source === "event" && entry.event) {
+      /* the third source. Without this the click and the menu's Complete both ran,
+         saved nothing, and the block came back looking exactly the same. */
+      entry.event.done = done;
       Store.save();
     }
   };
@@ -7829,7 +8003,23 @@ window.renderJournal = function() {
 };
 
 /* ===== f10c ===== */
-window.renderHabits = function () {
+/* 2026-09-12: parameterised so ROUTINES is drawn by this exact function, not a copy of it.
+   The operator: "make another tab right next to it that would say routines and have the same
+   exact setup." A second implementation would drift from this one the first time either is
+   touched, which is the thing the consistency rule exists to prevent.
+   TRACKERS holds what differs: which array the records live in, which log holds the ticks,
+   and the noun used in the UI. Nothing else differs. */
+window.TRACKERS = {
+  habits:   { store: 'habits',   log: 'habitLog',   noun: 'habit',   label: 'New habit' },
+  routines: { store: 'routines', log: 'routineLog', noun: 'routine', label: 'New routine' }
+};
+
+window.renderTracker = function (kind) {
+  var T = window.TRACKERS[kind] || window.TRACKERS.habits;
+  /* an existing planner predates these keys, so create them on first use rather than
+     assuming the seed ran - the operator's data was saved before Routines existed */
+  if (!Array.isArray(Store.data[T.store])) Store.data[T.store] = [];
+  if (!Store.data[T.log] || typeof Store.data[T.log] !== 'object') Store.data[T.log] = {};
   var container = document.getElementById('habitsView');
   container.innerHTML = '';
 
@@ -7842,7 +8032,7 @@ window.renderHabits = function () {
   var input = document.createElement('input');
   input.type = 'text';
   input.className = 'habit-input';
-  input.placeholder = 'New habit';
+  input.placeholder = T.label;
   addRow.appendChild(input);
 
   var swatchContainer = document.createElement('div');
@@ -7880,11 +8070,11 @@ window.renderHabits = function () {
   addBtn.addEventListener('click', function () {
     var name = input.value.trim();
     if (!name) return;
-    var habit = { id: uid(), name: name, color: selectedColor, freq: 'daily', targetPerWeek: 7 };
-    if (!Store.data.habits) Store.data.habits = [];
-    Store.data.habits.push(habit);
+    var rec = { id: uid(), name: name, color: selectedColor, freq: 'daily', targetPerWeek: 7 };
+    if (!Store.data[T.store]) Store.data[T.store] = [];
+    Store.data[T.store].push(rec);
     Store.save();
-    renderHabits();
+    window.renderTracker(kind);
   });
   input.addEventListener('keydown', function (e) {
     if (e.key === 'Enter') addBtn.click();
@@ -7893,11 +8083,11 @@ window.renderHabits = function () {
   container.appendChild(addRow);
 
   // --- Habit list ---
-  var habits = Store.data.habits || [];
-  if (habits.length === 0) {
+  var records = Store.data[T.store] || [];
+  if (records.length === 0) {
     var empty = document.createElement('p');
     empty.className = 'habits-empty';
-    empty.textContent = 'No habits yet.';
+    empty.textContent = 'No ' + T.noun + 's yet.';
     container.appendChild(empty);
     return;
   }
@@ -7907,7 +8097,7 @@ window.renderHabits = function () {
   var todayDate = new Date();
   var todayIso = todayISO();
 
-  habits.forEach(function (habit) {
+  records.forEach(function (habit) {
     var row = document.createElement('div');
     row.className = 'habit-row';
 
@@ -7928,7 +8118,7 @@ window.renderHabits = function () {
       var weekday = d.toLocaleDateString('en-US', { weekday: 'narrow' });
       var cell = document.createElement('div');
       cell.className = 'habit-cell';
-      var log = Store.data.habitLog ? Store.data.habitLog[habit.id] : null;
+      var log = Store.data[T.log] ? Store.data[T.log][habit.id] : null;
       if (log && log[iso]) {
         cell.classList.add('done');
         cell.style.background = habit.color;
@@ -7938,11 +8128,11 @@ window.renderHabits = function () {
       cell.textContent = weekday + ' ' + dayNum;
       cell.addEventListener('click', (function (habitId, iso) {
         return function () {
-          if (!Store.data.habitLog) Store.data.habitLog = {};
-          if (!Store.data.habitLog[habitId]) Store.data.habitLog[habitId] = {};
-          Store.data.habitLog[habitId][iso] = !Store.data.habitLog[habitId][iso];
+          if (!Store.data[T.log]) Store.data[T.log] = {};
+          if (!Store.data[T.log][habitId]) Store.data[T.log][habitId] = {};
+          Store.data[T.log][habitId][iso] = !Store.data[T.log][habitId][iso];
           Store.save();
-          renderHabits();
+          window.renderTracker(kind);
         };
       })(habit.id, iso));
       cells.appendChild(cell);
@@ -7951,7 +8141,7 @@ window.renderHabits = function () {
 
     // streak badge
     var streak = (function (habitId) {
-      var hlog = Store.data.habitLog ? Store.data.habitLog[habitId] : null;
+      var hlog = Store.data[T.log] ? Store.data[T.log][habitId] : null;
       if (!hlog) return 0;
       var d = new Date(todayDate);
       if (!hlog[isoOf(d)]) d.setDate(d.getDate() - 1);
@@ -7972,7 +8162,7 @@ window.renderHabits = function () {
 
     // weekly progress
     var weekCount = (function (habitId) {
-      var hlog = Store.data.habitLog ? Store.data.habitLog[habitId] : null;
+      var hlog = Store.data[T.log] ? Store.data[T.log][habitId] : null;
       var weekStart = (Store.data.settings && Store.data.settings.weekStart) || 0;
       var start = new Date(todayDate);
       var dow = start.getDay();
@@ -7996,15 +8186,25 @@ window.renderHabits = function () {
     var delBtn = document.createElement('button');
     delBtn.className = 'habit-delete';
     delBtn.textContent = '\xD7';
-    delBtn.title = 'Delete habit';
+    delBtn.title = 'Delete ' + T.noun;
     delBtn.addEventListener('click', (function (habitId, habitName) {
       return function () {
-        if (!confirm('Delete habit "' + habitName + '"?')) return;
-        var idx = Store.data.habits.findIndex(function (h) { return h.id === habitId; });
-        if (idx !== -1) Store.data.habits.splice(idx, 1);
-        if (Store.data.habitLog) delete Store.data.habitLog[habitId];
-        Store.save();
-        renderHabits();
+        /* the same dialog as every other delete - see confirmRemoval */
+        var go = function () {
+          var idx = Store.data[T.store].findIndex(function (h) { return h.id === habitId; });
+          if (idx !== -1) Store.data[T.store].splice(idx, 1);
+          if (Store.data[T.log]) delete Store.data[T.log][habitId];
+          Store.save();
+          window.renderTracker(kind);
+        };
+        if (typeof window.confirmRemoval !== 'function') return;
+        window.confirmRemoval({
+          what: 'the ' + T.noun + ' "' + habitName + '"',
+          items: [{ title: habitName }],
+          /* honest: a habit is not kept in the bin, so do not promise it can be restored */
+          warn: 'The ' + T.noun + ' and its tick history are removed. This one cannot be restored.',
+          onConfirm: go
+        });
       };
     })(habit.id, habit.name));
     row.appendChild(delBtn);
@@ -8012,6 +8212,11 @@ window.renderHabits = function () {
     list.appendChild(row);
   });
   container.appendChild(list);
+};
+
+/* the name the whole app already calls; it draws whichever pane is showing */
+window.renderHabits = function () {
+  return window.renderTracker(window.__trackerPane === 'routines' ? 'routines' : 'habits');
 };
 
 /* ===== d11 ===== */
@@ -8494,7 +8699,10 @@ window.renderHabits = function () {
 })();
 
 /* ===== h18 ===== */
-(function(){var TG=window.TG={HOUR_PX:60,SNAP_MIN:15,startHour:6,endHour:23,expanded:false};if(Store&&Store.data&&Store.data.settings&&Store.data.settings.gridExpanded){TG.expanded=true;TG.startHour=0;TG.endHour=24;}function pad(n){return(n<10?'0':'')+n;}function timeToMin(t){if(!t)return null;var p=t.split(':');return parseInt(p[0],10)*60+parseInt(p[1],10);}window.tgHours=function(){var a=[];for(var h=TG.startHour;h<TG.endHour;h++)a.push(h);return a;};window.tgHeight=function(){return (TG.endHour-TG.startHour)*TG.HOUR_PX;};window.tgToY=function(hhmm){if(!hhmm)return null;var p=hhmm.split(':');return ((parseInt(p[0],10)+parseInt(p[1],10)/60)-TG.startHour)*TG.HOUR_PX;};window.tgFromY=function(y){var totalMin=(y/TG.HOUR_PX)*60+TG.startHour*60;var snapped=Math.floor(totalMin/TG.SNAP_MIN)*TG.SNAP_MIN;var minMin=TG.startHour*60;var maxMin=(TG.endHour-0.25)*60;if(snapped<minMin)snapped=minMin;if(snapped>maxMin)snapped=maxMin;return pad(Math.floor(snapped/60))+':'+pad(snapped%60);};window.tgLabel=function(h){if(h===0)return'12 AM';if(h<12)return h+' AM';if(h===12)return'12 PM';return(h-12)+' PM';};window.tgToggleExpanded=function(){TG.expanded=!TG.expanded;if(TG.expanded){TG.startHour=0;TG.endHour=24;}else{TG.startHour=6;TG.endHour=23;}Store.data.settings.gridExpanded=TG.expanded;Store.save();if(window.renderAll)window.renderAll();};window.tgTimeOf=function(e){if(e&&e.node&&e.node.time)return e.node.time;if(e&&e.event&&e.event.time)return e.event.time;return null;};window.tgDuration=function(e){var d=(e&&e.duration)||(e&&e.node&&e.node.duration)||30;return d<15?15:d;};window.tgMigrate=function(){if(localStorage.getItem('planner.timemigrated'))return;var map={morning:'09:00',afternoon:'13:00',evening:'18:00'};function mig(n){if(n&&n.date&&!n.time&&n.block){n.time=map[n.block]||null;}}walkTree(function(n){mig(n);});if(Store.data&&Store.data.events){Store.data.events.forEach(function(ev){if(ev&&ev.date&&!ev.time&&ev.block){ev.time=map[ev.block]||null;}});}localStorage.setItem('planner.timemigrated','true');Store.save();};window.tgLayout=function(entries){if(!entries||!entries.length)return[];var sorted=entries.filter(function(e){return!!window.tgTimeOf(e);}).sort(function(a,b){return timeToMin(window.tgTimeOf(a))-timeToMin(window.tgTimeOf(b));});var clusters=[];var res=[];sorted.forEach(function(e){var start=timeToMin(window.tgTimeOf(e));var dur=window.tgDuration(e);var end=start+dur;var top=window.tgToY(window.tgTimeOf(e));var height=Math.max(18,(dur/60)*TG.HOUR_PX);if(!clusters.length){clusters.push({colEnds:[end]});res.push({entry:e,top:top,height:height,col:0,cols:1});return;}var cur=clusters[clusters.length-1];var maxEnd=Math.max.apply(null,cur.colEnds);if(start<maxEnd){var col=-1;for(var i=0;i<cur.colEnds.length;i++){if(cur.colEnds[i]<=start){col=i;break;}}if(col===-1){if(cur.colEnds.length<3){col=cur.colEnds.length;cur.colEnds.push(end);}else{col=0;cur.colEnds[0]=end;}}else{cur.colEnds[col]=end;}var colCount=Math.min(3,cur.colEnds.length);res.push({entry:e,top:top,height:height,col:col,cols:colCount});}else{clusters.push({colEnds:[end]});res.push({entry:e,top:top,height:height,col:0,cols:1});}});return res;};if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',function(){setTimeout(window.tgMigrate,0);});}else{setTimeout(window.tgMigrate,0);}})();
+(function(){/* 2026-09-12: the day always runs the full 24 hours. The operator asked for the
+   'Show 24h' / 'Working hours' toggle to go - a schedule that hides half the day
+   by default is a schedule you cannot trust at a glance. */
+var TG=window.TG={HOUR_PX:60,SNAP_MIN:15,startHour:0,endHour:24,expanded:true};function pad(n){return(n<10?'0':'')+n;}function timeToMin(t){if(!t)return null;var p=t.split(':');return parseInt(p[0],10)*60+parseInt(p[1],10);}window.tgHours=function(){var a=[];for(var h=TG.startHour;h<TG.endHour;h++)a.push(h);return a;};window.tgHeight=function(){return (TG.endHour-TG.startHour)*TG.HOUR_PX;};window.tgToY=function(hhmm){if(!hhmm)return null;var p=hhmm.split(':');return ((parseInt(p[0],10)+parseInt(p[1],10)/60)-TG.startHour)*TG.HOUR_PX;};window.tgFromY=function(y){var totalMin=(y/TG.HOUR_PX)*60+TG.startHour*60;var snapped=Math.floor(totalMin/TG.SNAP_MIN)*TG.SNAP_MIN;var minMin=TG.startHour*60;var maxMin=(TG.endHour-0.25)*60;if(snapped<minMin)snapped=minMin;if(snapped>maxMin)snapped=maxMin;return pad(Math.floor(snapped/60))+':'+pad(snapped%60);};window.tgLabel=function(h){if(h===0)return'12 AM';if(h<12)return h+' AM';if(h===12)return'12 PM';return(h-12)+' PM';};window.tgToggleExpanded=function(){/* kept so nothing that calls it throws; the day is always 24h now */};window.tgTimeOf=function(e){if(e&&e.node&&e.node.time)return e.node.time;if(e&&e.event&&e.event.time)return e.event.time;return null;};window.tgDuration=function(e){var d=(e&&e.duration)||(e&&e.node&&e.node.duration)||30;return d<15?15:d;};window.tgMigrate=function(){if(localStorage.getItem('planner.timemigrated'))return;var map={morning:'09:00',afternoon:'13:00',evening:'18:00'};function mig(n){if(n&&n.date&&!n.time&&n.block){n.time=map[n.block]||null;}}walkTree(function(n){mig(n);});if(Store.data&&Store.data.events){Store.data.events.forEach(function(ev){if(ev&&ev.date&&!ev.time&&ev.block){ev.time=map[ev.block]||null;}});}localStorage.setItem('planner.timemigrated','true');Store.save();};window.tgLayout=function(entries){if(!entries||!entries.length)return[];var sorted=entries.filter(function(e){return!!window.tgTimeOf(e);}).sort(function(a,b){return timeToMin(window.tgTimeOf(a))-timeToMin(window.tgTimeOf(b));});var clusters=[];var res=[];sorted.forEach(function(e){var start=timeToMin(window.tgTimeOf(e));var dur=window.tgDuration(e);var end=start+dur;var top=window.tgToY(window.tgTimeOf(e));var height=Math.max(18,(dur/60)*TG.HOUR_PX);if(!clusters.length){clusters.push({colEnds:[end]});res.push({entry:e,top:top,height:height,col:0,cols:1});return;}var cur=clusters[clusters.length-1];var maxEnd=Math.max.apply(null,cur.colEnds);if(start<maxEnd){var col=-1;for(var i=0;i<cur.colEnds.length;i++){if(cur.colEnds[i]<=start){col=i;break;}}if(col===-1){if(cur.colEnds.length<3){col=cur.colEnds.length;cur.colEnds.push(end);}else{col=0;cur.colEnds[0]=end;}}else{cur.colEnds[col]=end;}var colCount=Math.min(3,cur.colEnds.length);res.push({entry:e,top:top,height:height,col:col,cols:colCount});}else{clusters.push({colEnds:[end]});res.push({entry:e,top:top,height:height,col:0,cols:1});}});return res;};if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',function(){setTimeout(window.tgMigrate,0);});}else{setTimeout(window.tgMigrate,0);}})();
 
 /* ===== h26 ===== */
 window.tgLayout=function(e){var t=[];for(var n=0;n<e.length;n++){var r=e[n];var a=window.tgTimeOf(r);if(!a)continue;var s=a.split(":");var u=parseInt(s[0],10)*60+parseInt(s[1],10);var d=window.tgDuration(r);var l=u+d;t.push({entry:r,start:u,end:l,timeStr:a,dur:d})}t.sort(function(e,t){if(e.start!==t.start)return e.start-t.start;return e.end-t.end});var c=[];var i=0;while(i<t.length){var p=[];var f=t[i].end;p.push(t[i]);var h=i+1;while(h<t.length&&t[h].start<f){p.push(t[h]);if(t[h].end>f)f=t[h].end;h++}var m=[];for(var v=0;v<p.length;v++){var y=p[v];var b=-1;for(var g=0;g<m.length;g++){if(m[g]<=y.start){b=g;break}}if(b===-1){b=m.length;m.push(0)}m[b]=y.end;y.col=b}var C=Math.min(3,m.length);for(var x=0;x<p.length;x++){var E=p[x];var w=E.col;if(w>=C)w=C-1;var D=E.entry;var S=E.timeStr;var k=E.dur;var M=Math.max(18,k/60*window.TG.HOUR_PX);c.push({entry:D,top:window.tgToY(S),height:M,col:w,cols:C})}i=h}return c};
@@ -8593,10 +8801,10 @@ renderAll();
 })();
 
 /* ===== h24 ===== */
-(function(){window.renderDay=function(){var host=document.getElementById('dayView');if(!host)return;host.textContent='';var iso=window.selectedDate;var header=document.createElement('div');header.className='tgtop';var prevBtn=document.createElement('button');prevBtn.textContent='◀';prevBtn.onclick=function(){var d=parseISO(window.selectedDate);d.setDate(d.getDate()-1);window.selectedDate=isoOf(d);renderAll();};var titleSpan=document.createElement('span');titleSpan.className='tgtitle';titleSpan.textContent=fmtDate(iso,'long');var nextBtn=document.createElement('button');nextBtn.textContent='▶';nextBtn.onclick=function(){var d=parseISO(window.selectedDate);d.setDate(d.getDate()+1);window.selectedDate=isoOf(d);renderAll();};var spacer=document.createElement('span');spacer.className='tgspacer';var expandBtn=document.createElement('button');expandBtn.className='tgexpand';expandBtn.textContent=TG.expanded?'Working hours':'Show 24h';expandBtn.onclick=tgToggleExpanded;header.appendChild(prevBtn);header.appendChild(titleSpan);header.appendChild(nextBtn);header.appendChild(spacer);header.appendChild(expandBtn);host.appendChild(header);var allDay=document.createElement('div');allDay.className='tgallday';var gutterLabel=document.createElement('div');gutterLabel.className='tggutterlabel';gutterLabel.textContent='All day';var allDayCell=document.createElement('div');allDayCell.className='tgalldaycell';allDayCell.dataset.iso=iso;var entries=scheduledOn(iso);for(var i=0;i<entries.length;i++){var entry=entries[i];if(!tgTimeOf(entry)){var chip=document.createElement('div');chip.className='tgchip';chip.textContent=entry.title;chip.dataset.nodeId=(entry.node?entry.node.id:entry.id);chip.title=entry.title;allDayCell.appendChild(chip);}}allDay.appendChild(gutterLabel);allDay.appendChild(allDayCell);host.appendChild(allDay);var g=tgBuildGrid(host,[iso]);tgFillColumn(g.cols[0],iso);tgWireDrops(g.body.querySelector('.tgcols'));tgScrollToMorning(g.scroll);};})();
+(function(){window.renderDay=function(){var host=document.getElementById('dayView');if(!host)return;host.textContent='';var iso=window.selectedDate;var header=document.createElement('div');header.className='tgtop';var prevBtn=document.createElement('button');prevBtn.textContent='◀';prevBtn.onclick=function(){var d=parseISO(window.selectedDate);d.setDate(d.getDate()-1);window.selectedDate=isoOf(d);renderAll();};var titleSpan=document.createElement('span');titleSpan.className='tgtitle';titleSpan.textContent=fmtDate(iso,'long');var nextBtn=document.createElement('button');nextBtn.textContent='▶';nextBtn.onclick=function(){var d=parseISO(window.selectedDate);d.setDate(d.getDate()+1);window.selectedDate=isoOf(d);renderAll();};var spacer=document.createElement('span');spacer.className='tgspacer';header.appendChild(prevBtn);header.appendChild(titleSpan);header.appendChild(nextBtn);header.appendChild(spacer);host.appendChild(header);var allDay=document.createElement('div');allDay.className='tgallday';var gutterLabel=document.createElement('div');gutterLabel.className='tggutterlabel';gutterLabel.textContent='All day';var allDayCell=document.createElement('div');allDayCell.className='tgalldaycell';allDayCell.dataset.iso=iso;var entries=scheduledOn(iso);for(var i=0;i<entries.length;i++){var entry=entries[i];if(!tgTimeOf(entry)){var chip=document.createElement('div');chip.className='tgchip';chip.textContent=entry.title;chip.dataset.nodeId=(entry.node?entry.node.id:entry.id);chip.title=entry.title;allDayCell.appendChild(chip);}}allDay.appendChild(gutterLabel);allDay.appendChild(allDayCell);host.appendChild(allDay);var g=tgBuildGrid(host,[iso]);tgFillColumn(g.cols[0],iso);tgWireDrops(g.body.querySelector('.tgcols'));tgScrollToMorning(g.scroll);};})();
 
 /* ===== h25 ===== */
-(function(){window.renderWeek=function(){var host=document.getElementById('weekGrid');if(!host)return;host.textContent='';var startISO=weekStartOf(window.selectedDate);var start=parseISO(startISO);var isos=[];for(var i=0;i<7;i++){var d=new Date(start);d.setDate(d.getDate()+i);isos.push(isoOf(d));}var tgtop=document.createElement('div');tgtop.className='tgtop';var btnPrev=document.createElement('button');btnPrev.textContent='\u25C0';btnPrev.addEventListener('click',function(){shiftWeek(-1);});var btnNext=document.createElement('button');btnNext.textContent='\u25B6';btnNext.addEventListener('click',function(){shiftWeek(1);});var dateRange=document.createElement('span');dateRange.textContent=fmtDate(isos[0],'short')+' - '+fmtDate(isos[6],'short');var btnThisWeek=document.createElement('button');btnThisWeek.textContent='This week';btnThisWeek.addEventListener('click',function(){window.selectedDate=todayISO();renderAll();});var spacer=document.createElement('span');spacer.className='tgspacer';var btnExpand=document.createElement('button');btnExpand.className='tgexpand';btnExpand.textContent=TG.expanded?'Working hours':'Show 24h';btnExpand.addEventListener('click',function(){tgToggleExpanded();});tgtop.appendChild(btnPrev);tgtop.appendChild(dateRange);tgtop.appendChild(btnNext);tgtop.appendChild(btnThisWeek);tgtop.appendChild(spacer);tgtop.appendChild(btnExpand);host.appendChild(tgtop);var dayHeaderRow=document.createElement('div');dayHeaderRow.className='tgweekhead';var gutterLabel=document.createElement('div');gutterLabel.className='tggutterlabel';dayHeaderRow.appendChild(gutterLabel);isos.forEach(function(iso){var dayHead=document.createElement('div');dayHead.className='tgdayhead';dayHead.dataset.iso=iso;var d=parseISO(iso);var weekdays=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];var weekday=weekdays[d.getDay()];var dayNum=d.getDate();dayHead.textContent=weekday+' '+dayNum;if(iso===todayISO())dayHead.classList.add('tgtoday');if(iso===window.selectedDate)dayHead.classList.add('tgsel');dayHead.addEventListener('click',function(){window.selectedDate=iso;setTab('day');});dayHeaderRow.appendChild(dayHead);});host.appendChild(dayHeaderRow);var allDayRow=document.createElement('div');allDayRow.className='tgallday';var allDayGutter=document.createElement('div');allDayGutter.className='tggutterlabel';allDayGutter.textContent='All day';allDayRow.appendChild(allDayGutter);isos.forEach(function(iso){var allDayCell=document.createElement('div');allDayCell.className='tgalldaycell';allDayCell.dataset.iso=iso;var entries=scheduledOn(iso);entries.forEach(function(entry){if(!tgTimeOf(entry)){var chip=document.createElement('div');chip.className='tgchip';chip.textContent=entry.title||entry.name||'';chip.dataset.nodeId=(entry.node?entry.node.id:entry.id);chip.title=entry.title||'';allDayCell.appendChild(chip);}});allDayRow.appendChild(allDayCell);});host.appendChild(allDayRow);var g=tgBuildGrid(host,isos);isos.forEach(function(iso,i){tgFillColumn(g.cols[i],iso);});tgWireDrops(g.body.querySelector('.tgcols'));tgScrollToMorning(g.scroll);};})();
+(function(){window.renderWeek=function(){var host=document.getElementById('weekGrid');if(!host)return;host.textContent='';var startISO=weekStartOf(window.selectedDate);var start=parseISO(startISO);var isos=[];for(var i=0;i<7;i++){var d=new Date(start);d.setDate(d.getDate()+i);isos.push(isoOf(d));}var tgtop=document.createElement('div');tgtop.className='tgtop';var btnPrev=document.createElement('button');btnPrev.textContent='\u25C0';btnPrev.addEventListener('click',function(){shiftWeek(-1);});var btnNext=document.createElement('button');btnNext.textContent='\u25B6';btnNext.addEventListener('click',function(){shiftWeek(1);});var dateRange=document.createElement('span');dateRange.textContent=fmtDate(isos[0],'short')+' - '+fmtDate(isos[6],'short');var btnThisWeek=document.createElement('button');btnThisWeek.textContent='This week';btnThisWeek.addEventListener('click',function(){window.selectedDate=todayISO();renderAll();});var spacer=document.createElement('span');spacer.className='tgspacer';tgtop.appendChild(btnPrev);tgtop.appendChild(dateRange);tgtop.appendChild(btnNext);tgtop.appendChild(btnThisWeek);tgtop.appendChild(spacer);host.appendChild(tgtop);var dayHeaderRow=document.createElement('div');dayHeaderRow.className='tgweekhead';var gutterLabel=document.createElement('div');gutterLabel.className='tggutterlabel';dayHeaderRow.appendChild(gutterLabel);isos.forEach(function(iso){var dayHead=document.createElement('div');dayHead.className='tgdayhead';dayHead.dataset.iso=iso;var d=parseISO(iso);var weekdays=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];var weekday=weekdays[d.getDay()];var dayNum=d.getDate();dayHead.textContent=weekday+' '+dayNum;if(iso===todayISO())dayHead.classList.add('tgtoday');if(iso===window.selectedDate)dayHead.classList.add('tgsel');dayHead.addEventListener('click',function(){window.selectedDate=iso;setTab('day');});dayHeaderRow.appendChild(dayHead);});host.appendChild(dayHeaderRow);var allDayRow=document.createElement('div');allDayRow.className='tgallday';var allDayGutter=document.createElement('div');allDayGutter.className='tggutterlabel';allDayGutter.textContent='All day';allDayRow.appendChild(allDayGutter);isos.forEach(function(iso){var allDayCell=document.createElement('div');allDayCell.className='tgalldaycell';allDayCell.dataset.iso=iso;var entries=scheduledOn(iso);entries.forEach(function(entry){if(!tgTimeOf(entry)){var chip=document.createElement('div');chip.className='tgchip';chip.textContent=entry.title||entry.name||'';chip.dataset.nodeId=(entry.node?entry.node.id:entry.id);chip.title=entry.title||'';allDayCell.appendChild(chip);}});allDayRow.appendChild(allDayCell);});host.appendChild(allDayRow);var g=tgBuildGrid(host,isos);isos.forEach(function(iso,i){tgFillColumn(g.cols[i],iso);});tgWireDrops(g.body.querySelector('.tgcols'));tgScrollToMorning(g.scroll);};})();
 
 /* ===== k30 ===== */
 (function(){window.DEFAULT_AREAS=[{id:"work",name:"Work",color:"#2f6feb"},{id:"money",name:"Finances",color:"#16a34a"},{id:"health",name:"Health",color:"#ea580c"},{id:"love",name:"Relationships",color:"#db2777"},{id:"growth",name:"Growth",color:"#7c3aed"},{id:"spirit",name:"Spirituality",color:"#0891b2"},{id:"fun",name:"Fun",color:"#ca8a04"},{id:"home",name:"Home",color:"#64748b"}];window.migrateV2=function(){var d=Store.data;if(!Array.isArray(d.areas)||!d.areas.length)d.areas=DEFAULT_AREAS.map(function(a){return {id:a.id,name:a.name,color:a.color};});if(!Array.isArray(d.lists))d.lists=[];if(!Array.isArray(d.timeLog))d.timeLog=[];if(!d.settings)d.settings={};if(!d.settings.filters)d.settings.filters={areas:[],tags:[]};walkTree(function(n){if(n.areaId===undefined)n.areaId=null;if(!Array.isArray(n.tags))n.tags=[];if(n.endDate===undefined)n.endDate=null;if(n.time===undefined)n.time=null;if(n.repeat&&n.repeat.interval===undefined)n.repeat.interval=1;if(n.repeat&&!Array.isArray(n.repeat.exceptions))n.repeat.exceptions=[];});Object.keys(d.journal||{}).forEach(function(k){var e=d.journal[k];if(e&&typeof e==='object'){if(e.mood===undefined)e.mood=null;if(e.template===undefined)e.template=null;if(!Array.isArray(e.photos))e.photos=[];}});d.version=2;};window.areaById=function(id){var areas = Store.data.areas || [];for(var i=0;i<areas.length;i++){if(areas[i].id===id)return areas[i];}return null;};window.allTags=function(){var tags={};walkTree(function(n){if(Array.isArray(n.tags)){n.tags.forEach(function(t){tags[t]=true;});}});return Object.keys(tags).sort();};window.addArea=function(name,color){var area={id:uid(),name:name,color:color};Store.data.areas.push(area);Store.save();};window.removeArea=function(id){if(!confirm('Remove area?'))return;walkTree(function(n){if(n.areaId===id)n.areaId=null;});var areas = Store.data.areas || [];var idx=-1;for(var i=0;i<areas.length;i++){if(areas[i].id===id){idx=i;break;}}if(idx!==-1)areas.splice(idx,1);Store.save();renderAll();};var run=function(){migrateV2();Store.save();};if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',function(){setTimeout(run,30);});}else{setTimeout(run,30);}})();
@@ -9304,6 +9512,7 @@ renderAll();
     function outdent(node) {
         var found = window.findNode(node.id);
         if (!found || !found.parent) return;
+        var leaving = found.parent.id;             /* see __keepVisibleAfterMove */
         var parentFound = window.findNode(found.parent.id);
         if (!parentFound) return;
         var removed = window.removeNode(node.id);
@@ -9312,6 +9521,7 @@ renderAll();
         var insertIdx = parentFound.index + 1;
         if (insertIdx > target.length) insertIdx = target.length;
         target.splice(insertIdx, 0, removed);
+        if (window.__keepVisibleAfterMove) window.__keepVisibleAfterMove(leaving);
         window.Store.save();
         window.renderAll();
     }
@@ -9647,7 +9857,12 @@ renderAll();
     b.textContent = 'Diagnose';
     b.title = 'Show where each dated task appears';
     b.addEventListener('click', show);
-    bar.appendChild(b);
+    /* 2026-09-12: not added to the bar at all any more. First it moved to the account menu,
+       then the operator said it is not needed - so no control creates it. The button object
+       is still built (other code looks for #btnDiagnose) but it is never mounted, and
+       window.showDiagnostics() still works if it is ever wanted back. */
+    b.hidden = true;
+    b.setAttribute('aria-hidden', 'true');
   }
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', function () { setTimeout(addButton, 500); });
@@ -9749,6 +9964,7 @@ renderAll();
     input.type = (kind === 'date') ? 'date' : 'time';
     input.className = (kind === 'date') ? 'tree-dateinput' : 'tree-timeinput';
     input.value = (kind === 'date') ? (node.date || '') : (node.time || '');
+    if (window.__wireClearable) window.__wireClearable(input);
 
     var done = false;
     function commit() {
@@ -10827,9 +11043,11 @@ function surfaceArrivals() {
 
     var time = document.createElement('input');
     time.type = 'time'; time.className = 'ea-input'; time.value = node.time || '';
+    if (window.__wireClearable) window.__wireClearable(time);
 
     var date = document.createElement('input');
     date.type = 'date'; date.className = 'ea-input'; date.value = node.date || '';
+    if (window.__wireClearable) window.__wireClearable(date);
     /* 2026-09-10: the operator did not want a Clear button - "I just need to have the
        access to backspace, and it would delete the date". So the field is simply editable:
        empty it and the date is gone. Emptying applies straight away, because this dialog's
@@ -11056,7 +11274,34 @@ function surfaceArrivals() {
 
   function actions(id) {
     var f = window.findNode(id);
-    if (!f || !f.node) return [];
+    if (!f || !f.node) {
+      /* 2026-09-12: a calendar EVENT is not a tree node, so findNode returns nothing and
+         this used to hand back an empty list - the three-dot menu on an event opened
+         blank. Give an event the one action that applies to it. */
+      /* look the event up again when the item RUNS, not once when the menu opens. A save
+         between the two can replace the events array with re-parsed objects, and mutating
+         the copy the menu captured would then change nothing the app reads. */
+      function findEvent(evId) {
+        var list = (window.Store && window.Store.data && window.Store.data.events) || [];
+        for (var k = 0; k < list.length; k++) if (list[k] && list[k].id === evId) return list[k];
+        return null;
+      }
+      var ev0 = findEvent(id);
+      if (ev0) {
+        return [{
+          label: ev0.done ? 'Mark not complete' : 'Complete',
+          kind: 'accent',
+          run: function () {
+            var ev = findEvent(id);
+            if (!ev) return;
+            ev.done = !ev.done;
+            window.Store.save();
+            window.renderAll();
+          }
+        }];
+      }
+      return [];
+    }
     var node = f.node;
     return [
       { label: node.done ? 'Mark not complete' : 'Complete', kind: 'accent', run: function () {
@@ -11106,7 +11351,11 @@ function surfaceArrivals() {
     ];
   }
 
-  function openMenu(id, x, y) {
+  /* fromTree: the two indent arrows are a TREE action - they move a task in or out a
+     level. In the calendar they are meaningless (a block has no siblings to indent
+     under) and the operator asked for them to go. The tree keeps them; the calendar
+     does not. One menu, one code path, told where it was opened from. */
+  function openMenu(id, x, y, fromTree) {
     closeMenus();
     var menu = document.createElement('div');
     menu.className = 'actmenu';
@@ -11130,7 +11379,7 @@ function surfaceArrivals() {
       if (!edit || !resch) return;                   /* leave the menu alone if it moved */
 
       out.push(edit);
-      out.push({ arrows: true });
+      if (fromTree) out.push({ arrows: true });
       out.push({ sep: true });
       for (i = 0; i < items.length; i++) {
         var it = items[i];
@@ -11233,7 +11482,8 @@ function surfaceArrivals() {
     if (r.bottom > window.innerHeight) menu.style.top = Math.round(y - r.height) + 'px';
     if (r.right > window.innerWidth) menu.style.left = Math.round(window.innerWidth - r.width - 8) + 'px';
   }
-  window.__openActMenu = openMenu;
+  /* every caller of this is a tree row - the calendar calls openMenu directly */
+  window.__openActMenu = function (id, x, y) { return openMenu(id, x, y, true); };
 
   function decorate() {
     var els = document.querySelectorAll('.tgevent, .tgchip, .mchip');
@@ -11257,6 +11507,24 @@ function surfaceArrivals() {
       el.appendChild(b);
     }
   }
+
+  /* 2026-09-12 - WHY THERE WAS NO MENU ON A CALENDAR EVENT.
+     Measured in the day view: the same event exists twice in the DOM, and the copy with
+     the three-dot button was the HIDDEN week-grid one. The blocks the operator can
+     actually see had no button at all, so there was no way to mark an event complete
+     from the calendar - which is exactly what was reported.
+     Cause: decorate() was hung off renderAll, but the day column is re-filled by
+     tgFillColumn afterwards, and that pass replaces the blocks with undecorated ones.
+     Hook the thing that BUILDS the blocks, not the render that happens to precede it -
+     the same rule that fixed the calendar flicker. */
+  (function hookFill() {
+    if (typeof window.tgFillColumn !== 'function') { setTimeout(hookFill, 150); return; }
+    if (window.tgFillColumn.__actHooked) return;
+    var bf = window.tgFillColumn;
+    var wf = function () { var r = bf.apply(this, arguments); setTimeout(decorate, 0); return r; };
+    wf.__actHooked = true;
+    window.tgFillColumn = wf;
+  })();
 
   var baseRenderAll = window.renderAll;
   window.renderAll = function () { var r = baseRenderAll.apply(this, arguments); setTimeout(decorate, 0); return r; };
@@ -11356,6 +11624,17 @@ function surfaceArrivals() {
     for (var i = 0; i < t.length; i++) if (t[i].node && t[i].node.id === nodeId) { idx = i; break; }
     if (idx < 0) return;
     var entry = t.splice(idx, 1)[0];
+    if (entry.noteData) {
+      /* a journal note, not a task. Putting it in the tree would turn the operator's
+         writing into a to-do item. */
+      if (typeof window.__journalRestoreNote === 'function') {
+        window.__journalRestoreNote(entry.node.id, entry.noteData);
+      }
+      window.Store.save();
+      window.renderAll();
+      if (window.toast) window.toast('Restored "' + (entry.node.title || 'Untitled note') + '"', 'ok');
+      return;
+    }
     var target = null;
     if (entry.parentId) {
       var pf = window.findNode(entry.parentId);
@@ -12658,6 +12937,45 @@ function surfaceArrivals() {
     window.renderTree();
   };
 
+  /* 2026-09-12 - OUTDENTING A TASK MADE THE BRANCH IT CAME FROM DISAPPEAR.
+     The operator: outdent "contest NY" and the "2025 taxes" branch it came out of is gone.
+     Measured, not guessed. __applyTimeFilter decides a row with:
+         visible[id] = !isFuture || childVisible
+     so a branch dated in the future is on screen ONLY because a visible child holds it
+     there. Take its last child away and the branch drops out of the tree - the operator
+     moved one task and an unrelated branch vanished, with nothing to click to bring it
+     back and no indication it still existed.
+     Rather than change what "hide until its day" means for everyone, mark that specific
+     branch as revealed - the same list the "Show future tasks" control writes to, so it
+     behaves like any other revealed row and the operator can put it back. */
+  window.__keepVisibleAfterMove = function (id) {
+    if (!id) return;
+    var s2 = settings();
+    var f = window.findNode(id);
+    if (!f || !f.node) return;
+    var n = f.node;
+
+    /* First: if this is a TOP-LEVEL node the operator has just emptied, say so, or the
+       "house loose calendar items" rule files it inside another branch on the next
+       render and it vanishes from where they left it. See house() in m148. */
+    if (!f.parent && n.date && !(n.children && n.children.length)) {
+      if (!n.keepTop) { n.keepTop = true; window.Store.save(); }
+    }
+
+    /* Second: a future-dated branch is on screen only while a visible child holds it
+       there, so losing its last child hides it. Reveal that one branch. */
+    if (!n.date || n.date <= window.todayISO()) return;
+    var kids = n.children || [];
+    for (var i = 0; i < kids.length; i++) {
+      var k = kids[i];
+      if (k && (!k.date || k.date <= window.todayISO())) return;   /* still held up */
+    }
+    if (s2.revealed.indexOf(id) < 0) {
+      s2.revealed.push(id);
+      window.Store.save();
+    }
+  };
+
   window.revealAllHidden = function (on) {
     window.__showAllHidden = !!on;
     window.renderTree();
@@ -13043,6 +13361,10 @@ function surfaceArrivals() {
     }
   }
 
+  var GIST_PLACEHOLDER =
+    'This gist holds the calendar feed only. The planner itself syncs through ' +
+    'the account you sign in with, not through here.\n';
+
   async function ensureGist() {
     var id = ls(LS_GIST);
     if (id) return id;
@@ -13051,10 +13373,16 @@ function surfaceArrivals() {
     var res = await fetch(API + '/gists', {
       method: 'POST',
       headers: H(),
+      /* the CREATE path had to change too. writeRemote() was switched to a placeholder but
+         this one still put the whole planner in at the moment the gist was made - so a new
+         device would seed a fresh gist with a full copy of everything before anything else
+         ran. A check caught it. */
       body: JSON.stringify({
         description: MARK,
         public: false,
-        files: { [FILE]: { content: JSON.stringify(window.Store.data) } }
+        files: { [FILE]: { content: GIST_DATA_SYNC
+          ? JSON.stringify(window.Store.data)
+          : GIST_PLACEHOLDER } }
       })
     });
     if (!res.ok) throw new Error('Could not create the gist (' + res.status + ')');
@@ -13080,8 +13408,15 @@ function surfaceArrivals() {
     var res = await fetch(API + '/gists/' + id, {
       method: 'PATCH',
       headers: H(),
+      /* 2026-09-12: this used to put the ENTIRE planner in the gist - a second copy of
+         everything, written by a second system, while Firebase was doing the same job.
+         It now writes a short note instead. The gist still exists, because the iPhone
+         calendar subscribes to planner.ics inside it, but your planner is not in there.
+         Deliberately not deleted: the feed's plumbing runs through this module. */
       body: JSON.stringify({
-        files: { [FILE]: { content: JSON.stringify(window.Store.data) } }
+        files: { [FILE]: { content: GIST_DATA_SYNC
+          ? JSON.stringify(window.Store.data)
+          : GIST_PLACEHOLDER } }
       })
     });
     if (!res.ok) throw new Error('Could not save to the gist (' + res.status + ')');
@@ -13162,6 +13497,18 @@ function firstConnect(remote, rAt, lAt) {
   return true;
 }
 
+  /* 2026-09-12 - THE SECOND WRITER IS SWITCHED OFF.
+     This module used to sync the whole planner through a private gist. Firebase replaced
+     that months ago, but nothing removed this, so a connected account had TWO systems
+     writing the same data, neither aware of the other. That is a strong candidate for the
+     copies that kept disagreeing.
+     What is deliberately KEPT: publishing planner.ics into the gist. The operator's iPhone
+     Calendar subscribes to that file by URL, and deleting it would silently stop their
+     calendar updating - the reason this was checked before touching anything.
+     So: the data sync is inert, the feed still publishes. The module is left in place
+     rather than deleted, because the feed's plumbing runs through it. */
+  var GIST_DATA_SYNC = false;
+
   var Gist = {
     active: ghOn,
 
@@ -13169,7 +13516,19 @@ function firstConnect(remote, rAt, lAt) {
       if (!ghOn()) return;
       st('syncing');
       try {
+        /* readRemote() is also what FINDS the gist again if this device lost its id.
+           The first guard sat above this line and broke that: a device that lost its id
+           would create a SECOND gist and the iPhone's calendar would be left subscribed to
+           the abandoned one. A check caught it. Discovery still runs; only the part that
+           writes the gist's copy into the planner is switched off. */
         var remote = await readRemote();
+        if (!GIST_DATA_SYNC) {
+          /* make sure the gist EXISTS - the calendar feed needs somewhere to publish to -
+             but never take its contents into the planner. */
+          await ensureGist();
+          st('synced');
+          return;
+        }
         if (!remote) { await writeRemote(); st('synced'); return; }
         var rAt = remote.updatedAt || '';
         var lAt = (window.Store.data && window.Store.data.updatedAt) || '';
@@ -13209,6 +13568,9 @@ function firstConnect(remote, rAt, lAt) {
     },
 
     push: function () {
+      /* inert - see GIST_DATA_SYNC above. The calendar feed publishes through
+         _patchFiles, not through here, so this does not touch the iPhone calendar. */
+      if (!GIST_DATA_SYNC) return Promise.resolve();
       if (!ghOn()) return Promise.resolve();
       clearTimeout(pushTimer);
       if (!pushPending) {
@@ -13251,7 +13613,7 @@ function firstConnect(remote, rAt, lAt) {
       body.appendChild(p1);
       body.appendChild(inp);
       body.appendChild(p2);
-      window.showModal('Connect GitHub', body, [
+      window.showModal('Calendar feed', body, [
         {label: 'Cancel'},
         {label: 'Connect', kind: 'primary', onClick: function () {
           var t = (inp.value || '').trim();
@@ -13295,12 +13657,18 @@ function firstConnect(remote, rAt, lAt) {
   };
 
   window.CloudGist = Gist;
+  /* one flag both halves of the gist module read, so there is no way to switch one off and
+     leave the other running - which is exactly what happened the first time. */
+  window.CloudGist.__dataSyncOff = !GIST_DATA_SYNC;
 
   function label() {
     var b = document.getElementById('btnSignIn');
     if (!b) return;
-    b.textContent = ghOn() ? 'Sign out' : 'Connect GitHub';
-    b.title = ghOn() ? 'Disconnect GitHub sync' : 'Sync through a private GitHub gist';
+    /* 2026-09-12: this is the calendar feed now, not a sync. Saying "Connect GitHub"
+       described plumbing rather than what it does for the operator. */
+    b.textContent = ghOn() ? 'Calendar feed on' : 'Calendar feed';
+    b.title = ghOn() ? 'Your iPhone calendar is subscribed to this'
+                     : 'Publish your planner as a calendar your phone can subscribe to';
   }
 
   // Keep window.Cloud as the contract; branch inside it.
@@ -14293,6 +14661,16 @@ function firstConnect(remote, rAt, lAt) {
 
   function syncNow(reason) {
     if (!on()) return Promise.resolve();
+    /* 2026-09-12: THIS is the gist data sync, not Gist.pull - install() replaces
+       CloudGist.pull/push with wrappers that come straight here, so a guard placed in the
+       transport was simply stepped over. Measured by a check: the gist's copy was still
+       being merged into the planner with the transport guard already in place.
+       The planner syncs through the account now; the gist keeps only the calendar feed,
+       which is published by _patchFiles and does not pass through here. */
+    if (window.CloudGist && window.CloudGist.__dataSyncOff) {
+      st('synced');
+      return Promise.resolve();
+    }
     if (pushing) { again = true; return Promise.resolve(); }
     pushing = true;
     st('syncing');
@@ -14783,6 +15161,31 @@ function firstConnect(remote, rAt, lAt) {
       head.appendChild(prev);
       head.appendChild(lab);
       head.appendChild(next);
+
+      /* 2026-09-12: the clock (reminder) date picker is this grid. The operator asked for it
+         to match the due-date picker - one month, with Today and Tomorrow sitting on top.
+         The due-date picker builds its own copy of these two chips; putting them HERE means
+         the clock gets them without a second implementation to keep in step. */
+      (function () {
+        var q = document.createElement('div');
+        q.className = 'datepop-quick';
+        function quick(label, offset) {
+          var b = document.createElement('button');
+          b.type = 'button';
+          b.textContent = label;
+          b.addEventListener('click', function (e) {
+            e.stopPropagation();
+            var dd = new Date();
+            dd.setDate(dd.getDate() + offset);
+            if (onPick) onPick(window.isoOf(dd));
+          });
+          return b;
+        }
+        q.appendChild(quick('Today', 0));
+        q.appendChild(quick('Tomorrow', 1));
+        host.appendChild(q);
+      })();
+
       host.appendChild(head);
 
       var grid = document.createElement('div');
@@ -15197,7 +15600,7 @@ function firstConnect(remote, rAt, lAt) {
   // GitHub reports the real address for every file in a gist. Use that.
   window.resolveFeedUrl = function () {
     if (!window.CloudGist || !window.CloudGist._readGist) {
-      return Promise.resolve({ ok: false, why: 'Connect GitHub first.' });
+      return Promise.resolve({ ok: false, why: 'Turn the calendar feed on first.' });
     }
     return window.CloudGist._readGist().then(function (g) {
       if (!g || !g.files) return { ok: false, why: 'Could not read your gist.' };
@@ -15319,7 +15722,7 @@ function firstConnect(remote, rAt, lAt) {
     var link = window.plannerSignInLink ? window.plannerSignInLink(false) : '';
     if (!link) {
       var p0 = document.createElement('p');
-      p0.textContent = 'Connect GitHub first, then this becomes your sign-in link.';
+      p0.textContent = 'Turn the calendar feed on first, then this becomes your sign-in link.';
       body.appendChild(p0);
       window.showModal('My sign-in link', body, [{ label: 'Close' }]);
       return;
@@ -15404,7 +15807,7 @@ function firstConnect(remote, rAt, lAt) {
     var steps = ['Open github.com/settings/personal-access-tokens',
                  'Delete the old token.',
                  'Generate a new one: Account permissions, Gists, Read and write.',
-                 'Come back here, tap Sign out, then Connect GitHub and paste the new one.',
+                 'Come back here, turn the calendar feed off and on again, and paste the new one.',
                  'Open My sign-in link again and save the NEW link. The old one stops working.'];
     var ol = document.createElement('ol');
     ol.style.cssText = 'font-size:12px;line-height:1.6;padding-left:18px';
@@ -15636,7 +16039,7 @@ function firstConnect(remote, rAt, lAt) {
 
     if (!window.feedUrlEnsured) {
       status.textContent = 'Not available.';
-      line('Reason', 'Connect GitHub first', false);
+      line('Reason', 'The calendar feed is not on', false);
       return;
     }
     window.feedUrlEnsured().then(function (r) {
@@ -17803,6 +18206,10 @@ function firstConnect(remote, rAt, lAt) {
   }
   window.plannerHomeBranch = homeBranch;
 
+  /* top-level nodes that held something the last time this ran. In memory only: it is a
+     guard against a transition, not a fact about the planner, so it should not sync. */
+  var LASTHADKIDS = {};
+
   function house() {
     var d = window.Store && window.Store.data;
     if (!d || !d.tree) return 0;
@@ -17814,7 +18221,27 @@ function firstConnect(remote, rAt, lAt) {
       n = d.tree[i];
       if (!n) continue;
       if (n === home) { keep.push(n); continue; }
-      if (n.children && n.children.length) { keep.push(n); continue; }
+      if (n.children && n.children.length) {
+        /* it is a branch right now - remember that, so the moment it is emptied this rule
+           does not mistake it for a loose task. keepTop below is the persisted version,
+           set at the moment of a move; this is the general one and catches every other way
+           a branch can end up empty (a delete, a drag out, a Location change), not just
+           the outdent that was reported. */
+        LASTHADKIDS[n.id] = 1;
+        keep.push(n);
+        continue;
+      }
+      if (LASTHADKIDS[n.id]) { keep.push(n); continue; }
+      /* 2026-09-12 - THE BRANCH THAT DISAPPEARED WHEN A TASK WAS OUTDENTED.
+         The operator: outdent "contest NY" and the "2025 taxes" branch it came from is
+         gone. Measured, not guessed - the branch was at the top level before the outdent
+         and inside "Unbranched" after it. This is why: outdenting the last child leaves a
+         dated, titled, top-level node with NO children, which is exactly the shape this
+         rule was written to house. It was meant for a loose calendar task, and it swallowed
+         a branch instead. keepTop marks a node the operator emptied on purpose, and it is
+         set at the moment of the move - the one moment the app can tell the difference
+         between "a branch that just lost its last child" and "a task that never had one". */
+      if (n.keepTop) { keep.push(n); continue; }
       if (!n.date) { keep.push(n); continue; }
       if (!n.title || !String(n.title).trim()) { keep.push(n); continue; }
       home.children.push(n);
@@ -19385,7 +19812,14 @@ if (r.freq === 'yearly') {
       key = nd.id;
       if (seen2[key]) continue;
       seen2[key] = 1;
-      out.push(item.node ? item : wrap(nd, iso));
+      /* 2026-09-12 - WHY MARK COMPLETE DID NOTHING IN THE CALENDAR.
+         A calendar EVENT is a built entry with source:'event' and node:null. This read
+         `item.node ? item : wrap(...)`, so every event fell through to wrap(), which
+         rebuilds an entry from a tree NODE - dropping source, event, done and time along
+         the way. Measured through scheduledOn: the event came back with source null and
+         tgTimeOf() null, which is also why a timed event never appeared on the day grid at
+         all. Anything that already carries a source is a finished entry; leave it alone. */
+      out.push((item.source || item.node) ? item : wrap(nd, iso));
     }
     if (window.plannerRoutinesOn) {
       var extra = window.plannerRoutinesOn(iso);
@@ -20752,6 +21186,9 @@ nesting to 20 levels, so the whole tree is serialised rather than stored as nest
         var btn = document.createElement('button');
         btn.type = 'button';
         btn.id = 'btnCloudAuth';
+        /* off the bar - the account menu offers this now, and clicks through to here */
+        btn.hidden = true;
+        btn.setAttribute('aria-hidden', 'true');
         var cs = window.getComputedStyle(ref);
         btn.style.font = cs.font;
         btn.style.fontSize = cs.fontSize;
@@ -22350,6 +22787,61 @@ ancestor that can move.
         }
 
         walk(tree, 0);
+
+        /* 2026-09-12: Habits and Routines belong in this list too, as the operator asked.
+           They are not tree branches - a habit lives in Store.data.habits and a routine is
+           any task carrying a repeat - so picking one CONVERTS the task rather than moving
+           it. Say that on the row instead of letting a "Pick" quietly do something
+           different from every other Pick in the list. */
+        (function () {
+          if (typeof window.__routinesLocationEntries !== 'function') return;
+          var extras = window.__routinesLocationEntries() || [];
+          if (!extras.length) return;
+
+          /* NOT an .lf-row, and no .lf-name inside it. A later pass walks .lf-row by
+             padding-left and deletes any row that looks like a child of a closed parent -
+             a heading row with no padding read as indent 0, so both entries below it were
+             taken for its children and removed. Measured: built directly the rows were
+             there; opened from the edit dialog they were gone. Keep the heading out of
+             that structure entirely. */
+          var sep = document.createElement('div');
+          sep.className = 'lf-sep';
+          sep.style.opacity = '.55';
+          sep.style.fontSize = '11px';
+          sep.style.padding = '8px 10px 2px';
+          sep.textContent = 'Or make it a';
+          list.appendChild(sep);
+
+          for (var i = 0; i < extras.length; i++) {
+            (function (ex) {
+              var row = document.createElement('div');
+              row.className = 'lf-row';
+              row.style.paddingLeft = '10px';
+
+              var nameBtn = document.createElement('button');
+              nameBtn.type = 'button';
+              nameBtn.className = 'lf-name';
+              nameBtn.textContent = '  ' + ex.title;
+              nameBtn.onclick = safeStop;
+              row.appendChild(nameBtn);
+
+              var pickBtn = document.createElement('button');
+              pickBtn.type = 'button';
+              pickBtn.className = 'lf-pick';
+              pickBtn.textContent = 'Pick';
+              pickBtn.onclick = function (e) {
+                safeStop(e);
+                chosenId = ex.id;
+                chosenPath = [ex.title];
+                list.style.display = 'none';
+                refreshField();
+                if (typeof onPick === 'function') onPick(ex.id);
+              };
+              row.appendChild(pickBtn);
+              list.appendChild(row);
+            })(extras[i]);
+          }
+        })();
       } catch (err) {
         // drawing failed; wrap is still returned below
       }
@@ -22394,6 +22886,40 @@ ancestor that can move.
     function onPick(targetId) {
       var id = window.__ebCurrentId;
       if (!id) return;
+
+      /* 2026-09-12: Habits and Routines are not tree ids. Without this branch the code below
+         would removeNode() the task, fail to find '__habits', and push it to the TOP of the
+         tree - silently moving the operator's work somewhere they never asked for. Handle
+         them BEFORE anything is removed.
+         Neither of these deletes the task. A habit is a separate record, and a routine is
+         just a repeat on the task itself, so both are reversible and nothing is lost. */
+      if (targetId === '__habits' || targetId === '__routines') {
+        var fx = window.findNode(id);
+        if (!fx || !fx.node) return;
+        var nx = fx.node;
+        if (targetId === '__habits') {
+          var nm = String(nx.title || '').replace(/^\s+|\s+$/g, '');
+          if (!nm) { window.toast('Give the task a name first.', 'err'); return; }
+          if (!window.Store.data.habits) window.Store.data.habits = [];
+          var dup = false, hs = window.Store.data.habits;
+          for (var hi = 0; hi < hs.length; hi++) { if (hs[hi] && hs[hi].name === nm) { dup = true; break; } }
+          if (dup) { window.toast('"' + nm + '" is already a habit.', 'err'); return; }
+          hs.push({ id: window.uid(), name: nm, color: '#1a73e8', freq: 'daily', targetPerWeek: 7 });
+          window.Store.save();
+          window.renderAll();
+          window.toast('Added to Habits.', 'ok');
+          return;
+        }
+        /* Routines lists every task that repeats, so a task with no repeat would be filed
+           somewhere it does not appear. Give it a daily repeat - editable afterwards. */
+        if (!nx.repeat) nx.repeat = { freq: 'daily', interval: 1, until: null };
+        if (!nx.date) nx.date = window.todayISO();
+        window.Store.save();
+        window.renderAll();
+        window.toast('Now a routine - repeats daily. Change it in Routines.', 'ok');
+        return;
+      }
+
       if (targetId === id || isDescendant(targetId, id)) {
         window.toast('A task cannot be moved inside itself.', 'err');
         return;
@@ -28011,6 +28537,33 @@ body[data-fb="on"] .fb-band { display: block; }
 .fb-moveitem:disabled { opacity: .45; cursor: default; }
 
 /* item 5 - a past routine, shown crossed off */
+/* 2026-09-12: the bar's own rules set display on its buttons, which BEATS the browser's
+   default [hidden]{display:none} - so three buttons marked hidden were still on screen
+   (measured: hidden=true, display=flex, offsetParent present). An explicit rule, and
+   !important because the rules it has to beat are element-and-class specific. */
+/* `.cal-topbar button` sets `display: inline-flex !important`, which is (0,1,1) against
+   [hidden]'s (0,1,0) - both important, so the more specific one won and three buttons marked
+   hidden stayed on screen. Found by listing every matching display rule in the document
+   rather than guessing. These selectors out-specify it. */
+/* NARROWED 2026-09-12: a blanket `[hidden] { display:none !important }` broke five
+   regression checks - the day and week grids carry `hidden` on elements they then show
+   through CSS, and an !important rule took that decision away from them. Only the three
+   top-bar buttons need this, so only they get it. */
+.cal-topbar button[hidden],
+#topbar button[hidden] { display: none !important; }
+
+.acct-dots{ background:transparent; border:1px solid transparent; color:#9aa1ab;
+  font-size:17px; line-height:1; padding:4px 9px; border-radius:8px; cursor:pointer; }
+.acct-dots:hover{ background:#22262e; color:#e6e8ec; border-color:#2e323a; }
+.acct-dots[aria-expanded="true"]{ background:#22262e; color:#e6e8ec; border-color:#2e323a; }
+.acctmenu{ position:absolute; z-index:2147483000; min-width:210px; background:#1c1f26;
+  border:1px solid #2e323a; border-radius:10px; padding:6px; box-shadow:0 10px 30px rgba(0,0,0,.45); }
+.acctmenu .who{ padding:8px 10px 9px; font-size:11px; color:#6b7280; line-height:1.45;
+  border-bottom:1px solid #2e323a; margin-bottom:6px; word-break:break-all; }
+.acctmenu button{ display:block; width:100%; text-align:left; background:transparent;
+  border:0; color:#e6e8ec; font:inherit; font-size:13px; padding:8px 10px; border-radius:7px;
+  cursor:pointer; }
+.acctmenu button:hover{ background:#262b33; }
 .tgevent.routine-past { opacity: .5; }
 .tgevent.routine-past .tgevent-title,
 .tgevent.routine-past .tgtitle { text-decoration: line-through; }
@@ -28479,6 +29032,15 @@ body[data-fb="on"] .fb-band { display: block; }
     return d.journalNotes;
   }
   function save() { if (window.Store && window.Store.save) window.Store.save(); }
+  /* restoreFromTrash calls this: the trash is generic, the journal store is not. */
+  window.__journalRestoreNote = function (id, data) {
+    if (!id || !data) return false;
+    var store = notes();
+    store[id] = data;
+    save();
+    if (typeof window.__journal2Draw === 'function') window.__journal2Draw();
+    return true;
+  };
   function uid() { return 'j' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5); }
   function iso(d) { return d.getFullYear() + '-' + ('0'+(d.getMonth()+1)).slice(-2) + '-' + ('0'+d.getDate()).slice(-2); }
   function parse(s) { var p = String(s).split('-'); return new Date(+p[0], +p[1]-1, +p[2]); }
@@ -29055,10 +29617,18 @@ body[data-fb="on"] .fb-band { display: block; }
         var hd = el('div', 'hd');
         hd.appendChild(el('span', 'car', n.id === openNote ? '▾' : '▸'));
         var tw = el('div', 'tw');
+        /* 2026-09-12, SECOND ATTEMPT. The first only hid the PLACEHOLDER when the card was
+           open, and the operator was right that there were still two fields: an open card
+           showed the title in this heading AND in the Title input below it, and the first
+           line of the body in this preview AND in the textarea below it. Everything twice.
+           The heading and preview exist to describe a CLOSED card. When it is open the
+           editable fields are the content, so the heading row keeps only its caret and date.
+           ti and pv are still built - touch() writes to them - they are simply not mounted. */
+        var isOpen = (n.id === openNote);
         var ti = el('div', 'ti' + (String(n.title||'').trim() ? '' : ' blank'),
                     String(n.title||'').trim() || 'Untitled note');
         var pv = el('div', 'pv', firstLine(n.body) || 'empty');
-        tw.appendChild(ti); tw.appendChild(pv);
+        if (!isOpen) { tw.appendChild(ti); tw.appendChild(pv); }
         hd.appendChild(tw);
         var wn = el('span', 'when', n.updatedAt ? shortLabel(String(n.updatedAt).slice(0,10)) : '');
         hd.appendChild(wn);
@@ -29078,7 +29648,7 @@ body[data-fb="on"] .fb-band { display: block; }
           store[n.id] = { id:n.id, title:ti2.value, body:body.value,
                           updatedAt:new Date().toISOString() };
           save(); flashSaved();
-          ti.textContent = String(ti2.value).trim() || 'Untitled note';
+          ti.textContent = String(ti2.value).trim() || '';
           ti.className = 'ti' + (String(ti2.value).trim() ? '' : ' blank');
           pv.textContent = firstLine(body.value) || 'empty';
         };
@@ -29086,11 +29656,32 @@ body[data-fb="on"] .fb-band { display: block; }
         body.addEventListener('input', touch);
         var del = el('button', 'del', 'Delete this note'); del.type = 'button';
         del.addEventListener('click', function () {
-          /* one confirm - this is the operator's own writing and there is no undo */
-          if (!window.confirm('Delete this note? It cannot be undone.')) return;
-          var store = notes(); delete store[n.id];
-          if (openNote === n.id) openNote = null;
-          save(); flashSaved(); draw(true);
+          /* the shared dialog - see confirmRemoval. This used to be a browser popup, and
+             then a hand-built copy of the dialog; both are gone, so there is one shape to
+             change if the operator ever wants the wording different. */
+          if (typeof window.confirmRemoval !== 'function') return;
+          var title = String(n.title || '').trim() || 'Untitled note';
+          window.confirmRemoval({
+            what: '"' + title + '"',
+            items: [{ title: title, meta: firstLine(String(n.body || '')) }],
+            onConfirm: function () {
+              var store = notes();
+              var gone = store[n.id];
+              delete store[n.id];
+              if (openNote === n.id) openNote = null;
+              try {
+                if (typeof window.__trash === 'function' && gone) {
+                  window.__trash().push({
+                    node: { id: n.id, title: title, children: [] },
+                    noteData: gone, parentId: null, index: 0,
+                    deletedAt: new Date().toISOString()
+                  });
+                }
+              } catch (e) {}
+              save(); flashSaved(); draw(true);
+              if (window.toast) window.toast('Moved to Deleted', 'ok');
+            }
+          });
         });
         bd.appendChild(ti2); bd.appendChild(body); bd.appendChild(del);
         card.appendChild(hd); card.appendChild(bd);
@@ -29267,7 +29858,8 @@ body[data-fb="on"] .fb-band { display: block; }
   if (window.__routinesTabInstalled) return;
   window.__routinesTabInstalled = true;
 
-  var pane = 'habits';   /* 'habits' | 'routines' */
+  var pane = (window.__trackerPane === 'routines') ? 'routines' : 'habits';
+  window.__trackerPane = pane;
   var DOW = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
   function routines() {
@@ -29349,11 +29941,20 @@ body[data-fb="on"] .fb-band { display: block; }
         var stop = document.createElement('button');
         stop.type = 'button'; stop.className = 'rt-btn stop'; stop.textContent = 'Stop repeating';
         stop.addEventListener('click', function () {
-          /* the task itself is never deleted here - only the repeat is removed */
-          if (!window.confirm('Stop "' + (n.title || 'this') +
-                              '" from repeating? The task itself stays where it is.')) return;
-          var f = window.findNode(n.id);
-          if (f && f.node) { f.node.repeat = null; window.Store.save(); window.renderAll(); }
+          /* the task itself is never deleted here - only the repeat is removed. Same dialog
+             as every other removal, different words, because what is going is the repeat. */
+          var go = function () {
+            var f = window.findNode(n.id);
+            if (f && f.node) { f.node.repeat = null; window.Store.save(); window.renderAll(); }
+          };
+          if (typeof window.confirmRemoval !== 'function') return;
+          window.confirmRemoval({
+            what: 'the repeat on "' + (n.title || 'this') + '"',
+            items: [{ title: n.title || 'Untitled' }],
+            warn: 'The task itself stays exactly where it is - only the repeat is removed.',
+            confirm: 'Stop repeating',
+            onConfirm: go
+          });
         });
         row.appendChild(dot); row.appendChild(mid); row.appendChild(when);
         row.appendChild(edit); row.appendChild(stop);
@@ -29383,6 +29984,7 @@ body[data-fb="on"] .fb-band { display: block; }
       b.addEventListener('click', function () {
         if (pane === name) return;
         pane = name;
+        window.__trackerPane = name;          /* what renderHabits reads */
         if (typeof window.renderHabits === 'function') window.renderHabits();
         decorate();
       });
@@ -29391,15 +29993,14 @@ body[data-fb="on"] .fb-band { display: block; }
     tabs.appendChild(tab('habits', 'Habits'));
     tabs.appendChild(tab('routines', 'Routines'));
 
-    if (pane === 'routines') {
-      /* the habits view has already drawn itself - replace its body, keep the tabs */
-      view.innerHTML = '';
-      view.appendChild(tabs);
-      buildRoutines(view);
-    } else {
-      if (view.firstChild) view.insertBefore(tabs, view.firstChild);
-      else view.appendChild(tabs);
-    }
+    /* 2026-09-12: both tabs are now drawn by renderTracker, so Routines has the SAME setup
+       as Habits - the same add row, the same colour swatches, the same list and the same
+       delete - because it is the same function. The old pane listed tasks that carried a
+       repeat, which was a different thing wearing the same tab.
+       renderHabits() has already drawn the pane for whichever tab is current, so all this
+       does is put the tabs on top of it. */
+    if (view.firstChild) view.insertBefore(tabs, view.firstChild);
+    else view.appendChild(tabs);
   }
 
   /* renderHabits is called by renderAll and by the bottom bar; decorate after either */
@@ -29421,6 +30022,127 @@ body[data-fb="on"] .fb-band { display: block; }
   window.__routinesLocationEntries = function () {
     return [{ id: '__habits', title: 'Habits' }, { id: '__routines', title: 'Routines' }];
   };
+})();
+</script>
+
+<script>
+/* ===== account menu, 2026-09-12 =====
+   The operator asked for a three-dot menu all the way to the right, with Sign out in it.
+   Sign out means Firebase - that is what the login gate checks and what the planner syncs
+   through. window.FB is always defined (there is a no-op fallback if Firebase failed to
+   load), so this cannot throw on a cold start. The glyph is the same one the tree rows and
+   calendar blocks already use for "more actions", per the match-the-existing-layout rule. */
+(function () {
+  if (window.__acctMenuInstalled) return;
+  window.__acctMenuInstalled = true;
+
+  var btn = null, menu = null;
+
+  function close() {
+    if (menu && menu.parentNode) menu.parentNode.removeChild(menu);
+    menu = null;
+    if (btn) btn.setAttribute('aria-expanded', 'false');
+    document.removeEventListener('mousedown', away, true);
+  }
+  function away(e) {
+    if (menu && menu.contains(e.target)) return;
+    if (btn && (e.target === btn || btn.contains(e.target))) return;
+    close();
+  }
+
+  function open() {
+    close();
+    menu = document.createElement('div');
+    menu.className = 'acctmenu';
+
+    var email = '';
+    try { email = (window.FB && window.FB.user && window.FB.user()) || ''; } catch (e) {}
+    var who = document.createElement('div');
+    who.className = 'who';
+    /* say WHICH account - the operator has had two, and signing out of the wrong one is
+       exactly the confusion this line exists to prevent */
+    who.textContent = email ? ('Signed in as ' + email) : 'Not signed in';
+    menu.appendChild(who);
+
+    /* 2026-09-12: "remove the sign into sync, you could put that in the three dots".
+       So the sync identity lives here now, beside Sign out, and the bar keeps only the
+       status pill. Reads window.FB directly rather than moving the old button's DOM, so it
+       cannot end up with two owners. */
+    if (!email) {
+      var inb = document.createElement('button');
+      inb.type = 'button';
+      inb.textContent = 'Sign in to sync';
+      inb.title = 'Sign in so your planner follows you to any device';
+      inb.addEventListener('click', function () {
+        close();
+        var b = document.getElementById('btnCloudAuth') || document.getElementById('btnSignIn');
+        if (b) { b.click(); return; }
+        if (window.toast) window.toast('Sign-in is not available right now.', 'err');
+      });
+      menu.appendChild(inb);
+    }
+
+    /* 2026-09-12: Diagnose removed from the menu as well - the operator said it is not
+       needed any more. window.showDiagnostics() is left in the page, unreferenced by any
+       control, so nothing that calls it breaks and it can be put back with one line. */
+
+    var out = document.createElement('button');
+    out.type = 'button';
+    out.textContent = 'Sign out';
+    out.addEventListener('click', function () {
+      close();
+      function reload() { try { location.reload(); } catch (e) {} }
+      try {
+        var r = (window.FB && window.FB.signOut) ? window.FB.signOut() : null;
+        if (r && r.then) r.then(reload, reload); else reload();
+      } catch (e) { reload(); }
+    });
+    menu.appendChild(out);
+
+    document.body.appendChild(menu);
+    btn.setAttribute('aria-expanded', 'true');
+
+    /* right-align to the button and never let it hang off the window - it is the last
+       thing on the bar, so a left-aligned menu would run off the edge */
+    var r = btn.getBoundingClientRect();
+    var w = menu.getBoundingClientRect().width || 210;
+    var left = Math.min(r.right - w, window.innerWidth - w - 8);
+    menu.style.left = Math.round(Math.max(8, left)) + 'px';
+    menu.style.top = Math.round(r.bottom + 6) + 'px';
+
+    setTimeout(function () { document.addEventListener('mousedown', away, true); }, 0);
+  }
+
+  /* 2026-09-12: "all the way to the right" has to be defended, not just written once.
+     The bar is assembled by several modules at different times - #topbar is emptied into a
+     #calTopbar inside the calendar pane, and the Diagnose button is appended half a second
+     after load - so a button placed last in the markup does not stay last. Measured: with
+     the markup order alone, Diagnose sat visibly to the right of this menu.
+     Keep re-asserting it; cheap, and nothing else claims the last slot. */
+  function keepLast() {
+    var b = document.getElementById('btnAccount');
+    if (!b || !b.parentNode) return;
+    if (b.parentNode.lastElementChild !== b) b.parentNode.appendChild(b);
+  }
+
+  function wire() {
+    btn = document.getElementById('btnAccount');
+    if (!btn) { setTimeout(wire, 200); return; }
+    keepLast();
+    setInterval(keepLast, 500);
+    btn.addEventListener('click', function (e) {
+      e.preventDefault(); e.stopPropagation();
+      /* 2026-09-12: `menu` held a node that something else had already taken out of the
+         document - a re-render, or anything clearing overlays - and this read it as "open",
+         so the next click only closed an invisible menu and the button did nothing at all.
+         A menu with no parent is not open. Found by a check reporting menus=0 after a click. */
+      if (menu && !menu.parentNode) { menu = null; }
+      if (menu) { close(); return; }
+      open();
+    });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
+  }
+  wire();
 })();
 </script>
 
@@ -29461,6 +30183,9 @@ body[data-fb="on"] .fb-band { display: block; }
 #loginGate .lgbtn:hover{background:rgba(77,139,255,.3)}
 #loginGate .lgbtn[disabled]{opacity:.6;cursor:default}
 #loginGate .lgerr{color:#f0a3a0;font-size:11.5px;margin-top:12px;line-height:1.5;min-height:16px}
+#loginGate .lgspin{width:22px;height:22px;margin:4px auto 2px;border-radius:50%;
+  border:2px solid #2e323a;border-top-color:#7fa6f0;animation:lgspin .8s linear infinite}
+@keyframes lgspin{to{transform:rotate(360deg)}}
 #loginGate .lgnote{color:#4e555f;font-size:10.5px;margin-top:16px;line-height:1.55;
   border-top:1px solid #262b34;padding-top:13px}
 #loginGate .lgretry{background:#20232a;border:1px solid #2e323a;color:#9aa1ab;border-radius:8px;
@@ -29480,8 +30205,28 @@ body.gated > *:not(#loginGate){filter:blur(3px);pointer-events:none;user-select:
   function build(state, message) {
     if (gate) { gate.parentNode.removeChild(gate); gate = null; }
     gate = el('div'); gate.id = 'loginGate';
+    gate.setAttribute('data-state', state || 'signin');
     var card = el('div', 'lgcard');
     card.appendChild(el('div', 'lgbrand', '◧  Planner'));
+
+    /* 2026-09-12 - THE LOGIN PAGE ON EVERY REFRESH.
+       The operator: "whenever I refresh, somehow the login page pops up."
+       Cause, and it was deliberate in the wrong way: the gate was built as a full SIGN-IN
+       FORM immediately on load, "before we know anything", and only taken down once
+       onAuthStateChanged answered. But Firebase loads from gstatic over the network and then
+       has to restore the session, so on every single refresh the operator - already signed
+       in - was shown a login form for as long as that took.
+       The security property that mattered was "the planner must not be readable before auth
+       answers". That needs a COVER, not a form. So: cover immediately, and only become a
+       form once Firebase has actually said there is nobody signed in. */
+    if (state === 'waiting') {
+      card.appendChild(el('h1', '', 'Opening your planner'));
+      card.appendChild(el('p', 'lgsub', 'One moment - signing you in.'));
+      var sp = el('div', 'lgspin', ''); card.appendChild(sp);
+      gate.appendChild(card); document.body.appendChild(gate);
+      document.body.classList.add('gated');
+      return;
+    }
 
     if (state === 'offline') {
       card.appendChild(el('h1', '', 'Cannot reach sign-in'));
@@ -29619,13 +30364,108 @@ body.gated > *:not(#loginGate){filter:blur(3px);pointer-events:none;user-select:
   if (isLocal) { window.__loginGate = { open: function () {}, build: function () {},
                                         skipped: true }; return; }
 
-  /* put the gate up IMMEDIATELY, before we know anything - the planner must never be
-     readable for the second it takes Firebase to answer */
-  if (document.body) build('signin');
-  else document.addEventListener('DOMContentLoaded', function () { build('signin'); });
+  /* Cover the planner IMMEDIATELY - it must never be readable while auth is unresolved -
+     but cover it with a cover, not with a login form. The form appears only when Firebase
+     has answered that nobody is signed in. */
+  if (document.body) build('waiting');
+  else document.addEventListener('DOMContentLoaded', function () { build('waiting'); });
+
+  /* If Firebase never answers we must not sit on the cover forever, or a genuinely
+     signed-out person can never reach the form. Fall through to it. */
+  setTimeout(function () {
+    if (gate && gate.getAttribute('data-state') === 'waiting') build('signin');
+  }, 6000);
+
   start();
 
   window.__loginGate = { open: open, build: build };
+})();
+</script>
+
+
+<script>
+/* ===== 2026-09-12  THE SYNC CONTROL =====
+   Operator: "why is there a local only show in there? And where is the sync button? I wanna
+   make sure it's visible."
+
+   Two things were wrong, and the second is the real one:
+   1. The pill only REPORTED. There was nothing to press, so the one word on the bar told you
+      a state you could not change - which is why it read as clutter.
+   2. It reported the WRONG state. "Local only" comes from Cloud.setState(), which belongs to
+      the old gist sync. The planner actually syncs through Firebase, so the bar could say
+      "Local only" while your planner was syncing perfectly well.
+
+   So the pill IS the sync button now: it shows the true state, taken from Firebase, and
+   pressing it signs you in when you are not. One control, visible, honest. */
+(function () {
+  if (window.__syncBtnInstalled) return;
+  window.__syncBtnInstalled = true;
+
+  function fbOn() {
+    try { return !!(window.FB && window.FB.on && window.FB.on()); } catch (e) { return false; }
+  }
+  function fbUser() {
+    try { return (window.FB && window.FB.user && window.FB.user()) || ''; } catch (e) { return ''; }
+  }
+
+  function paint() {
+    var pill = document.getElementById('syncPill');
+    if (!pill) return;
+
+    /* a transient state set by the sync itself wins for the moment it lasts - otherwise this
+       would paint over "Syncing" every 600ms and you would never see it happen */
+    var live = pill.getAttribute('data-state');
+    if (live === 'syncing' || live === 'connecting') {
+      pill.textContent = (live === 'syncing') ? 'Syncing' : 'Signing in';
+      pill.title = 'Your planner is syncing now';
+      return;
+    }
+    if (live === 'error') {
+      pill.textContent = 'Sync error';
+      pill.title = 'The last sync failed. Press to try again.';
+      return;
+    }
+
+    if (fbOn()) {
+      pill.setAttribute('data-state', 'synced');
+      pill.textContent = 'Synced';
+      pill.title = 'Synced to ' + (fbUser() || 'your account') + '. Press for account options.';
+    } else {
+      pill.setAttribute('data-state', 'offline');
+      pill.textContent = 'Sync off';
+      pill.title = 'Your planner is only on this device. Press to sign in and sync it.';
+    }
+  }
+
+  function press() {
+    if (fbOn()) {
+      var a = document.getElementById('btnAccount');
+      if (a) { a.click(); return; }
+      return;
+    }
+    var b = document.getElementById('btnCloudAuth') || document.getElementById('btnSignIn');
+    if (b) { b.click(); return; }
+    if (window.toast) window.toast('Sign-in is not available right now.', 'err');
+  }
+
+  function wire() {
+    var pill = document.getElementById('syncPill');
+    if (!pill) { setTimeout(wire, 200); return; }
+    if (!pill.__wired) {
+      pill.__wired = true;
+      pill.setAttribute('role', 'button');
+      pill.setAttribute('tabindex', '0');
+      pill.classList.add('sync-btn');
+      pill.addEventListener('click', press);
+      pill.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); press(); }
+      });
+    }
+    paint();
+    /* the sync module writes this element too, so re-assert rather than fight it */
+    setInterval(paint, 600);
+  }
+  wire();
 })();
 </script>
 
