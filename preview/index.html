@@ -29,7 +29,7 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <title>Planner</title>
+  <title>PREVIEW planner</title>
 
   <!-- Home-screen install, iPhone. These four tags are what actually make
        "Add to Home Screen" open fullscreen instead of inside Safari. -->
@@ -37,6 +37,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Planner">
   <meta name="theme-color" content="#14161a">
+  <link rel="icon" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAALQAAAC0CAIAAACyr5FlAAABiklEQVR42u3asQnAIBBAUYcIFhks02VNJZ0OoCCxMZIHv73meN1dOOIpdQtWIDgEh+AQHIJDcAgOwSE4BIcEh+AQHIJDcAgOwSE4BIfgkOAQHIJDcAgOwSE4BIfgEBwSHIJDcAgOwSE4BIfgEByCQ3BIcAgOwSE4BIfgEByCQ3AIjldddxnWTqX8aCI4BIfggAMOOOCAAw444IADDjjggAMOOOCAQ7vjkMOb4JDgEByCQ3AIDsEhOASH4BAcEhyCQ3AIDsEhOASH4PCc7MEYDjjggAMOOOCAAw444IADDjjggAMOOOCAAw444JDDmwSH4BAcgkNwCA7BITgEh+CQ4BAcgkNwCA7BITgEh+BY3z+fk+GAAw444IADDjjggAMOOOCAAw444IADDjjggAMOOOTwJjgEh+AQHLYgOASH4BAcgkNwCA7BITgEhwSH4BAcgkNwCA7BITgEh+CQ4BAcgkNwCA7BITgEh+AQHILDCgSH4BAcgkNwCA7BITgEh+CQ4BAcgkNwCA59qgqNwmxOXaCNcwAAAABJRU5ErkJggg==">
   <link rel="apple-touch-icon" sizes="180x180" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAALQAAAC0CAIAAACyr5FlAAABiklEQVR42u3asQnAIBBAUYcIFhks02VNJZ0OoCCxMZIHv73meN1dOOIpdQtWIDgEh+AQHIJDcAgOwSE4BIcEh+AQHIJDcAgOwSE4BIfgkOAQHIJDcAgOwSE4BIfgEBwSHIJDcAgOwSE4BIfgEByCQ3BIcAgOwSE4BIfgEByCQ3AIjldddxnWTqX8aCI4BIfggAMOOOCAAw444IADDjjggAMOOOCAQ7vjkMOb4JDgEByCQ3AIDsEhOASH4BAcEhyCQ3AIDsEhOASH4PCc7MEYDjjggAMOOOCAAw444IADDjjggAMOOOCAAw444JDDmwSH4BAcgkNwCA7BITgEh+CQ4BAcgkNwCA7BITgEh+BY3z+fk+GAAw444IADDjjggAMOOOCAAw444IADDjjggAMOOOTwJjgEh+AQHLYgOASH4BAcgkNwCA7BITgEhwSH4BAcgkNwCA7BITgEh+CQ4BAcgkNwCA7BITgEh+AQHILDCgSH4BAcgkNwCA7BITgEh+CQ4BAcgkNwCA59qgqNwmxOXaCNcwAAAABJRU5ErkJggg==">
   <!-- Deliberately NO <link rel="manifest">. iOS ignores the web manifest for
        Add to Home Screen, and Chrome refuses a data: URI manifest for install
@@ -5174,20 +5175,10 @@ html:root #treeRoot .tree-row:not([data-depth="0"]){ height:32px !important; min
 body{padding-top:26px !important}
 </style>
 <script>
-/* Served from the same origin as the live planner, so it shares localStorage with it.
-   Two things keep it harmless:
-     1. every read and write goes to planner.preview.data.v1, seeded ONCE from the real
-        planner so the operator sees their own branches instead of an empty tree;
-     2. the sync is nailed shut - Firebase and the gist can neither pull nor push here.
-   Reasserted on a short interval because those objects install at different times and a
-   single pass at load can miss one. */
 (function () {
   try {
     var L = 'planner.preview.data.v1', S = 'planner.data.v1';
-    if (!localStorage.getItem(L)) {
-      var v = localStorage.getItem(S);
-      if (v) localStorage.setItem(L, v);
-    }
+    if (!localStorage.getItem(L)) { var v = localStorage.getItem(S); if (v) localStorage.setItem(L, v); }
   } catch (e) {}
   function noopP() { return Promise.resolve(false); }
   function seal() {
@@ -5195,8 +5186,7 @@ body{padding-top:26px !important}
     try { if (window.CloudGist) { window.CloudGist.push = noopP; window.CloudGist.pull = noopP; } } catch (e) {}
     try { if (window.Cloud) { window.Cloud.push = noopP; window.Cloud.pull = noopP; } } catch (e) {}
   }
-  seal();
-  setInterval(seal, 400);
+  seal(); setInterval(seal, 400);
   document.addEventListener('DOMContentLoaded', seal);
   window.addEventListener('load', seal);
 })();
@@ -5225,7 +5215,7 @@ body{padding-top:26px !important}
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-09-12 03:06 PREVIEW</span>
+    <span id="buildStamp">build 2026-09-12 09:52 PREVIEW</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Publish your planner as a calendar your phone can subscribe to">Calendar feed</button>
@@ -29934,9 +29924,23 @@ body[data-fb="on"] .fb-band { display: block; }
     setTimeout(function () { document.addEventListener('mousedown', away, true); }, 0);
   }
 
+  /* 2026-09-12: "all the way to the right" has to be defended, not just written once.
+     The bar is assembled by several modules at different times - #topbar is emptied into a
+     #calTopbar inside the calendar pane, and the Diagnose button is appended half a second
+     after load - so a button placed last in the markup does not stay last. Measured: with
+     the markup order alone, Diagnose sat visibly to the right of this menu.
+     Keep re-asserting it; cheap, and nothing else claims the last slot. */
+  function keepLast() {
+    var b = document.getElementById('btnAccount');
+    if (!b || !b.parentNode) return;
+    if (b.parentNode.lastElementChild !== b) b.parentNode.appendChild(b);
+  }
+
   function wire() {
     btn = document.getElementById('btnAccount');
     if (!btn) { setTimeout(wire, 200); return; }
+    keepLast();
+    setInterval(keepLast, 500);
     btn.addEventListener('click', function (e) {
       e.preventDefault(); e.stopPropagation();
       if (menu) { close(); return; }
