@@ -2679,6 +2679,20 @@ aside#treePane { overflow-y: auto; }
   min-height: 520px !important;
 }
 
+/* 2026-09-12: the 520px above is a RESERVATION for the tree delete, which is a two-step
+   chain - the buttons must not jump between steps. Deleting a journal note is one step, so
+   the reservation just left a big empty panel under three lines of text. Same width, same
+   dialog, height from its content. Placed after the rule above on purpose: both selectors
+   score the same, so source order decides, and the note dialog carries both classes. */
+.modal:has(.del-single) {
+  height: auto !important;
+  min-height: 0 !important;
+}
+.modal:has(.del-single) .modal-body {
+  flex: 0 1 auto;
+  overflow-y: auto;
+}
+
 /* what each doomed item carries: its date, time, duration and alarms */
 .del-meta {
   color: var(--t-3, #6b7280);
@@ -5215,7 +5229,7 @@ body{padding-top:26px !important}
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-09-12 09:52 PREVIEW</span>
+    <span id="buildStamp">build 2026-09-12 10:11 PREVIEW</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <button id="btnSignIn" type="button" title="Publish your planner as a calendar your phone can subscribe to">Calendar feed</button>
@@ -29500,6 +29514,8 @@ body[data-fb="on"] .fb-band { display: block; }
           warn.className = 'del-warn';
           warn.textContent = 'It will be moved to Deleted, where you can restore it.';
           body.appendChild(warn);
+          /* one step, not the tree's two-step chain - so the dialog sizes to its content */
+          body.className = (body.className ? body.className + ' ' : '') + 'del-single';
 
           window.showModal('Delete', body, [
             { label: 'Cancel' },
