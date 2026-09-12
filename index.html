@@ -5327,7 +5327,7 @@ html:root #treeRoot .tree-row:not([data-depth="0"]){ height:32px !important; min
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-09-12 12:57</span>
+    <span id="buildStamp">build 2026-09-12 15:44</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -6459,6 +6459,25 @@ document.addEventListener("DOMContentLoaded", function() {
     }
     btn.addEventListener('click', function(e) {
       e.stopPropagation();
+
+      /* 2026-09-12 - "the clock sign in the priority, when I click it, has not been updated
+         the way I want it to."
+         It opened the BROWSER's own calendar: a bare <input type="date"> plus showPicker().
+         So it looked nothing like the picker the operator approved, and carried no TODAY or
+         TOMORROW. Every other date control in the app already goes through buildDateGrid -
+         the reminder clock and the reschedule picker both do - so this one does now as well.
+         One picker, four places, per the reuse rule. */
+      if (typeof window.openDatePopover === 'function' && typeof window.buildDateGrid === 'function') {
+        window.openDatePopover(btn, node.date || '', function (iso) {
+          node.date = iso || null;
+          if (!node.date) node.block = null;
+          Store.save();
+          window.renderAll();
+        });
+        return;
+      }
+
+      /* the native field stays as the fallback, so a build without the popover still works */
       var inp = document.createElement('input');
       inp.type = 'date';
       inp.value = node.date || '';
@@ -6474,14 +6493,6 @@ document.addEventListener("DOMContentLoaded", function() {
       });
       inp.addEventListener('blur', function() {
         if (!inp.value && !node.date) {
-          node.date = null;
-          Store.save();
-          window.renderAll();
-        }
-      });
-      inp.addEventListener('keydown', function(e) {
-        if (e.key === 'Escape') {
-          inp.value = '';
           node.date = null;
           Store.save();
           window.renderAll();
@@ -9262,6 +9273,22 @@ renderAll();
   function makeHandler(node, chip) {
     return function (e) {
       e.stopPropagation();
+
+      /* 2026-09-12 - the last native picker in the priority tree.
+         The date chip beside this one now opens the app's own month grid; this one still
+         handed you the BROWSER's time field. Two controls side by side on the same row,
+         behaving like two different apps. The shared spinner is what the Edit dialog, the
+         reminder and both ends of a focus block already use - so this uses it too. */
+      if (typeof window.buildTimeSpinner === 'function' && typeof window.openTimePopover === 'function') {
+        window.openTimePopover(chip, node.time || '09:00', function (v) {
+          node.time = v || null;
+          if (node.time && !node.date) node.date = window.todayISO();
+          Store.save();
+          window.renderAll();
+        });
+        return;
+      }
+
       var input = document.createElement('input');
       input.type = 'time';
       input.className = 'tree-timechip';
@@ -9960,6 +9987,40 @@ renderAll();
     if (!found || !found.node) return;
     var node = found.node;
 
+    /* 2026-09-12 - "I'm referring to the priority tree clock looking thing."
+       THIS is the handler that owns both chips on a tree row: a capture-phase listener
+       further down calls it and stops everything else, which is why changing the chip's own
+       click handler had no effect at all. Measured: the chip is a BUTTON, the spinner and
+       popover both existed, and clicking still produced a native field.
+       Both chips now open the app's own controls - the month grid with Today / Tomorrow, and
+       the shared time spinner - the same ones the Edit dialog and the reminder use. The
+       native fields below stay as the fallback if either helper is missing. */
+    if (kind === 'date' && typeof window.openDatePopover === 'function'
+        && typeof window.buildDateGrid === 'function') {
+      window.openDatePopover(chip, node.date || '', function (iso) {
+        var f = window.findNode(id);
+        if (f && f.node) {
+          f.node.date = iso || null;
+          if (!f.node.date) { f.node.time = null; f.node.block = null; }
+          window.Store.save();
+        }
+        window.renderAll();
+      });
+      return;
+    }
+    if (kind !== 'date' && typeof window.openTimePopover === 'function') {
+      window.openTimePopover(chip, node.time || '09:00', function (v) {
+        var f = window.findNode(id);
+        if (f && f.node) {
+          f.node.time = v || null;
+          if (f.node.time && !f.node.date) f.node.date = window.todayISO();
+          window.Store.save();
+        }
+        window.renderAll();
+      });
+      return;
+    }
+
     var input = document.createElement('input');
     input.type = (kind === 'date') ? 'date' : 'time';
     input.className = (kind === 'date') ? 'tree-dateinput' : 'tree-timeinput';
@@ -10417,6 +10478,36 @@ renderAll();
 
     function draw() {
       pop.textContent = '';
+
+      /* 2026-09-12 - "the clock sign in the priority when I click it has not been updated the
+         way I want it to."
+         This popup - the one the tree's date chip opens, via a capture-phase listener that
+         owns the click - was the ONE date control that never got TODAY / TOMORROW. The
+         reminder clock and the reschedule picker both have them, which is exactly why this one
+         looked wrong beside them. Same two chips, same class, same position: above the month. */
+      (function () {
+        var q = document.createElement('div');
+        q.className = 'datepop-quick';
+        function quick(label, offset) {
+          var b = document.createElement('button');
+          b.type = 'button';
+          b.textContent = label;
+          b.addEventListener('click', function (e) {
+            e.stopPropagation();
+            var dd = new Date();
+            dd.setDate(dd.getDate() + offset);
+            /* the same three lines a day button in this grid runs - no second path */
+            var f = window.findNode(nodeId);
+            if (f && f.node) { f.node.date = window.isoOf(dd); window.Store.save(); }
+            close();
+            window.renderAll();
+          });
+          return b;
+        }
+        q.appendChild(quick('Today', 0));
+        q.appendChild(quick('Tomorrow', 1));
+        pop.appendChild(q);
+      })();
 
       // ----- head -----
       var head = document.createElement('div');
@@ -11058,22 +11149,23 @@ function surfaceArrivals() {
       var rd = row('Due Date', date);
       rd.className = (rd.className || '') + ' ea-row-date';
       body.appendChild(rd);
-      function clearIfEmpty() {
+      /* 2026-09-12 - CANCEL MUST CANCEL.
+         The operator: "if I press cancel instead of save, it actually removes it, which is
+         weird... if I press cancel, cancel whatever that was supposed to be there."
+         This used to write n2.date = null and call Store.save() on every keystroke, so
+         clearing the field changed the planner IMMEDIATELY and Cancel had nothing left to
+         undo. It was done that way to work around Save doing nothing on a branch - and that
+         has now been fixed at its cause (the branch gate treated a top-level branch as
+         having no location). So nothing is written here any more: emptying the field only
+         empties the field, and Save is what applies it.
+         The Time field still empties on screen, because a time without a date is not a thing
+         a person means - but that too is only applied by Save. */
+      function blankTimeIfDateGone() {
         if (String(date.value || '').trim() !== '') return;
-        var f2 = (typeof window.findNode === 'function') ? window.findNode(id) : null;
-        var n2 = (f2 && f2.node) ? f2.node : node;
-        if (!n2.date && !n2.time) return;
-        n2.date = null; n2.time = null; n2.block = null;
         time.value = '';
-        if (window.Store && window.Store.save) window.Store.save();
-        if (typeof window.renderAll === 'function') window.renderAll();
       }
-      date.addEventListener('input', clearIfEmpty);
-      date.addEventListener('keyup', function (e) {
-        var k = e.key || '';
-        if (k === 'Backspace' || k === 'Delete') clearIfEmpty();
-      });
-      date.addEventListener('change', clearIfEmpty);
+      date.addEventListener('input', blankTimeIfDateGone);
+      date.addEventListener('change', blankTimeIfDateGone);
     })();
 
     /* created above the date row, which clears it too */
@@ -15233,6 +15325,39 @@ function firstConnect(remote, rAt, lAt) {
 
   // Mount that grid next to a button, WITHOUT going through showModal, so the
   // dialog it is opened from stays open.
+  /* 2026-09-12: the same shell as openDatePopover, holding the shared time spinner. Written
+     beside it on purpose - one place to change how a picker is anchored and dismissed. */
+  window.openTimePopover = function (anchorEl, currentHHMM, onPick) {
+    var old = document.querySelector('.al-pop');
+    if (old && old.parentNode) old.parentNode.removeChild(old);
+    if (typeof window.buildTimeSpinner !== 'function') return;
+
+    var pop = document.createElement('div');
+    pop.className = 'al-pop';
+    pop.appendChild(window.buildTimeSpinner(currentHHMM || '09:00', function (v) {
+      if (onPick) onPick(v);
+      if (pop.parentNode) pop.parentNode.removeChild(pop);
+      document.removeEventListener('mousedown', away, true);
+    }));
+    document.body.appendChild(pop);
+
+    var r = anchorEl.getBoundingClientRect();
+    var top = r.bottom + 4, left = r.left;
+    var pw = pop.getBoundingClientRect().width || 200;
+    if (left + pw > window.innerWidth - 8) left = Math.max(8, window.innerWidth - pw - 8);
+    var ph = pop.getBoundingClientRect().height || 220;
+    if (top + ph > window.innerHeight - 8) top = Math.max(8, r.top - ph - 4);
+    pop.style.left = Math.round(left) + 'px';
+    pop.style.top = Math.round(top) + 'px';
+
+    function away(e) {
+      if (pop.contains(e.target) || e.target === anchorEl) return;
+      if (pop.parentNode) pop.parentNode.removeChild(pop);
+      document.removeEventListener('mousedown', away, true);
+    }
+    setTimeout(function () { document.addEventListener('mousedown', away, true); }, 0);
+  };
+
   window.openDatePopover = function (anchorEl, currentIso, onPick) {
     var old = document.querySelector('.al-pop');
     if (old && old.parentNode) old.parentNode.removeChild(old);
@@ -25414,6 +25539,25 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
   function hasRealBranch(id) {
     var node = window.findNode(id);
     if (!node) return false;
+
+    /* 2026-09-12 - WHY SAVE DID NOTHING ON A BRANCH.
+       Measured: click Save on a top-level branch and Store.save() was called ZERO times; the
+       handler threw this gate's refusal, showModal caught it into a toast and closed the
+       dialog anyway, so it looked like a successful save that changed nothing.
+       Cause: a top-level branch has NO parent, and `if (!parent) return false` read that as
+       "not filed in a branch yet". But a branch IS the location - it is the thing other tasks
+       are filed into. The gate exists to stop a loose TASK being saved with nowhere to live;
+       it was never meant to catch the branches themselves.
+       This is the bug behind three of the operator's reports: Save doing nothing on a branch,
+       the date-clearing being hacked to apply instantly to work around that, and Cancel
+       therefore failing to cancel. */
+    if (!node.parent) {
+      var n = node.node;
+      /* a top-level node that HOLDS things, or that the operator has kept at the top on
+         purpose, is its own location and needs no other */
+      if (n && ((n.children && n.children.length) || n.keepTop)) return true;
+    }
+
     var parent = node.parent;
     if (!parent) return false;
     var title = (parent.title || '').toLowerCase().replace(/^\s+|\s+$/g, '');
@@ -27040,7 +27184,19 @@ body[data-bb="habits"] #treeRoot, body[data-bb="habits"] .tree-toolbar { visibil
         ? b[i].className.replace(/\s*on/, '') + ' on'
         : b[i].className.replace(/\s*on/, '');
     }
-    if (id === 'habits') renderPane();
+    if (id === 'habits') {
+      /* 2026-09-12 - WHY THE ROUTINES TAB "HAD NOT BEEN DONE".
+         There were TWO Habits screens. This bottom-bar button opened renderPane() - a
+         separate pane listing tasks that happen to repeat - while the Habits/Routines tabs
+         live in the right pane's #habitsView. The operator pressed Habits here, saw the
+         other screen, and reported the tab as missing. It was there; they could not get to it.
+         One Habits screen now: this routes to the same view the tab strip opens, which is the
+         one carrying Habits and Routines with the identical set-up.
+         renderPane() is left in the file rather than ripped out - nothing else calls it, and
+         its 30-day metrics are worth bringing back as a third tab if the operator wants them. */
+      if (typeof window.setTab === 'function') window.setTab('habits');
+      else if (typeof window.renderHabits === 'function') window.renderHabits();
+    }
     if (id === 'alarms' && window.showAlarmsList) window.showAlarmsList();
   }
   window.__habitsShow = show;
@@ -30466,6 +30622,124 @@ body.gated > *:not(#loginGate){filter:blur(3px);pointer-events:none;user-select:
     setInterval(paint, 600);
   }
   wire();
+})();
+</script>
+
+
+<script>
+/* ===== 2026-09-12  A BLANK TASK NEVER SURVIVES THE DIALOG =====
+   Operator: "the new update somehow made a new task, and it's basically empty."
+
+   It was not the update - the previous live build has the identical handlers (checked: five
+   dblclick listeners in both, same creator). A DOUBLE-CLICK on empty calendar space has always
+   created a task and opened Edit on it. What was missing is the other half: if you then close
+   that dialog without naming the thing, the blank task stays in the tree forever.
+
+   So a task that is created empty and left empty is taken back out when the dialog closes.
+   This is the same promise as the operator's Cancel rule - closing without saving leaves the
+   planner as it was. Nothing with a title, notes, children or a time is ever touched. */
+(function () {
+  if (window.__blankSweepInstalled) return;
+  window.__blankSweepInstalled = true;
+
+  function isBlank(n) {
+    if (!n) return false;
+    if (String(n.title || '').trim() !== '') return false;
+    if (n.children && n.children.length) return false;
+    if (String(n.notes || '').trim() !== '') return false;
+    if (n.notesHtml && String(n.notesHtml).replace(/<[^>]*>/g, '').trim() !== '') return false;
+    return true;
+  }
+
+  /* Which node the open dialog belongs to, and whether it was already blank when it opened.
+     A first version also skipped any node that existed BEFORE the dialog - which defeated the
+     whole thing, because the calendar creates the task and THEN opens Edit on it, so it always
+     looked pre-existing. What matters is not when it was made but whether it ever got a name. */
+  var watching = null;
+
+  function sweep() {
+    if (!watching) return;
+    var id = watching.id, wasBlank = watching.wasBlank;
+    watching = null;
+    if (!id || !wasBlank) return;        /* it had a name when it opened - never ours to remove */
+    var f = window.findNode ? window.findNode(id) : null;
+    if (!f || !f.node) return;
+    if (!isBlank(f.node)) return;        /* they named it - it stays */
+    /* straight out, not to the bin: there is nothing in it to restore */
+    if (window.removeNode) window.removeNode(id);
+    if (window.Store) window.Store.save();
+    if (window.renderAll) window.renderAll();
+  }
+
+  function hook() {
+    if (typeof window.editActivity !== 'function') { setTimeout(hook, 200); return; }
+    if (window.editActivity.__blankHooked) return;
+    var base = window.editActivity;
+    var w = function (id) {
+      var f = window.findNode ? window.findNode(id) : null;
+      watching = { id: id, wasBlank: !!(f && f.node && isBlank(f.node)) };
+      return base.apply(this, arguments);
+    };
+    w.__blankHooked = true;
+    window.editActivity = w;
+  }
+  hook();
+
+  /* the dialog can close by Save, Cancel, the X, Escape or a click on the backdrop, and they
+     do not share one exit - so watch for the dialog leaving the page instead */
+  function watchHost() {
+    var host = document.getElementById('modalHost');
+    if (!host) { setTimeout(watchHost, 200); return; }
+    new MutationObserver(function () {
+      if (!host.querySelector('.modal')) setTimeout(sweep, 0);
+    }).observe(host, { childList: true, subtree: true });
+  }
+  watchHost();
+})();
+</script>
+
+
+<script>
+/* ===== 2026-09-12  A COMPLETED ITEM LEAVES THE CALENDAR =====
+   Operator: "marking complete... they should be removed or invisible from the calendar. And
+   of course correlates to the priority tree to remove and be in the complete list."
+
+   Until now completing an item DIMMED it and left it on the day. That was what was asked for
+   last round and it was approved then; this replaces it. A finished thing should be out of the
+   way, and it already leaves the priority tree for the Completed view - the calendar now
+   matches that.
+
+   Done at the LAST wrapper of scheduledOn, so every surface that draws the calendar - the day
+   grid, the week grid, the all-day row and the month cells - is covered by one change rather
+   than four that can drift apart. window.scheduledOnAll keeps the unfiltered list for anything
+   that needs to count what was finished. */
+(function () {
+  if (window.__hideDoneInstalled) return;
+  function install() {
+    if (typeof window.scheduledOn !== 'function') { setTimeout(install, 120); return; }
+    if (window.scheduledOn.__hidesDone) return;
+    window.__hideDoneInstalled = true;
+
+    var base = window.scheduledOn;
+    window.scheduledOnAll = base;
+
+    var w = function (iso) {
+      var res = base.apply(this, arguments) || [];
+      var out = [], i;
+      for (i = 0; i < res.length; i++) {
+        var e = res[i];
+        if (!e) continue;
+        /* the entry carries the done flag for all three kinds - a tree task, one occurrence
+           of a repeat, and a calendar event */
+        if (e.done) continue;
+        out.push(e);
+      }
+      return out;
+    };
+    w.__hidesDone = true;
+    window.scheduledOn = w;
+  }
+  install();
 })();
 </script>
 
