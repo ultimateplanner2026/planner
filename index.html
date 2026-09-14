@@ -5343,7 +5343,7 @@ html:root #treeRoot .tree-row:not([data-depth="0"]){ height:32px !important; min
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-09-14 03:05</span>
+    <span id="buildStamp">build 2026-09-14 12:52</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -26249,9 +26249,21 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
     }
 
     /* the version must stay on screen, top right (operator, 2026-08-20, and the regression suite
-       holds it). It lives inside #topbar, which is about to be hidden, so lift it out first. */
+       holds it). It lives inside #topbar, which is about to be hidden, so lift it out first.
+
+       2026-09-14 - THE BUILD TEXT THAT KEPT APPEARING AND DISAPPEARING.
+       This line said "if it is not on the body, put it on the body" - so every time this ran it
+       dragged the stamp back out of the bar, and the placer put it back 4 seconds later. Sampled
+       every 250ms: parent alternated calTopbar (width 125) and BODY (width 1432) on a 4-second
+       cycle, which is exactly the blinking the operator reported.
+       The stamp now lives in #calTopbar on purpose. Only rescue it from #topbar, which is about
+       to be hidden - never from the bar it belongs to. */
     var bs = document.getElementById('buildStamp');
-    if (bs && bs.parentNode !== document.body) document.body.appendChild(bs);
+    var calBar = document.getElementById('calTopbar');
+    if (bs && bs.parentNode === topbar && !(calBar && calBar.contains(bs))) {
+      if (calBar) calBar.appendChild(bs);
+      else document.body.appendChild(bs);
+    }
 
     if (topbar.children.length === 0) {
       topbar.style.display = 'none';
@@ -28849,6 +28861,21 @@ body[data-fb="on"] .fb-band { display: block; }
   color:var(--text-dim,#9aa1ab); pointer-events:none !important;
   margin-left:6px; margin-right:2px; flex:0 0 auto;
   font-variant-numeric:tabular-nums; white-space:nowrap; z-index:auto !important; }
+
+/* 2026-09-14 - ON A PHONE THE STAMP GETS ITS OWN LINE, RIGHT UNDER THE THREE-DOT BUTTON.
+   In the row, it pushed the Sync pill off the left edge at every phone width - measured with the
+   widest label ("Sync error"): 121px over at 360, 91px over at 390, still 11px over at 470. A
+   shortened "Sep 14 / 07:40" plus tighter gaps still failed at 360 and cleared 375 by 1px, and it
+   meant respacing the other buttons. Below 700px (the app's phone breakpoint) the bar wraps and the
+   stamp takes the second line on its own, right-aligned: every control fits with 20px to spare at
+   360, and the stamp stays top right. CSS only - it never changes parent, so nothing can fight
+   over it. The specificity beats both `.cal-topbar{height:47px}` and the stamp-inline rule above. */
+@media (max-width: 700px){
+  html body #calTopbar.cal-topbar{ height:auto !important; min-height:47px !important; flex:0 0 auto !important;
+      flex-wrap:wrap !important; align-content:center !important; row-gap:0 !important; padding:9px 12px 3px !important; }
+  html body #calTopbar #buildStamp.stamp-inline{ order:99 !important; flex:0 0 100% !important; text-align:right !important;
+      margin:1px 0 0 0 !important; font-size:9.5px !important; line-height:1.25 !important; }
+}
 
 .acct-dots{ background:transparent; border:1px solid transparent; color:#9aa1ab;
   font-size:17px; line-height:1; padding:4px 9px; border-radius:8px; cursor:pointer; }
