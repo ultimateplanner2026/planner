@@ -5327,7 +5327,7 @@ html:root #treeRoot .tree-row:not([data-depth="0"]){ height:32px !important; min
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-09-12 15:44</span>
+    <span id="buildStamp">build 2026-09-13 14:49</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -13522,8 +13522,25 @@ function hasRealContent(d) {
   // A brand-new install seeds ONE demo goal titled 'Set up my planner' with
   // three children, so that alone must NOT count as real content - otherwise a
   // new phone looks "used" and we would ask the operator a pointless question.
-  // Steps:
+  //
+  // 2026-09-13 - THIS IS HOW NOTES DISAPPEARED.
+  // It counted the TREE and EVENTS and nothing else. So a copy of the planner holding the
+  // operator's written NOTES - but whose tree had not arrived yet, or was empty - was judged
+  // "not a real planner", and the sync then replaced it WHOLESALE with the cloud copy. The
+  // notes went with it, silently, with no error and nothing in the bin. Tasks were never
+  // affected, which is exactly why it looked like "my notes vanished but everything else is
+  // fine".
+  // Everything the operator can write into now counts. A planner with one note in it and no
+  // tasks at all is a real planner.
   if (!d || typeof d !== 'object') return false;
+
+  function countKeys(o) { return (o && typeof o === 'object') ? Object.keys(o).length : 0; }
+  if (countKeys(d.journalNotes)) return true;       // the Notes tab
+  if (countKeys(d.journal)) return true;            // the daily journal
+  if ((d.habits || []).length) return true;
+  if ((d.routines || []).length) return true;
+  if (countKeys(d.habitLog) || countKeys(d.routineLog)) return true;
+
   var t = (d.tree || []), e = (d.events || []);
   if (e.length) return true;
   if (!t.length) return false;
@@ -20983,14 +21000,32 @@ nesting to 20 levels, so the whole tree is serialised rather than stored as nest
 
     // The starter tasks seeded on a brand-new device must not count as real work,
     // or signing in merges them into the user's real planner and corrupts it.
+    //
+    // 2026-09-13 - THIS is the one that runs. `hasRealContent` lives inside another closure
+    // and is NOT global (measured: typeof hasRealContent === 'undefined' on the page), so the
+    // first line never fires and THIS fallback decided every sync. It looked at the tree and
+    // nothing else - so a copy of the planner holding the operator's NOTES but no tasks was
+    // called empty, and the pull replaced it wholesale. The notes went silently; tasks never
+    // did, which is exactly what "my notes vanished but everything else is fine" looks like.
+    // Fixing the other copy alone would have changed nothing. Both now agree, and everything
+    // the operator can write into counts.
     function hasReal(d) {
-      if (typeof hasRealContent === 'function') return hasRealContent(d);
-      if (!d) return false;
+      if (!d || typeof d !== 'object') return false;
+      function n(o) { return (o && typeof o === 'object') ? Object.keys(o).length : 0; }
+      if (n(d.journalNotes)) return true;         // the Notes tab
+      if (n(d.journal)) return true;              // the daily journal
+      if ((d.habits || []).length) return true;
+      if ((d.routines || []).length) return true;
+      if (n(d.habitLog) || n(d.routineLog)) return true;
+      if ((d.events || []).length) return true;
       if (!Array.isArray(d.tree)) return false;
       if (d.tree.length === 0) return false;
       if (d.tree.length === 1 && d.tree[0] && d.tree[0].title === 'Set up my planner') return false;
       return true;
     }
+    /* expose the one that actually runs, so a check can reach it - the reason this bug
+       survived is that the reachable copy was not the live one */
+    window.__hasRealContent = hasReal;
 
     function signUp(email, password) {
       if (!auth) return Promise.reject(new Error('Sign-in is not ready yet.'));
@@ -21082,11 +21117,14 @@ nesting to 20 levels, so the whole tree is serialised rather than stored as nest
         if (!hasReal(remote)) {
           return push().then(function () { return true; });
         }
-        if (!hasReal(window.Store.data)) {
-          window.Store.data = remote;
-        } else {
-          window.Store.data = window.mergePlanner(window.Store.data, remote);
-        }
+        /* 2026-09-13: ALWAYS merge. This used to replace the local copy wholesale whenever
+           hasReal() said it was empty - and hasReal() could not see notes, so a device
+           holding the operator's writing and no tasks had it destroyed by the next pull.
+           Merging with an empty local copy yields the remote anyway, so the replace branch
+           bought nothing and cost data. There is no path here that discards local work. */
+        window.Store.data = (typeof window.mergePlanner === 'function')
+          ? window.mergePlanner(window.Store.data, remote)
+          : remote;
         if (typeof window.Store.save === 'function') window.Store.save();
         if (typeof window.renderAll === 'function') window.renderAll();
         return true;
@@ -28708,6 +28746,18 @@ body[data-fb="on"] .fb-band { display: block; }
 .cal-topbar button[hidden],
 #topbar button[hidden] { display: none !important; }
 
+/* 2026-09-12: the stamp is an ordinary element in its own strip under the bar - NOT fixed,
+   NOT absolute, so nothing can be painted over it. The old fixed rules are overridden here
+   rather than deleted, because several of them carry !important and live far apart. */
+#buildStamp.stamp-inline{
+  position:static !important; inset:auto !important;
+  right:auto !important; top:auto !important; bottom:auto !important; left:auto !important;
+  display:inline-block !important;
+  opacity:.75 !important; font-size:10.5px !important; line-height:1.3;
+  color:var(--text-dim,#9aa1ab); pointer-events:none !important;
+  margin-left:6px; margin-right:2px; flex:0 0 auto;
+  font-variant-numeric:tabular-nums; white-space:nowrap; z-index:auto !important; }
+
 .acct-dots{ background:transparent; border:1px solid transparent; color:#9aa1ab;
   font-size:17px; line-height:1; padding:4px 9px; border-radius:8px; cursor:pointer; }
 .acct-dots:hover{ background:#22262e; color:#e6e8ec; border-color:#2e323a; }
@@ -30242,6 +30292,80 @@ body[data-fb="on"] .fb-band { display: block; }
        needed any more. window.showDiagnostics() is left in the page, unreferenced by any
        control, so nothing that calls it breaks and it can be put back with one line. */
 
+    /* 2026-09-13: a way back for DATA, in the place a person looks for account things.
+       Built with the app's own dialog, not a new one - the reuse rule. */
+    var snaps = document.createElement('button');
+    snaps.type = 'button';
+    snaps.textContent = 'Restore a snapshot\u2026';
+    snaps.title = 'Earlier copies of your planner, kept on this device';
+    snaps.addEventListener('click', function () {
+      close();
+      if (!window.plannerSnapshots || typeof window.showModal !== 'function') return;
+      var list = window.plannerSnapshots.list();
+      var body = document.createElement('div');
+
+      if (!list.length) {
+        var none = document.createElement('p');
+        none.textContent = 'No snapshots yet on this device. One is taken when you open the ' +
+                           'planner and every ten minutes while it is open.';
+        body.appendChild(none);
+        window.showModal('Restore', body, [{ label: 'Close' }]);
+        return;
+      }
+
+      var p0 = document.createElement('p');
+      p0.textContent = 'Earlier copies of your planner, kept on this device. Restoring MERGES ' +
+                       'a copy into what you have now, so nothing you have written since is lost.';
+      body.appendChild(p0);
+
+      var cnt = document.createElement('p');
+      cnt.className = 'del-count';
+      cnt.textContent = list.length + (list.length === 1 ? ' snapshot:' : ' snapshots:');
+      body.appendChild(cnt);
+
+      var wrap = document.createElement('div');
+      wrap.className = 'del-list';
+      for (var i = 0; i < list.length; i++) {
+        (function (s2) {
+          var row = document.createElement('div');
+          row.className = 'del-item';
+          var when = String(s2.at || '').replace('T', ' ').slice(0, 16);
+          var b = document.createElement('b');
+          b.textContent = when;
+          row.appendChild(b);
+          var meta = document.createElement('span');
+          meta.style.cssText = 'margin-left:8px;opacity:.75';
+          meta.textContent = s2.tasks + ' tasks \u00b7 ' + s2.notes +
+                             (s2.notes === 1 ? ' note' : ' notes') + ' \u00b7 ' + s2.reason;
+          row.appendChild(meta);
+          var go = document.createElement('button');
+          go.type = 'button';
+          go.className = 'trashitem-restore';
+          go.textContent = 'Merge this in';
+          go.addEventListener('click', function () {
+            if (window.plannerSnapshots.restore(s2.i)) {
+              if (window.toast) window.toast('Merged the copy from ' + when, 'ok');
+            }
+            var back = document.querySelectorAll('#modalHost .modal-backdrop');
+            for (var k = 0; k < back.length; k++) back[k].remove();
+          });
+          row.appendChild(go);
+          wrap.appendChild(row);
+        })(list[i]);
+      }
+      body.appendChild(wrap);
+
+      var note = document.createElement('p');
+      note.className = 'del-warn';
+      note.textContent = 'These live in this browser only. Export regularly for a copy that ' +
+                         'survives clearing your browser data.';
+      body.appendChild(note);
+      body.className = (body.className ? body.className + ' ' : '') + 'del-single';
+
+      window.showModal('Restore', body, [{ label: 'Close' }]);
+    });
+    menu.appendChild(snaps);
+
     var out = document.createElement('button');
     out.type = 'button';
     out.textContent = 'Sign out';
@@ -30740,6 +30864,173 @@ body.gated > *:not(#loginGate){filter:blur(3px);pointer-events:none;user-select:
     window.scheduledOn = w;
   }
   install();
+})();
+</script>
+
+
+<script>
+/* ===== 2026-09-12  THE BUILD STAMP GETS ITS OWN SPACE =====
+   Operator: "the build stamp is really hidden behind import. Just put it under a little bit
+   where it's visible."
+
+   Measured, not guessed: it sat at x=1300 y=8, 130x19, position:fixed with pointer-events
+   none, and elementFromPoint at three points across it returned "Settings", "Import" and the
+   three-dot button. It was underneath them. And every other spot along that edge is taken -
+   top:56 is Focus sessions, top:104 is the day header, the bottom edge is the calendar column.
+   There was nowhere to FLOAT it, which is the real problem: a floating label on a full bar
+   will always end up behind something.
+
+   So it stops floating. It becomes an ordinary item in the bar's own row, directly under the
+   controls, where the layout gives it space and nothing can be drawn over it. It also goes in
+   the account menu, which is where a version number belongs when you go looking for one. */
+(function () {
+  if (window.__stampPlaced) return;
+  window.__stampPlaced = true;
+
+  function place() {
+    var s = document.getElementById('buildStamp');
+    var bar = document.getElementById('calTopbar') || document.getElementById('topbar');
+    if (!s || !bar) { setTimeout(place, 200); return; }
+
+    /* a module hides it 300ms after load; undo that, and keep undoing it */
+    s.style.removeProperty('display');
+    s.classList.add('stamp-inline');
+
+    /* 2026-09-12, second attempt. The first gave it its own row UNDER the bar - which read
+       well but pushed the whole calendar down ~18px, and that broke four regression checks
+       including two drags. A label should not move the app.
+       So it joins the bar's own row instead: an ordinary flex item, costing horizontal space
+       only. It cannot be drawn over, because it is no longer floating, and nothing below it
+       moves. The three-dot menu re-asserts itself as the last item, so the stamp settles just
+       before it. */
+    /* BEFORE the three-dot button, never after it. Both this and the account menu re-assert
+       their position on a timer, so appending here made the two fight - measured, a shot
+       caught the stamp sitting to the right of the menu, which breaks "all the way to the
+       right". Insert relative to it instead and both settle. */
+    var acct = document.getElementById('btnAccount');
+    if (acct && acct.parentNode === bar) {
+      if (s.nextElementSibling !== acct) bar.insertBefore(s, acct);
+    } else if (s.parentNode !== bar) {
+      bar.appendChild(s);
+    }
+  }
+  place();
+  /* the bar is rebuilt by several modules at different times - re-assert, the same way the
+     account menu holds the last slot */
+  setInterval(place, 800);
+})();
+</script>
+
+
+<script>
+/* ===== 2026-09-13  LOCAL SNAPSHOTS - A WAY BACK FOR DATA =====
+   The operator: "I saved notes on planner notes section and it's not there today."
+
+   There was no way back. Every safety net this app had ran through the gist, and the last
+   snapshot it took was 2026-09-10 20:43 - so anything written after that existed in exactly
+   one place. Code has had rollback for weeks (releases/ + rollback.py); data has had nothing.
+
+   This keeps snapshots of the planner IN THE BROWSER, on the device, needing no token, no
+   account and no network. It cannot be switched off by a disconnected sync, which is what
+   happened to the last one. It is not a replacement for the cloud copy - it is the thing that
+   is there when the cloud copy is wrong. */
+(function () {
+  if (window.__snapsInstalled) return;
+  window.__snapsInstalled = true;
+
+  var KEY   = 'planner.snaps.v1';
+  var BUDGET = 3000000;   /* bytes. A planner is ~150KB, so this holds roughly 20. */
+  var MINGAP = 10 * 60 * 1000;
+
+  function read() {
+    try { var a = JSON.parse(localStorage.getItem(KEY) || '[]'); return Array.isArray(a) ? a : []; }
+    catch (e) { return []; }
+  }
+  function write(list) {
+    /* newest first, and drop the oldest until it fits. Never throw: a failed snapshot must
+       not break a save. */
+    try {
+      var out = list.slice();
+      while (out.length) {
+        var text = JSON.stringify(out);
+        if (text.length <= BUDGET) { localStorage.setItem(KEY, text); return true; }
+        out.pop();
+      }
+      localStorage.setItem(KEY, '[]');
+    } catch (e) { /* quota or private mode - nothing to do but carry on */ }
+    return false;
+  }
+  function countNotes(d) {
+    var n = d && d.journalNotes;
+    return (n && typeof n === 'object') ? Object.keys(n).length : 0;
+  }
+  function countTasks(d) {
+    var n = 0;
+    (function walk(l) { for (var i = 0; i < (l || []).length; i++) { n++; walk(l[i].children); } })(d && d.tree);
+    return n;
+  }
+
+  function take(reason, force) {
+    var d = window.Store && window.Store.data;
+    if (!d) return false;
+    var list = read();
+    var now = Date.now();
+    if (!force && list.length && (now - (list[0].ms || 0)) < MINGAP) return false;
+
+    var snap = {
+      ms: now,
+      at: new Date().toISOString(),
+      reason: String(reason || 'auto'),
+      tasks: countTasks(d),
+      notes: countNotes(d),
+      data: d
+    };
+    /* never store two identical snapshots back to back */
+    try {
+      if (list.length && JSON.stringify(list[0].data) === JSON.stringify(snap.data)) return false;
+    } catch (e) {}
+    list.unshift(snap);
+    write(list);
+    return true;
+  }
+
+  window.plannerSnapshots = {
+    take: take,
+    list: function () {
+      return read().map(function (s, i) {
+        return { i: i, at: s.at, reason: s.reason, tasks: s.tasks, notes: s.notes };
+      });
+    },
+    dataAt: function (i) { var l = read(); return (l[i] || {}).data || null; },
+    /* MERGE by default. A restore that replaces can lose whatever was written since, which is
+       the same class of accident it exists to undo. */
+    restore: function (i, mode) {
+      var l = read(), s = l[i];
+      if (!s || !s.data) return false;
+      var cur = window.Store.data;
+      var next;
+      if (mode === 'replace' || typeof window.mergePlanner !== 'function') {
+        next = s.data;
+      } else {
+        next = window.mergePlanner(cur, s.data);
+      }
+      take('before restore', true);          /* so the restore itself can be undone */
+      window.Store.data = next;
+      try { localStorage.setItem('planner.data.v1', JSON.stringify(next)); } catch (e) {}
+      if (window.Store.save) window.Store.save();
+      if (window.renderAll) window.renderAll();
+      return true;
+    }
+  };
+
+  /* one on the way in, then on a slow timer, and one before anything that replaces the lot */
+  function start() {
+    if (!window.Store || !window.Store.data) { setTimeout(start, 400); return; }
+    take('opened', true);
+    setInterval(function () { take('auto'); }, MINGAP);
+    window.addEventListener('beforeunload', function () { try { take('closing', true); } catch (e) {} });
+  }
+  start();
 })();
 </script>
 
