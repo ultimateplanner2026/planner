@@ -123,6 +123,22 @@ window.confirmRemoval = function (opt) {
   if (typeof window.__pinDialog === 'function') window.__pinDialog();
 };
 </script>
+<script>
+/* ===== 2026-09-13  SETTLE FAST, THEN GO QUIET =====
+   The flicker fix slowed three re-assert timers from 500-800ms to 2.5-4s. That stopped the
+   churn and introduced a race: the bar had not settled before the first checks ran, and the
+   regression suite came back 140/160, then 148/160 - a different number each time, which is
+   the signature of a race rather than a defect.
+   A position needs to be right QUICKLY and then stop moving. So: a short burst while the page
+   assembles itself, then a slow heartbeat. Same end state, no churn, no race. */
+window.__settleThenIdle = function (fn, idleMs) {
+  try { fn(); } catch (e) {}
+  var quick = [80, 200, 500, 1000, 2000], i;
+  for (i = 0; i < quick.length; i++) setTimeout(function () { try { fn(); } catch (e) {} }, quick[i]);
+  return setInterval(function () { try { fn(); } catch (e) {} }, idleMs || 4000);
+};
+</script>
+
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="color-scheme" content="light dark">
@@ -5327,7 +5343,7 @@ html:root #treeRoot .tree-row:not([data-depth="0"]){ height:32px !important; min
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-09-13 14:49</span>
+    <span id="buildStamp">build 2026-09-14 03:05</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -14570,31 +14586,93 @@ function firstConnect(remote, rAt, lAt) {
   // Where both sides hold different values the writing is CONCATENATED, never
   // dropped - the journal used to be taken wholesale from whichever document had
   // the higher clock, destroying every entry the other side alone had.
+  /* 2026-09-13 - PER-ITEM LAST-WRITE-WINS, at the operator's instruction:
+     "I don't want it to merge. I want whatever I saved last to be the last thing. So based on
+      chronological order."
+
+     They were right, and the unit is the whole point. There are three ways to reconcile two
+     copies and only one of them is correct here:
+
+       whole-document last-write-wins  the newer DOCUMENT replaces the older one. This is what
+                                       destroyed their notes: a phone holding an older copy
+                                       won, and everything newer went with it.
+       concatenate on conflict         what this function used to do - glue both texts together
+                                       with "also written on the other device". Nothing is lost,
+                                       but a note grew by a full copy of itself on every sync;
+                                       theirs reached 8,445 characters holding 15 unique lines.
+       per-ITEM last-write-wins        each record carries its own time. For each id, the newer
+                                       edit wins. A record only one side has is always kept.
+
+     The third is what real multi-device apps do, and it is what they asked for. The losing
+     version is not destroyed - it is in the local snapshots, so nothing is unrecoverable. */
+  function stampOf(v) {
+    if (!isPlainObject(v)) return 0;
+    var t = v.updatedAt || v.at || v.savedAt || v.modified || v.ts || '';
+    var ms = Date.parse(t);
+    if (ms) return ms;
+    var n = Number(v.clock);
+    return isNaN(n) ? 0 : n;          /* fall back to the counter when there is no time */
+  }
+
   function mergeDictKey(a, b) {
     if (!isPlainObject(a)) return isPlainObject(b) ? b : a;
     if (!isPlainObject(b)) return a;
     var out = {}, k;
+    /* union first: a record that exists on one side only is NEVER dropped */
     for (k in a) { if (a.hasOwnProperty(k)) out[k] = a[k]; }
     for (k in b) {
       if (!b.hasOwnProperty(k)) continue;
       if (!out.hasOwnProperty(k)) { out[k] = b[k]; continue; }
+
       var av = out[k], bv = b[k];
       var same;
       try { same = JSON.stringify(av) === JSON.stringify(bv); } catch (e) { same = av === bv; }
       if (same) continue;
+
+      /* both sides have it and they differ: the newer edit wins, outright */
+      var at = stampOf(av), bt = stampOf(bv);
+      if (at || bt) { out[k] = (bt > at) ? bv : av; continue; }
+
+      /* neither carries a time - there is nothing to order them by, so fall back to keeping
+         both rather than guessing. Text only, and only when one does not already contain the
+         other: appending a copy of what is already there is how a note grew thirteen times. */
       if (typeof av === 'string' && typeof bv === 'string') {
-        out[k] = av + MERGE_SEP + bv;
-      } else if (isPlainObject(av) && isPlainObject(bv) &&
-                 typeof av.text === 'string' && typeof bv.text === 'string') {
+        out[k] = joinOnce(av, bv);
+      } else if (isPlainObject(av) && isPlainObject(bv)) {
+        /* every STRING field is joined, not just one called `text`. The first version handled
+           `text` only, so a record whose writing lives in `body` - which is where a journal
+           note keeps it - silently kept one side and dropped the other. */
         var copy = {}, ck;
         for (ck in av) { if (av.hasOwnProperty(ck)) copy[ck] = av[ck]; }
-        copy.text = (av.text === bv.text) ? av.text : (av.text + MERGE_SEP + bv.text);
+        for (ck in bv) {
+          if (!bv.hasOwnProperty(ck)) continue;
+          if (!copy.hasOwnProperty(ck)) { copy[ck] = bv[ck]; continue; }
+          if (typeof copy[ck] === 'string' && typeof bv[ck] === 'string') {
+            copy[ck] = joinOnce(copy[ck], bv[ck]);
+          }
+          /* non-string fields: keep the a-side value */
+        }
         out[k] = copy;
       }
-      // anything else: keep the a-side value
+      /* anything else: keep the a-side value */
     }
     return out;
   }
+
+  /* never append text that is already present - normalised on whitespace, because the same
+     writing arrives with different line endings from different devices */
+  function joinOnce(a, b) {
+    var na = String(a).replace(/\s+/g, ' ').trim();
+    var nb = String(b).replace(/\s+/g, ' ').trim();
+    if (!nb) return a;
+    if (!na) return b;
+    if (na === nb) return a;
+    if (na.indexOf(nb) >= 0) return a;      /* b is already inside a */
+    if (nb.indexOf(na) >= 0) return b;      /* a is already inside b */
+    return a + MERGE_SEP + b;
+  }
+  window.__joinOnce = joinOnce;
+  window.__stampOf = stampOf;
 
   // Take the winning node but never lose the other side's notes.
   function keepBothNotes(win, lose) {
@@ -21328,13 +21406,18 @@ nesting to 20 levels, so the whole tree is serialised rather than stored as nest
     var PENDING = false;
 
     function label(btn) {
-      if (window.FB.on()) {
-        btn.textContent = window.FB.user();
-        btn.title = 'Sign out';
-      } else {
-        btn.textContent = 'Sign in to sync';
-        btn.title = 'Sign in so your planner follows you to any device';
-      }
+      /* 2026-09-13 - THE FLICKERING BAR.
+         Measured on the live build: 6 idle seconds produced 117 childList changes and 117
+         attribute changes on this one button - about 20 a second - plus 127 stray text nodes.
+         A MutationObserver on document.body re-runs install() on ANY DOM change, and writing
+         this label IS a DOM change, so it fed itself forever. The bar was being rebuilt
+         under the operator continuously, which is what they saw as flickering.
+         Writing only when the value actually differs breaks the loop at its source. */
+      var want = window.FB.on() ? window.FB.user() : 'Sign in to sync';
+      var tip  = window.FB.on() ? 'Sign out'
+                                : 'Sign in so your planner follows you to any device';
+      if (btn.textContent !== want) btn.textContent = want;
+      if (btn.title !== tip) btn.title = tip;
     }
 
     function install() {
@@ -21390,8 +21473,17 @@ nesting to 20 levels, so the whole tree is serialised rather than stored as nest
     }
 
     if (typeof MutationObserver !== 'undefined') {
-      new MutationObserver(function () {
-        schedule();
+      new MutationObserver(function (ms) {
+        /* ignore anything inside the buttons this module owns, or it re-triggers itself */
+        for (var i = 0; i < ms.length; i++) {
+          var t = ms[i].target;
+          var inMine = false, n = t;
+          while (n && n !== document.body) {
+            if (n.id === 'btnCloudAuth' || n.id === 'btnSignIn' || n.id === 'buildStamp') { inMine = true; break; }
+            n = n.parentNode;
+          }
+          if (!inMine) { schedule(); return; }
+        }
       }).observe(document.body, { childList: true, subtree: true });
     }
 
@@ -30408,8 +30500,7 @@ body[data-fb="on"] .fb-band { display: block; }
   function wire() {
     btn = document.getElementById('btnAccount');
     if (!btn) { setTimeout(wire, 200); return; }
-    keepLast();
-    setInterval(keepLast, 500);
+    window.__settleThenIdle(keepLast, 4000);
     btn.addEventListener('click', function (e) {
       e.preventDefault(); e.stopPropagation();
       /* 2026-09-12: `menu` held a node that something else had already taken out of the
@@ -30688,6 +30779,13 @@ body.gated > *:not(#loginGate){filter:blur(3px);pointer-events:none;user-select:
     try { return (window.FB && window.FB.user && window.FB.user()) || ''; } catch (e) { return ''; }
   }
 
+  /* write only on a real change - see the flicker note on label() */
+  function set(el, text, tip, state) {
+    if (state && el.getAttribute('data-state') !== state) el.setAttribute('data-state', state);
+    if (el.textContent !== text) el.textContent = text;
+    if (tip && el.title !== tip) el.title = tip;
+  }
+
   function paint() {
     var pill = document.getElementById('syncPill');
     if (!pill) return;
@@ -30696,24 +30794,21 @@ body.gated > *:not(#loginGate){filter:blur(3px);pointer-events:none;user-select:
        would paint over "Syncing" every 600ms and you would never see it happen */
     var live = pill.getAttribute('data-state');
     if (live === 'syncing' || live === 'connecting') {
-      pill.textContent = (live === 'syncing') ? 'Syncing' : 'Signing in';
-      pill.title = 'Your planner is syncing now';
+      set(pill, (live === 'syncing') ? 'Syncing' : 'Signing in',
+          'Your planner is syncing now', null);
       return;
     }
     if (live === 'error') {
-      pill.textContent = 'Sync error';
-      pill.title = 'The last sync failed. Press to try again.';
+      set(pill, 'Sync error', 'The last sync failed. Press to try again.', null);
       return;
     }
 
     if (fbOn()) {
-      pill.setAttribute('data-state', 'synced');
-      pill.textContent = 'Synced';
-      pill.title = 'Synced to ' + (fbUser() || 'your account') + '. Press for account options.';
+      set(pill, 'Synced',
+          'Synced to ' + (fbUser() || 'your account') + '. Press for account options.', 'synced');
     } else {
-      pill.setAttribute('data-state', 'offline');
-      pill.textContent = 'Sync off';
-      pill.title = 'Your planner is only on this device. Press to sign in and sync it.';
+      set(pill, 'Sync off',
+          'Your planner is only on this device. Press to sign in and sync it.', 'offline');
     }
   }
 
@@ -30741,9 +30836,7 @@ body.gated > *:not(#loginGate){filter:blur(3px);pointer-events:none;user-select:
         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); press(); }
       });
     }
-    paint();
-    /* the sync module writes this element too, so re-assert rather than fight it */
-    setInterval(paint, 600);
+    window.__settleThenIdle(paint, 2500);
   }
   wire();
 })();
@@ -30892,9 +30985,10 @@ body.gated > *:not(#loginGate){filter:blur(3px);pointer-events:none;user-select:
     var bar = document.getElementById('calTopbar') || document.getElementById('topbar');
     if (!s || !bar) { setTimeout(place, 200); return; }
 
-    /* a module hides it 300ms after load; undo that, and keep undoing it */
-    s.style.removeProperty('display');
-    s.classList.add('stamp-inline');
+    /* only touch what is actually wrong - every write here is a DOM change that other
+       observers react to */
+    if (s.style.display === 'none') s.style.removeProperty('display');
+    if (!s.classList.contains('stamp-inline')) s.classList.add('stamp-inline');
 
     /* 2026-09-12, second attempt. The first gave it its own row UNDER the bar - which read
        well but pushed the whole calendar down ~18px, and that broke four regression checks
@@ -30914,10 +31008,8 @@ body.gated > *:not(#loginGate){filter:blur(3px);pointer-events:none;user-select:
       bar.appendChild(s);
     }
   }
-  place();
-  /* the bar is rebuilt by several modules at different times - re-assert, the same way the
-     account menu holds the last slot */
-  setInterval(place, 800);
+  /* settle fast while the bar assembles, then a slow heartbeat - see __settleThenIdle */
+  window.__settleThenIdle(place, 4000);
 })();
 </script>
 
