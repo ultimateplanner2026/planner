@@ -5343,7 +5343,7 @@ html:root #treeRoot .tree-row:not([data-depth="0"]){ height:32px !important; min
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-09-15 01:24</span>
+    <span id="buildStamp">build 2026-09-15 03:31</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -5750,6 +5750,11 @@ html:root #treeRoot .tree-row:not([data-depth="0"]){ height:32px !important; min
           }
           self.data = deepMerge(JSON.parse(JSON.stringify(DEFAULT_DATA)), parsed);
           self.data.version = DEFAULT_DATA.version;
+          /* 2026-09-15: an import is not a delete. Without this, every item missing from the file would be
+             recorded as deleted and removed from every device. Start the change record afresh from the
+             imported data, and make the next upload merge with the cloud instead of replacing it. */
+          try { if (typeof window.__syncTrackReset === 'function') window.__syncTrackReset(self.data); } catch (e2) {}
+          try { localStorage.removeItem('planner.cloudBase.v1'); } catch (e3) {}
           self.save();
           if (typeof window.renderAll === 'function') {
             window.renderAll();
@@ -14549,6 +14554,7 @@ function firstConnect(remote, rAt, lAt) {
       hashes[id] = h;
     }
     d.clock = next; d.deviceId = dev; d.version = 3;
+    syncTrack(d);
   };
 
   function winner(a, b) {
@@ -14724,6 +14730,283 @@ function firstConnect(remote, rAt, lAt) {
     return { node: copy, parentId: win.parentId, index: win.index, tomb: win.tomb };
   }
 
+  /* ===== 2026-09-15  EVERY DELETE AND EVERY CHANGE IS RECORDED WITH ITS TIME =====
+     The operator deleted something on the laptop while the phone was open, and it came back.
+     Measured with two devices open against a test cloud: task deletes held - trashNode leaves a
+     tombstone carrying the delete time - but a journal note came back on BOTH devices and in the
+     cloud, in both directions, because journalNotes merge as a union of keys. An audit of every
+     removal path found the same shape in habits, routines and their check-offs, focus sessions,
+     blank tasks swept away, Backspace deletes, restores from Deleted and Undo: nothing recorded that
+     the delete (or the restore, or the uncheck) had happened, so the other device's copy won.
+     Every save now compares the data with the previous save and writes one record per item into
+     data.sync: [time, 0] when an item disappeared; [time, 1, hash] when a deleted item came back or
+     a value without its own edit time changed. The merge keeps the newest record per item and
+     applies it: an item is removed when its delete is newer than its own last edit (so an edit made
+     after the delete still wins - whatever was saved last), and a value takes the version the newest
+     record describes. Generic over every collection, including ones added later. */
+  var SYNC_SEP = '|~|';
+  var SYNC_SKIP = { settings: 1, sync: 1 };
+  var syncPrev = null;
+
+  function syncHash(v) {
+    var str; try { str = JSON.stringify(v); } catch (e) { str = String(v); }
+    if (str === undefined) str = 'undefined';
+    var h = 5381, i;
+    for (i = 0; i < str.length; i++) { h = ((h << 5) + h + str.charCodeAt(i)) | 0; }
+    return 'h' + h;
+  }
+  function syncHasOwnTime(v) {
+    return isPlainObject(v) && (v.updatedAt != null || v.at != null);
+  }
+  function syncOwnTime(v) {
+    if (!isPlainObject(v)) return 0;
+    var t = (v.at != null) ? v.at : v.updatedAt;
+    if (typeof t === 'number') return t;
+    return Date.parse(t || '') || 0;
+  }
+  function syncCopy(o) { var x = {}, k; for (k in o) { if (o.hasOwnProperty(k)) x[k] = o[k]; } return x; }
+
+  /* every item in the data, keyed collection|~|id (or collection|~|key|~|entry for maps such as
+     habitLog[habitId][date]). '1' = the item carries its own edit time, only its existence is tracked;
+     otherwise the hash of its value. */
+  function syncItems(d) {
+    var out = {}, c, coll, k, v, j;
+    if (!d) return out;
+    for (c in d) {
+      if (!d.hasOwnProperty(c) || SYNC_SKIP[c]) continue;
+      coll = d[c];
+      if (c === 'tree') {
+        (function walkT(list) {
+          var i, n;
+          if (!Array.isArray(list)) return;
+          for (i = 0; i < list.length; i++) {
+            n = list[i];
+            if (!n || n.id == null) continue;
+            out['tree' + SYNC_SEP + n.id] = '1';
+            walkT(n.children);
+          }
+        })(coll);
+      } else if (c === 'trash') {
+        if (Array.isArray(coll)) {
+          for (j = 0; j < coll.length; j++) {
+            var te = coll[j], tn = te && (te.node || te);
+            if (tn && tn.id != null) out['trash' + SYNC_SEP + tn.id] = '1';
+          }
+        }
+      } else if (Array.isArray(coll)) {
+        for (j = 0; j < coll.length; j++) {
+          v = coll[j];
+          if (!isPlainObject(v) || v.id == null) continue;
+          out[c + SYNC_SEP + v.id] = syncHasOwnTime(v) ? '1' : syncHash(v);
+        }
+      } else if (isPlainObject(coll)) {
+        for (k in coll) {
+          if (!coll.hasOwnProperty(k)) continue;
+          v = coll[k];
+          if (isPlainObject(v) && !syncHasOwnTime(v) && v.id == null) {
+            for (j in v) { if (v.hasOwnProperty(j)) out[c + SYNC_SEP + k + SYNC_SEP + j] = syncHash(v[j]); }
+          } else {
+            out[c + SYNC_SEP + k] = syncHasOwnTime(v) ? '1' : syncHash(v);
+          }
+        }
+      }
+    }
+    return out;
+  }
+
+  /* a deleted item came back on this device (restore from Deleted, Undo): give it a fresh edit time so
+     it also beats the delete on every other device */
+  function syncRevive(d, key, now) {
+    var parts = key.split(SYNC_SEP), c = parts[0], id = parts[1];
+    if (c === 'tree') {
+      (function find(list) {
+        var i, n;
+        for (i = 0; list && i < list.length; i++) {
+          n = list[i];
+          if (!n) continue;
+          if (String(n.id) === id) {
+            n.at = now; n.clock = (Number(d.clock) || 0) + 1; d.clock = n.clock; n.by = deviceId();
+            return true;
+          }
+          if (find(n.children)) return true;
+        }
+        return false;
+      })(d.tree);
+      return;
+    }
+    if (c === 'trash' || parts.length > 2) return;
+    var coll = d[c], item = null, j;
+    if (Array.isArray(coll)) { for (j = 0; j < coll.length; j++) { if (coll[j] && String(coll[j].id) === id) item = coll[j]; } }
+    else if (isPlainObject(coll)) item = coll[id];
+    if (!isPlainObject(item)) return;
+    if (item.at != null) item.at = now;
+    else if (item.updatedAt != null) item.updatedAt = new Date(now).toISOString();
+  }
+
+  function syncTrack(d) {
+    if (!d) return;
+    var cur = syncItems(d);
+    if (syncPrev === null) { syncPrev = cur; return; }
+    var reg = isPlainObject(d.sync) ? d.sync : (d.sync = {});
+    var now = Date.now(), k, r, age;
+    for (k in syncPrev) {
+      if (syncPrev.hasOwnProperty(k) && !cur.hasOwnProperty(k)) reg[k] = [now, 0];
+    }
+    for (k in cur) {
+      if (!cur.hasOwnProperty(k)) continue;
+      r = reg[k];
+      if (!syncPrev.hasOwnProperty(k)) {
+        if (Array.isArray(r) && r[1] === 0) { reg[k] = [now, 1, cur[k]]; syncRevive(d, k, now); }
+      } else if (cur[k] !== '1' && cur[k] !== syncPrev[k]) {
+        reg[k] = [now, 1, cur[k]];
+      }
+    }
+    /* a change record is only needed while another device might still hold the older state */
+    for (k in reg) {
+      if (!reg.hasOwnProperty(k)) continue;
+      if (!Array.isArray(reg[k])) { delete reg[k]; continue; }
+      age = now - (Number(reg[k][0]) || 0);
+      if ((reg[k][1] === 1 && age > 45 * 864e5) || (reg[k][1] === 0 && age > 400 * 864e5)) delete reg[k];
+    }
+    syncPrev = syncItems(d);
+  }
+  window.__syncItems = syncItems;
+  /* 2026-09-15: restoring a snapshot brings things back ON PURPOSE. Without this the merge saw the note's
+     earlier delete as newer than the note and removed it again - the #snap checks caught it. Every item in
+     the snapshot that this device recorded as deleted is recorded as restored now and given a fresh edit
+     time, so the restore wins here and on every other device, the same as Restore from Deleted. */
+  window.__syncReviveFrom = function (target, source) {
+    if (!target || !source) return source;
+    var src = JSON.parse(JSON.stringify(source));
+    var reg = isPlainObject(target.sync) ? target.sync : (target.sync = {});
+    var items = syncItems(src), now = Date.now(), k;
+    for (k in items) {
+      if (!items.hasOwnProperty(k)) continue;
+      if (Array.isArray(reg[k]) && reg[k][1] === 0) {
+        reg[k] = [now, 1, items[k]];
+        syncRevive(src, k, now);
+      }
+      if (isPlainObject(src.sync) && Array.isArray(src.sync[k]) && src.sync[k][1] === 0) delete src.sync[k];
+    }
+    return src;
+  };
+  /* an import is not a delete: start the record afresh from whatever the data is now */
+  window.__syncTrackReset = function (d) { syncPrev = syncItems(d || (window.Store && window.Store.data)); };
+
+  function syncMergeRegisters(a, b) {
+    var out = {}, k, x, y;
+    a = isPlainObject(a) ? a : {}; b = isPlainObject(b) ? b : {};
+    for (k in a) { if (a.hasOwnProperty(k) && Array.isArray(a[k])) out[k] = a[k]; }
+    for (k in b) {
+      if (!b.hasOwnProperty(k) || !Array.isArray(b[k])) continue;
+      x = out[k]; y = b[k];
+      if (!x || Number(y[0]) > Number(x[0]) || (Number(y[0]) === Number(x[0]) && y[1] === 0)) out[k] = y;
+    }
+    return out;
+  }
+  function syncLookup(data, c, id, sub) {
+    var coll = data && data[c], j, m;
+    if (Array.isArray(coll)) {
+      for (j = 0; j < coll.length; j++) { if (coll[j] && String(coll[j].id) === id) return { has: true, value: coll[j] }; }
+      return { has: false };
+    }
+    if (!isPlainObject(coll)) return { has: false };
+    if (sub != null) {
+      m = coll[id];
+      return (isPlainObject(m) && m.hasOwnProperty(sub)) ? { has: true, value: m[sub] } : { has: false };
+    }
+    return coll.hasOwnProperty(id) ? { has: true, value: coll[id] } : { has: false };
+  }
+  function syncApply(merged, local, remote, reg) {
+    var k, r, parts, c, id, sub, t, coll, treeDel = {}, anyTree = false;
+    for (k in reg) {
+      if (!reg.hasOwnProperty(k) || !Array.isArray(reg[k])) continue;
+      r = reg[k]; parts = k.split(SYNC_SEP); c = parts[0]; id = parts[1];
+      sub = parts.length > 2 ? parts.slice(2).join(SYNC_SEP) : null;
+      t = Number(r[0]) || 0;
+      if (c === 'tree') { if (r[1] === 0) { treeDel[id] = t; anyTree = true; } continue; }
+      if (c === 'trash') {
+        if (r[1] === 0 && Array.isArray(merged.trash)) {
+          merged.trash = merged.trash.filter(function (e) {
+            var tn = e && (e.node || e);
+            if (!tn || String(tn.id) !== id) return true;
+            return (Date.parse(e.deletedAt || '') || Number(tn.at) || 0) > t;
+          });
+        }
+        continue;
+      }
+      coll = merged[c];
+      if (r[1] === 0) {
+        if (Array.isArray(coll)) {
+          merged[c] = coll.filter(function (it) { return !(it && String(it.id) === id && syncOwnTime(it) < t); });
+        } else if (isPlainObject(coll)) {
+          if (sub != null) {
+            if (isPlainObject(coll[id]) && coll[id].hasOwnProperty(sub)) {
+              var inner = syncCopy(coll[id]); delete inner[sub];
+              merged[c] = syncCopy(coll); merged[c][id] = inner;
+            }
+          } else if (coll.hasOwnProperty(id) && syncOwnTime(coll[id]) < t) {
+            merged[c] = syncCopy(coll); delete merged[c][id];
+          }
+        }
+      } else if (r[1] === 1 && r[2] && r[2] !== '1') {
+        var here = syncLookup(merged, c, id, sub);
+        if (here.has && syncHash(here.value) === r[2]) continue;
+        var lv = syncLookup(local, c, id, sub), rv = syncLookup(remote, c, id, sub), pick = null;
+        if (lv.has && syncHash(lv.value) === r[2]) pick = lv;
+        else if (rv.has && syncHash(rv.value) === r[2]) pick = rv;
+        if (!pick) continue;
+        if (Array.isArray(coll)) {
+          var arr = coll.slice(), q, put = false;
+          for (q = 0; q < arr.length; q++) { if (arr[q] && String(arr[q].id) === id) { arr[q] = pick.value; put = true; } }
+          if (!put) arr.push(pick.value);
+          merged[c] = arr;
+        } else {
+          merged[c] = syncCopy(isPlainObject(coll) ? coll : {});
+          if (sub != null) {
+            var m2 = syncCopy(isPlainObject(merged[c][id]) ? merged[c][id] : {});
+            m2[sub] = pick.value; merged[c][id] = m2;
+          } else {
+            merged[c][id] = pick.value;
+          }
+        }
+      }
+    }
+    if (anyTree && Array.isArray(merged.tree)) {
+      /* remove every node whose delete is newer than its last edit; a child that was not itself deleted
+         (added on the other device after the delete) moves to the top level instead of going with it */
+      var prune = function (list, lifted) {
+        var i, n;
+        for (i = list.length - 1; i >= 0; i--) {
+          n = list[i];
+          if (!n) continue;
+          if (treeDel.hasOwnProperty(String(n.id)) && (Number(n.at) || 0) < treeDel[String(n.id)]) {
+            list.splice(i, 1);
+            (function keep(kids) {
+              var q2, ch;
+              for (q2 = 0; kids && q2 < kids.length; q2++) {
+                ch = kids[q2];
+                if (!ch) continue;
+                if (treeDel.hasOwnProperty(String(ch.id)) && (Number(ch.at) || 0) < treeDel[String(ch.id)]) keep(ch.children);
+                else lifted.push(ch);
+              }
+            })(n.children);
+          } else if (n.children && n.children.length) {
+            prune(n.children, lifted);
+          }
+        }
+      };
+      var lifted = [];
+      prune(merged.tree, lifted);
+      var guard = 0;
+      while (lifted.length && guard++ < 50) {
+        var batch = lifted; lifted = [];
+        prune(batch, lifted);
+        for (var b = 0; b < batch.length; b++) merged.tree.push(batch[b]);
+      }
+    }
+  }
+
   window.mergePlanner = function (local, remote) {
     if (!remote) return local;
     if (!local) return remote;
@@ -14802,12 +15085,47 @@ function firstConnect(remote, rAt, lAt) {
       merged.settings = so;
     }
     merged.tree = build('__root__');
+    /* 2026-09-15: a task added under a branch that the other device had just deleted used to vanish -
+       build() only walks down from the top, and its parent was gone. Keep it, at the top level, when it
+       was written after that branch was deleted. syncApply below still removes anything itself deleted. */
+    (function () {
+      var liveIds = {}, deadAt = {}, attached = {}, q, le, cp, nk;
+      for (q = 0; q < live.length; q++) liveIds[String(live[q].node.id)] = 1;
+      for (q = 0; q < dead.length; q++) {
+        var dn = dead[q] && (dead[q].node || dead[q]);
+        if (dn && dn.id != null) deadAt[String(dn.id)] = Number(dn.at) || Date.parse(dead[q].deletedAt || '') || 0;
+      }
+      (function mark(list) { var i; for (i = 0; list && i < list.length; i++) { if (list[i]) { attached[String(list[i].id)] = 1; mark(list[i].children); } } })(merged.tree);
+      for (q = 0; q < live.length; q++) {
+        le = live[q];
+        if (attached[String(le.node.id)] || !le.parentId || liveIds[String(le.parentId)]) continue;
+        if (!deadAt.hasOwnProperty(String(le.parentId)) || !((Number(le.node.at) || 0) > deadAt[String(le.parentId)])) continue;
+        cp = {};
+        for (nk in le.node) { if (le.node.hasOwnProperty(nk)) cp[nk] = le.node[nk]; }
+        cp.children = build(cp.id);
+        merged.tree.push(cp);
+        (function mark2(n) { var i; attached[String(n.id)] = 1; for (i = 0; n.children && i < n.children.length; i++) mark2(n.children[i]); })(cp);
+      }
+    })();
     merged.trash = dead;
     merged.clock = Math.max(L.max, R.max, Number(local.clock) || 0, Number(remote.clock) || 0);
     merged.version = 3;
     merged.deviceId = deviceId();
     merged.updatedAt = new Date().toISOString();
-    var lists = ['events', 'areas', 'lists', 'habits'], li;
+    /* 2026-09-15: every list of items with ids - not a hand-kept four. routines and focusBlocks were
+       replaced by whichever document was newer, so an item added on the other device was lost. */
+    var lists = [], li, lseen = {}, lk;
+    var idList = function (v) {
+      if (!Array.isArray(v)) return false;
+      for (var q = 0; q < v.length; q++) { if (!(isPlainObject(v[q]) && v[q].id != null)) return false; }
+      return true;
+    };
+    for (lk in local) {
+      if (local.hasOwnProperty(lk) && lk !== 'tree' && lk !== 'trash' && idList(local[lk]) && (remote[lk] == null || idList(remote[lk]))) { lists.push(lk); lseen[lk] = 1; }
+    }
+    for (lk in remote) {
+      if (remote.hasOwnProperty(lk) && !lseen[lk] && lk !== 'tree' && lk !== 'trash' && idList(remote[lk]) && (local[lk] == null || idList(local[lk]))) lists.push(lk);
+    }
     for (li = 0; li < lists.length; li++) {
       (function (k) {
         var a = local[k] || [], b = remote[k] || [], seen = {}, res = [], j, it, cur;
@@ -14822,6 +15140,8 @@ function firstConnect(remote, rAt, lAt) {
         merged[k] = res;
       })(lists[li]);
     }
+    merged.sync = syncMergeRegisters(local.sync, remote.sync);
+    syncApply(merged, local, remote, merged.sync);
     return merged;
   };
 
@@ -31226,8 +31546,10 @@ body.gated > *:not(#loginGate){filter:blur(3px);pointer-events:none;user-select:
       var next;
       if (mode === 'replace' || typeof window.mergePlanner !== 'function') {
         next = s.data;
+        /* a replace is not a string of deletes to send to every other device */
+        try { if (typeof window.__syncTrackReset === 'function') window.__syncTrackReset(next); } catch (e) {}
       } else {
-        next = window.mergePlanner(cur, s.data);
+        next = window.mergePlanner(cur, (typeof window.__syncReviveFrom === 'function') ? window.__syncReviveFrom(cur, s.data) : s.data);
       }
       take('before restore', true);          /* so the restore itself can be undone */
       window.Store.data = next;
