@@ -5343,7 +5343,7 @@ html:root #treeRoot .tree-row:not([data-depth="0"]){ height:32px !important; min
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-09-14 12:52</span>
+    <span id="buildStamp">build 2026-09-15 01:24</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -14494,7 +14494,9 @@ function firstConnect(remote, rAt, lAt) {
   function hashOf(node) {
     var s = [node.title,node.notes,node.kind,node.done,node.priority,node.date,
       node.time,node.endDate,node.block,node.duration,node.repeat,node.areaId,
-      node.collapsed,JSON.stringify(node.tags||[]),
+      /* 2026-09-15: collapsed left out - it is re-applied from this device's own storage on every
+         render, so counting it stamped a branch as freshly edited when it was only looked at */
+      JSON.stringify(node.tags||[]),
       JSON.stringify(node.reminder||null),JSON.stringify(node.style||null)].join('|');
     var h = 5381, i;
     for (i = 0; i < s.length; i++) { h = ((h << 5) + h + s.charCodeAt(i)) | 0; }
@@ -14681,6 +14683,14 @@ function firstConnect(remote, rAt, lAt) {
     for (k in win.node) { if (win.node.hasOwnProperty(k)) copy[k] = win.node[k]; }
     var ln = lose && lose.node ? lose.node.notes : '';
     var wn = copy.notes;
+    /* 2026-09-15: both sides carry a real edit time, so which note is newer is known - and the newer
+       edit IS the note ("whatever I saved last would be the last thing"). Appending the older text is
+       how a stale phone's words kept reappearing under the work computer's note. Keeping both stays
+       only for nodes written before real times existed, where recency cannot be told. */
+    var wAt = Number(win.node.at) || 0, lAt = (lose && lose.node) ? (Number(lose.node.at) || 0) : 0;
+    if (wAt && lAt && wAt !== lAt) {
+      return { node: copy, parentId: win.parentId, index: win.index, tomb: win.tomb };
+    }
     /* 2026-09-10: keeping BOTH copies is right when the two machines genuinely hold
        different writing. It was wrong the rest of the time: the comparison was a bare
        !== on the raw strings, so a note that differed only by a trailing newline, a
@@ -14696,15 +14706,20 @@ function firstConnect(remote, rAt, lAt) {
         .replace(/^\s+|\s+$/g, '');
     }
     var nl = norm(ln), nw = norm(wn);
+    /* the editor shows notesHtml before notes, so it must always describe the same text */
+    var lh = (lose && lose.node) ? lose.node.notesHtml : undefined;
     if (nl && nw && nl !== nw &&
         nw.indexOf(nl) === -1 && nl.indexOf(nw) === -1) {
       copy.notes = wn + MERGE_SEP + ln;
+      delete copy.notesHtml;
     } else if (!nw && nl) {
       copy.notes = ln;
+      if (lh) copy.notesHtml = lh; else delete copy.notesHtml;
     } else if (nl && nw && nl !== nw && nl.indexOf(nw) !== -1) {
       /* the other side is the same note with more added - take the longer one whole
          rather than gluing a prefix onto it */
       copy.notes = ln;
+      if (lh) copy.notesHtml = lh; else delete copy.notesHtml;
     }
     return { node: copy, parentId: win.parentId, index: win.index, tomb: win.tomb };
   }
@@ -21128,22 +21143,84 @@ nesting to 20 levels, so the whole tree is serialised rather than stored as nest
       return auth.signOut();
     }
 
+    /* 2026-09-15 - A PHONE ON A SLOW CONNECTION OVERWROTE THE WORK COMPUTER'S NEWER NOTES.
+       This used to set() the whole local copy with no read. A phone opens, its load-time save
+       uploads what it has, and on a slow connection that upload is sent before its own read comes
+       back - so the cloud copy was replaced by the phone's old notes, and Firestore then showed the
+       phone its own pending write when the read returned. Measured with a fake cloud at 1.5s per
+       round trip: WRITE carrying OLD sent at 1.23s, landed at 1.99s, read answered at 2.25s. On a
+       fast connection the read wins that race - which is why the computer updated and the phone
+       did not.
+       Every upload is now a transaction. It reads the cloud copy from the server; if that copy is
+       not the one this device last synced, another device wrote since, so the two are merged item by
+       item (newest edit wins) and the merged result is what gets written. Firestore refuses the
+       write and runs this again if the cloud changes between the read and the write. */
+    var BASE_KEY = 'planner.cloudBase.v1';
+    function getBase(uid) {
+      try { var b = JSON.parse(localStorage.getItem(BASE_KEY) || 'null');
+            return (b && b.uid === uid && b.v != null) ? String(b.v) : null; } catch (e) { return null; }
+    }
+    function setBase(uid, v) {
+      try { localStorage.setItem(BASE_KEY, JSON.stringify({uid: uid, v: String(v)})); } catch (e) {}
+    }
+    function contentSig(d) {
+      var o = {}, k;
+      if (!d) return '';
+      for (k in d) {
+        if (d.hasOwnProperty(k) && k !== 'updatedAt' && k !== 'clock' && k !== 'deviceId' && k !== 'version') o[k] = d[k];
+      }
+      try { return JSON.stringify(o); } catch (e) { return String(Date.now()); }
+    }
+    function quietError(err) {
+      var code = (err && err.code) || '';
+      /* a phone losing signal must not raise a toast on every save - the pill turns to "Sync error",
+         everything stays on this device, and the next save or pull tries again */
+      return code === 'unavailable' || code === 'deadline-exceeded' || code === 'aborted' ||
+             code === 'failed-precondition' || code === 'auth/network-request-failed';
+    }
+    window.__fbBase = function () { return getBase(auth && auth.currentUser ? auth.currentUser.uid : ''); };
+
     function doWrite(ref) {
-      // Stamp local clocks, serialize the store, and push it to the cloud.
       return new Promise(function(resolve) {
-        var payload;
-        try {
-          window.stampClocks();
-          payload = {doc: JSON.stringify(window.Store.data), updatedAt: Date.now()};
-        } catch (err) {
-          window.toast(friendly(err), 'err');
-          resolve(false);
-          return;
-        }
-        ref.set(payload, {merge: false}).then(function() {
+        var uid = (auth && auth.currentUser) ? auth.currentUser.uid : '';
+        var merged = null, took = false, stamp = 0, readFrom = null, sigRead = '';
+        db.runTransaction(function(t) {
+          merged = null; took = false;
+          return t.get(ref).then(function(snap) {
+            window.stampClocks();
+            var local = window.Store.data, remote = null, remoteV = null;
+            if (snap && snap.exists) {
+              remoteV = snap.get('updatedAt');
+              try { var raw = snap.get('doc'); if (raw) remote = JSON.parse(raw); } catch (e) { remote = null; }
+            }
+            var base = getBase(uid);
+            readFrom = local; sigRead = contentSig(local);
+            if (remote && hasReal(remote) && typeof window.mergePlanner === 'function' &&
+                (base === null || String(remoteV) !== base)) {
+              merged = window.mergePlanner(local, remote); took = true;
+            } else {
+              merged = local;
+            }
+            stamp = Date.now();
+            t.set(ref, {doc: JSON.stringify(merged), updatedAt: stamp});
+          });
+        }).then(function() {
+          if (!took) { setBase(uid, stamp); resolve(true); return; }
+          /* the cloud held something this device had not seen. Show it here - but only if nothing
+             was edited on this device while the write was on its way; otherwise leave the base
+             alone, so the next save merges again with those edits stamped. */
+          if (window.Store.data === readFrom && contentSig(window.Store.data) === sigRead) {
+            setBase(uid, stamp);
+            if (contentSig(merged) !== sigRead) {
+              window.Store.data = merged;
+              try { localStorage.setItem('planner.data.v1', JSON.stringify(merged)); } catch (e) {}
+              try { if (typeof window.Store.emit === 'function') window.Store.emit(); } catch (e) {}
+              if (typeof window.renderAll === 'function') { try { window.renderAll(); } catch (e) {} }
+            }
+          }
           resolve(true);
         }, function(err) {
-          window.toast(friendly(err), 'err');
+          if (!quietError(err)) window.toast(friendly(err), 'err');
           resolve(false);
         });
       });
@@ -21177,7 +21254,8 @@ nesting to 20 levels, so the whole tree is serialised rather than stored as nest
     function pull() {
       var ref = docRef();
       if (!ref) return Promise.resolve(false);
-      return ref.get().then(function (snap) {
+      /* source:'server' - a read must never be answered with this device's own pending upload */
+      return ref.get({source: 'server'}).then(function (snap) {
         // A brand-new account has no document yet. Seed it from this device rather
         // than returning empty-handed, or the first sign-in would look like data loss.
         if (!snap || !snap.exists) {
@@ -21203,11 +21281,13 @@ nesting to 20 levels, so the whole tree is serialised rather than stored as nest
         window.Store.data = (typeof window.mergePlanner === 'function')
           ? window.mergePlanner(window.Store.data, remote)
           : remote;
+        /* this device now holds everything in that cloud copy */
+        try { setBase(auth.currentUser.uid, snap.get('updatedAt')); } catch (e) {}
         if (typeof window.Store.save === 'function') window.Store.save();
         if (typeof window.renderAll === 'function') window.renderAll();
         return true;
       }).then(undefined, function (err) {
-        if (typeof window.toast === 'function') window.toast(friendly(err), 'err');
+        if (typeof window.toast === 'function' && !quietError(err)) window.toast(friendly(err), 'err');
         return false;
       });
     }
@@ -21575,6 +21655,22 @@ nesting to 20 levels, so the whole tree is serialised rather than stored as nest
         if (window.FB && window.FB.on() && (now - lastPullTime) >= 30000) {
           window.FB.pull();
           lastPullTime = now;
+        }
+      });
+      /* 2026-09-15: a phone switching back to the planner fires visibilitychange, and often no focus
+         event at all - so it waited up to a minute for the interval. Read the cloud the moment the
+         planner is on screen again, and when iOS restores the page from its back/forward cache. */
+      document.addEventListener('visibilitychange', function () {
+        var now = Date.now();
+        if (document.visibilityState === 'visible' && window.FB && window.FB.on() && (now - lastPullTime) >= 5000) {
+          lastPullTime = now;
+          window.FB.pull();
+        }
+      });
+      window.addEventListener('pageshow', function (ev) {
+        if (ev && ev.persisted && window.FB && window.FB.on()) {
+          lastPullTime = Date.now();
+          window.FB.pull();
         }
       });
     }
