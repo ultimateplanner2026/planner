@@ -5343,7 +5343,7 @@ html:root #treeRoot .tree-row:not([data-depth="0"]){ height:32px !important; min
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-09-15 03:31</span>
+    <span id="buildStamp">build 2026-09-15 13:00</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -14514,7 +14514,9 @@ function firstConnect(remote, rAt, lAt) {
     for (i = 0; i < list.length; i++) {
       var node = list[i];
       if (!node || !node.id) continue;
-      out.push({node: node, parentId: parentId, index: i});
+      out.push({node: node, parentId: parentId, index: i,
+                /* the sibling just above it - what a move actually changes (see stampClocks) */
+                prev: (i > 0 && list[i - 1] && list[i - 1].id != null) ? list[i - 1].id : null});
       walk(node.children, node.id, out);
     }
   }
@@ -14547,6 +14549,21 @@ function firstConnect(remote, rAt, lAt) {
       if (!c.map.hasOwnProperty(id)) continue;
       e = c.map[id];
       h = hashOf(e.node);
+      /* 2026-09-15 - A MOVE IS A CHANGE TOO, BUT NOT AN EDIT.
+         Indenting, outdenting or dragging a task never reached the other device: the content hash
+         ignores where a task sits, so a pure move left its times untouched, the merge saw a tie and kept
+         each device's own arrangement. Folding position into `at` would be wrong - a move shifts every
+         sibling's index, and restamping their `at` would let this device's old copies of those siblings
+         beat edits made to them elsewhere. So position gets its own time: `pk` remembers the parent and
+         the sibling just above (which a move changes only for the moved task and its old and new
+         neighbours, never for everything below), and `pat` records when that last changed. The merge
+         takes content by `at` and place by `pat`, independently. A task seen for the first time only
+         records where it is. */
+      if (!e.tomb) {
+        var pk = (e.parentId == null ? '' : String(e.parentId)) + '|' + (e.prev == null ? '' : String(e.prev));
+        if (e.node.pk === undefined) e.node.pk = pk;
+        else if (e.node.pk !== pk) { e.node.pk = pk; e.node.pat = Date.now(); }
+      }
       if (!e.node.clock) { next = next + 1; e.node.clock = next; e.node.by = dev;
         e.node.at = Date.now(); hashes[id] = h; continue; }
       if (hashes[id] !== undefined && hashes[id] !== h) { next = next + 1; e.node.clock = next;
@@ -14555,6 +14572,23 @@ function firstConnect(remote, rAt, lAt) {
     }
     d.clock = next; d.deviceId = dev; d.version = 3;
     syncTrack(d);
+  };
+
+  /* Undo puts a whole earlier copy back. A task it moves back still carries the position record it had
+     before the move, so without this an undone move would never reach the other device. */
+  window.__stampMovedSince = function (before, after) {
+    if (!before || !after) return;
+    var b = [], a = [], pos = {}, i, e, pk, now = Date.now();
+    walk(before.tree || [], null, b);
+    for (i = 0; i < b.length; i++) {
+      pos[String(b[i].node.id)] = (b[i].parentId == null ? '' : String(b[i].parentId)) + '|' + (b[i].prev == null ? '' : String(b[i].prev));
+    }
+    walk(after.tree || [], null, a);
+    for (i = 0; i < a.length; i++) {
+      e = a[i];
+      pk = (e.parentId == null ? '' : String(e.parentId)) + '|' + (e.prev == null ? '' : String(e.prev));
+      if (pos.hasOwnProperty(String(e.node.id)) && pos[String(e.node.id)] !== pk) { e.node.pk = pk; e.node.pat = now; }
+    }
   };
 
   function winner(a, b) {
@@ -15020,7 +15054,21 @@ function firstConnect(remote, rAt, lAt) {
       var la = L.map[id], rb = R.map[id];
       w = winner(la, rb);
       if (!w) continue;
-      if (!w.tomb && la && rb) { w = keepBothNotes(w, (w === la) ? rb : la); }
+      if (!w.tomb && la && rb) {
+        var contentSide = w;
+        w = keepBothNotes(w, (w === la) ? rb : la);
+        w.prev = contentSide.prev;
+        /* 2026-09-15: where a task sits is decided by the newer MOVE (pat), independently of which copy
+           has the newer content (at) - see stampClocks. A tie keeps the content winner's place. */
+        if (!la.tomb && !rb.tomb) {
+          var pla = Number(la.node.pat) || 0, prb = Number(rb.node.pat) || 0;
+          var posSide = (pla !== prb) ? (pla > prb ? la : rb) : contentSide;
+          if (posSide !== contentSide) {
+            w.parentId = posSide.parentId; w.index = posSide.index; w.prev = posSide.prev;
+            w.node.pat = posSide.node.pat; w.node.pk = posSide.node.pk;
+          }
+        }
+      }
       if (w.tomb) { dead.push(w.tomb); } else { live.push(w); }
     }
     var byParent = {}, i, e, p;
@@ -15030,15 +15078,51 @@ function firstConnect(remote, rAt, lAt) {
       if (!byParent[p]) byParent[p] = [];
       byParent[p].push(e);
     }
+    var builtIds = {};
+    function cmpId(x, y) {
+      var a = String(x.node.id), b = String(y.node.id);
+      return a < b ? -1 : (a > b ? 1 : 0);
+    }
+    /* 2026-09-15: siblings are put in order by following "the one just above" (prev) from whichever copy
+       decided each task's place, so a move made on one device lands where it was put even when the other
+       siblings come from the other device. Index only breaks ties and a broken chain. */
+    function orderKids(kids) {
+      var rest = kids.slice().sort(function (x, y) { return ((x.index || 0) - (y.index || 0)) || cmpId(x, y); });
+      if (rest.length < 2) return rest;
+      var inSet = {}, used = {}, out = [], i, last = null, guard = 0;
+      for (i = 0; i < rest.length; i++) inSet[String(rest[i].node.id)] = 1;
+      function nextAfter(prevId) {
+        var best = null, j, c, cp, pc, pb;
+        for (j = 0; j < rest.length; j++) {
+          c = rest[j];
+          if (used[String(c.node.id)]) continue;
+          cp = (c.prev == null || !inSet[String(c.prev)]) ? null : String(c.prev);
+          if (cp !== prevId) continue;
+          pc = Number(c.node.pat) || 0; pb = best ? (Number(best.node.pat) || 0) : -1;
+          if (!best || pc > pb || (pc === pb && cmpId(c, best) < 0)) best = c;
+        }
+        return best;
+      }
+      while (out.length < rest.length && guard++ < rest.length * 2 + 5) {
+        var nx = nextAfter(last);
+        if (!nx) { for (i = 0; i < rest.length; i++) { if (!used[String(rest[i].node.id)]) { nx = rest[i]; break; } } }
+        if (!nx) break;
+        used[String(nx.node.id)] = 1; out.push(nx); last = String(nx.node.id);
+      }
+      for (i = 0; i < rest.length; i++) { if (!used[String(rest[i].node.id)]) out.push(rest[i]); }
+      return out;
+    }
     function build(pid) {
-      var kids = byParent[pid] || [];
-      kids.sort(function (x, y) { return (x.index || 0) - (y.index || 0); });
+      var kids = orderKids(byParent[pid] || []);
       var res = [], k, nd;
       for (k = 0; k < kids.length; k++) {
         // Copy before attaching children. Assigning straight onto kids[k].node
         // mutated the caller's own documents mid-merge - verified: merging A with B
         // left B's nodes grafted into A.
         var srcNode = kids[k].node, nd2 = {}, nk;
+        /* a task is placed once - two devices moving two tasks under each other must not loop forever */
+        if (builtIds[String(srcNode.id)]) continue;
+        builtIds[String(srcNode.id)] = 1;
         for (nk in srcNode) { if (srcNode.hasOwnProperty(nk)) nd2[nk] = srcNode[nk]; }
         nd = nd2;
         nd.children = build(nd.id);
@@ -15102,9 +15186,40 @@ function firstConnect(remote, rAt, lAt) {
         if (!deadAt.hasOwnProperty(String(le.parentId)) || !((Number(le.node.at) || 0) > deadAt[String(le.parentId)])) continue;
         cp = {};
         for (nk in le.node) { if (le.node.hasOwnProperty(nk)) cp[nk] = le.node[nk]; }
+        builtIds[String(cp.id)] = 1;
         cp.children = build(cp.id);
         merged.tree.push(cp);
         (function mark2(n) { var i; attached[String(n.id)] = 1; for (i = 0; n.children && i < n.children.length; i++) mark2(n.children[i]); })(cp);
+      }
+      /* 2026-09-15: two devices moved two tasks under each other at the same time (A under B here, B under
+         A there). Taking both moves makes a loop that nothing reaches from the top, so both tasks and
+         everything under them would silently disappear. Break each loop by lifting the member moved most
+         recently to the top level; the rest of the loop hangs under it. */
+      var parentOf = {};
+      for (q = 0; q < live.length; q++) parentOf[String(live[q].node.id)] = (live[q].parentId == null) ? null : String(live[q].parentId);
+      for (q = 0; q < live.length; q++) {
+        le = live[q];
+        if (attached[String(le.node.id)]) continue;
+        var up = {}, cur = String(le.node.id), loop = false, members = [];
+        while (cur != null && liveIds[cur] && !attached[cur]) {
+          if (up[cur]) { loop = true; break; }
+          up[cur] = 1; members.push(cur); cur = parentOf[cur];
+        }
+        if (!loop) continue;
+        var cyc = members.slice(members.indexOf(cur)), pick = null, z, cand, pz, pp;
+        for (z = 0; z < live.length; z++) {
+          cand = live[z];
+          if (cyc.indexOf(String(cand.node.id)) < 0) continue;
+          pz = Number(cand.node.pat) || 0; pp = pick ? (Number(pick.node.pat) || 0) : -1;
+          if (!pick || pz > pp || (pz === pp && String(cand.node.id) < String(pick.node.id))) pick = cand;
+        }
+        if (!pick) continue;
+        cp = {};
+        for (nk in pick.node) { if (pick.node.hasOwnProperty(nk)) cp[nk] = pick.node[nk]; }
+        builtIds[String(cp.id)] = 1;
+        cp.children = build(cp.id);
+        merged.tree.push(cp);
+        (function mark3(n) { var i; attached[String(n.id)] = 1; for (i = 0; n.children && i < n.children.length; i++) mark3(n.children[i]); })(cp);
       }
     })();
     merged.trash = dead;
@@ -20756,6 +20871,9 @@ if (r.freq === 'yearly') {
     var parsed;
     try { parsed = JSON.parse(s); } catch (e) { return false; }
     restoring = true;
+    /* 2026-09-15: a task this undo moves back carries the position record it had before the move -
+       stamp it as moved now, or the undone move never reaches the other device */
+    try { if (typeof window.__stampMovedSince === 'function') window.__stampMovedSince(window.Store.data, parsed); } catch (e) {}
     window.Store.data = parsed;
     try { window.Store.save(); } catch (e) {}
     restoring = false;
@@ -21499,9 +21617,47 @@ nesting to 20 levels, so the whole tree is serialised rather than stored as nest
              code === 'failed-precondition' || code === 'auth/network-request-failed';
     }
     window.__fbBase = function () { return getBase(auth && auth.currentUser ? auth.currentUser.uid : ''); };
+    function canonSig(d) {
+      function isObj(x) { return !!x && typeof x === 'object' && !Array.isArray(x); }
+      function canon(v, depth, key) {
+        var i, k, out;
+        if (Array.isArray(v)) {
+          var parts = [];
+          for (i = 0; i < v.length; i++) parts.push(canon(v[i], depth + 1, null));
+          var idOf = null;
+          if (key === 'trash') idOf = function (x) { var n = x && (x.node || x); return n && n.id != null ? String(n.id) : null; };
+          else if (key !== 'tree' && key !== 'children') idOf = function (x) { return isObj(x) && x.id != null ? String(x.id) : null; };
+          if (idOf && v.length) {
+            var all = true, pairs = [];
+            for (i = 0; i < v.length; i++) { var id = idOf(v[i]); if (id === null) { all = false; break; } pairs.push([id, parts[i]]); }
+            if (all) {
+              pairs.sort(function (a, b) { return a[0] < b[0] ? -1 : (a[0] > b[0] ? 1 : 0); });
+              parts = []; for (i = 0; i < pairs.length; i++) parts.push(pairs[i][1]);
+            }
+          }
+          return '[' + parts.join(',') + ']';
+        }
+        if (isObj(v)) {
+          var ks = Object.keys(v).sort(); out = [];
+          for (i = 0; i < ks.length; i++) {
+            k = ks[i];
+            if (v[k] === undefined) continue;
+            if (depth === 0 && (k === 'updatedAt' || k === 'clock' || k === 'deviceId' || k === 'version' || k === 'build')) continue;
+            if (k === 'by' || k === 'clock') continue;
+            out.push(JSON.stringify(k) + ':' + canon(v[k], depth + 1, k));
+          }
+          return '{' + out.join(',') + '}';
+        }
+        return JSON.stringify(v === undefined ? null : v);
+      }
+      try { return canon(d, 0, null); } catch (e) { return 'x' + Date.now() + Math.random(); }
+    }
+    window.__fbCanonSig = canonSig;
 
     function doWrite(ref) {
-      return new Promise(function(resolve) {
+      return new Promise(function(resolve0) {
+        window.__fbInFlight = (window.__fbInFlight || 0) + 1;
+        var resolve = function (v) { window.__fbInFlight = Math.max(0, (window.__fbInFlight || 1) - 1); resolve0(v); };
         var uid = (auth && auth.currentUser) ? auth.currentUser.uid : '';
         var merged = null, took = false, stamp = 0, readFrom = null, sigRead = '';
         db.runTransaction(function(t) {
@@ -21603,7 +21759,14 @@ nesting to 20 levels, so the whole tree is serialised rather than stored as nest
           : remote;
         /* this device now holds everything in that cloud copy */
         try { setBase(auth.currentUser.uid, snap.get('updatedAt')); } catch (e) {}
-        if (typeof window.Store.save === 'function') window.Store.save();
+        /* 2026-09-15: upload only when this device holds something the cloud copy does not. Every pull
+           used to save, and every save uploads - two open devices each wrote the whole planner every minute
+           with nothing changed. */
+        if (canonSig(window.Store.data) !== canonSig(remote)) {
+          if (typeof window.Store.save === 'function') window.Store.save();
+        } else {
+          try { localStorage.setItem('planner.data.v1', JSON.stringify(window.Store.data)); } catch (e) {}
+        }
         if (typeof window.renderAll === 'function') window.renderAll();
         return true;
       }).then(undefined, function (err) {
@@ -21611,6 +21774,71 @@ nesting to 20 levels, so the whole tree is serialised rather than stored as nest
         return false;
       });
     }
+
+    /* ===== 2026-09-15  LIVE UPDATES: the other device's changes arrive by themselves =====
+       A device used to learn about another device's changes only when it pulled - on opening, every 60
+       seconds while visible, or on coming back to the tab - so with the laptop and the phone both open,
+       one of them could sit on old data for up to a minute. A Firestore listener now delivers each new
+       cloud version within about a second. Guards, each one covered by tests/live-updates.md:
+       - a merge that arrives this way never uploads by itself, so two open devices cannot bounce writes;
+         anything genuinely new on this device goes up with its own save;
+       - while a field is being typed in, or an edit dialog is open, the update waits - a keystroke is
+         never lost to a re-render;
+       - while an upload is on its way, the update waits for it to finish. */
+    var liveUnsub = null, liveUid = null, livePending = null, liveTimer = null;
+    function liveBusy() {
+      if ((window.__fbInFlight || 0) > 0) return true;
+      var a = document.activeElement;
+      if (a && a !== document.body) {
+        var tag = String(a.tagName || '').toLowerCase();
+        if (tag === 'textarea' || a.isContentEditable) return true;
+        if (tag === 'input' && /^(text|search|email|url|tel|number|date|time|)$/i.test(String(a.type || ''))) return true;
+      }
+      var dlg = document.querySelector('.modal-overlay, .modal-backdrop, [role="dialog"]');
+      if (dlg && dlg.getBoundingClientRect().width > 0) return true;
+      return false;
+    }
+    function applyLive() {
+      liveTimer = null;
+      if (!livePending) return;
+      if (liveBusy()) { liveTimer = setTimeout(applyLive, 600); return; }
+      var snap = livePending; livePending = null;
+      if (!auth || !auth.currentUser || !window.Store || !window.Store.data) return;
+      var uid = auth.currentUser.uid, remoteV = snap.get('updatedAt');
+      if (remoteV != null && String(remoteV) === getBase(uid)) return;
+      var raw = snap.get('doc'), remote = null;
+      if (!raw) return;
+      try { remote = JSON.parse(raw); } catch (e) { return; }
+      if (!hasReal(remote) || typeof window.mergePlanner !== 'function') return;
+      var before = canonSig(window.Store.data);
+      var merged = window.mergePlanner(window.Store.data, remote);
+      setBase(uid, remoteV);
+      if (canonSig(merged) === before) return;
+      window.Store.data = merged;
+      try { localStorage.setItem('planner.data.v1', JSON.stringify(merged)); } catch (e) {}
+      try { if (typeof window.Store.emit === 'function') window.Store.emit(); } catch (e) {}
+      if (typeof window.renderAll === 'function') { try { window.renderAll(); } catch (e) {} }
+    }
+    function startLive() {
+      if (!db || !auth) return;
+      var uid = auth.currentUser ? auth.currentUser.uid : null;
+      if (uid === liveUid && (liveUnsub || !uid)) return;
+      if (liveUnsub) { try { liveUnsub(); } catch (e) {} liveUnsub = null; }
+      liveUid = uid;
+      if (!uid) return;
+      var ref = db.collection('users').doc(uid);
+      if (typeof ref.onSnapshot !== 'function') return;
+      try {
+        liveUnsub = ref.onSnapshot(function (snap) {
+          if (!snap || !snap.exists || (snap.metadata && snap.metadata.hasPendingWrites)) return;
+          livePending = snap;
+          if (!liveTimer) liveTimer = setTimeout(applyLive, 150);
+        }, function () { liveUnsub = null; liveUid = null; });
+      } catch (e) { liveUnsub = null; liveUid = null; }
+    }
+    window.__fbLive = function () { return !!liveUnsub; };
+    try { if (auth && typeof auth.onAuthStateChanged === 'function') auth.onAuthStateChanged(function () { startLive(); }); } catch (e) {}
+    setInterval(startLive, 5000);
 
     window.FB = {
       ready: function () { return initOk; },
