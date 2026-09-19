@@ -242,19 +242,22 @@ img, svg { display: block; max-width: 100%; }
 }
 
 /* ---------- explicit theme overrides (win over media query) ---------- */
+/* 2026-09-18, operator: "I don't need a light and dark I just need a dark". One theme only. The light
+   palette is kept as a name but carries the DARK values, so any leftover data-theme="light" - from an old
+   tab, a saved setting or a work computer - still renders dark. Nothing can make the planner white. */
 :root[data-theme="light"] {
-  --bg:          #fafafa;
-  --surface:     #ffffff;
-  --surface-2:   #f4f4f5;
-  --border:      #e4e4e7;
-  --text:        #18181b;
-  --text-dim:    #71717a;
-  --accent:      #2563eb;
-  --accent-soft: #dbeafe;
-  --danger:      #dc2626;
-  --ok:          #16a34a;
-  --warn:        #d97706;
-  --shadow:      0 1px 2px rgba(0,0,0,.04), 0 4px 12px rgba(0,0,0,.06);
+  --bg:          #09090b;
+  --surface:     #18181b;
+  --surface-2:   #27272a;
+  --border:      #2e323a;
+  --text:        #e6e8ec;
+  --text-dim:    #9aa1ab;
+  --accent:      #4d8bff;
+  --accent-soft: #1e2a3f;
+  --danger:      #ef4444;
+  --ok:          #10b981;
+  --warn:        #f59e0b;
+  --shadow:      0 1px 2px rgba(0,0,0,.4), 0 4px 12px rgba(0,0,0,.5);
 }
 :root[data-theme="dark"] {
   --bg:          #09090b;
@@ -1676,7 +1679,8 @@ section#rightPane {
 :root{--bg:#16181c;--surface:#1d2025;--surface-2:#24272e;--border:#2e323a;--text:#e6e8ec;--text-dim:#9aa1ab;--accent:#4d8bff;--accent-soft:#1e2a3f;--radius:6px;--warn:#f59e0b;--ok:#10b981;--danger:#ef4444}
 @media(prefers-color-scheme:dark){:root{--bg:#16181c;--surface:#1d2025;--surface-2:#24272e;--border:#2e323a;--text:#e6e8ec;--text-dim:#9aa1ab;--accent:#4d8bff;--accent-soft:#1e2a3f}}
 :root[data-theme="dark"]{--bg:#16181c;--surface:#1d2025;--surface-2:#24272e;--border:#2e323a;--text:#e6e8ec;--text-dim:#9aa1ab;--accent:#4d8bff;--accent-soft:#1e2a3f}
-:root[data-theme="light"]{--bg:#f7f8fa;--surface:#ffffff;--surface-2:#f2f3f5;--border:#e3e5e9;--text:#1a1d21;--text-dim:#6b7280;--accent:#2f6feb;--accent-soft:#e8f0fe}
+/* 2026-09-18: the second light palette, also dark now - this is the one that turned the top bar and the tab row white. */
+:root[data-theme="light"]{--bg:#16181c;--surface:#1d2025;--surface-2:#24272e;--border:#2e323a;--text:#e6e8ec;--text-dim:#9aa1ab;--accent:#4d8bff;--accent-soft:#1e2a3f}
 body{font-family:ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:13px;line-height:1.35;-webkit-font-smoothing:antialiased}
 #lblMonth{font-size:20px;font-weight:600;letter-spacing:-0.01em}
 #lblMonth,.mcell,.mdaynum,.tree-datechip{font-variant-numeric:tabular-nums}
@@ -3094,6 +3098,22 @@ button.al-x:hover { opacity: 1; color: var(--danger); }
   #modalHost .modal { max-height: calc(100vh - 16px); }
 }
 
+/* Settings on a COMPUTER - operator 2026-09-18: "when it's setting showing, the
+   priority tree should be hidden". Every rule below used to live only inside the
+   phone media query, so on the desktop the drawer opened above a still-visible
+   priority tree and the two read as one muddled list.
+   The exception: Completed and Deleted build their list INSIDE #treeRoot, so when
+   #treeRoot carries .done-only it is the list, not the tree, and it stays. */
+body[data-bb="settings"] #treeRoot:not(.done-only),
+body[data-bb="settings"] #treeFilters,
+body[data-bb="settings"] .tree-toolbar { display: none !important; }
+/* same on the Habits tab - the area chips belong to the priority tree */
+body[data-habits-left="1"] #treeFilters { display: none !important; }
+body[data-bb="settings"] #treeRoot.done-only {
+  display: block; flex: 1 1 auto; min-height: 0; max-height: none;
+  overflow-y: auto; overscroll-behavior: contain; padding-bottom: 12px;
+}
+
 /* ---------- phone bottom bar ---------- */
 #bottomBar { display: none; }
 @media (max-width: 700px) {
@@ -3121,6 +3141,28 @@ button.al-x:hover { opacity: 1; color: var(--danger); }
   body[data-bb="settings"] aside#treePane { display: flex; width: 100%; max-height: none; }
   body[data-bb="settings"] #treeRoot,
   body[data-bb="settings"] .tree-toolbar { display: none; }
+  /* ...but Completed and Deleted BUILD their list inside #treeRoot, so hiding
+     the whole tree hid the very list the operator opened Settings to read.
+     Show the tree again while one of those two views is on; its own rows stay
+     hidden by #treeRoot.done-only. */
+  body[data-bb="settings"] aside#treePane {
+    flex: 1 1 auto !important;
+    height: 100dvh; max-height: 100dvh; min-height: 0;
+  }
+  body[data-bb="settings"] #treeRoot.done-only {
+    display: block;
+    flex: 1 1 auto; min-height: 120px; max-height: none;
+    overflow-y: auto; overscroll-behavior: contain;
+    padding-bottom: 12px;
+  }
+  /* the last entry must clear the bottom bar when the list is scrolled down */
+  body[data-bb="settings"] #treeRoot.done-only > .trashlist { padding-bottom: 24px; }
+  /* with a list showing, the settings drawer takes at most half the screen */
+  body[data-bb="settings"]:has(#treeRoot.done-only) #treeDrawer {
+    flex: 0 1 auto; max-height: 46dvh;
+  }
+  /* the search/date toolbar belongs to the Active tree, not to these lists */
+  body[data-bb="settings"] .tree-toolbar { display: none !important; }
   body[data-bb="settings"] #treeDrawer {
     display: block !important;
     overflow-y: auto;
@@ -4120,6 +4162,12 @@ input:focus, textarea:focus, select:focus {
    for one already gone - the task simply vanished from the branch it lives in.
    .overdue is stamped on exactly those rows, so force them visible. */
 #treeRoot .tree-row.overdue { display: flex !important; }
+
+/* Completed view: the list is built from the DATA, so every real tree row is
+   hidden. An inline style loses to .overdue's !important (measured: inline
+   none, computed flex, three branches still on screen), so one class on the
+   tree does it - the same shape #treeRoot.overdue-only already uses. */
+#treeRoot.done-only .tree-row { display: none !important; }
 
 /* The calendar-housing rule is parked. It moved a dated task out of the branch
    the operator had put it in - twice - which is worse than the problem it
@@ -5343,7 +5391,7 @@ html:root #treeRoot .tree-row:not([data-depth="0"]){ height:32px !important; min
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-09-15 13:00</span>
+    <span id="buildStamp">build 2026-09-18 21:56</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -7372,10 +7420,10 @@ window.renderMonth = function () {
   const grid = document.getElementById("monthGrid");
   while (grid.firstChild) grid.removeChild(grid.firstChild);
 
-  const weekStart =
-    Store.data.settings && [0, 1].includes(Store.data.settings.weekStart)
-      ? Store.data.settings.weekStart
-      : 0;
+  /* 2026-09-18, operator: "the week should always start on a Sunday". So no control
+     and no stored preference - Sunday, everywhere, whatever an older sync left in
+     settings.weekStart. */
+  const weekStart = 0;
   const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   const orderedDays = dayNames.slice(weekStart).concat(dayNames.slice(0, weekStart));
 
@@ -8195,7 +8243,7 @@ window.renderTracker = function (kind) {
     // weekly progress
     var weekCount = (function (habitId) {
       var hlog = Store.data[T.log] ? Store.data[T.log][habitId] : null;
-      var weekStart = (Store.data.settings && Store.data.settings.weekStart) || 0;
+      var weekStart = 0;   /* always Sunday - operator 2026-09-18 */
       var start = new Date(todayDate);
       var dow = start.getDay();
       var diff = (dow - weekStart + 7) % 7;
@@ -8511,6 +8559,18 @@ window.renderHabits = function () {
   function seedFirstRun() {
     if (Store.data.tree.length > 0) return;
     if (localStorage.getItem('planner.seeded')) return;
+    /* 2026-09-17, operator: "everytime I log in the planner it makes a set up my planner with the subtask
+       with it ... thats only for new account and mine is established account". A signed-in browser is empty
+       for a moment before the cloud copy arrives, and that moment was enough to seed the demo. So: never
+       seed for an account that syncs, and never while a planner is on its way. Only a browser with no
+       account at all still gets it. */
+    try {
+      if (window.FB && typeof window.FB.user === 'function' && window.FB.user()) return;
+      if (localStorage.getItem('planner.cloudBase.v1')) return;
+      if (localStorage.getItem('firebase:authUser:' + (window.__fbApiKey || '') + ':[DEFAULT]')) return;
+      var k, ls = window.localStorage;
+      for (k in ls) { if (typeof k === 'string' && k.indexOf('firebase:authUser:') === 0) return; }
+    } catch (e) {}
 
     var goalId = uid();
     var taskIds = [uid(), uid(), uid()];
@@ -11770,6 +11830,82 @@ function surfaceArrivals() {
     window.renderAll();
   };
 
+  /* 2026-09-18, operator approved: "Empty deleted items" in Settings, with a note
+     that they go by themselves after 30 days. Measured before building: their
+     planner held 72 deleted items, the oldest from 6 Aug, and NOTHING ever cleared
+     them - deletedAt was stamped and never read. So the 30 days had to be built,
+     not just written on a label. An entry whose deletedAt is missing or unreadable
+     is KEPT: never guess that something is old enough to destroy. */
+  function purgeOldTrash() {
+    if (!window.Store || !window.Store.data || !window.Store.data.trash) return 0;
+    var list = window.Store.data.trash;
+    if (!list.length) return 0;
+    var cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
+    var kept = [], i;
+    for (i = 0; i < list.length; i++) {
+      var ts = Date.parse(list[i] && list[i].deletedAt);
+      if (isNaN(ts) || ts > cutoff) kept.push(list[i]);
+    }
+    var removed = list.length - kept.length;
+    if (removed > 0) { window.Store.data.trash = kept; window.Store.save(); }
+    return removed;
+  }
+  window.__purgeOldTrash = purgeOldTrash;
+
+  function addEmptyTrashButton() {
+    var drawer = document.getElementById('treeDrawer');
+    if (!drawer) return;
+    var b = document.getElementById('btnEmptyTrash');
+    if (!b) {
+      b = document.createElement('button');
+      b.id = 'btnEmptyTrash';
+      b.type = 'button';
+      b.className = 'drawer-btn';
+      b.addEventListener('click', function (e) {
+        e.preventDefault();
+        var n = window.__trash().length;
+        if (!n) return;
+        var body = document.createElement('div');
+        body.className = 'del-single';
+        var p1 = document.createElement('p');
+        p1.textContent = 'This removes all ' + n + ' deleted items for good. It cannot be undone.';
+        body.appendChild(p1);
+        var p2 = document.createElement('p');
+        p2.className = 'del-warn';
+        p2.textContent = 'Deleted items are removed by themselves after 30 days.';
+        body.appendChild(p2);
+        window.showModal('Empty deleted items', body, [
+          { label: 'Cancel' },
+          { label: 'Empty', onClick: function () { window.emptyTrash(); refreshEmptyTrashButton(); } }
+        ]);
+      });
+      drawer.appendChild(b);
+    }
+    refreshEmptyTrashButton();
+  }
+
+  /* the count has to follow the data - a label written once goes stale the moment
+     anything is deleted or restored. */
+  function refreshEmptyTrashButton() {
+    var b = document.getElementById('btnEmptyTrash');
+    if (!b) return;
+    var n = (window.__trash ? window.__trash().length : 0);
+    if (n === 0) { b.textContent = 'No deleted items'; b.disabled = true; }
+    else { b.textContent = 'Empty deleted items (' + n + ')'; b.disabled = false; }
+  }
+  window.__refreshEmptyTrash = refreshEmptyTrashButton;
+
+  if (window.Store && window.Store.onChange) {
+    window.Store.onChange(function () { refreshEmptyTrashButton(); });
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function () {
+      setTimeout(function () { purgeOldTrash(); addEmptyTrashButton(); }, 900);
+    });
+  } else {
+    setTimeout(function () { purgeOldTrash(); addEmptyTrashButton(); }, 900);
+  }
+
   window.emptyTrash = function () {
     window.Store.data.trash = [];
     window.Store.save();
@@ -11831,6 +11967,9 @@ function surfaceArrivals() {
     if (!root) return;
     var stale = root.querySelector('.trashlist');
     if (stale) stale.remove();
+    var staleDone = root.querySelector('.donelist');
+    if (staleDone) staleDone.remove();
+    root.classList.remove('done-only');
     var rows = root.querySelectorAll('.tree-row');
 
     if (window.treeView === 'active') {
@@ -11852,20 +11991,55 @@ function surfaceArrivals() {
       }
       return;
     }
+    // Completed used to only toggle rows ALREADY in the DOM. Every completed
+    // task under a collapsed branch has no row at all, so the view showed the
+    // wrong three branches and none of the seven finished tasks. It now builds
+    // its own list from the data, exactly the way Deleted already does.
     if (window.treeView === 'completed') {
-      for (var i = 0; i < rows.length; i++) {
-        var row = rows[i];
-        var nid = row.getAttribute('data-id');
-        var info = window.findNode(nid);
-        if (info && info.node) {
-          row.style.display = info.node.done ? '' : 'none';
+      root.classList.add('done-only');
+      var collected = [];
+      var skipped = {};
+      window.walkTree(function (node, depth, parent) {
+        if (parent && skipped[parent.id]) {
+          skipped[node.id] = true;
+          return;
         }
+        if (node.done) {
+          collected.push({ node: node, parent: parent });
+          skipped[node.id] = true;
+        }
+      });
+      var list = document.createElement('div');
+      list.className = 'donelist trashlist';
+      if (collected.length === 0) {
+        var empty = document.createElement('div');
+        empty.className = 'trash-empty';
+        empty.textContent = 'No completed tasks yet.';
+        list.appendChild(empty);
+        root.appendChild(list);
+        return;
       }
+      for (var j = 0; j < collected.length; j++) {
+        var entry = collected[j];
+        var item = document.createElement('div');
+        item.className = 'trashitem';
+        var titleSpan = document.createElement('span');
+        titleSpan.className = 't-title';
+        titleSpan.textContent = entry.node.title || 'Untitled';
+        item.appendChild(titleSpan);
+        var whenSpan = document.createElement('span');
+        whenSpan.className = 't-when';
+        whenSpan.textContent = entry.parent ? (entry.parent.title || '') : 'Top level';
+        item.appendChild(whenSpan);
+        list.appendChild(item);
+      }
+      root.appendChild(list);
       return;
     }
-    for (var i = 0; i < rows.length; i++) {
-      rows[i].style.display = 'none';
-    }
+    // Same defect as Completed had: an inline display:none loses to
+    // .tree-row.overdue's !important, so three overdue branches stayed on
+    // screen above the deleted list. The class on the tree wins.
+    root.classList.add('done-only');
     var t = trash();
     if (t.length === 0) return;
     var list = document.createElement('div');
@@ -12283,8 +12457,12 @@ function surfaceArrivals() {
     if (views && views.parentNode !== d) {
       d.appendChild(views);
     }
-    if (filters && filters.parentNode !== d) {
-      d.appendChild(filters);
+    /* operator 2026-09-18: "remove the thing that says work finance health, I don't
+       think that's a spot for it... there is a different spot but it's not there".
+       The area chips filter the TREE, so Settings is the wrong home for them. They
+       are left where they are built, never destroyed - only no longer dragged here. */
+    if (filters && filters.parentNode === d) {
+      filters.parentNode.removeChild(filters);
     }
   }
   window.__collectTreeControls = collect;
@@ -13168,7 +13346,8 @@ function surfaceArrivals() {
       cb.addEventListener('change', function () {
         if (typeof window.revealAllHidden === 'function') window.revealAllHidden(cb.checked);
       });
-      d.appendChild(box);
+      /* operator 2026-09-18: "show all hidden remove it" */
+      return;
     }
     var cb2 = box.querySelector('.drawer-hidden-cb');
     var sp2 = box.querySelector('.drawer-hidden-label');
@@ -13849,9 +14028,9 @@ function firstConnect(remote, rAt, lAt) {
 (function () {
   // 0 = Sunday .. 6 = Saturday. Anything else is not a week start.
   function safeStart() {
-    var s = window.Store && window.Store.data && window.Store.data.settings;
-    var v = s ? s.weekStart : undefined;
-    return (typeof v === 'number' && isFinite(v) && v >= 0 && v <= 6) ? v : 0;
+    /* operator 2026-09-18: "the week should always start on a Sunday". Not a
+       preference any more - a stored 1 from an older sync must not move it. */
+    return 0;
   }
 
   var orig = window.weekStartOf;
@@ -14314,7 +14493,8 @@ function firstConnect(remote, rAt, lAt) {
     b.className = 'drawer-btn';
     b.textContent = 'Export calendar file (.ics)';
     b.addEventListener('click', function (e) { e.preventDefault(); window.exportICS(); });
-    host.appendChild(b);
+    /* operator 2026-09-18: "export remove it... you could leave the set automatic
+       calendar sync". Both are built here, so only this one is held back. */
 
     var sub = document.createElement('button');
     sub.id = 'btnCalSub';
@@ -16509,7 +16689,8 @@ function firstConnect(remote, rAt, lAt) {
     b.className = 'drawer-btn';
     b.textContent = 'My sign-in link';
     b.addEventListener('click', function (e) { e.preventDefault(); window.showSignInLink(); });
-    host.appendChild(b);
+    /* operator 2026-09-18: "my sign in link you could remove it" */
+    return;
   }
 
   if (document.readyState === 'loading') {
@@ -16632,7 +16813,8 @@ function firstConnect(remote, rAt, lAt) {
     b.className = 'drawer-btn';
     b.textContent = 'Why is my alarm not showing?';
     b.addEventListener('click', function (e) { e.preventDefault(); window.showCalendarPreview(); });
-    host.appendChild(b);
+    /* operator 2026-09-18: "why is my alarm not working? remove it" */
+    return;
   }
 
   if (document.readyState === 'loading') {
@@ -16733,7 +16915,8 @@ function firstConnect(remote, rAt, lAt) {
     b.className = 'drawer-btn';
     b.textContent = 'Is my calendar feed working?';
     b.addEventListener('click', function (e) { e.preventDefault(); window.checkCalendarFeed(); });
-    host.appendChild(b);
+    /* operator 2026-09-18: "remove is my calendar feed working, that doesn't mean anything" */
+    return;
   }
 
   if (document.readyState === 'loading') {
@@ -17044,7 +17227,10 @@ function firstConnect(remote, rAt, lAt) {
     b.className = 'drawer-btn';
     b.textContent = 'Google Calendar (real alarms)';
     b.addEventListener('click', function (e) { e.preventDefault(); window.showGoogleCalendar(); });
-    host.insertBefore(b, host.firstChild);
+    /* operator 2026-09-18: "remove Google Calendar real alarms, that doesn't mean
+       anything". The sync itself is untouched - autoSync below still runs for anyone
+       already connected; only the way in from Settings is gone. */
+    return;
   }
 
   // keep the calendar in step whenever the planner syncs
@@ -17240,7 +17426,10 @@ function firstConnect(remote, rAt, lAt) {
     b.className = 'drawer-btn';
     b.textContent = 'Visual formats';
     b.addEventListener('click', function (e) { e.preventDefault(); window.showVisualFormats(); });
-    host.insertBefore(b, host.firstChild);
+    /* 2026-09-18, operator: "in the setting section there is a lot of things that
+       don't make sense... visual format remove it". The picker itself still exists
+       (window.showVisualFormats) - only its way into Settings is gone. */
+    return;
   }
 
   document.documentElement.setAttribute('data-look', window.plannerLook());
@@ -17366,7 +17555,8 @@ function firstConnect(remote, rAt, lAt) {
     if (!d) return false;
     d.hidden = false;
     d.classList.remove('hidden');
-    if (window.__bbShow && window.innerWidth <= 700) window.__bbShow('settings');
+    document.body.setAttribute('data-bb', 'settings');
+    if (window.__bbShow) window.__bbShow('settings');
     try { d.scrollIntoView({ block: 'nearest' }); } catch (e) {}
     return true;
   };
@@ -17375,7 +17565,8 @@ function firstConnect(remote, rAt, lAt) {
     var d = document.getElementById('treeDrawer');
     if (!d) return false;
     d.hidden = true;
-    if (window.__bbShow && window.innerWidth <= 700) window.__bbShow('plan');
+    document.body.setAttribute('data-bb', 'plan');
+    if (window.__bbShow) window.__bbShow('plan');
     return true;
   };
 
@@ -17685,6 +17876,13 @@ function firstConnect(remote, rAt, lAt) {
     for (i = 0; i < all.length; i++) {
       if (all[i].getAttribute('data-tab') === id) all[i].classList.add('on');
       else all[i].classList.remove('on');
+    }
+    /* The left pane belongs to ONE tab at a time - operator 2026-09-18: "when I'm on
+       the priority tab it would show only priority, when I'm in the habits tab it
+       would only show the habits". The inner show() had this, but this wrapper is the
+       __bbShow everyone actually reaches, so it never ran. One place, every caller. */
+    if (typeof window.__habitsLeft === 'function') {
+      try { window.__habitsLeft(id === 'habits'); } catch (e) {}
     }
     return r;
   };
@@ -27868,6 +28066,41 @@ body[data-bb="habits"] #treeRoot, body[data-bb="habits"] .tree-toolbar { visibil
 #habitsPane .hp-m .pct { font-size: 11px; color: #9aa1ab; width: 40px; text-align: right; }
 #habitsPane .hp-m.ended { opacity: .55; }
 #habitsPane #habitsView { padding: 0; }
+/* 2026-09-18: the Habits/Routines pane on the left, in the priority tree's place */
+#habitsLeft { display: none; padding: 10px 10px 0; overflow: auto; max-height: 100%; }
+body[data-habits-left="1"] #habitsLeft { display: block; }
+@media (max-width: 700px) {
+  body[data-habits-left="1"] section#rightPane { display: none; }
+  body[data-habits-left="1"] aside#treePane {
+    display: flex; flex-direction: column; width: 100%;
+    flex: 1 1 auto !important; height: 100dvh; max-height: 100dvh; min-height: 0;
+  }
+  /* the search/date toolbar belongs to the priority tree, not to the habits list */
+  body[data-habits-left="1"] .tree-toolbar { display: none !important; }
+}
+body[data-habits-left="1"] #habitsLeft {
+  flex: 1 1 auto; min-height: 0; max-height: none;
+  overflow-y: auto; overscroll-behavior: contain; padding-bottom: 12px;
+}
+#habitsLeft #habitsView { padding: 0; }
+/* 2026-09-18: in the left pane a habit row has under 300px, not the 700+ the wide grid wants.
+   The real row is: name, a .habit-cells wrapper holding the seven days, the streak, the delete.
+   So: two lines - name and delete on top, the week and the streak under it. */
+#habitsLeft .habit-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas: "name del" "days days" "streak streak";
+  gap: 7px 8px; padding: 10px;
+}
+#habitsLeft .habit-row > .habit-name { grid-area: name; white-space: normal; font-weight: 600; }
+#habitsLeft .habit-row > .habit-cells { grid-area: days; display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+#habitsLeft .habit-row > .habit-cells > .habit-cell {
+  width: auto; height: 30px; justify-self: stretch; font-size: 9.5px; line-height: 1.05;
+  display: flex; align-items: center; justify-content: center; text-align: center;
+}
+#habitsLeft .habit-row > .habit-streak,
+#habitsLeft .habit-row > :nth-last-child(2) { grid-area: streak; font-size: 11px; color: var(--text-dim); white-space: nowrap; }
+#habitsLeft .habit-row > :last-child { grid-area: del; justify-self: end; align-self: start; }
 
 /* a repeating task never clutters the Missed view - it has already come round again */
 #treeRoot.overdue-only .tree-row.is-repeat { display: none !important; }
@@ -27971,6 +28204,14 @@ body[data-bb="habits"] #treeRoot, body[data-bb="habits"] .tree-toolbar { visibil
         : b[i].className.replace(/\s*on/, '');
     }
     if (id === 'habits') {
+      /* 2026-09-18, operator: "once I click it, the left side where we have a priority tree, that should be
+         changed to the routines and habits sections ... and within it we'll have the habit tab and then the
+         routine tab". So Habits now takes over the LEFT pane and the calendar stays visible on the right.
+         Pressing Plan puts the priority tree back. */
+      if (window.__habitsLeft) { window.__habitsLeft(true); return; }
+    }
+    if (id === 'plan' && window.__habitsLeft) window.__habitsLeft(false);
+    if (false) {
       /* 2026-09-12 - WHY THE ROUTINES TAB "HAD NOT BEEN DONE".
          There were TWO Habits screens. This bottom-bar button opened renderPane() - a
          separate pane listing tasks that happen to repeat - while the Habits/Routines tabs
@@ -27985,6 +28226,31 @@ body[data-bb="habits"] #treeRoot, body[data-bb="habits"] .tree-toolbar { visibil
     }
     if (id === 'alarms' && window.showAlarmsList) window.showAlarmsList();
   }
+  /* ---------- 2026-09-18: Habits and Routines live in the LEFT pane ---------- */
+  function habitsLeft(on) {
+    var pane = document.getElementById('treePane');
+    if (!pane) return;
+    var host = document.getElementById('habitsLeft');
+    if (!host) {
+      host = document.createElement('div');
+      host.id = 'habitsLeft';
+      pane.insertBefore(host, pane.firstChild);
+    }
+    var hide = pane.querySelectorAll('#treePane > *:not(#habitsLeft):not(#bottomBar)'), i;
+    for (i = 0; i < hide.length; i++) hide[i].style.display = on ? 'none' : '';
+    host.style.display = on ? 'block' : 'none';
+    document.body.setAttribute('data-habits-left', on ? '1' : '0');
+    if (!on) return;
+    while (host.firstChild) host.removeChild(host.firstChild);
+    var view = document.getElementById('habitsView');
+    if (view) {
+      if (typeof window.renderHabits === 'function') window.renderHabits();
+      host.appendChild(view);            /* the very same view, moved - one Habits screen, not a copy */
+      view.style.display = 'block';
+    }
+  }
+  window.__habitsLeft = habitsLeft;
+
   window.__habitsShow = show;
 
   /* ---------- Settings moves to the top right ---------- */
@@ -28529,17 +28795,18 @@ body[data-fb="on"] #fbNew {
   pointer-events: none; }
 .fb-band .fb-strip, .fb-band .fb-grip { pointer-events: auto; }
 body[data-fb="on"] .fb-band { display: block; }
+/* 2026-09-17, operator: "the title of the focus session I want it on the top not the left of the
+   session". The label now runs ACROSS THE TOP of the block and reads left to right. It keeps its own
+   chip so blocks back to back stay distinct, and it is still the thing you press to open the editor. */
 .fb-band .fb-strip {
-  position: absolute; left: 0; top: 3px; bottom: 3px; width: 15px;
-  display: flex; align-items: center; justify-content: center; cursor: pointer;
-  /* the strip is capped at both ends so each block owns a distinct label chip - three
-     blocks back to back were reading as one continuous rail down the column */
-  border-radius: 0 3px 3px 0;
+  position: absolute; left: 0; right: 0; top: 3px; height: 17px;
+  display: flex; align-items: center; justify-content: flex-start; cursor: pointer;
+  padding: 0 8px; box-sizing: border-box;
+  border-radius: 0 8px 0 0;
 }
 .fb-band .fb-strip span {
-  font-size: 8px; letter-spacing: .06em; text-transform: uppercase; font-weight: 600;
-  writing-mode: vertical-rl; transform: rotate(180deg); white-space: nowrap;
-  overflow: hidden; max-height: 100%;
+  font-size: 9.5px; letter-spacing: .06em; text-transform: uppercase; font-weight: 600;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
 }
 /* 2026-09-07: the grips used to overhang the band by 4px (top:-4px / bottom:-4px). Two
    sessions running back to back have boxes that touch, so the lower one's TOP grip and the
@@ -28591,6 +28858,30 @@ body[data-fb="on"] .fb-band { display: block; }
 .fb-foot button { flex: 1; height: 28px; border-radius: 6px; font-size: 12px; cursor: pointer;
   background: #24272e; border: 1px solid #2e323a; color: #e6e8ec; }
 .fb-foot button.del { color: #f87171; border-color: rgba(248,113,113,.5); background: transparent; }
+.fb-scope { width: 236px; }
+.fb-scope-note { font-size: 11px; color: #6b7280; line-height: 1.4; }
+.fb-scope-foot { flex-direction: column; gap: 6px; }
+.fb-scope-foot button { width: 100%; height: 30px; }
+.fb-scope-one { background: rgba(77,139,255,.22) !important;
+  border-color: rgba(77,139,255,.55) !important; color: #cfe0ff !important; }
+.fb-itemmenu { width: 218px; padding: 6px; }
+.fb-search { width: 100%; box-sizing: border-box; background: #24272e;
+  border: 1px solid #2e323a; border-radius: 6px; color: #e6e8ec;
+  font-size: 11px; padding: 4px 8px; margin-bottom: 5px; }
+.fb-search::placeholder { color: #6b7280; }
+.fb-itemlist { max-height: 190px; overflow-y: auto;
+  display: flex !important; flex-direction: column; align-items: stretch !important; gap: 0; }
+.fb-item { display: flex; align-items: center; gap: 7px; padding: 5px 7px;
+  border-radius: 5px; font-size: 11.5px; cursor: pointer; color: #e6e8ec;
+  flex: 0 0 auto; white-space: nowrap; overflow: hidden; }
+.fb-item:hover { background: #24272e; }
+.fb-item b { width: 13px; height: 13px; flex: 0 0 13px; border-radius: 4px;
+  background: #24272e; border: 1px solid #2e323a; font-weight: 400; }
+.fb-item b.on { background: rgba(77,139,255,.22); border-color: rgba(77,139,255,.55); }
+.fb-itempath { margin-left: auto; color: #6b7280; font-style: normal;
+  font-size: 10px; white-space: nowrap; }
+.fb-clear { border-bottom: 1px solid #22262e; margin-bottom: 4px;
+  padding-bottom: 7px; border-radius: 5px 5px 0 0; }
 /* 2026-09-07: both time guards used to just `return`. The session did not move and nothing
    said why, which reads as the app being broken rather than as a rule. */
 .fb-hint { font-size: 11px; color: #d98c2b; margin-top: 8px; min-height: 14px;
@@ -28660,8 +28951,272 @@ body[data-fb="on"] .fb-band { display: block; }
   function dowOf(iso) { var p = String(iso).split('-');
     return new Date(+p[0], +p[1] - 1, +p[2]).getDay(); }
 
+  /* One occurrence of a repeating session can be changed on its own. The changed
+     day is stored as its OWN block carrying date + parentId - the shape iCalendar
+     uses for RECURRENCE-ID - and the parent simply does not draw that day. The
+     parent holds no list of exceptions, so deleting the exception brings the
+     normal day back by itself, and two devices merging cannot leave a day that
+     belongs to nobody. Name and branch are COPIED at the moment of the split and
+     do not follow later renames. */
+  function exceptionFor(bl, iso) {
+    var s = store();
+    if (!s) return null;
+    var i;
+    for (i = 0; i < s.length; i++) {
+      if (s[i].parentId === bl.id && s[i].date === iso) return s[i];
+    }
+    return null;
+  }
+  window.__fbExceptionFor = exceptionFor;
+
+  function splitOccurrence(bl, iso) {
+    var s = store();
+    if (!s) return null;
+    var ex = {
+      id: uid(),
+      name: bl.name,
+      branchId: bl.branchId,
+      from: bl.from,
+      to: bl.to,
+      date: iso,
+      parentId: bl.id
+    };
+    s.push(ex);
+    return ex;
+  }
+  window.__fbSplitOccurrence = splitOccurrence;
+
+  /* Changing the hours of a repeating session used to move EVERY future week with
+     no way back. Ask once, in the same panel shape the editor uses. A session that
+     already belongs to one day has no future to protect, so it never asks. */
+  function repeats(bl) { return !bl.date; }
+
+  function dayLabel(iso) {
+    var p = String(iso).split('-');
+    var dt = new Date(+p[0], +p[1] - 1, +p[2]);
+    var dn = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][dt.getDay()];
+    var mn = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][dt.getMonth()];
+    return dn + ' ' + dt.getDate() + ' ' + mn;
+  }
+
+  function closeScope() {
+    var p = document.querySelectorAll('.fb-scope'), i;
+    for (i = 0; i < p.length; i++) if (p[i].parentNode) p[i].parentNode.removeChild(p[i]);
+  }
+  window.__fbCloseScope = closeScope;
+
+  /* apply(target) is called with the block the change should be written to:
+     the original for "every week", a fresh exception for "just this day". */
+  function askScope(bl, iso, anchorEl, apply) {
+    if (!repeats(bl) || !iso) { apply(bl); return; }
+    closeScope();
+    var pop = document.createElement('div');
+    pop.className = 'fb-pop fb-scope';
+    pop.setAttribute('data-fb-scope', bl.id);
+
+    var h = document.createElement('h4');
+    var dot = document.createElement('span');
+    dot.className = 'fb-dot';
+    dot.style.background = colourFor(bl);
+    h.appendChild(dot);
+    h.appendChild(document.createTextNode('Change which days?'));
+    pop.appendChild(h);
+
+    var note = document.createElement('div');
+    note.className = 'fb-scope-note';
+    note.textContent = 'This session repeats every week.';
+    pop.appendChild(note);
+
+    var foot = document.createElement('div');
+    foot.className = 'fb-foot fb-scope-foot';
+
+    var one = document.createElement('button');
+    one.type = 'button';
+    one.className = 'fb-scope-one';
+    one.textContent = 'Just ' + dayLabel(iso);
+    one.addEventListener('click', function (e) {
+      e.stopPropagation();
+      var ex = splitOccurrence(bl, iso);
+      closeScope();
+      if (ex) apply(ex);
+    });
+
+    var all = document.createElement('button');
+    all.type = 'button';
+    all.className = 'fb-scope-all';
+    all.textContent = 'Every week';
+    all.addEventListener('click', function (e) {
+      e.stopPropagation();
+      closeScope();
+      apply(bl);
+    });
+
+    foot.appendChild(one);
+    foot.appendChild(all);
+    pop.appendChild(foot);
+    pop.addEventListener('click', function (e) { e.stopPropagation(); });
+    document.body.appendChild(pop);
+
+    var r = anchorEl ? anchorEl.getBoundingClientRect() : { left: 120, top: 120, right: 320 };
+    var w = pop.offsetWidth, hgt = pop.offsetHeight;
+    var left = r.left + window.pageXOffset + 20, top = r.top + window.pageYOffset;
+    if (left + w > window.pageXOffset + window.innerWidth - 8) left = r.right + window.pageXOffset - w;
+    if (left + w > window.pageXOffset + window.innerWidth - 8) left = window.pageXOffset + window.innerWidth - w - 8;
+    if (left < window.pageXOffset + 8) left = window.pageXOffset + 8;
+    if (top + hgt > window.pageYOffset + window.innerHeight - 8) top = window.pageYOffset + window.innerHeight - hgt - 8;
+    if (top < window.pageYOffset + 8) top = window.pageYOffset + 8;
+    pop.style.left = Math.round(left) + 'px';
+    pop.style.top = Math.round(top) + 'px';
+  }
+  window.__fbAskScope = askScope;
+
+  /* Card 7: a session used to own a WHOLE branch and nothing narrower. Tick the
+     items it should actually show and it owns exactly those - a parent brings its
+     children with it, so "Willingboro > Inspection" is one tick, not six. No ticks
+     at all means the whole branch, which is what every existing session does, so
+     nothing changes until the operator chooses something. */
+  function fbCurated(bl) {
+    return Object.prototype.toString.call(bl.itemIds) === '[object Array]' && bl.itemIds.length > 0;
+  }
+  window.__fbCurated = fbCurated;
+
+  function fbMembers(bl) {
+    var out = {}, k;
+    if (fbCurated(bl)) {
+      var i;
+      for (i = 0; i < bl.itemIds.length; i++) {
+        var id = bl.itemIds[i];
+        var f = window.findNode ? window.findNode(id) : null;
+        if (!f || !f.node) continue;
+        (function rec(n) {
+          out[n.id] = true;
+          var kids = n.children || [], j;
+          for (j = 0; j < kids.length; j++) rec(kids[j]);
+        })(f.node);
+      }
+      return out;
+    }
+    if (bl.branchId) {
+      var b = subtreeIds(bl.branchId);
+      for (k in b) if (b.hasOwnProperty(k)) out[k] = true;
+    }
+    return out;
+  }
+  window.__fbMembers = fbMembers;
+
+  function itemsRow(pop, bl, relabel) {
+    var r = document.createElement('div');
+    r.className = 'fb-row';
+    var lab = document.createElement('span');
+    lab.textContent = 'Items';
+    r.appendChild(lab);
+
+    var pick = document.createElement('button');
+    pick.type = 'button';
+    pick.className = 'fb-pick';
+    function pickLabel() {
+      while (pick.firstChild) pick.removeChild(pick.firstChild);
+      if (fbCurated(bl)) {
+        pick.appendChild(document.createTextNode(bl.itemIds.length + ' chosen'));
+        return;
+      }
+      var nd = bl.branchId ? branchOf(bl.branchId) : null;
+      pick.appendChild(document.createTextNode(nd ? 'All of ' + String(nd.title).slice(0, 10) : 'All'));
+    }
+    pickLabel();
+
+    pick.addEventListener('click', function (e) {
+      e.stopPropagation();
+      var ex = r.querySelector('.fb-menu');
+      if (ex) { ex.parentNode.removeChild(ex); return; }
+
+      var m = document.createElement('div');
+      m.className = 'fb-menu fb-itemmenu';
+      m.addEventListener('click', function (ev) { ev.stopPropagation(); });
+
+      var search = document.createElement('input');
+      search.type = 'text';
+      search.className = 'fb-search';
+      search.placeholder = 'Search priorities';
+      m.appendChild(search);
+
+      var list = document.createElement('div');
+      list.className = 'fb-itemlist';
+      m.appendChild(list);
+
+      var clear = document.createElement('div');
+      clear.className = 'fb-item fb-clear';
+      var cb = document.createElement('b');
+      if (!fbCurated(bl)) cb.className = 'on';
+      clear.appendChild(cb);
+      clear.appendChild(document.createTextNode('All of this branch'));
+      clear.addEventListener('click', function (ev) {
+        ev.stopPropagation();
+        if (bl.itemIds) delete bl.itemIds;
+        save(); paint(); pickLabel();
+        if (relabel) relabel();
+        if (m.parentNode) m.parentNode.removeChild(m);
+      });
+      list.appendChild(clear);
+
+      if (window.walkTree) {
+        window.walkTree(function (node, depth, parent) {
+          if (!node || !node.id || !node.title) return;
+          var row = document.createElement('div');
+          row.className = 'fb-item';
+          var b = document.createElement('b');
+          var on = bl.itemIds ? (bl.itemIds.indexOf(node.id) !== -1) : false;
+          if (on) b.className = 'on';
+          row.appendChild(b);
+          row.appendChild(document.createTextNode(String(node.title).slice(0, 30)));
+          var ptitle = (parent && parent.title) ? String(parent.title) : '';
+          if (ptitle) {
+            var it = document.createElement('i');
+            it.className = 'fb-itempath';
+            it.textContent = ptitle.slice(0, 16);
+            row.appendChild(it);
+          }
+          row.setAttribute('data-find', (String(node.title) + ' ' + ptitle).toLowerCase());
+          row.addEventListener('click', function (ev) {
+            ev.stopPropagation();
+            if (!bl.itemIds) bl.itemIds = [];
+            var at = bl.itemIds.indexOf(node.id);
+            if (at === -1) bl.itemIds.push(node.id); else bl.itemIds.splice(at, 1);
+            if (!bl.itemIds.length) delete bl.itemIds;
+            save(); paint();
+            b.className = (bl.itemIds && bl.itemIds.indexOf(node.id) !== -1) ? 'on' : '';
+            cb.className = fbCurated(bl) ? '' : 'on';
+            pickLabel();
+            if (relabel) relabel();
+          });
+          list.appendChild(row);
+        });
+      }
+
+      search.addEventListener('click', function (ev) { ev.stopPropagation(); });
+      search.addEventListener('input', function () {
+        var q = String(search.value || '').toLowerCase();
+        var rows = list.querySelectorAll('.fb-item'), i;
+        for (i = 0; i < rows.length; i++) {
+          if (rows[i].className.indexOf('fb-clear') !== -1) continue;
+          var hay = rows[i].getAttribute('data-find') || '';
+          rows[i].style.display = (!q || hay.indexOf(q) !== -1) ? '' : 'none';
+        }
+      });
+
+      r.appendChild(m);
+      search.focus();
+    });
+
+    r.appendChild(pick);
+    pop.appendChild(r);
+    return r;
+  }
+
+
   function appliesTo(bl, iso) {
     if (bl.date) return bl.date === iso;
+    if (exceptionFor(bl, iso)) return false;
     if (!bl.days || !bl.days.length) return true;
     var d = dowOf(iso), i;
     for (i = 0; i < bl.days.length; i++) if (bl.days[i] === d) return true;
@@ -29082,7 +29637,10 @@ body[data-fb="on"] .fb-band { display: block; }
           if (!bl.branchId) continue;             /* owns nothing, flags nothing */
           if (!appliesTo(bl, iso)) continue;
           if (st < toMin(bl.from) || st >= toMin(bl.to)) continue;
-          if (subtreeIds(bl.branchId)[id]) return;   /* belongs here */
+          /* a curated session shows ONLY what was ticked, so anything else in
+             its hours is simply not its business - no warning mark. */
+          if (fbMembers(bl)[id]) return;             /* belongs here */
+          if (fbCurated(bl)) continue;               /* not chosen - not flagged */
           el.className += ' fb-bad';
           var flag = document.createElement('span');
           flag.className = 'fb-flag';
@@ -29112,7 +29670,7 @@ body[data-fb="on"] .fb-band { display: block; }
       var bl = list[i];
       if (!bl.branchId) continue;
       if (!appliesTo(bl, iso)) continue;
-      if (subtreeIds(bl.branchId)[nodeId]) out.push(bl);
+      if (fbMembers(bl)[nodeId]) out.push(bl);
     }
     return out;
   }
@@ -29310,6 +29868,12 @@ body[data-fb="on"] .fb-band { display: block; }
     });
     rBr.appendChild(pick);
 
+    /* which items inside that branch this session is for */
+    var relabelItems = itemsRow(pop, bl, function () {});
+
+    /* switching branch must not silently drop the ticks - they are the operator's
+       choice, and the branch only supplies the colour once items are chosen. */
+
     /* 2026-09-06: both ends use the shared spinner, the same control as the alarm and
        Edit Activity. One control, one behaviour, nothing pops up. */
     function timeRow(lab, key) {
@@ -29340,7 +29904,13 @@ body[data-fb="on"] .fb-band { display: block; }
             return;
           }
         }
-        bl[key] = v; save(); paint();
+        if (v === bl[key]) { return; }
+        askScope(bl, window.selectedDate, pop, function (target) {
+          target[key] = v; save(); paint();
+          /* the editor is now pointed at the copy, so further edits in this
+             panel keep going to the one day the operator chose */
+          if (target !== bl) { closeEditor(); openEditor(target, null, null); }
+        });
       });
       r.appendChild(sp);
     }
@@ -29422,8 +29992,15 @@ body[data-fb="on"] .fb-band { display: block; }
   }
   window.__fbOpenEditor = openEditor;
 
+  /* Used to answer "could these two ever land on the same day?" with a structural
+     comparison, so it said NO whenever exactly one of them had a date - which
+     would have let an exception overlap the sessions around it unchecked. Ask the
+     day itself instead. An exception against its OWN parent answers false, because
+     appliesTo() already knows the parent yields that day. */
   function sameWhen(a, b) {
-    if (a.date || b.date) return a.date === b.date;
+    if (a.date && b.date) return a.date === b.date;
+    if (a.date) return appliesTo(b, a.date);
+    if (b.date) return appliesTo(a, b.date);
     var da = a.days || [0,1,2,3,4,5,6], db = b.days || [0,1,2,3,4,5,6], i;
     for (i = 0; i < da.length; i++) if (db.indexOf(da[i]) !== -1) return true;
     return false;
@@ -30151,8 +30728,7 @@ body[data-fb="on"] .fb-band { display: block; }
         var f = document.querySelector('#snRoot .note-card.open .bd input'); if (f) f.focus();
       });
       nav.appendChild(bnew);
-      var cnt = 0, kk; for (kk in notes()) cnt++;
-      nav.appendChild(el('span', 'date', cnt ? cnt + (cnt === 1 ? ' note' : ' notes') : ''));
+      /* 2026-09-17: the note count beside these tabs is gone - the operator does not want a count here. */
       nav.appendChild(el('span', 'sp'));
     }
     var sv = el('span', 'saved', 'Saved'); sv.id = 'jSaved';
@@ -30661,16 +31237,19 @@ body[data-fb="on"] .fb-band { display: block; }
 
   function buildFoot() {
     var f = el('div', 'foot');
-    var wc = el('span'); wc.appendChild(el('b', '', '0')); wc.appendChild(document.createTextNode(' words'));
-    wc.querySelector('b').id = 'jWc'; f.appendChild(wc);
+    /* 2026-09-17: the word count belongs to the DAILY journal only. Under Notes the operator wants
+       neither words nor a note count, so the strip is built empty there. */
+    if (tab === 'daily') {
+      var wc = el('span'); wc.appendChild(el('b', '', '0')); wc.appendChild(document.createTextNode(' words'));
+      wc.querySelector('b').id = 'jWc'; f.appendChild(wc);
+    }
     if (tab === 'daily') {
       var st = el('span'); st.appendChild(el('b', '', '0')); st.appendChild(document.createTextNode(' day streak'));
       st.querySelector('b').id = 'jStreak'; f.appendChild(st);
       var kp = el('span'); kp.id = 'jKept'; f.appendChild(kp);
       var strip = el('span', 'strip'); strip.id = 'jStrip'; f.appendChild(strip);
     } else {
-      var nc = el('span'); nc.appendChild(el('b', '', '0')); nc.appendChild(document.createTextNode(' notes'));
-      nc.querySelector('b').id = 'jNoteCount'; f.appendChild(nc);
+      /* 2026-09-17: no note count under Notes either. */
     }
     var fn = el('div', 'fnote'); fn.id = 'jFootNote';
     var w = el('div'); w.appendChild(f); w.appendChild(fn);
@@ -31055,79 +31634,11 @@ body[data-fb="on"] .fb-band { display: block; }
        needed any more. window.showDiagnostics() is left in the page, unreferenced by any
        control, so nothing that calls it breaks and it can be put back with one line. */
 
-    /* 2026-09-13: a way back for DATA, in the place a person looks for account things.
-       Built with the app's own dialog, not a new one - the reuse rule. */
-    var snaps = document.createElement('button');
-    snaps.type = 'button';
-    snaps.textContent = 'Restore a snapshot\u2026';
-    snaps.title = 'Earlier copies of your planner, kept on this device';
-    snaps.addEventListener('click', function () {
-      close();
-      if (!window.plannerSnapshots || typeof window.showModal !== 'function') return;
-      var list = window.plannerSnapshots.list();
-      var body = document.createElement('div');
-
-      if (!list.length) {
-        var none = document.createElement('p');
-        none.textContent = 'No snapshots yet on this device. One is taken when you open the ' +
-                           'planner and every ten minutes while it is open.';
-        body.appendChild(none);
-        window.showModal('Restore', body, [{ label: 'Close' }]);
-        return;
-      }
-
-      var p0 = document.createElement('p');
-      p0.textContent = 'Earlier copies of your planner, kept on this device. Restoring MERGES ' +
-                       'a copy into what you have now, so nothing you have written since is lost.';
-      body.appendChild(p0);
-
-      var cnt = document.createElement('p');
-      cnt.className = 'del-count';
-      cnt.textContent = list.length + (list.length === 1 ? ' snapshot:' : ' snapshots:');
-      body.appendChild(cnt);
-
-      var wrap = document.createElement('div');
-      wrap.className = 'del-list';
-      for (var i = 0; i < list.length; i++) {
-        (function (s2) {
-          var row = document.createElement('div');
-          row.className = 'del-item';
-          var when = String(s2.at || '').replace('T', ' ').slice(0, 16);
-          var b = document.createElement('b');
-          b.textContent = when;
-          row.appendChild(b);
-          var meta = document.createElement('span');
-          meta.style.cssText = 'margin-left:8px;opacity:.75';
-          meta.textContent = s2.tasks + ' tasks \u00b7 ' + s2.notes +
-                             (s2.notes === 1 ? ' note' : ' notes') + ' \u00b7 ' + s2.reason;
-          row.appendChild(meta);
-          var go = document.createElement('button');
-          go.type = 'button';
-          go.className = 'trashitem-restore';
-          go.textContent = 'Merge this in';
-          go.addEventListener('click', function () {
-            if (window.plannerSnapshots.restore(s2.i)) {
-              if (window.toast) window.toast('Merged the copy from ' + when, 'ok');
-            }
-            var back = document.querySelectorAll('#modalHost .modal-backdrop');
-            for (var k = 0; k < back.length; k++) back[k].remove();
-          });
-          row.appendChild(go);
-          wrap.appendChild(row);
-        })(list[i]);
-      }
-      body.appendChild(wrap);
-
-      var note = document.createElement('p');
-      note.className = 'del-warn';
-      note.textContent = 'These live in this browser only. Export regularly for a copy that ' +
-                         'survives clearing your browser data.';
-      body.appendChild(note);
-      body.className = (body.className ? body.className + ' ' : '') + 'del-single';
-
-      window.showModal('Restore', body, [{ label: 'Close' }]);
-    });
-    menu.appendChild(snaps);
+    /* 2026-09-15: "Restore a snapshot..." removed from this menu. The operator: "remove the two things ...
+       per-item copy and restore snapshot, that should be somewhere in the cloud and only me as the owner of
+       the app able to do that, and that will be outside the app itself." window.plannerSnapshots still takes
+       its snapshots (on open, every ten minutes, before a restore), so the way back is kept; only the entry in
+       the app is gone. The dialog this used to open is in releases/planner-2026-09-15-1059.html. */
 
     var out = document.createElement('button');
     out.type = 'button';
