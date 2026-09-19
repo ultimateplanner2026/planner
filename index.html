@@ -5277,6 +5277,50 @@ html:root #treeRoot .tree-row:not([data-depth="0"]){ height:32px !important; min
   width:auto !important; height:30px !important; box-sizing:border-box !important;
 }
 .tree-datenav{ display:flex; align-items:center; gap:2px; flex:0 0 auto; margin-right:auto; }
+/* New goal, back on the toolbar as a + that actually fits (2026-09-18) */
+.tree-toolbar .ps-wrap{ min-width:64px !important; }
+.tree-toolbar #treeSearch{ min-width:60px !important; }
+.tree-toolbar .tree-datenav{ flex-shrink:1 !important; min-width:0 !important; }
+.tree-toolbar #btnAddGoal{
+  order:97 !important; flex:0 0 26px !important;
+  width:26px !important; min-width:26px !important; height:26px !important;
+  padding:0 !important; display:inline-flex !important;
+  align-items:center !important; justify-content:center !important;
+  border-radius:6px !important; margin-left:4px !important;
+}
+.tree-toolbar #btnAddGoal span{ display:none !important; }
+.tree-toolbar #btnAddGoal svg{ width:15px !important; height:15px !important; }
+.tree-toolbar #treeGear{ order:98 !important; }
+/* the search box and the Today label yield the width - never an arrow.
+   The row was already overlapping itself before the + existed: measured
+   next-day 241..263 running under the gear 255..285 in a 293px pane. */
+.tree-toolbar{
+  flex-wrap:nowrap !important; padding-right:6px !important; box-sizing:border-box !important;
+}
+.tree-toolbar .ps-wrap{ flex:1 1 40px !important; min-width:40px !important; max-width:none !important; }
+.tree-toolbar #treeSearch{ min-width:36px !important; width:100% !important; }
+.tree-toolbar .tree-datenav #btnToday{
+  width:66px !important; min-width:66px !important; max-width:66px !important;
+  overflow:hidden !important; text-overflow:ellipsis !important;
+}
+/* The date group reported 78px wide while its buttons ran to 245 - a 32px overflow
+   that landed on top of anything placed after it. Let it size to what it holds. */
+.tree-toolbar .tree-datenav{
+  flex:0 0 auto !important; width:auto !important; min-width:0 !important;
+  overflow:visible !important;
+}
+.tree-newgoal-row{ display:none; }
+/* The area chips are hidden until you press New branch (2026-09-18) */
+#treeFilters{ display:none !important; }
+body[data-newbranch="1"] #treeFilters{
+  display:flex !important; flex-wrap:wrap; gap:4px;
+  margin:0 8px 8px; padding:8px;
+  background:#16181c; border:1px solid #2e323a; border-radius:10px;
+}
+.tree-newgoal-row #btnAddGoal.on{ background:#262a33 !important; color:#e6e8ec !important; }
+.tree-newgoal-row #btnAddGoal{ width:100% !important; justify-content:center !important; }
+.tree-toolbar #btnAddGoal span{ display:none !important; }
+.tree-toolbar #btnAddGoal svg{ width:16px !important; height:16px !important; }
 .tree-datenav button{ height:28px !important; min-height:28px !important; }
 .tree-datenav #btnToday{ white-space:nowrap; }
 .tree-gear{
@@ -5391,7 +5435,7 @@ html:root #treeRoot .tree-row:not([data-depth="0"]){ height:32px !important; min
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-09-18 21:56</span>
+    <span id="buildStamp">build 2026-09-19 00:48</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -5422,9 +5466,9 @@ html:root #treeRoot .tree-row:not([data-depth="0"]){ height:32px !important; min
     <aside id="treePane">
       <div class="tree-toolbar">
         <input id="treeSearch" type="search" placeholder="Search priorities" title="Search the priority tree" autocomplete="off" spellcheck="false">
-        <button id="btnAddGoal" type="button" title="Add new top-level goal">
+        <button id="btnAddGoal" type="button" title="New branch">
           <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-          <span>New goal</span>
+          <span>New branch</span>
         </button>
       </div>
       <div id="treeRoot" role="tree" aria-label="Priority tree"></div>
@@ -7152,7 +7196,33 @@ document.addEventListener("DOMContentLoaded", function() {
   var btnAddGoal = document.getElementById("btnAddGoal");
   if (btnAddGoal) {
     btnAddGoal.addEventListener("click", function () {
+      var open = document.body.getAttribute('data-newbranch') === '1';
+      if (!open) {
+        /* first press: show the areas, create nothing yet */
+        document.body.setAttribute('data-newbranch', '1');
+        btnAddGoal.className = 'on';
+        if (typeof window.__renderFilterBar === 'function') window.__renderFilterBar();
+        return;
+      }
+      /* second press: make the branch and put the areas away */
+      document.body.setAttribute('data-newbranch', '0');
+      btnAddGoal.className = '';
       window.addNodeAt(null);
+    });
+    /* picking an area while the + is open makes the branch there and closes them */
+    document.addEventListener('click', function (e) {
+      if (document.body.getAttribute('data-newbranch') !== '1') return;
+      var t = e.target;
+      while (t && t !== document.body) {
+        if (t.id === 'treeFilters') {
+          document.body.setAttribute('data-newbranch', '0');
+          var b = document.getElementById('btnAddGoal');
+          if (b) b.className = '';
+          window.addNodeAt(null);
+          return;
+        }
+        t = t.parentNode;
+      }
     });
   }
 
@@ -11921,7 +11991,6 @@ function surfaceArrivals() {
     var bar = document.createElement('div');
     bar.id = 'treeViews';
     var views = [
-      { key: 'active', label: 'Active' },
       { key: 'completed', label: 'Completed' },
       { key: 'deleted', label: 'Deleted' }
     ];
@@ -11944,7 +12013,9 @@ function surfaceArrivals() {
           btn.appendChild(s);
         }
         btn.addEventListener('click', function() {
-          window.treeView = v.key;
+          /* pressing the view you are already in goes back to the priority tree -
+             the Active button used to be the way back and the operator removed it */
+          window.treeView = (window.treeView === v.key) ? 'active' : v.key;
           window.renderTree();
         });
         bar.appendChild(btn);
@@ -27046,7 +27117,7 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
     var bf = document.getElementById('btnFocus');
     if (bf) bf.style.display = 'none';
     var ba = document.getElementById('btnAddGoal');
-    if (ba) ba.style.display = 'none';
+    if (ba && ba.style.display === 'none') ba.style.display = '';
   }
 
   build();
@@ -27418,8 +27489,8 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
    These have to out-specify `.tree-toolbar #treeSearch{flex:1 1 auto !important;
    min-width:110px !important}`, which is what used to pin the input at 110px and
    squeeze the chips into a sliver. */
-.tree-toolbar .ps-wrap{ flex:1 1 auto !important; min-width:110px !important; }
-.tree-toolbar .ps-wrap #treeSearch{ flex:1 1 70px !important; min-width:70px !important; }
+.tree-toolbar .ps-wrap{ flex:1 1 auto !important; min-width:74px !important; }
+.tree-toolbar .ps-wrap #treeSearch{ flex:1 1 40px !important; min-width:40px !important; }
 .tree-toolbar .ps-wrap.on #treeSearch{ flex:0 1 58px !important; min-width:44px !important; }
 .ps-chip{
   display:inline-flex; align-items:center; gap:5px; background:#2f343e;
@@ -28241,13 +28312,19 @@ body[data-habits-left="1"] #habitsLeft {
     host.style.display = on ? 'block' : 'none';
     document.body.setAttribute('data-habits-left', on ? '1' : '0');
     if (!on) return;
-    while (host.firstChild) host.removeChild(host.firstChild);
     var view = document.getElementById('habitsView');
-    if (view) {
-      if (typeof window.renderHabits === 'function') window.renderHabits();
-      host.appendChild(view);            /* the very same view, moved - one Habits screen, not a copy */
-      view.style.display = 'block';
+    if (!view) return;                       /* nothing to show - never blank the pane */
+    if (view.parentNode !== host) {
+      while (host.firstChild) host.removeChild(host.firstChild);
+      host.appendChild(view);                /* the very same view, moved - one Habits screen */
     }
+    if (typeof window.renderHabits === 'function') {
+      try { window.renderHabits(); } catch (e) {}
+    }
+    /* renderHabits may rebuild into the view's ORIGINAL home, so put it back here */
+    view = document.getElementById('habitsView');
+    if (view && view.parentNode !== host) host.appendChild(view);
+    if (view) view.style.display = 'block';
   }
   window.__habitsLeft = habitsLeft;
 
@@ -28864,6 +28941,12 @@ body[data-fb="on"] .fb-band { display: block; }
 .fb-scope-foot button { width: 100%; height: 30px; }
 .fb-scope-one { background: rgba(77,139,255,.22) !important;
   border-color: rgba(77,139,255,.55) !important; color: #cfe0ff !important; }
+/* Items is one comma-separated box now (2026-09-18) - no checkbox list */
+.fb-itemsrow .fb-itemsbox { background: #24272e; border: 1px solid #2e323a;
+  border-radius: 6px; color: #e6e8ec; font-size: 11px; padding: 4px 8px; width: 138px; }
+.fb-itemsrow .fb-itemsbox::placeholder { color: #6b7280; }
+.fb-itemsnote { font-size: 10.5px; color: #6b7280; margin: -2px 0 6px; min-height: 12px;
+  text-align: right; }
 .fb-itemmenu { width: 218px; padding: 6px; }
 .fb-search { width: 100%; box-sizing: border-box; background: #24272e;
   border: 1px solid #2e323a; border-radius: 6px; color: #e6e8ec;
@@ -29070,6 +29153,26 @@ body[data-fb="on"] .fb-band { display: block; }
   }
   window.__fbAskScope = askScope;
 
+  /* A drag writes bl.from/bl.to live so the band follows the pointer. By the time the
+     drag ends the session has ALREADY moved, so we cannot ask first - we ask now, and
+     if the answer is "just this day" we put the repeating session back the way it was
+     and give the new hours to a copy for that day alone.
+     2026-09-18, operator: dragging on the weekly view changed every week. */
+  function askAfterDrag(bl, was, now) {
+    if (!was || (was.from === now.from && was.to === now.to)) { save(); return; }
+    if (bl.date) { save(); return; }                  /* already a one-off */
+    var iso = window.selectedDate;
+    if (!iso) { save(); return; }
+    var band = liveBand(bl.id);
+    askScope(bl, iso, band, function (target) {
+      if (target !== bl) {
+        bl.from = was.from; bl.to = was.to;            /* the weekly session never moved */
+        target.from = now.from; target.to = now.to;    /* this one day did */
+      }
+      save(); paint();
+    });
+  }
+
   /* Card 7: a session used to own a WHOLE branch and nothing narrower. Tick the
      items it should actually show and it owns exactly those - a parent brings its
      children with it, so "Willingboro > Inspection" is one tick, not six. No ticks
@@ -29104,112 +29207,107 @@ body[data-fb="on"] .fb-band { display: block; }
   }
   window.__fbMembers = fbMembers;
 
+  /* 2026-09-18, operator: "inside the focus session it just has one priority branch
+     and then what's inside of it. Just remove the items under it and have the priority
+     branch and have the search option. So this way I could type an item, comma, and
+     then the item after it."
+     So: no checkbox list. One box, comma separated. Each piece is matched against the
+     priority titles and kept as an id, so the session still follows a task that is
+     renamed or moved. Anything that matches nothing is shown back so it can be fixed. */
   function itemsRow(pop, bl, relabel) {
     var r = document.createElement('div');
-    r.className = 'fb-row';
+    r.className = 'fb-row fb-itemsrow';
     var lab = document.createElement('span');
-    lab.textContent = 'Items';
+    lab.textContent = 'Focus branch';   /* operator 2026-09-19 */
     r.appendChild(lab);
 
-    var pick = document.createElement('button');
-    pick.type = 'button';
-    pick.className = 'fb-pick';
-    function pickLabel() {
-      while (pick.firstChild) pick.removeChild(pick.firstChild);
-      if (fbCurated(bl)) {
-        pick.appendChild(document.createTextNode(bl.itemIds.length + ' chosen'));
-        return;
-      }
-      var nd = bl.branchId ? branchOf(bl.branchId) : null;
-      pick.appendChild(document.createTextNode(nd ? 'All of ' + String(nd.title).slice(0, 10) : 'All'));
+    var box = document.createElement('input');
+    box.type = 'text';
+    box.className = 'fb-itemsbox';
+    box.placeholder = 'All of this branch';
+    box.title = 'Type item names separated by commas. Empty means the whole branch.';
+
+    function titleOf(id) {
+      var f = window.findNode ? window.findNode(id) : null;
+      return (f && f.node && f.node.title) ? String(f.node.title) : '';
     }
-    pickLabel();
-
-    pick.addEventListener('click', function (e) {
-      e.stopPropagation();
-      var ex = r.querySelector('.fb-menu');
-      if (ex) { ex.parentNode.removeChild(ex); return; }
-
-      var m = document.createElement('div');
-      m.className = 'fb-menu fb-itemmenu';
-      m.addEventListener('click', function (ev) { ev.stopPropagation(); });
-
-      var search = document.createElement('input');
-      search.type = 'text';
-      search.className = 'fb-search';
-      search.placeholder = 'Search priorities';
-      m.appendChild(search);
-
-      var list = document.createElement('div');
-      list.className = 'fb-itemlist';
-      m.appendChild(list);
-
-      var clear = document.createElement('div');
-      clear.className = 'fb-item fb-clear';
-      var cb = document.createElement('b');
-      if (!fbCurated(bl)) cb.className = 'on';
-      clear.appendChild(cb);
-      clear.appendChild(document.createTextNode('All of this branch'));
-      clear.addEventListener('click', function (ev) {
-        ev.stopPropagation();
-        if (bl.itemIds) delete bl.itemIds;
-        save(); paint(); pickLabel();
-        if (relabel) relabel();
-        if (m.parentNode) m.parentNode.removeChild(m);
-      });
-      list.appendChild(clear);
-
-      if (window.walkTree) {
-        window.walkTree(function (node, depth, parent) {
-          if (!node || !node.id || !node.title) return;
-          var row = document.createElement('div');
-          row.className = 'fb-item';
-          var b = document.createElement('b');
-          var on = bl.itemIds ? (bl.itemIds.indexOf(node.id) !== -1) : false;
-          if (on) b.className = 'on';
-          row.appendChild(b);
-          row.appendChild(document.createTextNode(String(node.title).slice(0, 30)));
-          var ptitle = (parent && parent.title) ? String(parent.title) : '';
-          if (ptitle) {
-            var it = document.createElement('i');
-            it.className = 'fb-itempath';
-            it.textContent = ptitle.slice(0, 16);
-            row.appendChild(it);
-          }
-          row.setAttribute('data-find', (String(node.title) + ' ' + ptitle).toLowerCase());
-          row.addEventListener('click', function (ev) {
-            ev.stopPropagation();
-            if (!bl.itemIds) bl.itemIds = [];
-            var at = bl.itemIds.indexOf(node.id);
-            if (at === -1) bl.itemIds.push(node.id); else bl.itemIds.splice(at, 1);
-            if (!bl.itemIds.length) delete bl.itemIds;
-            save(); paint();
-            b.className = (bl.itemIds && bl.itemIds.indexOf(node.id) !== -1) ? 'on' : '';
-            cb.className = fbCurated(bl) ? '' : 'on';
-            pickLabel();
-            if (relabel) relabel();
-          });
-          list.appendChild(row);
-        });
+    function fill() {
+      if (!fbCurated(bl)) { box.value = ''; return; }
+      var out = [], i;
+      for (i = 0; i < bl.itemIds.length; i++) {
+        var t = titleOf(bl.itemIds[i]);
+        if (t) out.push(t);
       }
+      box.value = out.join(', ');
+    }
+    fill();
 
-      search.addEventListener('click', function (ev) { ev.stopPropagation(); });
-      search.addEventListener('input', function () {
-        var q = String(search.value || '').toLowerCase();
-        var rows = list.querySelectorAll('.fb-item'), i;
-        for (i = 0; i < rows.length; i++) {
-          if (rows[i].className.indexOf('fb-clear') !== -1) continue;
-          var hay = rows[i].getAttribute('data-find') || '';
-          rows[i].style.display = (!q || hay.indexOf(q) !== -1) ? '' : 'none';
+    var note = document.createElement('div');
+    note.className = 'fb-itemsnote';
+
+    function apply() {
+      var raw = String(box.value || '').split(',');
+      var ids = [], missed = [], i, k;
+      for (i = 0; i < raw.length; i++) {
+        var want = raw[i].replace(/^\s+|\s+$/g, '');
+        if (!want) continue;
+        var low = want.toLowerCase(), hit = null;
+        if (window.walkTree) {
+          window.walkTree(function (n) {
+            if (hit || !n || !n.title) return;
+            var t = String(n.title).toLowerCase();
+            if (t === low) hit = n;                       /* exact first */
+          });
+          if (!hit) {
+            window.walkTree(function (n) {
+              if (hit || !n || !n.title) return;
+              if (String(n.title).toLowerCase().indexOf(low) !== -1) hit = n;
+            });
+          }
         }
-      });
+        if (hit) { if (ids.indexOf(hit.id) === -1) ids.push(hit.id); }
+        else missed.push(want);
+      }
+      if (ids.length) bl.itemIds = ids; else if (bl.itemIds) delete bl.itemIds;
+      /* The Priority branch row is gone, so the branch - which is what gives the
+         session its colour - is taken from whatever was typed: the top-level branch
+         the first match lives under. 2026-09-19. */
+      if (ids.length) {
+        var f0 = window.findNode ? window.findNode(ids[0]) : null;
+        if (f0 && f0.node) {
+          var top = null, tree = (window.Store && window.Store.data) ? window.Store.data.tree : [];
+          (function find(list, root) {
+            var i;
+            for (i = 0; i < (list || []).length; i++) {
+              var n = list[i];
+              if (n.id === ids[0]) { top = root || n; return; }
+              if (n.children && n.children.length) { find(n.children, root || n); if (top) return; }
+            }
+          })(tree, null);
+          if (top && top.id) bl.branchId = top.id;
+        }
+      }
+      save(); paint();
+      while (note.firstChild) note.removeChild(note.firstChild);
+      if (missed.length) {
+        note.textContent = 'No priority called ' + missed.join(', ');
+      } else if (ids.length) {
+        note.textContent = ids.length === 1 ? 'this session is for 1 item'
+                                            : 'this session is for ' + ids.length + ' items';
+      }
+      if (relabel) relabel();
+    }
 
-      r.appendChild(m);
-      search.focus();
+    box.addEventListener('change', apply);
+    box.addEventListener('blur', apply);
+    box.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); apply(); }
     });
+    box.addEventListener('click', function (e) { e.stopPropagation(); });
 
-    r.appendChild(pick);
+    r.appendChild(box);
     pop.appendChild(r);
+    pop.appendChild(note);
     return r;
   }
 
@@ -29482,6 +29580,7 @@ body[data-fb="on"] .fb-band { display: block; }
     band.addEventListener('pointerdown', function (e) {
       if (e.button !== 0 || inGrip(e.target)) return;
       var startY = e.clientY, moved = false;
+      var was = { from: bl.from, to: bl.to };     /* where this drag began */
       var HOUR = (window.TG && window.TG.HOUR_PX) ? window.TG.HOUR_PX : 60;
       var span = toMin(bl.to) - toMin(bl.from), from0 = toMin(bl.from);
       function move(ev) {
@@ -29514,7 +29613,13 @@ body[data-fb="on"] .fb-band { display: block; }
         document.removeEventListener('pointerup', up);
         var b = liveBand(bl.id);
         if (b) b.className = b.className.replace(/ ?fb-dragging/g, '');
-        if (moved) save();
+        if (!moved) return;
+        /* 2026-09-18, operator: "if I'm on the weekly and I try to change the timing on
+           one of the sessions, it does not allow me to change only that day, it changes
+           the whole week. The feature for change which days is not there at all."
+           Right - the question was only ever wired to the editor's time spinner. Dragging
+           a session wrote straight through. Ask here, once the drag is finished. */
+        askAfterDrag(bl, was, { from: bl.from, to: bl.to });
       }
       document.addEventListener('pointermove', move);
       document.addEventListener('pointerup', up);
@@ -29526,6 +29631,7 @@ body[data-fb="on"] .fb-band { display: block; }
       e.preventDefault();
       e.stopPropagation();
       var startY = e.clientY;
+      var was = { from: bl.from, to: bl.to };     /* where this drag began */
       var start = toMin(bl[key]);
       var HOUR = (window.TG && window.TG.HOUR_PX) ? window.TG.HOUR_PX : 60;
       function move(ev) {
@@ -29560,7 +29666,8 @@ body[data-fb="on"] .fb-band { display: block; }
            vanished from the day view the moment you let go and only came back on the next
            full render. Measured: dayView bands 0 after a drop, 1 after a renderAll. Paint
            AFTER saving, not before. */
-        save();
+        /* 2026-09-18: and ask which days this was meant for - see askAfterDrag. */
+        askAfterDrag(bl, was, { from: bl.from, to: bl.to });
       }
       document.addEventListener('pointermove', move);
       document.addEventListener('pointerup', up);
@@ -29867,6 +29974,11 @@ body[data-fb="on"] .fb-band { display: block; }
       rBr.appendChild(m);
     });
     rBr.appendChild(pick);
+    /* 2026-09-19, operator: "remove the part where it says priority branch".
+       The row is not built at all now. branchId still exists and still gives the
+       session its colour - it is simply set from the Focus branch box below
+       instead of from a picker of its own. */
+    if (rBr.parentNode) rBr.parentNode.removeChild(rBr);
 
     /* which items inside that branch this session is for */
     var relabelItems = itemsRow(pop, bl, function () {});
@@ -31380,12 +31492,13 @@ body[data-fb="on"] .fb-band { display: block; }
      A routine is a tree node carrying a `repeat` - the engine and the calendar drawing have
      existed for a while, there has simply never been anywhere to SEE them. -->
 <style>
-#habitsView .rt-tabs{display:flex;gap:4px;margin:0 0 14px}
-#habitsView .rt-tab{background:none;border:1px solid transparent;border-bottom:none;
-  color:var(--text-3,#6b7280);border-radius:8px 8px 0 0;padding:6px 15px;font-size:12.5px;
-  cursor:pointer;font-family:inherit}
-#habitsView .rt-tab:hover{color:var(--text-2,#9aa1ab)}
-#habitsView .rt-tab.on{background:#1c1f26;border-color:#2e323a;color:#e6e8ec;font-weight:600}
+#habitsView .rt-tabs{display:flex;gap:4px;margin:0 0 14px;background:#16181c;
+  border:1px solid #2e323a;border-radius:10px;padding:4px;}
+#habitsView .rt-tab{background:none;border:1px solid transparent;
+  color:var(--text-3,#6b7280);border-radius:7px;padding:6px 15px;font-size:12.5px;
+  cursor:pointer;font-family:inherit;flex:1 1 auto}
+#habitsView .rt-tab:hover{color:var(--text-2,#9aa1ab);background:#1c1f26}
+#habitsView .rt-tab.on{background:#262a33;border-color:#3a3f4a;color:#e6e8ec;font-weight:600}
 #habitsView .rt-list{display:flex;flex-direction:column;gap:8px}
 #habitsView .rt-row{display:flex;align-items:center;gap:11px;background:#1c1f26;
   border:1px solid #2e323a;border-radius:10px;padding:10px 12px}
