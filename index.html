@@ -2531,6 +2531,65 @@ aside#treePane { overflow-y: auto; }
   border-color: var(--accent); background: var(--accent-soft); color: var(--text);
   font-weight: 600;
 }
+/* 2026-09-19, operator: "whenever we have the priority tree section, anything inside
+   shouldn't be sliding back and forth. It should be resized to the size of the tree
+   because it is movable." The pane is resizable, so everything in it sizes to the pane
+   and long text ellipsises instead of pushing the row wider. */
+aside#treePane { overflow-x: hidden !important; }
+aside#treePane > * { max-width: 100% !important; box-sizing: border-box !important; }
+#treeRoot, #treeDrawer, #alarmsList, #habitsLeft, #treeFilters { overflow-x: hidden !important; }
+#treeRoot .tree-row .tree-title,
+.trashitem .t-title { min-width: 0 !important; overflow: hidden !important;
+  text-overflow: ellipsis !important; white-space: nowrap !important; }
+.trashitem { max-width: 100% !important; box-sizing: border-box !important; }
+
+/* ---- THE PRIORITY TREE PANE NEVER SCROLLS SIDEWAYS - operator rule 2026-09-19 ----
+   "anything within the priority tree it needs to be adjustable and not scrolling
+   left and right because the vertical bar there is movable so it needs to be
+   adjusted as such."
+
+   MEASURED, not assumed. At a 260px pane the pane scrolled 11px sideways and at
+   220px it scrolled 51px - in ALL THREE views, active included. The cause was NOT
+   the lists (my earlier card blamed those and shipped no repair): it is
+   .tree-toolbar, whose children carry min-widths that add up past the pane
+   (the date button alone is min-width:66px, nowrap, natural width 96px), and the
+   Deleted row classes, which had no CSS at all and so laid out at natural width.
+   check_tree_no_sideways.py fails 6/12 on the build before this rule. */
+aside#treePane, aside#treePane * { min-width: 0 !important; }
+.tree-toolbar { flex-wrap: wrap !important; overflow-x: hidden !important; row-gap: 6px !important; }
+.tree-toolbar > * { flex-shrink: 1 !important; min-width: 0 !important; max-width: 100% !important; }
+.tree-toolbar button, .tree-toolbar .ps-wrap, .tree-toolbar #treeSearch,
+.tree-toolbar .tree-datenav {
+  min-width: 0 !important; overflow: hidden !important; text-overflow: ellipsis !important;
+}
+/* The Deleted row had NO styling of its own, so it sized to its content.
+   Same shape as .trashitem (the reuse rule): title takes the room, the
+   buttons keep their size, nothing pushes the row wider than the pane. */
+.trashitem-title {
+  flex: 1 1 auto !important; min-width: 0 !important; overflow: hidden !important;
+  text-overflow: ellipsis !important; white-space: nowrap !important;
+}
+.trashitem-date { flex: 0 0 auto; font-size: 10px; color: var(--text-dim); white-space: nowrap; }
+.trashitem-restore, .trashitem-purge {
+  flex: 0 0 auto; height: 22px; padding: 0 8px; border-radius: 5px; font-size: 11px;
+  border: 1px solid var(--border); background: var(--surface); color: var(--text); cursor: pointer;
+}
+.trashitem-purge { color: var(--danger); border-color: var(--danger); }
+.done-undo {
+  flex: 0 0 auto; height: 22px; padding: 0 8px; border-radius: 5px; font-size: 11px;
+  border: 1px solid var(--border); background: var(--surface); color: var(--text);
+  cursor: pointer; white-space: nowrap;
+}
+.done-undo:hover { background: #3a3f4a; }
+.doneitem .doneitem-pen {
+  flex: 0 0 auto; margin-left: auto; margin-right: 8px;
+  color: rgba(245, 158, 11, .55); font-size: 13px; cursor: default;
+}
+#treeRoot.done-only, #treeRoot .trashlist, #treeRoot .donelist {
+  max-width: 100% !important; overflow-x: hidden !important; box-sizing: border-box !important;
+}
+.doneitem { cursor: pointer; }
+.doneitem:hover { background: #2b2f38; }
 .trashlist { display: flex; flex-direction: column; gap: 6px; padding: 8px; }
 .trashitem {
   display: flex; align-items: center; gap: 8px; font-size: 12px;
@@ -4955,6 +5014,21 @@ padding:0 14px;font-family:ui-sans-serif,system-ui,sans-serif;line-height:34px}
 /* 2026-09-06: Today / Tomorrow sit ABOVE the months - they are the common answer,
    so they meet the cursor where the picker opens. Only the rule flipped; the buttons,
    colours and sizes are untouched. */
+/* 2026-09-19, operator: "the due date calendar dates are outside the edit window".
+   The two-month picker is wider than the dialog, so it is clamped to the viewport and
+   allowed to scroll rather than hang off the side. */
+/* CORRECTED 2026-09-19, operator: "no scrolling sideways. It should be set in
+   that within the window." The first repair clamped the width and let the picker
+   scroll sideways - which is the very thing the rule forbids. Now the two months
+   WRAP to a column when they do not fit, so the whole calendar is always inside
+   the window and there is never a horizontal scrollbar. */
+.dp2{ max-width: calc(100vw - 24px) !important; box-sizing: border-box !important;
+      overflow-x: hidden !important; }
+.dp2 .dp2-months{ flex-wrap: wrap !important; row-gap: 14px !important; }
+.dp2 .dp2-months > *{ min-width: 0 !important; }
+@media (max-width: 820px){
+  .dp2{ max-width: calc(100vw - 16px) !important; }
+}
 .dp2-quick{display:flex;gap:8px;margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid #3a4049}
 .dp2-quick button{flex:1 1 auto;background:#343a43;border:1px solid #3a4049;color:#e9ecf1;
   border-radius:8px;padding:8px 10px;font-size:12px;letter-spacing:.04em;text-transform:uppercase;
@@ -5435,7 +5509,7 @@ body[data-newbranch="1"] #treeFilters{
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-09-19 00:48</span>
+    <span id="buildStamp">build 2026-09-19 21:50</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -12093,15 +12167,58 @@ function surfaceArrivals() {
       for (var j = 0; j < collected.length; j++) {
         var entry = collected[j];
         var item = document.createElement('div');
-        item.className = 'trashitem';
+        item.className = 'trashitem doneitem';
+        item.setAttribute('data-id', entry.node.id);
+        (function (nid) {
+          item.addEventListener('click', function (ev) {
+            ev.stopPropagation();
+            if (typeof window.editActivity === 'function') window.editActivity(nid);
+          });
+        })(entry.node.id);
         var titleSpan = document.createElement('span');
         titleSpan.className = 't-title';
         titleSpan.textContent = entry.node.title || 'Untitled';
         item.appendChild(titleSpan);
-        var whenSpan = document.createElement('span');
-        whenSpan.className = 't-when';
-        whenSpan.textContent = entry.parent ? (entry.parent.title || '') : 'Top level';
-        item.appendChild(whenSpan);
+        /* A completed task that carries notes shows the SAME pen the priority
+           tree shows - operator 2026-09-19: "tasks that are completed in there
+           that have documentation or notes inside of it, should have the pen
+           mark just as a priority tree does." Same class, same glyph, same
+           hasNotes test, so the two can never disagree. */
+        if (window.hasNotes && window.hasNotes(entry.node)) {
+          var pen = document.createElement('span');
+          pen.className = 'tree-notepen doneitem-pen';
+          pen.title = 'This task has notes';
+          pen.textContent = '\u270E';
+          item.appendChild(pen);
+        }
+        /* Operator 2026-09-19: "you don't have to say where it's located as far
+           as the branch. But in that spot, have an option to put incomplete."
+           So the branch name is gone and the spot carries the un-complete
+           button instead. Wording and cascade reused from the existing right
+           click entry - setDone cascades over the children. The WORD is the
+           operator's: "let's just make it incomplete button if I click it then
+           it will make it incomplete and bring it back to the calendar". The
+           task keeps its date, so clearing done puts it back on the calendar. */
+        var undo = document.createElement('button');
+        undo.type = 'button';
+        undo.className = 'done-undo';
+        undo.textContent = 'Uncomplete';
+        (function (nid) {
+          undo.addEventListener('click', function (ev) {
+            ev.preventDefault();
+            ev.stopPropagation();          // never open the edit window as well
+            var f = window.findNode(nid);
+            if (!f || !f.node) return;
+            var setDone = function (n, val) {
+              n.done = val;
+              if (n.children) n.children.forEach(function (c) { setDone(c, val); });
+            };
+            setDone(f.node, false);
+            window.Store.save();
+            window.renderAll();
+          });
+        })(entry.node.id);
+        item.appendChild(undo);
         list.appendChild(item);
       }
       root.appendChild(list);
@@ -15916,6 +16033,69 @@ function firstConnect(remote, rAt, lAt) {
     return 'al' + seq + Math.floor(Math.random() * 1000000).toString(36);
   }
 
+  /* 2026-09-19, operator: "when there is a reminder set then that reminder must be in
+     the alarms section, and that feature must be on every reminder that is set."
+     window.showAlarmsList was called by the Alarms tab in two places and never defined
+     anywhere - measured typeof 'undefined' - so the tab showed the priority tree. */
+  window.showAlarmsList = function () {
+    var pane = document.getElementById('treePane');
+    if (!pane) return;
+    var host = document.getElementById('alarmsList');
+    if (!host) {
+      host = document.createElement('div');
+      host.id = 'alarmsList';
+      pane.insertBefore(host, pane.firstChild);
+    }
+    while (host.firstChild) host.removeChild(host.firstChild);
+
+    var items = [];
+    if (window.walkTree) {
+      window.walkTree(function (n) {
+        var al = window.alarmsOf ? window.alarmsOf(n) : [];
+        var i;
+        for (i = 0; i < al.length; i++) {
+          var a = al[i];
+          var when = (a.kind === 'at')
+            ? ((a.date || n.date || '') + ' ' + (a.time || n.time || ''))
+            : ((n.date || '') + ' ' + (n.time || '') + (a.lead ? '  \u2212' + a.lead + ' min' : ''));
+          items.push({ title: n.title || 'Untitled', when: String(when).replace(/^\s+|\s+$/g, ''),
+                       sort: (a.date || n.date || '9999') + ' ' + (a.time || n.time || '') });
+        }
+      });
+    }
+    items.sort(function (x, y) { return x.sort < y.sort ? -1 : (x.sort > y.sort ? 1 : 0); });
+
+    var head = document.createElement('div');
+    head.className = 'drawer-title';
+    head.textContent = 'ALARMS';
+    host.appendChild(head);
+
+    if (!items.length) {
+      var none = document.createElement('div');
+      none.className = 'trash-empty';
+      none.textContent = 'No reminders set.';
+      host.appendChild(none);
+      return;
+    }
+    var list = document.createElement('div');
+    list.className = 'trashlist';
+    var k;
+    for (k = 0; k < items.length; k++) {
+      var row = document.createElement('div');
+      row.className = 'trashitem';
+      var t = document.createElement('span');
+      t.className = 't-title';
+      t.textContent = items[k].title;
+      row.appendChild(t);
+      var w = document.createElement('span');
+      w.className = 't-when';
+      w.textContent = items[k].when;
+      row.appendChild(w);
+      list.appendChild(row);
+    }
+    host.appendChild(list);
+  };
+
   window.alarmsOf = function (node) {
     if (!node) return [];
     if (node.reminders && node.reminders.length) return node.reminders;
@@ -16272,6 +16452,29 @@ function firstConnect(remote, rAt, lAt) {
     return DAYS[d.getDay()] + ', ' + MON[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear();
   }
 
+  /* Beside the time slot on each reminder row - operator 2026-09-19.
+     Lives at MODULE scope, next to its only caller rowFor(). It was first
+     written inside build(), where rowFor could not see it: the + button then
+     threw "makeDayBtn is not defined" and no reminder row could be added at
+     all. Caught by instrumenting the real click, not by geometry. */
+  function makeDayBtn(label, offset, al, dbtn) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'al-day';
+      b.textContent = label;
+      b.onclick = function (e) {
+          e.preventDefault();
+          var d = new Date();
+          d.setDate(d.getDate() + offset);
+          var iso = d.getFullYear() + '-' +
+                    ('0' + (d.getMonth() + 1)).slice(-2) + '-' +
+                    ('0' + d.getDate()).slice(-2);
+          al.date = iso;
+          if (dbtn) dbtn.textContent = fmtDay(iso);
+      };
+      return b;
+  }
+
   function rowFor(al, idx, node, redraw) {
     var row = document.createElement('div');
     row.className = 'al-row';
@@ -16318,6 +16521,12 @@ function firstConnect(remote, rAt, lAt) {
       row.appendChild(num);
       row.appendChild(dbtn);
       row.appendChild(tin);
+      /* Today / Tomorrow sit RIGHT NEXT TO THE TIME SLOT and move THIS
+         reminder's day - operator correction 2026-09-19: "inside the reminder
+         app you should be able to press today and tomorrow ... it should be
+         right next to the time slot". They no longer add a second reminder. */
+      row.appendChild(makeDayBtn('Today', 0, al, dbtn));
+      row.appendChild(makeDayBtn('Tomorrow', 1, al, dbtn));
     }
     var x = document.createElement('button');
     x.type = 'button';
@@ -16351,7 +16560,10 @@ function firstConnect(remote, rAt, lAt) {
           };
           return btn;
       }
-  
+
+      /* Today / Tomorrow, beside the time - operator 2026-09-19. Each sets a reminder
+         for that day at the task's own time (09:00 if it has none). */
+
       function redraw() {
           wrap.textContent = '';
           if (pending.length === 0) {
@@ -24072,7 +24284,8 @@ ancestor that can move.
           var dup = false, hs = window.Store.data.habits;
           for (var hi = 0; hi < hs.length; hi++) { if (hs[hi] && hs[hi].name === nm) { dup = true; break; } }
           if (dup) { window.toast('"' + nm + '" is already a habit.', 'err'); return; }
-          hs.push({ id: window.uid(), name: nm, color: '#1a73e8', freq: 'daily', targetPerWeek: 7 });
+          hs.push({ id: window.uid(), name: nm, color: '#1a73e8', freq: 'daily',
+                    targetPerWeek: 7, fromTask: nx.id });
           window.Store.save();
           window.renderAll();
           window.toast('Added to Habits.', 'ok');
@@ -24082,9 +24295,21 @@ ancestor that can move.
            somewhere it does not appear. Give it a daily repeat - editable afterwards. */
         if (!nx.repeat) nx.repeat = { freq: 'daily', interval: 1, until: null };
         if (!nx.date) nx.date = window.todayISO();
+        /* ...and put it in the list the Routines TAB actually reads. Without this the
+           repeat was set and the tab stayed empty - which is what the operator saw. */
+        var rnm = String(nx.title || '').replace(/^\s+|\s+$/g, '');
+        if (rnm) {
+          if (!Array.isArray(window.Store.data.routines)) window.Store.data.routines = [];
+          var rs = window.Store.data.routines, rdup = false, ri;
+          for (ri = 0; ri < rs.length; ri++) { if (rs[ri] && rs[ri].name === rnm) { rdup = true; break; } }
+          if (!rdup) {
+            rs.push({ id: window.uid(), name: rnm, color: '#34a853',
+                      freq: 'daily', targetPerWeek: 7, fromTask: nx.id });
+          }
+        }
         window.Store.save();
         window.renderAll();
-        window.toast('Now a routine - repeats daily. Change it in Routines.', 'ok');
+        window.toast('Now a routine - it is in the Routines tab.', 'ok');
         return;
       }
 
@@ -25040,6 +25265,7 @@ ancestor that can move.
           p = p.parentNode;
         }
       }
+      if (!picker) picker = document.querySelector('.dp2');   /* it floats, it is not an ancestor */
       if (picker && picker.parentNode) picker.parentNode.removeChild(picker);
     };
 
@@ -27957,6 +28183,10 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
     }
     return !!(n.notes && String(n.notes).replace(/^\s+|\s+$/g, '').length);
   }
+  /* The Completed list needs the same test, and a second copy would drift.
+     One definition, two callers - operator 2026-09-19: completed tasks with
+     notes get the pen mark "just as a priority tree does". */
+  window.hasNotes = hasNotes;
 
   function paint() {
     var root = document.getElementById('treeRoot');
@@ -28140,6 +28370,12 @@ body[data-bb="habits"] #treeRoot, body[data-bb="habits"] .tree-toolbar { visibil
 /* 2026-09-18: the Habits/Routines pane on the left, in the priority tree's place */
 #habitsLeft { display: none; padding: 10px 10px 0; overflow: auto; max-height: 100%; }
 body[data-habits-left="1"] #habitsLeft { display: block; }
+/* the Alarms tab owns the left pane, like Habits does (2026-09-19) */
+#alarmsList { display: none; padding: 10px 10px 0; overflow: auto; }
+body[data-bb="alarms"] #alarmsList { display: block; }
+body[data-bb="alarms"] #treeRoot,
+body[data-bb="alarms"] #treeFilters,
+body[data-bb="alarms"] .tree-toolbar { display: none !important; }
 @media (max-width: 700px) {
   body[data-habits-left="1"] section#rightPane { display: none; }
   body[data-habits-left="1"] aside#treePane {
@@ -28942,9 +29178,20 @@ body[data-fb="on"] .fb-band { display: block; }
 .fb-scope-one { background: rgba(77,139,255,.22) !important;
   border-color: rgba(77,139,255,.55) !important; color: #cfe0ff !important; }
 /* Items is one comma-separated box now (2026-09-18) - no checkbox list */
+.fb-tree { max-height: 210px; overflow-y: auto; width: 214px; }
+.fb-tree .fb-branch { font-weight: 600; }
+.fb-tree .fb-kid { padding-left: 26px; color: #c9ced6; }
+.fb-tree .fb-caret { width: 12px; flex: 0 0 12px; background: none; border: 0;
+  color: #6b7280; font-weight: 400; }
+.fb-treehint { font-size: 10px; color: #6b7280; padding: 6px 8px 2px;
+  border-top: 1px solid #22262e; margin-top: 4px; }
 .fb-itemsrow .fb-itemsbox { background: #24272e; border: 1px solid #2e323a;
   border-radius: 6px; color: #e6e8ec; font-size: 11px; padding: 4px 8px; width: 138px; }
 .fb-itemsrow .fb-itemsbox::placeholder { color: #6b7280; }
+.al-quick { display: inline-flex; gap: 6px; margin-right: 8px; }
+.al-quick .al-day { height: 24px; padding: 0 10px; border-radius: 6px; font-size: 11.5px;
+  background: #24272e; border: 1px solid #2e323a; color: #e6e8ec; cursor: pointer; }
+.al-quick .al-day:hover { background: #2b2f38; border-color: #3a3f4a; }
 .fb-itemsnote { font-size: 10.5px; color: #6b7280; margin: -2px 0 6px; min-height: 12px;
   text-align: right; }
 .fb-itemmenu { width: 218px; padding: 6px; }
@@ -29158,10 +29405,14 @@ body[data-fb="on"] .fb-band { display: block; }
      if the answer is "just this day" we put the repeating session back the way it was
      and give the new hours to a copy for that day alone.
      2026-09-18, operator: dragging on the weekly view changed every week. */
-  function askAfterDrag(bl, was, now) {
+  function askAfterDrag(bl, was, now, iso) {
     if (!was || (was.from === now.from && was.to === now.to)) { save(); return; }
     if (bl.date) { save(); return; }                  /* already a one-off */
-    var iso = window.selectedDate;
+    /* The day must be captured from the band the pointer actually went down on -
+       liveBand() re-queries and returns the FIRST band with this id, which on the
+       weekly view is a different day. Measured: dragged 13 Sep, liveBand found the
+       19 Sep column. So the drag handlers pass their own day in as `iso`. */
+    if (!iso) iso = window.selectedDate;   /* day view: the two are the same */
     if (!iso) { save(); return; }
     var band = liveBand(bl.id);
     askScope(bl, iso, band, function (target) {
@@ -29298,10 +29549,98 @@ body[data-fb="on"] .fb-band { display: block; }
       if (relabel) relabel();
     }
 
+    /* The dropdown, shaped like the priority tree: one click opens a branch, a double
+       click picks that item. Typing a comma opens it again for the next one. Typing a
+       name still works - this is an addition, not a replacement. 2026-09-19. */
+    var open = null;      /* which branch is expanded */
+
+    function closeTree() {
+      var t = r.querySelector('.fb-tree');
+      if (t && t.parentNode) t.parentNode.removeChild(t);
+    }
+
+    function addName(title) {
+      var cur = String(box.value || '').replace(/,\s*$/, '');
+      var parts = cur ? cur.split(',') : [];
+      var i;
+      for (i = 0; i < parts.length; i++) {
+        if (parts[i].replace(/^\s+|\s+$/g, '').toLowerCase() === title.toLowerCase()) return;
+      }
+      parts.push(' ' + title);
+      box.value = parts.join(',').replace(/^\s+/, '');
+      apply();
+    }
+
+    function openTree() {
+      closeTree();
+      var t = document.createElement('div');
+      t.className = 'fb-menu fb-tree';
+      t.addEventListener('click', function (ev) { ev.stopPropagation(); });
+
+      var tree = (window.Store && window.Store.data) ? (window.Store.data.tree || []) : [];
+      var i;
+      for (i = 0; i < tree.length; i++) {
+        (function (branch) {
+          if (!branch || !branch.title) return;
+          var row = document.createElement('div');
+          row.className = 'fb-item fb-branch';
+          var caret = document.createElement('b');
+          caret.className = 'fb-caret';
+          caret.textContent = (open === branch.id) ? '\u25BE' : '\u25B8';
+          row.appendChild(caret);
+          row.appendChild(document.createTextNode(String(branch.title).slice(0, 26)));
+          row.addEventListener('click', function (ev) {
+            ev.stopPropagation();
+            open = (open === branch.id) ? null : branch.id;   /* one click opens */
+            openTree();
+          });
+          row.addEventListener('dblclick', function (ev) {
+            ev.stopPropagation();
+            addName(String(branch.title));                    /* double click picks */
+            closeTree();
+          });
+          t.appendChild(row);
+
+          if (open === branch.id) {
+            var kids = branch.children || [], k;
+            for (k = 0; k < kids.length; k++) {
+              (function (kid) {
+                if (!kid || !kid.title) return;
+                var kr = document.createElement('div');
+                kr.className = 'fb-item fb-kid';
+                kr.appendChild(document.createTextNode(String(kid.title).slice(0, 28)));
+                kr.addEventListener('dblclick', function (ev) {
+                  ev.stopPropagation();
+                  addName(String(kid.title));
+                  closeTree();
+                });
+                kr.addEventListener('click', function (ev) { ev.stopPropagation(); });
+                t.appendChild(kr);
+              })(kids[k]);
+            }
+          }
+        })(tree[i]);
+      }
+
+      var hint = document.createElement('div');
+      hint.className = 'fb-treehint';
+      hint.textContent = 'one click opens \u00b7 double click picks';
+      t.appendChild(hint);
+      r.appendChild(t);
+    }
+
+    box.addEventListener('focus', function () { openTree(); });
+    box.addEventListener('input', function () {
+      /* a comma means "next one" - open the list again */
+      if (/,\s*$/.test(box.value)) { open = null; openTree(); }
+    });
     box.addEventListener('change', apply);
-    box.addEventListener('blur', apply);
+    box.addEventListener('blur', function () {
+      setTimeout(function () { apply(); closeTree(); }, 180);
+    });
     box.addEventListener('keydown', function (e) {
-      if (e.key === 'Enter') { e.preventDefault(); apply(); }
+      if (e.key === 'Enter') { e.preventDefault(); apply(); closeTree(); }
+      if (e.key === 'Escape') { closeTree(); }
     });
     box.addEventListener('click', function (e) { e.stopPropagation(); });
 
@@ -29581,6 +29920,15 @@ body[data-fb="on"] .fb-band { display: block; }
       if (e.button !== 0 || inGrip(e.target)) return;
       var startY = e.clientY, moved = false;
       var was = { from: bl.from, to: bl.to };     /* where this drag began */
+      var dayIso = (function (el) {          /* and WHICH DAY it began on */
+        var n = el;
+        while (n && n !== document.body) {
+          if (n.getAttribute && (n.getAttribute('data-iso') || (n.dataset && n.dataset.iso)))
+            return n.getAttribute('data-iso') || n.dataset.iso;
+          n = n.parentNode;
+        }
+        return null;
+      })(band);
       var HOUR = (window.TG && window.TG.HOUR_PX) ? window.TG.HOUR_PX : 60;
       var span = toMin(bl.to) - toMin(bl.from), from0 = toMin(bl.from);
       function move(ev) {
@@ -29619,7 +29967,7 @@ body[data-fb="on"] .fb-band { display: block; }
            the whole week. The feature for change which days is not there at all."
            Right - the question was only ever wired to the editor's time spinner. Dragging
            a session wrote straight through. Ask here, once the drag is finished. */
-        askAfterDrag(bl, was, { from: bl.from, to: bl.to });
+        askAfterDrag(bl, was, { from: bl.from, to: bl.to }, dayIso);
       }
       document.addEventListener('pointermove', move);
       document.addEventListener('pointerup', up);
@@ -29632,6 +29980,15 @@ body[data-fb="on"] .fb-band { display: block; }
       e.stopPropagation();
       var startY = e.clientY;
       var was = { from: bl.from, to: bl.to };     /* where this drag began */
+      var dayIso = (function (el) {
+        var n = el;
+        while (n && n !== document.body) {
+          if (n.getAttribute && (n.getAttribute('data-iso') || (n.dataset && n.dataset.iso)))
+            return n.getAttribute('data-iso') || n.dataset.iso;
+          n = n.parentNode;
+        }
+        return null;
+      })(grip);
       var start = toMin(bl[key]);
       var HOUR = (window.TG && window.TG.HOUR_PX) ? window.TG.HOUR_PX : 60;
       function move(ev) {
@@ -29667,7 +30024,7 @@ body[data-fb="on"] .fb-band { display: block; }
            full render. Measured: dayView bands 0 after a drop, 1 after a renderAll. Paint
            AFTER saving, not before. */
         /* 2026-09-18: and ask which days this was meant for - see askAfterDrag. */
-        askAfterDrag(bl, was, { from: bl.from, to: bl.to });
+        askAfterDrag(bl, was, { from: bl.from, to: bl.to }, dayIso);
       }
       document.addEventListener('pointermove', move);
       document.addEventListener('pointerup', up);
