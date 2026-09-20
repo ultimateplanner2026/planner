@@ -2429,8 +2429,14 @@ aside#treePane { overflow-y: auto; }
 }
 
 /* Calendar item action menu */
+/* 2026-09-19, operator: "the edit button is literally within the scroll up and down...
+   it needs to move over a little bit more to the left, this way I could access the
+   scroll bar. It should not be touching."
+   Measured on the live build: the button's right edge sat 1px from the scroller's edge
+   in BOTH Week and Day, so reaching for the scrollbar hit the button. 14px leaves room
+   for a scrollbar (Chrome draws ~11px on the desktop) plus a margin for the finger. */
 .actbtn {
-  position: absolute; top: 1px; right: 1px; width: 16px; height: 16px;
+  position: absolute; top: 1px; right: 14px; width: 16px; height: 16px;
   line-height: 14px; padding: 0; border: none; border-radius: 4px;
   background: var(--accent); color: #fff; font-size: 12px; cursor: pointer;
   opacity: 0; transition: opacity 120ms;
@@ -2575,6 +2581,26 @@ aside#treePane, aside#treePane * { min-width: 0 !important; }
   border: 1px solid var(--border); background: var(--surface); color: var(--text); cursor: pointer;
 }
 .trashitem-purge { color: var(--danger); border-color: var(--danger); }
+/* 2026-09-20, operator: "make the pen really more bright on the delete section only."
+   DELETED ONLY - the tree's pen (.tree-notepen at 32% opacity) and the Completed
+   list's (.doneitem-pen at 55%) are untouched. Here it is full-strength amber and a
+   little larger, because a deleted row is where you most need to spot the notes
+   before deciding whether to restore it. */
+.trashitem .trashitem-pen {
+  flex: 0 0 auto; margin-left: 4px;
+  color: #ffb020 !important;
+  font-size: 15px; font-weight: 700; opacity: 1 !important;
+  text-shadow: 0 0 7px rgba(255, 176, 32, .55);
+  cursor: default;
+}
+.trashitem { cursor: pointer; }
+.delview-meta { font-size: 11.5px; color: var(--text-dim); margin-bottom: 10px; }
+.delview-notes {
+  background: var(--surface-2, var(--surface)); border: 1px solid var(--border);
+  border-radius: 8px; padding: 11px 13px; font-size: 13px; line-height: 1.5;
+  white-space: pre-wrap; max-height: 320px; overflow-y: auto;
+}
+.delview-notes.delview-empty { color: var(--text-dim); font-style: italic; }
 .done-undo {
   flex: 0 0 auto; height: 22px; padding: 0 8px; border-radius: 5px; font-size: 11px;
   border: 1px solid var(--border); background: var(--surface); color: var(--text);
@@ -3114,6 +3140,13 @@ button.al-add {
   border-radius: 5px; cursor: pointer; opacity: .85;
 }
 /* the alarm date popover floats above the dialog without closing it */
+.al-pop-wide {
+  display: flex; gap: 18px; align-items: flex-start;
+  max-width: 100%; box-sizing: border-box; overflow: hidden;
+}
+.al-pop-wide .datepop { width: auto; flex: 1 1 0; min-width: 0; }
+.al-pop-wide .datepop-grid { grid-template-columns: repeat(7, 1fr); }
+
 .al-pop {
   position: fixed; z-index: 100000;
   background: var(--surface); border: 1px solid var(--border);
@@ -3228,8 +3261,50 @@ body[data-bb="settings"] #treeRoot.done-only {
     padding: 8px 10px 16px;
   }
   body[data-bb="settings"] #treeDrawer button { width: 100%; text-align: left; margin: 4px 0; }
+  /* 2026-09-20, operator: "the setting option for the delete... is hiding all the
+     setting that's right above it. It should be where it starts, it should be a
+     little bit lower, so I could see majority of it."
+     MEASURED on the phone: the drawer was 250px tall holding six things, and the
+     delete button sat at 127px - the middle - squeezing the settings above it.
+     Two changes: the drawer gets the room it needs, and the delete button is pushed
+     to the BOTTOM with a rule above it, so it reads as its own section and the
+     settings above it stay whole. */
+  body[data-bb="settings"] #treeDrawer {
+    max-height: 72dvh !important;
+  }
+  body[data-bb="settings"] #btnEmptyTrash {
+    margin-top: 22px !important;
+    border-top: 1px solid var(--border);
+    padding-top: 14px !important;
+  }
+  body[data-bb="settings"] #drawerVersion { margin-top: 10px; }
   /* Alarms tab: same shape, the list renders into the drawer area */
   body[data-bb="alarms"] section#rightPane { display: none; }
+
+  /* 2026-09-20, operator: "the plan should only show the priority tree and what's
+     in it, alarms whatever alarms we have, habits whatever habits we have... I
+     think whenever we go to settings some of these things do get merged but that
+     should not happen."
+     MEASURED on the phone: Alarms, Habits and Settings each showed exactly one
+     thing - but PLAN showed the priority tree AND the calendar, tree 74px against
+     calendar 520px, so the tree was a strip. Plan had no rules of its own at all;
+     it was simply the default two-pane layout.
+     Now it follows the same shape as the other three: one thing, full width.
+     Same pattern as the Settings and Alarms rules directly above - the reuse rule. */
+  /* CORRECTED: `display:none` on #rightPane took the TOP BAR with it - Sync,
+     Export, Settings, Import, the dots and the build stamp all live inside that
+     pane (#calTopbar is its child). The 2026-09-12 batch suite caught it and
+     blocked the push: two phone checks failed. Measured: all six controls HIDDEN.
+     So the pane STAYS, and only the calendar inside it is hidden. The top bar
+     keeps its place and Plan still shows just the tree beneath it. */
+  body[data-bb="plan"] section#rightPane {
+    flex: 0 0 auto !important; width: 100% !important; max-height: none !important;
+  }
+  body[data-bb="plan"] section#rightPane > *:not(#calTopbar) { display: none !important; }
+  body[data-bb="plan"] aside#treePane {
+    display: flex; width: 100%; max-height: none; flex: 1 1 auto;
+  }
+  body[data-bb="plan"] #treeRoot { flex: 1 1 auto; overflow-y: auto; }
 
   /* Dialogs must clear the bottom bar - the Save and Delete buttons were
      underneath it and could not be reached at all. */
@@ -3941,6 +4016,7 @@ input:focus, textarea:focus, select:focus {
 }
 .drawer-btn:hover, button.btn-icon:hover { color: var(--t-1); }
 #bottomBar { background: var(--s-raised); border-top: 1px solid var(--line); }
+
 #bottomBar [data-tab] { color: var(--t-3); }
 #bottomBar [data-tab].on { color: var(--accent-q); }
 
@@ -5509,7 +5585,7 @@ body[data-newbranch="1"] #treeFilters{
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-09-19 21:50</span>
+    <span id="buildStamp">build 2026-09-20 01:10</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -6880,6 +6956,13 @@ document.addEventListener("DOMContentLoaded", function() {
     var searchQuery = (document.getElementById('treeSearch') || { value: '' }).value.trim();
     var searchMode = searchQuery.length > 0;
     var visibleIds = searchMode ? getMatchingNodesAndAncestors(searchQuery) : null;
+
+    /* 2026-09-20 - REVERTED. I filtered the PRIORITY TREE from a focus session's
+       branch box. That is FOCUS MODE's job (the blue button, window.__focusId),
+       not a focus session's. Operator: "you're showing focus mode, I am talking
+       about focus session, don't get confused." A focus session is a time band on
+       the CALENDAR; its branch box governs what shows during that band. Left here
+       as a marker so the same mistake is not made twice. */
 
     if (!tree || tree.length === 0) {
       var empty = document.createElement('div');
@@ -11364,6 +11447,30 @@ function surfaceArrivals() {
     var date = document.createElement('input');
     date.type = 'date'; date.className = 'ea-input'; date.value = node.date || '';
     if (window.__wireClearable) window.__wireClearable(date);
+    /* 2026-09-19, operator: "in the due date, you made the calendar thin. It needs to be
+       the width of the box that it's in... the box that it's in has to be inside the edit
+       thingy box."
+       ROOT CAUSE: this was a raw <input type="date">, so the calendar was CHROME'S OWN,
+       drawn outside the page - the app could neither size it nor keep it inside the dialog.
+       Measured: 288px wide against a 575px dialog, right edge 147px past the dialog's.
+       Every other date control in the app already goes through openDatePopover; this one
+       does now too, with two months side by side as the operator asked. One picker,
+       five places - the reuse rule. The native field stays as the fallback. */
+    if (typeof window.openDatePopover === 'function'
+        && typeof window.buildDateGrid === 'function') {
+      date.readOnly = true;
+      date.addEventListener('focus', function (e) { e.target.blur(); });
+      date.addEventListener('click', function (e) {
+        e.preventDefault();
+        window.openDatePopover(date, date.value || '', function (iso) {
+          date.value = iso || '';
+          try {
+            date.dispatchEvent(new Event('input',  { bubbles: true }));
+            date.dispatchEvent(new Event('change', { bubbles: true }));
+          } catch (err) { }
+        }, { wide: true, within: '#modalHost .modal' });
+      });
+    }
     /* 2026-09-10: the operator did not want a Clear button - "I just need to have the
        access to backspace, and it would delete the date". So the field is simply editable:
        empty it and the date is gone. Emptying applies straight away, because this dialog's
@@ -12050,6 +12157,43 @@ function surfaceArrivals() {
     setTimeout(function () { purgeOldTrash(); addEmptyTrashButton(); }, 900);
   }
 
+  /* Read-only view of a deleted task - operator 2026-09-19. Built with showModal and
+     the same shape as the other dialogs. Restore is on it, because that is the decision
+     you are making when you open it. */
+  window.showDeletedItem = function (entry) {
+    if (!entry || !entry.node) return;
+    var n = entry.node;
+    var body = document.createElement('div');
+    body.className = 'delview';
+
+    var meta = document.createElement('div');
+    meta.className = 'delview-meta';
+    var bits = [];
+    if (entry.deletedAt) bits.push('Deleted ' + entry.deletedAt);
+    if (n.date) bits.push('Due was ' + n.date + (n.time ? ' at ' + n.time : ''));
+    meta.textContent = bits.join('  \u00B7  ');
+    body.appendChild(meta);
+
+    var note = document.createElement('div');
+    note.className = 'delview-notes';
+    if (n.notesHtml) {
+      note.innerHTML = n.notesHtml;                 // already the app's own stored markup
+    } else if (n.notes && String(n.notes).replace(/^\s+|\s+$/g, '').length) {
+      note.textContent = String(n.notes);
+    } else {
+      note.className += ' delview-empty';
+      note.textContent = 'No notes in this task.';
+    }
+    body.appendChild(note);
+
+    window.showModal(n.title || 'Untitled', body, [
+      { label: 'Restore', kind: 'accent', onClick: function () {
+          window.restoreFromTrash(n.id);
+      } },
+      { label: 'Close' }
+    ]);
+  };
+
   window.emptyTrash = function () {
     window.Store.data.trash = [];
     window.Store.save();
@@ -12245,6 +12389,27 @@ function surfaceArrivals() {
       dt.className = 'trashitem-date';
       dt.textContent = e.deletedAt ? ' (' + e.deletedAt + ')' : '';
       item.appendChild(dt);
+      /* 2026-09-19, operator: "a little pen mark if there is any notes inside of it...
+         and for the delete option, I should have the feature of double clicking the task
+         so I could see what was inside of it as well."
+         The SAME pen the tree and the Completed list use - same glyph, same hasNotes
+         test, so the three can never disagree. */
+      if (window.hasNotes && window.hasNotes(e.node)) {
+        var tpen = document.createElement('span');
+        tpen.className = 'tree-notepen trashitem-pen';
+        tpen.title = 'This task has notes';
+        tpen.textContent = '\u270E';
+        item.appendChild(tpen);
+      }
+      /* Double click opens a READ-ONLY view (the operator chose read-only over the full
+         Edit window: it is in the trash, so it is for reading, not editing). */
+      (function (entry) {
+        item.addEventListener('dblclick', function (ev) {
+          ev.preventDefault();
+          ev.stopPropagation();
+          if (window.showDeletedItem) window.showDeletedItem(entry);
+        });
+      })(e);
       var rbtn = document.createElement('button');
       rbtn.className = 'trashitem-restore';
       rbtn.textContent = 'Restore';
@@ -16334,27 +16499,57 @@ function firstConnect(remote, rAt, lAt) {
     setTimeout(function () { document.addEventListener('mousedown', away, true); }, 0);
   };
 
-  window.openDatePopover = function (anchorEl, currentIso, onPick) {
+  window.openDatePopover = function (anchorEl, currentIso, onPick, opts) {
+    opts = opts || {};
     var old = document.querySelector('.al-pop');
     if (old && old.parentNode) old.parentNode.removeChild(old);
 
     var pop = document.createElement('div');
-    pop.className = 'al-pop';
-    var grid = window.buildDateGrid(currentIso, function (iso) {
+    pop.className = 'al-pop' + (opts.wide ? ' al-pop-wide' : '');
+    function pick(iso) {
       if (onPick) onPick(iso);
       if (pop.parentNode) pop.parentNode.removeChild(pop);
       document.removeEventListener('mousedown', away, true);
-    });
-    pop.appendChild(grid);
+    }
+    /* opts.wide: TWO months side by side - operator 2026-09-19, who chose side by side
+       over stacked. The second grid starts one month after the first. */
+    pop.appendChild(window.buildDateGrid(currentIso, pick));
+    if (opts.wide) {
+      var nx = window.parseISO(currentIso || window.todayISO()) || new Date();
+      nx = new Date(nx.getFullYear(), nx.getMonth() + 1, 1);
+      var iso2 = nx.getFullYear() + '-' +
+                 ('0' + (nx.getMonth() + 1)).slice(-2) + '-01';
+      var g2 = window.buildDateGrid(iso2, pick);
+      g2.className += ' datepop-second';
+      pop.appendChild(g2);
+    }
     document.body.appendChild(pop);
 
     var r = anchorEl.getBoundingClientRect();
     var top = r.bottom + 4;
     var left = r.left;
     var pw = pop.getBoundingClientRect().width || 240;
-    if (left + pw > window.innerWidth - 8) left = Math.max(8, window.innerWidth - pw - 8);
     var ph = pop.getBoundingClientRect().height || 260;
-    if (top + ph > window.innerHeight - 8) top = Math.max(8, r.top - ph - 4);
+
+    /* opts.within: keep the picker INSIDE that box, not merely inside the viewport.
+       The operator's complaint was that it hung outside the Edit window - a viewport
+       clamp alone never saw that, because the window is narrower than the viewport. */
+    var lo = 8, hi = window.innerWidth - 8, tlo = 8, thi = window.innerHeight - 8;
+    if (opts.within) {
+      var host = document.querySelector(opts.within);
+      if (host) {
+        var hr = host.getBoundingClientRect();
+        lo = hr.left + 6; hi = hr.right - 6;
+        tlo = hr.top + 6;  thi = hr.bottom - 6;
+        if (pw > hr.width - 12) pop.style.width = Math.round(hr.width - 12) + 'px';
+        pw = pop.getBoundingClientRect().width;
+        ph = pop.getBoundingClientRect().height;
+      }
+    }
+    if (left + pw > hi) left = hi - pw;
+    if (left < lo) left = lo;
+    if (top + ph > thi) top = Math.max(tlo, r.top - ph - 4);
+    if (top < tlo) top = tlo;
     pop.style.left = Math.round(left) + 'px';
     pop.style.top = Math.round(top) + 'px';
 
@@ -17246,6 +17441,24 @@ function firstConnect(remote, rAt, lAt) {
   }
 
   function show(id) {
+    /* 2026-09-20, operator: "whenever I clicked on the delete options I cannot come
+       back to the plan... no matter where I am. That has to be a feature as well."
+       An open dialog covers the whole screen, and the bar sits UNDERNEATH it - so a
+       tap never reaches the button and the planner feels stuck. Every popover does
+       the same. So switching tab closes whatever is open first, unconditionally.
+       (I could not reproduce the trap from the outside, but this is the state that
+       makes it possible, and closing first is right in every case.) */
+    try {
+      var host = document.getElementById('modalHost');
+      if (host) host.textContent = '';
+      var pops = document.querySelectorAll('.al-pop, .datepop, .fb-tree, .fb-pop, .actmenu');
+      var q;
+      for (q = 0; q < pops.length; q++) {
+        if (pops[q].parentNode) pops[q].parentNode.removeChild(pops[q]);
+      }
+      document.body.classList.remove('modal-open');
+    } catch (e) { }
+
     active = id;
     var tabs = document.querySelectorAll('#bottomBar .bb-tab'), i;
     for (i = 0; i < tabs.length; i++) {
@@ -29458,6 +29671,9 @@ body[data-fb="on"] .fb-band { display: block; }
   }
   window.__fbMembers = fbMembers;
 
+  /* __fbFocusFilter was here and has been removed - see the note in renderTree.
+     It made a focus SESSION behave like focus MODE, which is a different feature. */
+
   /* 2026-09-18, operator: "inside the focus session it just has one priority branch
      and then what's inside of it. Just remove the items under it and have the priority
      branch and have the search option. So this way I could type an item, comma, and
@@ -32214,6 +32430,33 @@ body[data-fb="on"] .fb-band { display: block; }
 #loginGate .lgretry{background:#20232a;border:1px solid #2e323a;color:#9aa1ab;border-radius:8px;
   padding:7px 12px;font-size:11.5px;cursor:pointer;font-family:inherit;margin-top:10px}
 body.gated > *:not(#loginGate){filter:blur(3px);pointer-events:none;user-select:none}
+
+/* ===== Plan / Alarms / Habits reachable from ANYWHERE - operator 2026-09-20 =====
+   "whenever I clicked on the delete options I cannot come back to the plan...
+    no matter where I am. That has to be a feature as well."
+
+   REPRODUCED at phone width with the Edit window open: a real click on the bar was
+   swallowed - elementFromPoint returned INPUT.ea-title, the dialog's own field.
+   3 of 3 buttons unreachable on the live build.
+
+   TWO failed attempts before this one, both worth recording:
+   1. z-index alone did nothing - the bar computed to `position: static`, and
+      z-index is INERT on a static element.
+   2. `position: fixed` on #bottomBar alone was beaten by
+      `:root[data-chrome="bottom"] #treePane > #bottomBar { position: static
+      !important }` further down the file - later AND more specific, so it won.
+
+   So this rule is last in the file and matches that selector's specificity. */
+:root[data-chrome="bottom"] #treePane > #bottomBar,
+:root[data-chrome="bottom"] #bottomBar,
+#bottomBar {
+  position: fixed !important;
+  left: 0 !important; right: 0 !important; bottom: 0 !important;
+  width: 100% !important;
+  z-index: 100000 !important;      /* #modalHost is 99999 */
+}
+/* a dialog must not run underneath the bar it now sits above */
+#modalHost .modal { max-height: calc(100vh - 150px) !important; margin-bottom: 66px; }
 </style>
 <script>
 (function () {
