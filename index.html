@@ -116,7 +116,7 @@ window.confirmRemoval = function (opt) {
 
   window.showModal('Delete', body, [
     { label: 'Cancel' },
-    { label: opt.confirm || 'Forever deleted', kind: 'danger', onClick: function () {
+    { label: opt.confirm || 'Delete', kind: 'danger', onClick: function () {
         if (typeof opt.onConfirm === 'function') opt.onConfirm();
       } }
   ]);
@@ -2436,7 +2436,12 @@ aside#treePane { overflow-y: auto; }
    in BOTH Week and Day, so reaching for the scrollbar hit the button. 14px leaves room
    for a scrollbar (Chrome draws ~11px on the desktop) plus a margin for the finger. */
 .actbtn {
-  position: absolute; top: 1px; right: 14px; width: 16px; height: 16px;
+  /* 2026-09-20, operator: "that should be all the way to the right... maybe have it
+     in a way that when it's overlaying the bar, I should be able to do it."
+     Back to the right edge. It sits ON the scrollbar and stays pressable, because
+     it is raised above it - which is what they asked for, rather than moved away. */
+  position: absolute; top: 1px; right: 1px; width: 16px; height: 16px;
+  z-index: 40;
   line-height: 14px; padding: 0; border: none; border-radius: 4px;
   background: var(--accent); color: #fff; font-size: 12px; cursor: pointer;
   opacity: 0; transition: opacity 120ms;
@@ -2581,6 +2586,19 @@ aside#treePane, aside#treePane * { min-width: 0 !important; }
   border: 1px solid var(--border); background: var(--surface); color: var(--text); cursor: pointer;
 }
 .trashitem-purge { color: var(--danger); border-color: var(--danger); }
+.del-emptyall {
+  display: block; width: calc(100% - 16px); margin: 14px 8px 8px;
+  padding: 9px 12px; border-radius: 7px; font-size: 12.5px; cursor: pointer;
+  background: var(--surface); color: var(--danger);
+  border: 1px solid var(--danger);
+}
+.del-emptyall:hover { background: #2b2f38; }
+.past-when { flex: 0 0 auto; margin-left: auto; font-size: 11px; color: #f0a04b; white-space: nowrap; }
+.pastitem { cursor: pointer; }
+.pastitem:hover { background: #2b2f38; }
+.undo-was { flex: 0 0 auto; font-size: 11px; color: var(--text-dim); margin-left: 8px; }
+.undo-when { flex: 0 0 auto; margin-left: auto; margin-right: 8px;
+             font-size: 11px; color: var(--text-dim); white-space: nowrap; }
 /* 2026-09-20, operator: "make the pen really more bright on the delete section only."
    DELETED ONLY - the tree's pen (.tree-notepen at 32% opacity) and the Completed
    list's (.doneitem-pen at 55%) are untouched. Here it is full-strength amber and a
@@ -3145,6 +3163,8 @@ button.al-add {
   max-width: 100%; box-sizing: border-box; overflow: hidden;
 }
 .al-pop-wide .datepop { width: auto; flex: 1 1 0; min-width: 0; }
+.al-pop-wide .datepop-grid { width: 100%; }
+.al-pop-wide .datepop-day, .al-pop-wide .datepop-grid > * { min-width: 0; }
 .al-pop-wide .datepop-grid { grid-template-columns: repeat(7, 1fr); }
 
 .al-pop {
@@ -4446,6 +4466,10 @@ input:focus, textarea:focus, select:focus {
 }
 .rep-sub { font-size: 12px; color: var(--t-2, #9aa0a8); margin: 10px 0 6px; }
 .rep-row { display: flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 12px; }
+.rep-start { flex: 1 1 auto; text-align: left; padding: 5px 9px; border-radius: 6px;
+  border: 1px solid var(--border); background: var(--surface); color: var(--text);
+  cursor: pointer; font-size: 12px; }
+.rep-start:hover { background: #2b2f38; }
 .rep-n { width: 58px; }
 .rep-freq, .rep-unit, .rep-n {
   background: var(--s-elevated, #2f343e); color: var(--t-1, #e8eaed);
@@ -5024,6 +5048,9 @@ padding:0 14px;font-family:ui-sans-serif,system-ui,sans-serif;line-height:34px}
 .lf-pick{flex:0 0 auto;background:none;border:1px solid var(--border,#333);color:inherit;
   border-radius:6px;font-size:11px;padding:3px 9px;cursor:pointer;opacity:.85}
 .lf-pick:hover{background:var(--accent,#2f6feb);border-color:var(--accent,#2f6feb);color:#fff;opacity:1}
+.lf-type{display:block;width:calc(100% - 16px);margin:6px 8px 4px;padding:7px 10px;border-radius:6px;
+  border:1px solid var(--border,#333);background:var(--surface,#1d2025);color:var(--text,#e6e8ec);
+  font-size:12.5px}
 /* asked for: no clear button, no tags row */
 .modal .ea .nb-tool [data-tool="clear"], .modal .ea button.nb-clear { display:none !important; }
 .modal .ea .ea-tags, .modal .ea .tags-row { display:none !important; }
@@ -5562,6 +5589,43 @@ body[data-newbranch="1"] #treeFilters{
 </style>
 </head>
 <body>
+<!-- ===== Internet Explorer notice - operator 2026-09-20 =====
+     "It is Internet Explorer. Not sure if that makes any difference."
+     It makes all the difference. The planner uses CSS variables in 1,074 places
+     and IE supports NONE of them, so every coloured background is dropped and the
+     page falls back to white. That is the white calendar exactly. It is not a
+     colour bug and no colour change can fix it.
+     This block is deliberately ES5 with no var() anywhere, so IE can run it. -->
+<div id="ieWarn" style="display:none;position:fixed;left:0;right:0;top:0;z-index:2147483647;
+     background:#b3261e;color:#fff;padding:14px 18px;font:700 14px/1.5 Segoe UI,Arial,sans-serif;
+     text-align:center">
+  <div style="max-width:760px;margin:0 auto">
+    This planner cannot run in Internet Explorer.
+    <div style="font-weight:400;margin-top:6px;font-size:13px">
+      Internet Explorer stopped being supported in 2022 and cannot read the colours
+      or the layout this app is built with &mdash; that is why the calendar shows
+      white. Please open this page in <b>Microsoft Edge</b> or <b>Chrome</b>.
+      Your data is safe and will be there when you do.
+    </div>
+  </div>
+</div>
+<script>
+/* ES5 only. No let/const, no arrow functions, no template strings. */
+(function () {
+  try {
+    var ua = window.navigator.userAgent || '';
+    var isIE = (ua.indexOf('MSIE ') > -1) || (ua.indexOf('Trident/') > -1);
+    /* a second, independent test: IE cannot do CSS variables at all */
+    var noVars = !(window.CSS && window.CSS.supports && window.CSS.supports('--a', '0'));
+    if (isIE || noVars) {
+      var w = document.getElementById('ieWarn');
+      if (w) { w.style.display = 'block'; }
+      if (document.body) { document.body.style.paddingTop = '96px'; }
+    }
+  } catch (e) { }
+})();
+</script>
+
 
 
 
@@ -5585,7 +5649,7 @@ body[data-newbranch="1"] #treeFilters{
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-09-20 01:10</span>
+    <span id="buildStamp">build 2026-09-20 22:16</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -8794,7 +8858,10 @@ window.renderHabits = function () {
     try {
       if (window.FB && typeof window.FB.user === 'function' && window.FB.user()) return;
       if (localStorage.getItem('planner.cloudBase.v1')) return;
-      if (localStorage.getItem('firebase:authUser:' + (window.__fbApiKey || '') + ':[DEFAULT]')) return;
+      /* 2026-09-20: window.__fbApiKey is NEVER ASSIGNED anywhere in this file, so the
+         line here looked up 'firebase:authUser::[DEFAULT]' and never once fired.
+         Replaced by a flag written the moment this browser signs in. */
+      if (localStorage.getItem('planner.everSignedIn')) return;
       var k, ls = window.localStorage;
       for (k in ls) { if (typeof k === 'string' && k.indexOf('firebase:authUser:') === 0) return; }
     } catch (e) {}
@@ -12208,9 +12275,14 @@ function surfaceArrivals() {
     if (old) old.remove();
     var bar = document.createElement('div');
     bar.id = 'treeViews';
+    /* 2026-09-20, operator: "add a missed tasks, called it past due, on the left
+       side of complete button. There it would show all the past due task that
+       weren't completed the any days prior." */
     var views = [
+      { key: 'pastdue', label: 'Past due' },
       { key: 'completed', label: 'Completed' },
-      { key: 'deleted', label: 'Deleted' }
+      { key: 'deleted', label: 'Deleted' },
+      { key: 'undo', label: 'Undo' }
     ];
     for (var i = 0; i < views.length; i++) {
       (function(v) {
@@ -12228,6 +12300,16 @@ function surfaceArrivals() {
           var s = document.createElement('span');
           s.className = 'view-count';
           s.textContent = ' (' + trash().length + ')';
+          btn.appendChild(s);
+        } else if (v.key === 'pastdue') {
+          var s = document.createElement('span');
+          s.className = 'view-count';
+          s.textContent = ' (' + (window.__pastDue ? window.__pastDue().length : 0) + ')';
+          btn.appendChild(s);
+        } else if (v.key === 'undo') {
+          var s = document.createElement('span');
+          s.className = 'view-count';
+          s.textContent = ' (' + (window.__undoList ? window.__undoList().length : 0) + ')';
           btn.appendChild(s);
         }
         btn.addEventListener('click', function() {
@@ -12368,6 +12450,97 @@ function surfaceArrivals() {
       root.appendChild(list);
       return;
     }
+    if (window.treeView === 'undo') {
+      root.classList.add('done-only');
+      var ul = window.__undoList();
+      var ulist = document.createElement('div');
+      ulist.className = 'donelist trashlist';
+      if (!ul.length) {
+        var ue = document.createElement('div');
+        ue.className = 'trash-empty';
+        ue.textContent = 'Nothing to undo yet.';
+        ulist.appendChild(ue);
+        root.appendChild(ulist);
+        return;
+      }
+      for (var z = 0; z < ul.length; z++) {
+        (function (rec) {
+          var it = document.createElement('div');
+          it.className = 'trashitem undoitem';
+          var t = document.createElement('span');
+          t.className = 't-title';
+          t.textContent = (rec.what || rec.kind || 'Changed') +
+                          (rec.title ? ' \u2014 ' + rec.title : '');
+          it.appendChild(t);
+          if (rec.was) {
+            var wasEl = document.createElement('span');
+            wasEl.className = 'undo-was';
+            wasEl.textContent = 'was: ' + String(rec.was).slice(0, 40);
+            it.appendChild(wasEl);
+          }
+          var w = document.createElement('span');
+          w.className = 'undo-when';
+          w.textContent = undoWhen(rec.at);
+          it.appendChild(w);
+          var ub = document.createElement('button');
+          ub.type = 'button';
+          ub.className = 'trashitem-restore';
+          ub.textContent = 'Undo';
+          ub.addEventListener('click', function (ev) {
+            ev.preventDefault();
+            ev.stopPropagation();
+            if (window.undoLastChange) window.undoLastChange();
+          });
+          it.appendChild(ub);
+          ulist.appendChild(it);
+        })(ul[z]);
+      }
+      root.appendChild(ulist);
+      return;
+    }
+    if (window.treeView === 'pastdue') {
+      root.classList.add('done-only');
+      var pd = window.__pastDue();
+      var plist = document.createElement('div');
+      plist.className = 'donelist trashlist';
+      if (!pd.length) {
+        var pe = document.createElement('div');
+        pe.className = 'trash-empty';
+        pe.textContent = 'Nothing past due. ';
+        plist.appendChild(pe);
+        root.appendChild(plist);
+        return;
+      }
+      for (var q = 0; q < pd.length; q++) {
+        (function (node) {
+          var it = document.createElement('div');
+          it.className = 'trashitem doneitem pastitem';
+          it.setAttribute('data-id', node.id);
+          it.addEventListener('click', function (ev) {
+            ev.stopPropagation();
+            if (typeof window.editActivity === 'function') window.editActivity(node.id);
+          });
+          var t = document.createElement('span');
+          t.className = 't-title';
+          t.textContent = node.title || 'Untitled';
+          it.appendChild(t);
+          if (window.hasNotes && window.hasNotes(node)) {
+            var pn = document.createElement('span');
+            pn.className = 'tree-notepen';
+            pn.title = 'This task has notes';
+            pn.textContent = '\u270E';
+            it.appendChild(pn);
+          }
+          var w = document.createElement('span');
+          w.className = 'past-when';
+          w.textContent = 'was due ' + node.date;
+          it.appendChild(w);
+          plist.appendChild(it);
+        })(pd[q]);
+      }
+      root.appendChild(plist);
+      return;
+    }
     // Same defect as Completed had: an inline display:none loses to
     // .tree-row.overdue's !important, so three overdue branches stayed on
     // screen above the deleted list. The class on the tree wins.
@@ -12417,13 +12590,71 @@ function surfaceArrivals() {
       item.appendChild(rbtn);
       var pbtn = document.createElement('button');
       pbtn.className = 'trashitem-purge';
-      pbtn.textContent = 'Delete forever';
+      pbtn.textContent = 'Delete';
       (function(id) { pbtn.addEventListener('click', function() { window.purgeFromTrash(id); }); })(e.node.id);
       item.appendChild(pbtn);
       list.appendChild(item);
     }
     root.appendChild(list);
+    /* 2026-09-20, operator: "The empty deleted button must be inside the deleted
+       section in the priority tree." It lived in the Settings drawer, away from the
+       list it empties. It sits at the foot of that list now, and reuses the existing
+       confirm dialog rather than growing a second one. */
+    if (t.length) {
+      var emptyBtn = document.createElement('button');
+      emptyBtn.type = 'button';
+      emptyBtn.className = 'del-emptyall';
+      emptyBtn.textContent = 'Empty deleted items (' + t.length + ')';
+      emptyBtn.addEventListener('click', function (ev) {
+        ev.preventDefault();
+        var b = document.getElementById('btnEmptyTrash');
+        if (b) { b.click(); return; }
+        if (window.emptyTrash) window.emptyTrash();
+      });
+      root.appendChild(emptyBtn);
+    }
   }
+  /* Past due: dated BEFORE today and never ticked off. Uses the app's own todayISO
+     so it can never disagree with the rest of the planner about what "today" is. */
+  window.__pastDue = function () {
+    var out = [], today = window.todayISO ? window.todayISO() : null;
+    if (!today || !window.walkTree) return out;
+    window.walkTree(function (n) {
+      if (!n || n.done || !n.date) return;
+      if (String(n.date) < today) out.push(n);
+    });
+    out.sort(function (a, b) { return String(a.date) < String(b.date) ? -1 : 1; });
+    return out;
+  };
+
+  /* 2026-09-20, operator: "the undo the last change, make a tab like the completed
+     and deleted... and inside show what's changed."
+     Reads the change records the planner ALREADY keeps in data.sync - one source,
+     so this list can never disagree with what undo would actually do. */
+  window.__undoList = function () {
+    var d = (window.Store && window.Store.data) ? window.Store.data : null;
+    var recs = (d && d.sync && d.sync.changes) ? d.sync.changes : [];
+    var out = [], i;
+    for (i = recs.length - 1; i >= 0 && out.length < 40; i--) {
+      var r = recs[i];
+      if (!r) continue;
+      out.push(r);
+    }
+    return out;
+  };
+
+  function undoWhen(at) {
+    if (!at) return '';
+    var ms = Date.now() - Number(at);
+    if (ms < 0) return 'just now';
+    var m = Math.round(ms / 60000);
+    if (m < 1) return 'just now';
+    if (m < 60) return m + ' min ago';
+    var h = Math.round(m / 60);
+    if (h < 24) return h + (h === 1 ? ' hour ago' : ' hours ago');
+    return Math.round(h / 24) + ' days ago';
+  }
+
   window.__applyTreeView = applyView;
 })();
 
@@ -12566,7 +12797,7 @@ function surfaceArrivals() {
 
     window.showModal('Delete', body, [
       { label: 'Cancel' },
-      { label: 'Forever deleted', kind: 'danger', onClick: function () { window.__doDelete(id); } }
+      { label: 'Delete', kind: 'danger', onClick: function () { window.__doDelete(id); } }
     ]);
     pinDialog();
   };
@@ -16541,7 +16772,15 @@ function firstConnect(remote, rAt, lAt) {
         var hr = host.getBoundingClientRect();
         lo = hr.left + 6; hi = hr.right - 6;
         tlo = hr.top + 6;  thi = hr.bottom - 6;
-        if (pw > hr.width - 12) pop.style.width = Math.round(hr.width - 12) + 'px';
+        /* 2026-09-20, operator: "the due date, it's been skinnier than what it
+           should be... it should fit in that area."
+           Measured before this change: 449px inside a 575px dialog - 78%, which
+           reads as a narrow box floating in a wide window. It now FILLS the width
+           available inside the dialog, so the two months share the whole area. */
+        var want = Math.round(hr.width - 12);
+        pop.style.width = want + 'px';
+        pop.style.maxWidth = want + 'px';
+        pop.style.boxSizing = 'border-box';
         pw = pop.getBoundingClientRect().width;
         ph = pop.getBoundingClientRect().height;
       }
@@ -20259,6 +20498,36 @@ if (r.freq === 'yearly') {
         body.appendChild(row);
       }
 
+      /* 2026-09-20, operator: "the starting date on the repeat options doesn't work,
+         it doesn't allow me to click it."
+         MEASURED: there was no start-date control at all - repeat.start was read in
+         code but never shown, so there was nothing to click. This adds the row, and
+         it opens the app's own picker like every other date control. */
+      (function () {
+        var srow = document.createElement('div');
+        srow.className = 'rep-row rep-startrow';
+        var slab = document.createElement('span');
+        slab.textContent = 'Starts';
+        var sbtn = document.createElement('button');
+        sbtn.type = 'button';
+        sbtn.className = 'rep-start';
+        sbtn.textContent = r.start || (window.todayISO ? window.todayISO() : 'pick a date');
+        sbtn.addEventListener('click', function (e) {
+          e.preventDefault();
+          if (!window.openDatePopover) return;
+          window.openDatePopover(sbtn, r.start || (window.todayISO ? window.todayISO() : ''),
+            function (iso) {
+              r.start = iso;
+              sbtn.textContent = iso;
+              if (window.Store) window.Store.save();
+              if (window.renderAll) window.renderAll();
+            });
+        });
+        srow.appendChild(slab);
+        srow.appendChild(sbtn);
+        body.appendChild(srow);
+      })();
+
       var dlab = document.createElement('div');
       dlab.className = 'rep-sub';
       dlab.textContent = 'On the following days:';
@@ -22220,6 +22489,7 @@ nesting to 20 levels, so the whole tree is serialised rather than stored as nest
 
     function docRef() {
       if (!auth || !auth.currentUser) return null;
+      try { localStorage.setItem('planner.everSignedIn', '1'); } catch (e) {}
       return db.collection('users').doc(auth.currentUser.uid);
     }
 
@@ -24225,6 +24495,12 @@ ancestor that can move.
     var field = document.createElement('button');
     field.type = 'button';
     field.className = 'lf-field';
+    /* 2026-09-20, operator: "has the location option allowed to type the beginning
+       of a branch and it would select it from the front."
+       A typing box above the list. Typing narrows it to branches starting with what
+       you typed (a match at the FRONT ranks first, which is what "from the front"
+       asks for); Enter picks the top one. */
+    field.setAttribute('data-typeahead', '1');
 
     var caret = document.createElement('span');
     caret.className = 'lf-caret';
@@ -24317,6 +24593,35 @@ ancestor that can move.
         };
         topRow.appendChild(topPick);
         list.appendChild(topRow);
+
+        /* type-to-select, operator 2026-09-20 */
+        var typeBox = document.createElement('input');
+        typeBox.type = 'text';
+        typeBox.className = 'lf-type';
+        typeBox.placeholder = 'Type the start of a branch\u2026';
+        typeBox.addEventListener('click', function (e) { safeStop(e); });
+        typeBox.addEventListener('input', function () {
+          var q = String(typeBox.value || '').toLowerCase();
+          var rows = list.querySelectorAll('.lf-row'), k;
+          for (k = 0; k < rows.length; k++) {
+            var nm = rows[k].querySelector('.lf-name');
+            var txt = nm ? String(nm.textContent || '').toLowerCase() : '';
+            var hit = !q || txt.replace(/^\s+/, '').indexOf(q) === 0 || txt.indexOf(q) !== -1;
+            rows[k].style.display = hit ? '' : 'none';
+          }
+        });
+        typeBox.addEventListener('keydown', function (e) {
+          if (e.key !== 'Enter') return;
+          e.preventDefault();
+          var rows = list.querySelectorAll('.lf-row'), k;
+          for (k = 0; k < rows.length; k++) {
+            if (rows[k].style.display === 'none') continue;
+            var nm = rows[k].querySelector('.lf-name');
+            if (nm) { nm.click(); return; }
+          }
+        });
+        list.appendChild(typeBox);
+        setTimeout(function () { try { typeBox.focus(); } catch (err) { } }, 30);
 
         function walk(nodes, depth) {
           for (var i = 0; i < nodes.length; i++) {
@@ -30602,6 +30907,50 @@ body[data-fb="on"] .fb-band { display: block; }
     timeRow('From', 'from');
     timeRow('To', 'to');
 
+    /* 2026-09-20, operator: "in the focus session, add a timer, that sets an alarm
+       after the time has passed. And don't stop sending a notification until it's
+       acknowledged." The row sits with the session's other settings, under the
+       times it belongs to. */
+    var rT = row('Timer');
+    var timerWrap = document.createElement('div');
+    timerWrap.className = 'fb-timer';
+    var tOn = document.createElement('button');
+    tOn.type = 'button';
+    tOn.className = 'fb-timerbtn' + (bl.timer ? ' on' : '');
+    tOn.textContent = bl.timer ? ('Alarm after ' + bl.timer + ' min') : 'Off';
+    var tMinus = document.createElement('button');
+    tMinus.type = 'button'; tMinus.className = 'fb-timerstep'; tMinus.textContent = '\u2212';
+    var tPlus = document.createElement('button');
+    tPlus.type = 'button'; tPlus.className = 'fb-timerstep'; tPlus.textContent = '+';
+    function paintTimer() {
+      tOn.textContent = bl.timer ? ('Alarm after ' + bl.timer + ' min') : 'Off';
+      tOn.className = 'fb-timerbtn' + (bl.timer ? ' on' : '');
+      tMinus.style.visibility = bl.timer ? 'visible' : 'hidden';
+      tPlus.style.visibility  = bl.timer ? 'visible' : 'hidden';
+    }
+    tOn.addEventListener('click', function (e) {
+      e.preventDefault();
+      bl.timer = bl.timer ? null : 25;     /* a sensible first value */
+      save(); paintTimer();
+    });
+    tMinus.addEventListener('click', function (e) {
+      e.preventDefault();
+      bl.timer = Math.max(5, (bl.timer || 25) - 5); save(); paintTimer();
+    });
+    tPlus.addEventListener('click', function (e) {
+      e.preventDefault();
+      bl.timer = Math.min(180, (bl.timer || 25) + 5); save(); paintTimer();
+    });
+    timerWrap.appendChild(tMinus);
+    timerWrap.appendChild(tOn);
+    timerWrap.appendChild(tPlus);
+    rT.appendChild(timerWrap);
+    var tNote = document.createElement('div');
+    tNote.className = 'fb-timernote';
+    tNote.textContent = 'Keeps reminding you until you press I am done.';
+    pop.appendChild(tNote);
+    paintTimer();
+
     var rD = row('Days');
     var days = document.createElement('div');
     days.className = 'fb-days';
@@ -32431,32 +32780,196 @@ body[data-fb="on"] .fb-band { display: block; }
   padding:7px 12px;font-size:11.5px;cursor:pointer;font-family:inherit;margin-top:10px}
 body.gated > *:not(#loginGate){filter:blur(3px);pointer-events:none;user-select:none}
 
-/* ===== Plan / Alarms / Habits reachable from ANYWHERE - operator 2026-09-20 =====
-   "whenever I clicked on the delete options I cannot come back to the plan...
-    no matter where I am. That has to be a feature as well."
-
-   REPRODUCED at phone width with the Edit window open: a real click on the bar was
-   swallowed - elementFromPoint returned INPUT.ea-title, the dialog's own field.
-   3 of 3 buttons unreachable on the live build.
-
-   TWO failed attempts before this one, both worth recording:
-   1. z-index alone did nothing - the bar computed to `position: static`, and
-      z-index is INERT on a static element.
-   2. `position: fixed` on #bottomBar alone was beaten by
-      `:root[data-chrome="bottom"] #treePane > #bottomBar { position: static
-      !important }` further down the file - later AND more specific, so it won.
-
-   So this rule is last in the file and matches that selector's specificity. */
+/* CARD 5 CORRECTED - operator 2026-09-20: "the alarms, habits and plan needs to be in
+   the bottom space WITHIN the priority tree, not horizontally throughout the whole
+   planner."
+   My previous attempt pinned it to the window, so it ran the full width. It is now
+   confined to the tree pane's own width: absolute inside #treePane, which is
+   position:relative, so left/right resolve to the PANE's edges, not the window's. */
 :root[data-chrome="bottom"] #treePane > #bottomBar,
 :root[data-chrome="bottom"] #bottomBar,
 #bottomBar {
-  position: fixed !important;
+  position: absolute !important;
+  left: 0 !important; right: 0 !important; bottom: 0 !important;
+  width: auto !important;          /* the PANE decides the width, not the window */
+  max-width: 100% !important;
+  z-index: 60 !important;          /* above the tree, below a dialog */
+}
+aside#treePane { position: relative !important; padding-bottom: 60px !important; }
+
+/* the focus-session timer row - operator 2026-09-20.
+   CORRECTED: my first version invented an amber/gold scheme that exists nowhere else
+   in the planner. Operator: "the colour screen for 14 is not what I used to have it.
+   Make it consistent to the colour schemes that I already have."
+   So every value here is COPIED from the controls already beside it:
+     - the off state    = .fb-days b        (#24272e on #2e323a, grey text)
+     - the on state     = .fb-days b.on     (rgba(77,139,255,...) blue, #cfe0ff text)
+     - the alarm box    = .modal            (var(--surface), var(--border), var(--shadow))
+     - its button       = .fb-foot button   (the session's own footer buttons)
+   Nothing new is introduced. */
+.fb-timer { display: inline-flex; align-items: center; gap: 6px; }
+.fb-timerbtn {
+  min-width: 128px; padding: 5px 10px; border-radius: 6px; font-size: 12px;
+  background: #24272e; border: 1px solid #2e323a; color: #6b7280; cursor: pointer;
+}
+.fb-timerbtn.on {
+  background: rgba(77,139,255,.22); border-color: rgba(77,139,255,.55);
+  color: #cfe0ff; font-weight: 600;
+}
+.fb-timerstep {
+  width: 24px; height: 24px; border-radius: 5px; font-size: 13px; line-height: 1;
+  background: #24272e; border: 1px solid #2e323a; color: #e6e8ec; cursor: pointer;
+}
+.fb-timernote { margin: 4px 0 0; font-size: 10.5px; color: #6b7280; }
+/* the alarm when the time is up - the app's own dialog shape */
+.fb-alarm {
+  position: fixed; left: 50%; top: 22%; transform: translateX(-50%);
+  z-index: 100002;
+  background: var(--surface, #18181b);
+  color: var(--text, #e6e8ec);
+  border: 1px solid var(--border, #2e323a);
+  border-radius: 10px; padding: 16px 20px;
+  box-shadow: 0 10px 34px rgba(0,0,0,.45); text-align: center; min-width: 260px;
+}
+.fb-alarm h5 { margin: 0 0 4px; font-size: 14px; color: var(--text, #e6e8ec); }
+.fb-alarm p  { margin: 0 0 12px; font-size: 12px; color: var(--text-dim, #9aa1ab); }
+.fb-alarm button {
+  padding: 8px 18px; border-radius: 6px; font-size: 12px; cursor: pointer;
+  background: rgba(77,139,255,.22); border: 1px solid rgba(77,139,255,.55);
+  color: #cfe0ff; font-weight: 600;
+}
+.fb-alarm button:hover { background: rgba(77,139,255,.34); }
+
+
+/* ===== THE BACKGROUND IS DARK, FULL STOP - operator 2026-09-20 =====
+   FOUND IT. Not a theory - measured. Exactly ONE element was painted light:
+   div.tgscroll, the day/week calendar canvas, at rgb(250,251,252) across 900px.
+   Its colour is var(--grid-canvas), and the :root DEFAULT for that token is
+   #fafbfc - LIGHT. Dark only arrives through `prefers-color-scheme: dark` or an
+   explicit data-theme. So on a computer set to LIGHT with no saved theme - a work
+   machine - the calendar renders white while everything else stays dark.
+   That is the "white background" exactly, and it is live in the planner today.
+
+   The grid tokens are pinned below with the rest.
+
+   "The normal black background is not showing on my work computer, it comes as
+    white background."
+
+   I could not reproduce it here: I forced prefers-color-scheme:light AND set
+   data-theme="light", and the planner stayed dark both times. So rather than guess
+   at a third theory, this makes the dark surfaces unconditional - they no longer
+   depend on the OS setting, on data-theme, or on any rule that might lose a
+   specificity fight. Whatever their work machine is carrying, it cannot win.
+
+   Last in the file on purpose: source order is the tie-breaker that beat two of my
+   earlier fixes in this same session. */
+:root, :root[data-theme], :root[data-theme="light"], :root[data-theme="dark"] {
+  color-scheme: dark !important;
+  --bg:          #16181c !important;
+  --surface:     #1d2025 !important;
+  --surface-2:   #24272e !important;
+  --border:      #2e323a !important;
+  --text:        #e6e8ec !important;
+  --text-dim:    #9aa1ab !important;
+  --s-raised:    #1c1f26 !important;
+  --line:        #2e323a !important;
+  /* the calendar canvas - the element that was actually rendering white */
+  --grid-canvas:    #1a1d22 !important;
+  --grid-line:      rgba(255,255,255,0.10) !important;
+  --grid-line-half: rgba(255,255,255,0.045) !important;
+}
+html, body { background: #16181c !important; color: #e6e8ec !important; }
+aside#treePane, section#rightPane, header#topbar, #calTopbar, #bottomBar, #treeDrawer {
+  background: #1c1f26 !important;
+}
+@media (prefers-color-scheme: light) {
+  :root {
+    --grid-canvas:    #1a1d22 !important;
+    --grid-line:      rgba(255,255,255,0.10) !important;
+    --grid-line-half: rgba(255,255,255,0.045) !important;
+  }
+  .tgscroll, .tgbody { background: #1a1d22 !important; }
+  html, body { background: #16181c !important; color: #e6e8ec !important; }
+  aside#treePane, section#rightPane, header#topbar, #calTopbar, #bottomBar, #treeDrawer {
+    background: #1c1f26 !important;
+  }
+}
+
+/* the stale-copy notice - operator 2026-09-20 */
+#staleBar {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 100001;
+  background: #b3801e; color: #16181c;
+  font: 600 13px/1.4 ui-sans-serif, -apple-system, "Segoe UI", Roboto, sans-serif;
+  padding: 11px 14px; display: flex; gap: 12px; align-items: center;
+  justify-content: center; flex-wrap: wrap;
+  box-shadow: 0 -4px 18px rgba(0,0,0,.4);
+}
+#staleBar button {
+  background: #16181c; color: #ffd98a; border: 1px solid #16181c;
+  border-radius: 6px; padding: 6px 12px; font-size: 12.5px; font-weight: 700;
+  cursor: pointer; white-space: nowrap;
+}
+#staleBar button:hover { background: #000; }
+
+/* ===== CARD 5: the bar sits under the priority tree - operator 2026-09-20 =====
+   "The spacing for plan, alarms, habits is out of place. It best be under the
+    priority tree section."
+   It was pinned to the bottom of the WINDOW (card 6 of the last batch raised it
+   above dialogs, which is still needed). Now it is pinned to the bottom of the
+   TREE PANE instead: same reach, but it reads as part of the tree rather than
+   floating over the page. The pane is position:relative already. */
+:root[data-chrome="bottom"] #treePane > #bottomBar,
+:root[data-chrome="bottom"] #bottomBar,
+#bottomBar {
+  position: absolute !important;
   left: 0 !important; right: 0 !important; bottom: 0 !important;
   width: 100% !important;
-  z-index: 100000 !important;      /* #modalHost is 99999 */
+  z-index: 100000 !important;
 }
-/* a dialog must not run underneath the bar it now sits above */
+aside#treePane { position: relative !important; padding-bottom: 60px !important; }
 #modalHost .modal { max-height: calc(100vh - 150px) !important; margin-bottom: 66px; }
+/* the focus-session timer row - operator 2026-09-20.
+   CORRECTED: my first version invented an amber/gold scheme that exists nowhere else
+   in the planner. Operator: "the colour screen for 14 is not what I used to have it.
+   Make it consistent to the colour schemes that I already have."
+   So every value here is COPIED from the controls already beside it:
+     - the off state    = .fb-days b        (#24272e on #2e323a, grey text)
+     - the on state     = .fb-days b.on     (rgba(77,139,255,...) blue, #cfe0ff text)
+     - the alarm box    = .modal            (var(--surface), var(--border), var(--shadow))
+     - its button       = .fb-foot button   (the session's own footer buttons)
+   Nothing new is introduced. */
+.fb-timer { display: inline-flex; align-items: center; gap: 6px; }
+.fb-timerbtn {
+  min-width: 128px; padding: 5px 10px; border-radius: 6px; font-size: 12px;
+  background: #24272e; border: 1px solid #2e323a; color: #6b7280; cursor: pointer;
+}
+.fb-timerbtn.on {
+  background: rgba(77,139,255,.22); border-color: rgba(77,139,255,.55);
+  color: #cfe0ff; font-weight: 600;
+}
+.fb-timerstep {
+  width: 24px; height: 24px; border-radius: 5px; font-size: 13px; line-height: 1;
+  background: #24272e; border: 1px solid #2e323a; color: #e6e8ec; cursor: pointer;
+}
+.fb-timernote { margin: 4px 0 0; font-size: 10.5px; color: #6b7280; }
+/* the alarm when the time is up - the app's own dialog shape */
+.fb-alarm {
+  position: fixed; left: 50%; top: 22%; transform: translateX(-50%);
+  z-index: 100002;
+  background: var(--surface, #18181b);
+  color: var(--text, #e6e8ec);
+  border: 1px solid var(--border, #2e323a);
+  border-radius: 10px; padding: 16px 20px;
+  box-shadow: 0 10px 34px rgba(0,0,0,.45); text-align: center; min-width: 260px;
+}
+.fb-alarm h5 { margin: 0 0 4px; font-size: 14px; color: var(--text, #e6e8ec); }
+.fb-alarm p  { margin: 0 0 12px; font-size: 12px; color: var(--text-dim, #9aa1ab); }
+.fb-alarm button {
+  padding: 8px 18px; border-radius: 6px; font-size: 12px; cursor: pointer;
+  background: rgba(77,139,255,.22); border: 1px solid rgba(77,139,255,.55);
+  color: #cfe0ff; font-weight: 600;
+}
+.fb-alarm button:hover { background: rgba(77,139,255,.34); }
 </style>
 <script>
 (function () {
@@ -33020,6 +33533,181 @@ body.gated > *:not(#loginGate){filter:blur(3px);pointer-events:none;user-select:
     window.addEventListener('beforeunload', function () { try { take('closing', true); } catch (e) {} });
   }
   start();
+})();
+
+/* ===== m200: A STALE COPY CANNOT HIDE - operator 2026-09-20 =====
+   "The normal black background is not showing on my work computer... it comes as
+    white background." and "alarms section button is not working... plan button is
+    not working."
+
+   ROOT CAUSE, measured not guessed. Both symptoms were one cause: their work
+   browser was serving an OLD BUILD. Confirmed by the operator reading the build
+   stamp top-right - it was older than the live one.
+
+   WHY the page could not prevent it: the page carries
+   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+   but GitHub Pages sends `cache-control: max-age=600` as a real HTTP HEADER, and a
+   HEADER ALWAYS BEATS A META TAG. So the meta tags have never done anything, and
+   the browser is entitled to serve a copy up to 10 minutes old - longer once it
+   has been sitting in a tab.
+
+   So the app now ASKS the server what the current build is, with a cache-busting
+   query the CDN cannot answer from cache, and says so plainly when it is behind.
+   It never reloads by itself: the operator asked about auto-refresh (item 16) and
+   that is their decision, not mine. This only tells them, and offers the button. */
+(function () {
+  var MINE = null;
+
+  function stampOf(text) {
+    var m = String(text).match(/build (\d{4}-\d{2}-\d{2} \d{2}:\d{2})/);
+    return m ? m[1] : null;
+  }
+
+  function myStamp() {
+    if (MINE) return MINE;
+    var el = document.getElementById('buildStamp');
+    MINE = el ? stampOf(el.textContent) : null;
+    return MINE;
+  }
+
+  function show(theirs) {
+    if (document.getElementById('staleBar')) return;
+    var bar = document.createElement('div');
+    bar.id = 'staleBar';
+    var msg = document.createElement('span');
+    msg.textContent = 'This page is an old copy (' + (myStamp() || 'unknown') +
+                      '). The current build is ' + theirs + '.';
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = 'Load the new version';
+    btn.addEventListener('click', function () {
+      /* a plain reload can be answered from cache; a fresh query cannot */
+      var u = location.href.split('#')[0].split('?')[0];
+      location.replace(u + '?v=' + Date.now());
+    });
+    bar.appendChild(msg);
+    bar.appendChild(btn);
+    document.body.appendChild(bar);
+  }
+
+  function check() {
+    var mine = myStamp();
+    if (!mine) return;                       /* nothing to compare against */
+    var url = location.href.split('#')[0].split('?')[0] + '?v=' + Date.now();
+    fetch(url, { cache: 'no-store' })
+      .then(function (r) { return r.ok ? r.text() : null; })
+      .then(function (text) {
+        if (!text) return;
+        var theirs = stampOf(text);
+        if (theirs && theirs !== mine) show(theirs);
+      })
+      .catch(function () { /* offline is not an error worth shouting about */ });
+  }
+
+  function start() {
+    setTimeout(check, 4000);                 /* let the app settle first */
+    setInterval(check, 15 * 60 * 1000);      /* and every 15 minutes after */
+    window.addEventListener('focus', function () {
+      if (!document.getElementById('staleBar')) check();
+    });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', start);
+  } else { start(); }
+
+  window.__checkForNewBuild = check;         /* so a check can drive it */
+})();
+/* ===== m201: the focus-session timer's alarm - operator 2026-09-20 =====
+   "add a timer, that sets an alarm after the time has passed. And don't stop sending
+    a notification until it's acknowledged."
+   So it repeats until pressed, rather than firing once and vanishing. */
+(function () {
+  var firing = null;          /* the session currently alarming */
+  var nagTimer = null;
+
+  function sessions() {
+    var d = (window.Store && window.Store.data) ? window.Store.data : null;
+    return (d && d.focusBlocks) ? d.focusBlocks : [];
+  }
+
+  function minutesNow() {
+    var n = new Date();
+    return n.getHours() * 60 + n.getMinutes();
+  }
+
+  function toMinutes(hhmm) {
+    var p = String(hhmm || '').split(':');
+    if (p.length !== 2) return null;
+    return (parseInt(p[0], 10) || 0) * 60 + (parseInt(p[1], 10) || 0);
+  }
+
+  function show(bl) {
+    if (document.querySelector('.fb-alarm')) return;
+    var box = document.createElement('div');
+    box.className = 'fb-alarm';
+    var h = document.createElement('h5');
+    h.textContent = 'Focus session finished';
+    var p = document.createElement('p');
+    p.textContent = (bl.name || 'Focus') + ' \u2014 ' + bl.timer + ' minutes are up.';
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = 'I am done';
+    b.addEventListener('click', function () {
+      acknowledge(bl);
+      if (box.parentNode) box.parentNode.removeChild(box);
+    });
+    box.appendChild(h); box.appendChild(p); box.appendChild(b);
+    document.body.appendChild(box);
+    try {
+      if (window.Notification && Notification.permission === 'granted') {
+        new Notification('Focus session finished',
+                         { body: (bl.name || 'Focus') + ' - ' + bl.timer + ' minutes are up.' });
+      }
+    } catch (e) { }
+    if (window.playAlarmSound) { try { window.playAlarmSound(); } catch (e) { } }
+  }
+
+  function acknowledge(bl) {
+    firing = null;
+    if (nagTimer) { clearInterval(nagTimer); nagTimer = null; }
+    bl.timerDoneAt = Date.now();
+    if (window.Store) window.Store.save();
+  }
+
+  /* fires once, then KEEPS reminding every 60s until acknowledged */
+  function start(bl) {
+    if (firing) return;
+    firing = bl;
+    show(bl);
+    nagTimer = setInterval(function () {
+      if (!firing) { clearInterval(nagTimer); nagTimer = null; return; }
+      show(firing);
+    }, 60000);
+  }
+
+  function tick() {
+    var list = sessions(), i, now = minutesNow();
+    for (i = 0; i < list.length; i++) {
+      var bl = list[i];
+      if (!bl || !bl.timer) continue;
+      var from = toMinutes(bl.from);
+      if (from === null) continue;
+      var due = from + Number(bl.timer);
+      if (now >= due && now < due + 3) {
+        var today = window.todayISO ? window.todayISO() : '';
+        if (bl.timerFiredOn === today) continue;
+        bl.timerFiredOn = today;
+        if (window.Store) window.Store.save();
+        start(bl);
+        return;
+      }
+    }
+  }
+
+  window.__fbTimerTick = tick;                 /* so a check can drive it */
+  window.__fbTimerShow = show;                 /* and photograph the alarm */
+  setInterval(tick, 30000);
 })();
 </script>
 
