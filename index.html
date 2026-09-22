@@ -2731,6 +2731,24 @@ aside#treePane, aside#treePane * { min-width: 0 !important; }
 #treeDrawer #treeViews,
 #treeDrawer #treeFilters { border-bottom: none; }
 
+/* CARD 6, 2026-09-21 - the four tabs must stay on ONE line each.
+   Removing the two duplicated buttons above them (Undo / No deleted items) let this
+   row shrink to the drawer's own width: measured, each tab went 90px -> 53px and
+   "Past due (0)" wrapped onto two lines. `flex:1` divides whatever is there, so the
+   labels were never what set the width - the buttons above were.
+   The row now wraps to a second LINE rather than breaking a label in half, and each
+   tab is at least wide enough for its longest word. Measured at 360/375/390/430/700
+   and desktop. */
+#treeDrawer #treeViews { flex-wrap: wrap; row-gap: 4px; }
+#treeDrawer .treeview-btn {
+  /* `flex: 1 0 auto` was my first try and it was wrong: with 0 shrink each tab
+     claimed its full content width, so at 360-700px every tab took a line of its
+     own (measured w=324 at 360px). `flex-basis: calc(50% - 2px)` with shrink
+     allowed gives a 2x2 grid when the drawer is narrow and a single row when it is
+     wide, and nothing is ever cut off. */
+  flex: 1 1 calc(50% - 2px); min-width: 0; padding: 0 6px; white-space: nowrap;
+}
+
 /* ============================================================
    Right-align the date properly.
    `margin-left:auto` on the chip was inert because .tree-title was
@@ -5086,6 +5104,20 @@ padding:0 14px;font-family:ui-sans-serif,system-ui,sans-serif;line-height:34px}
 .dp2-head{display:none}
 .dp2-months{display:flex;gap:34px}
 .dp2-m{min-width:236px}
+
+/* CARD 1, 2026-09-22 - operator: "why can't you just fit to screen."
+   clamp() (further down) caps the picker's width to the dialog and then places it.
+   The cap could not take effect because two months insist on 236px each plus a 34px
+   gap = 566px against a 541px dialog. With max-width set, the months now WRAP into
+   whatever the dialog allows - one month per line on a narrow dialog - so the
+   picker genuinely fits instead of overhanging. */
+.dp2[data-capped] .dp2-months { flex-wrap: wrap !important; gap: 16px !important; }
+.dp2[data-capped] .dp2-m { min-width: 0 !important; flex: 1 1 210px !important;
+  max-width: 100% !important; }
+.dp2[data-capped] { box-sizing: border-box !important; padding: 14px 16px !important; }
+.dp2[data-capped] .dp2-grid { gap: 4px !important; }
+.dp2[data-capped] .dp2-day { height: 30px !important; }
+
 .dp2-title{display:flex;align-items:center;justify-content:space-between;
   font-size:15px;font-weight:600;margin-bottom:14px;color:#e9ecf1}
 .dp2-title button{background:none;border:none;color:#aeb6c2;font-size:17px;
@@ -5649,7 +5681,7 @@ body[data-newbranch="1"] #treeFilters{
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-09-20 22:16</span>
+    <span id="buildStamp">build 2026-09-22 11:34</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -6941,6 +6973,23 @@ document.addEventListener("DOMContentLoaded", function() {
       e.stopPropagation();
     });
     titleSpan.addEventListener('blur', function() {
+      /* CARD 15, 2026-09-21 - operator: "when I press space and it deltes the space
+         i put in".
+
+         FOUND BY INSTRUMENTING THE NODE, after a wrong guess. A setter on
+         node.title named the two writers:
+             1. document listener 19269  "Willingboro" -> "Willingboro "   (the space)
+             2. THIS HANDLER, line 6975  "Willingboro " -> "Willingboro"   (it dies)
+                called from renderTree -> renderTree -> renderTree
+
+         So the person never left the field. A re-render, kicked off by the save that
+         typing itself scheduled, tore the row down - and tearing down a focused
+         element fires blur, which trimmed the text they were still typing.
+
+         A blur caused by a RE-RENDER is not the person finishing. Only trim when
+         focus genuinely left the title: if the element is no longer in the document,
+         this is a teardown and the text must be left exactly as typed. */
+      if (window.__treeTearingDown) return;
       var trimmed = titleSpan.textContent.trim();
       if (trimmed === '') {
         if (node.title === '' && !node.notes && !node.date) {
@@ -7014,7 +7063,13 @@ document.addEventListener("DOMContentLoaded", function() {
   function renderTree() {
     var root = document.getElementById('treeRoot');
     if (!root) return;
+    /* CARD 15 - wiping the rows BLURS whatever is focused, and a blur caused by a
+       teardown is not the person leaving the field. The title's blur handler reads
+       this flag and leaves the text alone. isConnected does not work here: at the
+       moment blur fires the span is still in the document. */
+    window.__treeTearingDown = true;
     root.innerHTML = '';
+    window.__treeTearingDown = false;
 
     var tree = Store.data.tree;
     var searchQuery = (document.getElementById('treeSearch') || { value: '' }).value.trim();
@@ -7304,8 +7359,27 @@ document.addEventListener("DOMContentLoaded", function() {
        whatever fires next wrote that emptiness straight over a real title. Never blank a title that
        has content - if the user really wants it gone they can clear it and it stays cleared only
        when they typed the emptiness themselves, which the blur handler above already covers. */
-    var __t = titleEl.textContent.trim();
-    if (!__t && found.node.title) return;
+    /* CARD 15, 2026-09-21 - operator: "in willingboro a branch, it has a glitch
+       that when I press space and it deltes the space i put in".
+
+       REPRODUCED WITH REAL KEYSTROKES on the live build, and the numbers are:
+           space typed        dom "Willingboro "   caret 12
+           1.2s later         dom "Willingboro"    caret 1     <-- gone
+           then typed "NJ"    dom "WillingboroNJ"
+
+       No key handler eats the space. What happens is this: typing schedules a save
+       600ms later, the save triggers a sync, the sync re-renders the row, and THIS
+       LINE trims the title while the caret is still sitting in it. The caret is then
+       restored by character offset onto a string that just got shorter, which is why
+       it also jumps to the start.
+
+       Trimming is right when the person has FINISHED (the blur handler still does
+       it). It is wrong in the middle of typing. So while this title has focus, the
+       text is stored exactly as typed. */
+    var __raw = titleEl.textContent;
+    var __editing = (document.activeElement === titleEl);
+    var __t = __editing ? __raw : __raw.trim();
+    if (!__t.trim() && found.node.title) return;
     found.node.title = __t;
     Store.save();
   }
@@ -8439,13 +8513,30 @@ window.renderTracker = function (kind) {
   addBtn.className = 'btn-add-habit';
   addBtn.textContent = 'Add';
   addBtn.addEventListener('click', function () {
+    /* CARD 7, 2026-09-21 - operator: "inside the habit and routine tab, the add
+       button there needs to work".
+
+       MEASURED on the live build: the record WAS saved (habits 1 -> 2) - but this
+       handler called renderTracker() directly, which does container.innerHTML = ''
+       and so DESTROYED the Habits/Routines tab strip that the routines module adds
+       in decorate(). The pane visibly fell apart, which reads as "Add did nothing".
+       Going through renderHabits() runs decorate() again and the strip survives.
+
+       The empty-name case also returned in silence, with no hint why. */
     var name = input.value.trim();
-    if (!name) return;
+    if (!name) {
+      if (window.toast) window.toast('Type a name first.', 'err');
+      input.focus();
+      return;
+    }
     var rec = { id: uid(), name: name, color: selectedColor, freq: 'daily', targetPerWeek: 7 };
     if (!Store.data[T.store]) Store.data[T.store] = [];
     Store.data[T.store].push(rec);
     Store.save();
-    window.renderTracker(kind);
+    input.value = '';
+    if (typeof window.renderHabits === 'function') window.renderHabits();
+    else window.renderTracker(kind);
+    if (window.toast) window.toast('Added to ' + (kind === 'routines' ? 'Routines' : 'Habits') + '.', 'ok');
   });
   input.addEventListener('keydown', function (e) {
     if (e.key === 'Enter') addBtn.click();
@@ -8850,6 +8941,39 @@ window.renderHabits = function () {
   function seedFirstRun() {
     if (Store.data.tree.length > 0) return;
     if (localStorage.getItem('planner.seeded')) return;
+    /* 2026-09-21 - THE DECISIVE GUARD, after three failed attempts.
+       Every previous guard asked "is anyone signed in?" at a moment when Firebase
+       had not answered yet, so the honest answer was "no" and the demo seeded into
+       an established account. Reported three times.
+
+       This one does not ask about sign-in at all. It asks: HAS THE APP EVER HELD
+       ANY DATA IN THIS BROWSER? A planner that has synced, saved, or been touched
+       leaves traces - a saved document, a device id, a sync record, a theme choice.
+       A genuinely new browser has none of them. That question has a correct answer
+       IMMEDIATELY, with no network and no waiting, which is exactly what the other
+       guards lacked. */
+    try {
+      /* ONLY traces that mean "this browser has had a planner", never ones the app
+         writes on every boot. planner.deviceId, planner.chrome, planner.lastBuild and
+         planner.repo.sha are written during startup itself - including this one - so
+         treating them as evidence made the seed impossible for anyone, which is the
+         opposite failure. Measured: a brand-new browser got no demo at all. */
+      /* MEASURED which keys exist when, rather than assuming. Within 0.6s of a cold
+         boot the app itself writes planner.data.v1, planner.snaps.v1,
+         planner.deviceId and planner.timemigrated - so those are STARTUP NOISE and
+         prove nothing. The only keys that mean "this browser belongs to an account"
+         are the two written when the cloud is actually involved. */
+      var traces = ['planner.cloudBase.v1', 'planner.everSignedIn'];
+      var t;
+      for (t = 0; t < traces.length; t++) {
+        if (localStorage.getItem(traces[t]) != null) return;   /* used before - never seed */
+      }
+      var k2, ls2 = window.localStorage;
+      for (k2 in ls2) {
+        if (typeof k2 !== 'string') continue;
+        if (k2.indexOf('firebase:authUser:') === 0) return;
+      }
+    } catch (e) { }
     /* 2026-09-17, operator: "everytime I log in the planner it makes a set up my planner with the subtask
        with it ... thats only for new account and mine is established account". A signed-in browser is empty
        for a moment before the cloud copy arrives, and that moment was enough to seed the demo. So: never
@@ -8870,6 +8994,9 @@ window.renderHabits = function () {
     var taskIds = [uid(), uid(), uid()];
     var goal = {
       id: goalId,
+      /* marked so it can be recognised and removed the moment a real planner
+         arrives from the cloud - see __dropDemoIfReal. 2026-09-21. */
+      __demo: true,
       title: 'Set up my planner',
       notes: '',
       kind: 'goal',
@@ -8897,7 +9024,24 @@ window.renderHabits = function () {
     try {
       Store.load();
       applyTheme();
-      seedFirstRun();
+      /* 2026-09-21, operator: "on my work email, it still makes a branch set up my
+         planner... this needs to stop happening." - reported THREE times now.
+
+         WHY EVERY GUARD FAILED. seedFirstRun() ran RIGHT HERE, synchronously inside
+         init(). Firebase restores a signed-in session ASYNCHRONOUSLY, so at this
+         instant there is no auth object, no authUser key in storage, and the
+         everSignedIn flag (written by docRef) has not been written either. Every one
+         of the five guards asks "is anyone signed in?" and at this moment the honest
+         answer is "not yet" - so the demo seeds into an established account.
+
+         Fixing the guards could never work: the problem is WHEN the question is asked.
+         So the seed now WAITS. It gets one chance, 2.5s after boot, by which time
+         Firebase has either restored the session (and the guards see it) or there
+         genuinely is no account. A brand-new browser still gets its demo, just a
+         moment later; an established account never does. */
+      setTimeout(function () {
+        try { seedFirstRun(); } catch (e) { }
+      }, 2500);
 
       // Render FIRST, synchronously. The cloud must never be able to keep the
       // page blank, and it must never reset the view after the user has begun
@@ -8937,7 +9081,7 @@ window.renderHabits = function () {
 })();
 
 /* ===== f12a1 ===== */
-(function(){var baseRenderTree=window.renderTree;window.renderTree=function(){baseRenderTree();window.__applyTimeFilter();};if(window.__revealAhead===undefined)window.__revealAhead=false;if(window.__draggingNodeId===undefined)window.__draggingNodeId=null;window.__applyTimeFilter=function(){var today=(window.selectedDate||todayISO());var realToday=todayISO();var selfFuture={},visible={},overdue={};var walk=function(node){var childVisible=false;if(node.children){node.children.forEach(function(child){walk(child);if(visible[child.id])childVisible=true;});}var date=node.date;var isFuture=!!(date&&date>today);var isOverdue=!!(date&&date<realToday&&!node.done);selfFuture[node.id]=isFuture;overdue[node.id]=isOverdue;visible[node.id]=!isFuture||childVisible;};Store.data.tree.forEach(function(root){walk(root);});var bypass=(document.getElementById('treeSearch').value.trim()!=='')||window.__revealAhead;var rows=document.querySelectorAll('#treeRoot .tree-row');rows.forEach(function(row){var id=row.dataset.id;row.classList.remove('ancestor-muted','overdue');var controls=row.querySelectorAll('input,button');controls.forEach(function(el){el.disabled=false;});if(bypass||id===window.__draggingNodeId){row.style.display='';}else if(!visible[id]){row.style.display='none';}else{row.style.display='';if(selfFuture[id]){row.classList.add('ancestor-muted');controls.forEach(function(el){el.disabled=true;});}}if(overdue[id])row.classList.add('overdue');});var aheadCount=0,overdueCount=0,k;for(k in selfFuture){if(selfFuture[k])aheadCount++;}for(k in overdue){if(overdue[k])overdueCount++;}window.__aheadCount=aheadCount;window.__overdueCount=overdueCount;if(typeof window.__renderTreeFooter==='function')window.__renderTreeFooter();};})();
+(function(){var baseRenderTree=window.renderTree;window.renderTree=function(){baseRenderTree();window.__applyTimeFilter();};if(window.__revealAhead===undefined)window.__revealAhead=false;if(window.__draggingNodeId===undefined)window.__draggingNodeId=null;window.__applyTimeFilter=function(){var today=(window.selectedDate||todayISO());var realToday=todayISO();var selfFuture={},visible={},overdue={};var walk=function(node){var childVisible=false;if(node.children){node.children.forEach(function(child){walk(child);if(visible[child.id])childVisible=true;});}var date=node.date;var isFuture=!!(date&&date>today);var isOverdue=!!(date&&date<realToday&&!node.done);selfFuture[node.id]=isFuture;overdue[node.id]=isOverdue;visible[node.id]=!isFuture||childVisible;};Store.data.tree.forEach(function(root){walk(root);});var bypass=(document.getElementById('treeSearch').value.trim()!=='')||window.__revealAhead;var rows=document.querySelectorAll('#treeRoot .tree-row');rows.forEach(function(row){var id=row.dataset.id;row.classList.remove('ancestor-muted','overdue');var controls=row.querySelectorAll('input,button');controls.forEach(function(el){el.disabled=false;});if(bypass||id===window.__draggingNodeId){row.style.display='';}else if(!visible[id]){row.style.display='none';}else{row.style.display='';if(selfFuture[id]){row.classList.add('ancestor-muted');controls.forEach(function(el){/* CARD 14, 2026-09-21 - operator: "A branch task, i future dated it. but when I click show future branches and click on the clock button its doesn't work". MEASURED: the clock IS the date chip, it is a <button>, and this blanket sweep over 'input,button' set disabled=true on it - so it collapsed to 0x0 and the click landed on the toolbar behind. Rescheduling is the ONE thing you need on a future-dated branch, so the date chip stays live. */if(el.classList&&el.classList.contains('tree-datechip'))return;el.disabled=true;});}}if(overdue[id])row.classList.add('overdue');});var aheadCount=0,overdueCount=0,k;for(k in selfFuture){if(selfFuture[k])aheadCount++;}for(k in overdue){if(overdue[k])overdueCount++;}window.__aheadCount=aheadCount;window.__overdueCount=overdueCount;if(typeof window.__renderTreeFooter==='function')window.__renderTreeFooter();};})();
 
 /* ===== f12a2 ===== */
 (function(){window.__renderTreeFooter=function(){var root=document.getElementById('treeRoot');if(!root)return;root.querySelectorAll('#treeFooter').forEach(function(el){el.remove();});root.querySelectorAll('.tree-empty').forEach(function(el){el.remove();});var ahead=window.__aheadCount||0,over=window.__overdueCount||0,visibleRows=0;root.querySelectorAll('.tree-row').forEach(function(el){if(el.style.display!=='none')visibleRows++;});if(visibleRows===0){var empty=document.createElement('div');empty.className='tree-empty';var nothing=document.createElement('div');nothing.textContent='Nothing for today.';empty.appendChild(nothing);if(ahead>0){var action=document.createElement('div');action.className='tree-empty-action';action.textContent=ahead+(ahead===1?' item scheduled ahead':' items scheduled ahead');action.style.cursor='pointer';action.addEventListener('click',function(){window.__revealAhead=true;window.renderTree();});empty.appendChild(action);}root.appendChild(empty);}if(ahead>0||over>0){var footer=document.createElement('div');footer.id='treeFooter';if(ahead>0){var btn=document.createElement('button');btn.id='btnRevealAhead';btn.textContent=(window.__revealAhead?'Hide ':'')+ahead+(ahead===1?' scheduled ahead':' scheduled ahead');btn.addEventListener('click',function(){window.__revealAhead=!window.__revealAhead;window.renderTree();});footer.appendChild(btn);}if(over>0){var span=document.createElement('span');span.className='overdue-count';span.textContent=over+' overdue';footer.appendChild(span);}root.appendChild(footer);}};})();
@@ -12067,6 +12211,22 @@ function surfaceArrivals() {
   }
   window.__trash = trash;
 
+  /* CARD 3, 2026-09-21 - the ONE definition of "this task lives in Habits or
+     Routines". A task records nothing about its section; the habit/routine record
+     records the task (fromTask). Both the Completed list and the Completed count
+     read this, so they cannot disagree. */
+  window.__habitRoutineTaskIds = function () {
+    var out = {}, d = (window.Store && window.Store.data) || {};
+    var sets = [d.habits || [], d.routines || []], si, i, r;
+    for (si = 0; si < sets.length; si++) {
+      for (i = 0; i < sets[si].length; i++) {
+        r = sets[si][i];
+        if (r && r.fromTask) out[r.fromTask] = true;
+      }
+    }
+    return out;
+  };
+
   window.treeView = 'active';   // 'active' | 'completed' | 'deleted'
 
   // Move a task (and its subtree) to the trash, remembering where it came from.
@@ -12171,6 +12331,15 @@ function surfaceArrivals() {
   window.__purgeOldTrash = purgeOldTrash;
 
   function addEmptyTrashButton() {
+    /* CARD 6, 2026-09-21 - operator: "remove the no deleted items".
+       The "Deleted (N)" tab lower down the drawer already opens the same list, and
+       emptyTrash() is still reachable from there. Only the duplicate button at the
+       top of Settings is gone. refreshEmptyTrashButton() below returns harmlessly
+       when the element is absent. */
+    return;
+  }
+
+  function addEmptyTrashButton__removed_card6() {
     var drawer = document.getElementById('treeDrawer');
     if (!drawer) return;
     var b = document.getElementById('btnEmptyTrash');
@@ -12290,8 +12459,12 @@ function surfaceArrivals() {
         btn.className = 'treeview-btn' + (v.key === window.treeView ? ' on' : '');
         btn.textContent = v.label;
         if (v.key === 'completed') {
+          /* CARD 3, 2026-09-21 - the COUNT must exclude the same tasks the LIST
+             excludes. Counting separately is how a tab comes to read "(1)" over an
+             empty list; the exclusion lives in one helper so the two cannot drift. */
           var cnt = 0;
-          window.walkTree(function(n) { if (n.done) cnt++; });
+          var skipHR = window.__habitRoutineTaskIds ? window.__habitRoutineTaskIds() : {};
+          window.walkTree(function(n) { if (n.done && !skipHR[n.id]) cnt++; });
           var s = document.createElement('span');
           s.className = 'view-count';
           s.textContent = ' (' + cnt + ')';
@@ -12370,12 +12543,20 @@ function surfaceArrivals() {
       root.classList.add('done-only');
       var collected = [];
       var skipped = {};
+      /* CARD 3, 2026-09-21 - operator: "when a task is in habits or routine, and it
+         is marked complete do not put it in complete section in setting".
+
+         A task carries NOTHING saying which section it lives in - measured. The only
+         link is the reverse one: converting a task writes a habit/routine record
+         carrying fromTask = <the task's id>. So that is what we look up. */
+      var fromTask = window.__habitRoutineTaskIds();
       window.walkTree(function (node, depth, parent) {
         if (parent && skipped[parent.id]) {
           skipped[node.id] = true;
           return;
         }
         if (node.done) {
+          if (fromTask[node.id]) { skipped[node.id] = true; return; }
           collected.push({ node: node, parent: parent });
           skipped[node.id] = true;
         }
@@ -21860,6 +22041,17 @@ if (r.freq === 'yearly') {
   }
 
   function addButton() {
+    /* CARD 6, 2026-09-21 - operator: "undo last changes on the top of setting must
+       be removed" and "remove the no deleted items".
+
+       The button is NOT built any more. Undo itself is untouched: window.plannerUndo
+       still exists and the "Undo (N)" tab lower down the drawer calls it, so the
+       feature is still reachable - only the DUPLICATE at the top is gone. label()
+       returns harmlessly when btn is null. */
+    return;
+  }
+
+  function addButton__removed_card6() {
     var d = document.getElementById('treeDrawer');
     if (!d) return;
     if (document.getElementById('btnUndo')) return;
@@ -22487,6 +22679,49 @@ nesting to 20 levels, so the whole tree is serialised rather than stored as nest
       return msg;
     }
 
+    /* the flag is also set the moment auth reports a user, not only when something
+       is written to the cloud - a browser can be signed in for a long time before it
+       ever writes. 2026-09-21. */
+    try {
+      if (auth && auth.onAuthStateChanged) {
+        auth.onAuthStateChanged(function (u) {
+          if (u) { try { localStorage.setItem('planner.everSignedIn', '1'); } catch (e) {} }
+        });
+      }
+    } catch (e) { }
+
+    /* 2026-09-21 - THE FIX THAT DOES NOT DEPEND ON TIMING.
+       Reported three times. Five guards all ask "is anyone signed in?" at boot, and on
+       a machine whose storage is cleared between sessions - a work computer - the
+       honest answer at that instant is "no": Firebase has not restored the session,
+       there is no authUser key, no cloudBase, no flag. The demo seeds, and THEN the
+       real planner arrives and the demo is merged into it.
+
+       So rather than guess earlier, this cleans up after: the moment a real planner
+       arrives from the cloud, the demo goal is removed. It cannot be fooled by
+       timing, because it runs when the evidence actually exists. */
+    window.__dropDemoIfReal = function (incoming) {
+      try {
+        if (!incoming || !Array.isArray(incoming.tree) || !incoming.tree.length) return;
+        var mine = (window.Store && window.Store.data && window.Store.data.tree) || [];
+        if (!mine.length) return;
+        var kept = [], dropped = 0, i;
+        for (i = 0; i < mine.length; i++) {
+          var n = mine[i];
+          var isDemo = n && (n.__demo === true ||
+                             (n.title === 'Set up my planner' &&
+                              (n.children || []).length === 3));
+          if (isDemo) { dropped++; continue; }
+          kept.push(n);
+        }
+        if (dropped) {
+          window.Store.data.tree = kept;
+          try { window.Store.save(); } catch (e) {}
+          if (window.renderAll) window.renderAll();
+        }
+      } catch (e) { }
+    };
+
     function docRef() {
       if (!auth || !auth.currentUser) return null;
       try { localStorage.setItem('planner.everSignedIn', '1'); } catch (e) {}
@@ -22711,6 +22946,7 @@ nesting to 20 levels, so the whole tree is serialised rather than stored as nest
           return false;
         }
         if (!hasReal(remote)) {
+      if (window.__dropDemoIfReal) window.__dropDemoIfReal(remote);
           return push().then(function () { return true; });
         }
         /* 2026-09-13: ALWAYS merge. This used to replace the local copy wholesale whenever
@@ -22774,6 +23010,11 @@ nesting to 20 levels, so the whole tree is serialised rather than stored as nest
       if (!raw) return;
       try { remote = JSON.parse(raw); } catch (e) { return; }
       if (!hasReal(remote) || typeof window.mergePlanner !== 'function') return;
+      /* A REAL planner has arrived. If this browser seeded the demo while waiting for
+         it - the work-computer case, where storage is cleared between sessions - drop
+         the demo BEFORE merging, so it is never folded into the operator's own tree.
+         2026-09-21, after the same report three times. */
+      if (window.__dropDemoIfReal) window.__dropDemoIfReal(remote);
       var before = canonSig(window.Store.data);
       var merged = window.mergePlanner(window.Store.data, remote);
       setBase(uid, remoteV);
@@ -24728,12 +24969,32 @@ ancestor that can move.
               pickBtn.className = 'lf-pick';
               pickBtn.textContent = 'Pick';
               pickBtn.onclick = function (e) {
+                /* CARD 8, 2026-09-21 - operator: "when I go to a task, and change
+                   location to a routine or a habit it doesn't change its location".
+
+                   TWO defects, both measured:
+
+                   1. label() reads chosenPath[i].title, and every TREE pick stores
+                      NODE OBJECTS. This one stored the bare string 'Habits', so
+                      'Habits'.title is undefined and the field painted EMPTY - which
+                      is card 9's blank field and card 8's "it didn't save", from one
+                      line. It now stores an object of the same shape.
+
+                   2. The field repainted and the list closed BEFORE onPick ran, and
+                      onPick has four early-return paths (no node, empty title,
+                      duplicate habit). So a refused move still looked like it had
+                      worked. The field is now painted only if onPick reports success.
+
+                   onPick returns false on refusal, anything else is a success. */
                 safeStop(e);
+                var wasId = chosenId, wasPath = chosenPath;
                 chosenId = ex.id;
-                chosenPath = [ex.title];
+                chosenPath = [{ title: ex.title, id: ex.id }];
+                var ok = true;
+                if (typeof onPick === 'function') ok = (onPick(ex.id) !== false);
+                if (!ok) { chosenId = wasId; chosenPath = wasPath; }
                 list.style.display = 'none';
                 refreshField();
-                if (typeof onPick === 'function') onPick(ex.id);
               };
               row.appendChild(pickBtn);
               list.appendChild(row);
@@ -24797,11 +25058,11 @@ ancestor that can move.
         var nx = fx.node;
         if (targetId === '__habits') {
           var nm = String(nx.title || '').replace(/^\s+|\s+$/g, '');
-          if (!nm) { window.toast('Give the task a name first.', 'err'); return; }
+          if (!nm) { window.toast('Give the task a name first.', 'err'); return false; }
           if (!window.Store.data.habits) window.Store.data.habits = [];
           var dup = false, hs = window.Store.data.habits;
           for (var hi = 0; hi < hs.length; hi++) { if (hs[hi] && hs[hi].name === nm) { dup = true; break; } }
-          if (dup) { window.toast('"' + nm + '" is already a habit.', 'err'); return; }
+          if (dup) { window.toast('"' + nm + '" is already a habit.', 'err'); return false; }
           hs.push({ id: window.uid(), name: nm, color: '#1a73e8', freq: 'daily',
                     targetPerWeek: 7, fromTask: nx.id });
           window.Store.save();
@@ -25547,7 +25808,6 @@ ancestor that can move.
       picker.appendChild(head);
       picker.appendChild(months);
       document.body.appendChild(picker);
-
       var initial = parseISO(input.value);
       var cursor = new Date();
       if (initial) cursor = new Date(initial.y, initial.m, 1);
@@ -25720,7 +25980,15 @@ ancestor that can move.
            150ms against the DIALOG, so the panel was dragged between two different answers four
            times a second - it visibly flickered left-right. Same rule in both places now, so
            whichever fires, the value it writes is identical and nothing moves. */
-        var mEl = document.querySelector('.modal');
+        /* CARD 1, 2026-09-22 - THE SAME RULE IN BOTH PLACES, or they fight.
+           The comment above already records this happening on 2026-09-03. I then
+           changed the OTHER positioner (clamp(), ~27440) to target '.modal .ea' and
+           left this one on '.modal' - so the two disagreed by exactly the shell's
+           extra width, and the picker oscillated between spill=0 and spill=17-18
+           four times a second. Measured: two distinct states over 2s at every
+           width. Both now read the dialog body. */
+        var mEl = document.querySelector('.modal .ea') ||
+                  document.querySelector('.modal');
         var left;
         if (mEl) {
           var mr = mEl.getBoundingClientRect();
@@ -27196,14 +27464,34 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
 
   function clamp(el) {
     if (!document.body.contains(el)) return;
-    var m = document.querySelector('.modal');
+    /* CARD 1, 2026-09-22 - operator: "why can't you just fit to screen."
+       THIS LINE IS THE WHOLE BUG, and it took nine attempts to find because I kept
+       fixing the picker instead of the thing that moves it afterwards.
+       A MutationObserver and a 150ms interval below re-clamp every .dp2 - so
+       whatever openPicker() set was overwritten within a frame. It clamped to
+       '.modal', the modal SHELL (575px), while the dialog BODY the operator sees
+       is .ea (541px). 575 - 541 = 34, half of it each side: the constant 17px
+       overhang measured at EVERY screen width.
+       Clamp to the dialog body when there is one. */
+    var m = document.querySelector('.modal .ea') ||
+            document.querySelector('.modal');
     if (!m) return;
     var mr = m.getBoundingClientRect();
-    var r = el.getBoundingClientRect();
-    if (r.width > mr.width - 16) {
-      el.style.maxWidth = (mr.width - 16) + 'px';
-      r = el.getBoundingClientRect();
+    /* CARD 1 - IDEMPOTENT. This runs on a MutationObserver AND every 150ms, so it
+       must reach the same answer every time. The earlier version measured FIRST and
+       only capped if the CURRENT width was too big - so once the cap had shrunk the
+       picker, the next tick saw a small picker, removed the cap, and the tick after
+       that saw a big one again. That is the race: 1180px gave 566px while 1920px
+       gave 498px for the SAME 541px dialog.
+       Now the cap is decided from the dialog alone and applied unconditionally, and
+       the element is measured only afterwards. */
+    var cap = Math.round(mr.width) - 16;
+    if (cap > 120) {
+      el.setAttribute('data-capped', '1');
+      el.style.setProperty('max-width', cap + 'px', 'important');
+      el.style.setProperty('box-sizing', 'border-box', 'important');
     }
+    var r = el.getBoundingClientRect();
     var want = mr.right + window.pageXOffset - r.width;
     if (want < mr.left + window.pageXOffset) want = mr.left + window.pageXOffset;
     el.style.left = want + 'px';
@@ -29020,7 +29308,44 @@ body[data-habits-left="1"] #habitsLeft {
     return true;
   }
 
+  /* CARD 4 - one place that closes Settings, so no caller can forget. It is
+     deliberately blunt: hide the drawer, drop the body flag, and put the tree back to
+     its normal view (the Settings tabs make it sticky). */
+  function closeSettingsFirst() {
+    try {
+      if (window.plannerCloseSettings) window.plannerCloseSettings();
+      var d = document.getElementById('treeDrawer');
+      if (d) { d.hidden = true; d.classList.add('hidden'); }
+      if (document.body.getAttribute('data-bb') === 'settings') {
+        document.body.removeAttribute('data-bb');
+      }
+      if (window.treeView && window.treeView !== 'active') {
+        window.treeView = 'active';
+        var r = document.getElementById('treeRoot');
+        if (r) r.classList.remove('done-only', 'overdue-only');
+        if (window.__buildTreeViews) window.__buildTreeViews();
+      }
+    } catch (e) { }
+  }
+
   function show(id) {
+    /* CARD 4, 2026-09-21 - operator: "whenever I play these buttons, it removes
+       whatever is happening and has the whatever is in the plan, which is a priority
+       tree, the alarms, and the reminders and the routine and habits... The problem
+       happens when I go to setting, then the setting wording shows up in the priority
+       tree and it doesn't remove again."
+
+       MEASURED on the live build. Open Settings, then press a tab:
+         press Plan   -> drawer STILL OPEN, pane reads "SETTINGS | Set up automatic
+                         calendar sync | Undo last change | No deleted items"
+         press Alarms -> "ALARMS | No reminders set. | SETTINGS | Set up automatic..."
+       The drawer is never closed by anything, so every section renders UNDERNEATH the
+       Settings wording and it sits above the tree for good.
+
+       My first attempt only reset the tree's view and the operator rightly rejected
+       it. This is the rule instead, and it runs for EVERY button before anything else:
+       leaving a screen closes Settings. */
+    closeSettingsFirst();
     document.body.setAttribute('data-bb', id);
     var b = document.querySelectorAll('#bottomBar [data-tab]'), i;
     for (i = 0; i < b.length; i++) {
@@ -29036,6 +29361,26 @@ body[data-habits-left="1"] #habitsLeft {
       if (window.__habitsLeft) { window.__habitsLeft(true); return; }
     }
     if (id === 'plan' && window.__habitsLeft) window.__habitsLeft(false);
+    if (id === 'plan') {
+      /* CARD 5, 2026-09-21 - operator: "when I press plan after setting it doesn't
+         show me the priority tree".
+
+         MEASURED, not guessed. window.treeView is sticky: the Settings tabs set it
+         to 'completed' / 'deleted' / 'undo' / 'pastdue' and NOTHING ever puts it
+         back. applyView() then re-adds the 'done-only' class on every renderTree(),
+         and that class hides every ordinary row - so Plan showed an empty tree.
+
+         Pressing Plan is the operator saying "show me my tree", so it returns the
+         tree to its normal view and closes the Settings drawer. */
+      if (window.treeView && window.treeView !== 'active') window.treeView = 'active';
+      var rootEl = document.getElementById('treeRoot');
+      if (rootEl) rootEl.classList.remove('done-only');
+      if (window.__buildTreeViews) { try { window.__buildTreeViews(); } catch (e) {} }
+      if (window.plannerCloseSettings) { try { window.plannerCloseSettings(); } catch (e) {} }
+      var dr = document.getElementById('treeDrawer');
+      if (dr) { dr.hidden = true; dr.classList.add('hidden'); }
+      if (window.renderTree) { try { window.renderTree(); } catch (e) {} }
+    }
     if (false) {
       /* 2026-09-12 - WHY THE ROUTINES TAB "HAD NOT BEEN DONE".
          There were TWO Habits screens. This bottom-bar button opened renderPane() - a
@@ -29666,6 +30011,25 @@ body[data-fb="on"] .fb-band { display: block; }
 .fb-row { display: flex; align-items: center; justify-content: space-between;
   font-size: 11.5px; padding: 7px 0; border-bottom: 1px solid #22262e; position: relative; }
 .fb-row:last-child { border: none; }
+/* CARD 16 - the Focus branch field takes the row's spare width so its hint fits on
+   ONE line beside the label. Measured: the default 116px clipped "add comma for
+   more"; with the row's slack it is 158px and the text is 158px, so it fits. */
+.fb-row.fb-itemsrow > span { flex: 0 0 auto; white-space: nowrap; }
+.fb-row.fb-itemsrow { gap: 6px; }
+.fb-row.fb-itemsrow .fb-itemsbox {
+  width: auto !important; flex: 1 1 auto; min-width: 0;
+}
+/* CARD 17 - the colour swatches. Same rounded-dot language as .fb-dot, sized so a
+   row of nine fits the 236px popup without wrapping off the edge. */
+/* nine swatches on ONE line: wrapping made the Colour row twice the height of
+   every other row in the editor. 9 x 14px + 8 x 4px gap = 158px, inside the popup's
+   content width. Measured, not guessed. */
+.fb-colours{display:flex;gap:4px;flex-wrap:nowrap;justify-content:flex-end}
+.fb-sw{width:14px;height:14px;flex:0 0 14px;border-radius:50%;border:1px solid #3a3f4a;
+  padding:0;cursor:pointer;background:#24272e;
+  font:600 6px ui-sans-serif,-apple-system,sans-serif;color:#9aa1ab;line-height:1}
+.fb-sw.on{outline:2px solid #e6e8ec;outline-offset:1px}
+.fb-sw:hover{border-color:#6b7280}
 .fb-row > span { color: #6b7280; }
 .fb-row input[type="text"], .fb-row input[type="time"] {
   background: #24272e; border: 1px solid #2e323a; border-radius: 6px; color: #e6e8ec;
@@ -29774,6 +30138,11 @@ body[data-fb="on"] .fb-band { display: block; }
     return null;
   }
   function colourFor(bl) {
+    /* CARD 17, 2026-09-21 - operator: "In the focus session, I want a tab under
+       name for picking a color from a rainbow."
+       A colour the operator picked by hand outranks the one derived from the
+       branch. Sessions with no colour set behave exactly as before. */
+    if (bl.color) return bl.color;
     if (!bl.branchId) return '#6b7280';
     var nd = branchOf(bl.branchId);
     if (nd && nd.areaId && window.areaById) {
@@ -29820,6 +30189,11 @@ body[data-fb="on"] .fb-band { display: block; }
   function splitOccurrence(bl, iso) {
     var s = store();
     if (!s) return null;
+    /* CARD 20, 2026-09-21 - a day broken out of a repeating session used to lose
+       its TIMER and its focus branch, because only name/branch/from/to were copied.
+       The length of a session is to-from, so those two carry the duration - but the
+       timer is what actually rings, and dropping it silently turned the alarm off
+       for that day. Copy everything that defines the session. */
     var ex = {
       id: uid(),
       name: bl.name,
@@ -29829,6 +30203,9 @@ body[data-fb="on"] .fb-band { display: block; }
       date: iso,
       parentId: bl.id
     };
+    if (bl.timer != null) ex.timer = bl.timer;
+    if (bl.itemIds && bl.itemIds.length) ex.itemIds = bl.itemIds.slice();
+    if (bl.color) ex.color = bl.color;
     s.push(ex);
     return ex;
   }
@@ -29867,12 +30244,20 @@ body[data-fb="on"] .fb-band { display: block; }
     dot.className = 'fb-dot';
     dot.style.background = colourFor(bl);
     h.appendChild(dot);
-    h.appendChild(document.createTextNode('Change which days?'));
+    /* CARD 19, 2026-09-21 - operator: "The pop up for when changing the time of a
+       session must be on the day of session time change."
+
+       The day being changed (iso) was already in scope and dayLabel() already
+       formats it - but only the "Just ..." button ever said it. The heading asked
+       "Change which days?" with no way to tell WHICH day you were standing on, which
+       is what made the choice feel like a guess. Both lines now name it. */
+    h.appendChild(document.createTextNode('Change ' + dayLabel(iso) + '?'));
     pop.appendChild(h);
 
     var note = document.createElement('div');
     note.className = 'fb-scope-note';
-    note.textContent = 'This session repeats every week.';
+    note.textContent = 'You are changing ' + dayLabel(iso) +
+                       '. This session repeats every week.';
     pop.appendChild(note);
 
     var foot = document.createElement('div');
@@ -29996,7 +30381,13 @@ body[data-fb="on"] .fb-band { display: block; }
     var box = document.createElement('input');
     box.type = 'text';
     box.className = 'fb-itemsbox';
-    box.placeholder = 'All of this branch';
+    /* CARD 16, 2026-09-21 - operator: "that slot needs to be up next to the focus
+       branch and you could just remove pick a branch and you could say add comma for
+       more branches".
+       Their exact wording measured 181px against a 158px slot (scrollWidth vs
+       clientWidth, which cannot be fooled), so it clipped. They chose the shorter
+       text over shrinking the font; this fits on one line at the field's own size. */
+    box.placeholder = 'add comma for more';
     box.title = 'Type item names separated by commas. Empty means the whole branch.';
 
     function titleOf(id) {
@@ -30110,14 +30501,26 @@ body[data-fb="on"] .fb-band { display: block; }
           caret.textContent = (open === branch.id) ? '\u25BE' : '\u25B8';
           row.appendChild(caret);
           row.appendChild(document.createTextNode(String(branch.title).slice(0, 26)));
+          /* CARD 16 - ONE CLICK PICKS. It used to only expand, and picking needed a
+             double click that nothing announced except a 10px hint - which is why the
+             operator reported they "couldn't pick a branch". The caret still expands,
+             so a branch's children are still reachable. */
           row.addEventListener('click', function (ev) {
             ev.stopPropagation();
-            open = (open === branch.id) ? null : branch.id;   /* one click opens */
-            openTree();
+            addName(String(branch.title));
+            closeTree();
           });
+          if (caret) {
+            caret.addEventListener('click', function (ev) {
+              ev.stopPropagation();
+              ev.preventDefault();
+              open = (open === branch.id) ? null : branch.id;
+              openTree();
+            });
+          }
           row.addEventListener('dblclick', function (ev) {
             ev.stopPropagation();
-            addName(String(branch.title));                    /* double click picks */
+            addName(String(branch.title));
             closeTree();
           });
           t.appendChild(row);
@@ -30135,7 +30538,12 @@ body[data-fb="on"] .fb-band { display: block; }
                   addName(String(kid.title));
                   closeTree();
                 });
-                kr.addEventListener('click', function (ev) { ev.stopPropagation(); });
+                /* CARD 16 - a child picks on ONE click as well */
+                kr.addEventListener('click', function (ev) {
+                  ev.stopPropagation();
+                  addName(String(kid.title));
+                  closeTree();
+                });
                 t.appendChild(kr);
               })(kids[k]);
             }
@@ -30145,7 +30553,8 @@ body[data-fb="on"] .fb-band { display: block; }
 
       var hint = document.createElement('div');
       hint.className = 'fb-treehint';
-      hint.textContent = 'one click opens \u00b7 double click picks';
+      /* CARD 16 - the hint must match the new behaviour */
+      hint.textContent = 'click to pick \u00b7 arrow opens a branch';
       t.appendChild(hint);
       r.appendChild(t);
     }
@@ -30466,7 +30875,7 @@ body[data-fb="on"] .fb-band { display: block; }
         var list = store() || [], i;
         for (i = 0; i < list.length; i++) {
           if (list[i] === bl) continue;
-          if (!sameWhen(list[i], bl)) continue;
+          if (!sameWhen(list[i], bl, dayIso)) continue;
           if (overlaps(trial, list[i])) {
             fbHint('No room \u2014 that runs into ' + describeSession(list[i]),
                    liveBand(bl.id));
@@ -30526,7 +30935,7 @@ body[data-fb="on"] .fb-band { display: block; }
         var list = store() || [], i;
         for (i = 0; i < list.length; i++) {
           if (list[i] === bl) continue;
-          if (!sameWhen(list[i], bl)) continue;
+          if (!sameWhen(list[i], bl, dayIso)) continue;
           if (overlaps(trial, list[i])) {
             fbHint('No room \u2014 that runs into ' + describeSession(list[i]),
                  liveBand(bl.id) || grip);
@@ -30806,6 +31215,46 @@ body[data-fb="on"] .fb-band { display: block; }
     nameIn.addEventListener('input', function () { bl.name = nameIn.value; save(); paint(); });
     rName.appendChild(nameIn);
 
+    /* CARD 17 - a Colour row directly under Name. Built with the same row() helper
+       and the same .fb-dot swatch the editor already uses, so it matches what is
+       there (PALETTE is the file's own set). "Auto" returns to the branch colour. */
+    var rColour = row('Colour');
+    var swatches = document.createElement('div');
+    swatches.className = 'fb-colours';
+    function paintSwatches() {
+      var kids = swatches.querySelectorAll('.fb-sw'), i;
+      for (i = 0; i < kids.length; i++) {
+        var want = kids[i].getAttribute('data-c') || '';
+        var on = (want === '') ? !bl.color : (bl.color === want);
+        kids[i].className = 'fb-sw' + (on ? ' on' : '');
+      }
+    }
+    (function () {
+      var opts = [''].concat(PALETTE), i;
+      for (i = 0; i < opts.length; i++) {
+        (function (c) {
+          var b = document.createElement('button');
+          b.type = 'button';
+          b.className = 'fb-sw';
+          b.setAttribute('data-c', c);
+          b.title = c ? c : 'Match the branch';
+          if (c) b.style.background = c;
+          else b.textContent = 'Auto';
+          b.addEventListener('click', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (c) bl.color = c; else delete bl.color;
+            save();
+            paintSwatches();
+            paint();
+          });
+          swatches.appendChild(b);
+        })(opts[i]);
+      }
+    })();
+    paintSwatches();
+    rColour.appendChild(swatches);
+
     var rBr = row('Priority branch');
     var pick = document.createElement('button');
     pick.type = 'button';
@@ -30888,7 +31337,7 @@ body[data-fb="on"] .fb-band { display: block; }
         var list = store() || [], i;
         for (i = 0; i < list.length; i++) {
           if (list[i] === bl) continue;
-          if (!sameWhen(list[i], bl)) continue;
+          if (!sameWhen(list[i], bl, window.selectedDate)) continue;
           if (overlaps(trial, list[i])) {
             fbHint('No room \u2014 that runs into ' + describeSession(list[i]));
             return;
@@ -30928,18 +31377,39 @@ body[data-fb="on"] .fb-band { display: block; }
       tMinus.style.visibility = bl.timer ? 'visible' : 'hidden';
       tPlus.style.visibility  = bl.timer ? 'visible' : 'hidden';
     }
+    /* CARD 20, 2026-09-21 - operator: "when I change the duration, and the pop up
+       comes for change for everyweek. it doesn't change the following weeks."
+
+       MEASURED: the length of a session is to-from and the TIMER is what rings.
+       Changing the hours goes through askScope (just this day / every week), but
+       these three buttons wrote bl.timer STRAIGHT to the object and called
+       paintTimer() - never askScope, never paint(). So a repeating session's timer
+       either changed every week with no question asked, or - once a day had been
+       split off - changed a day the operator was not looking at.
+
+       They now ask the same question the time rows ask, and apply to whatever the
+       operator chose. askScope() applies immediately for a session that does not
+       repeat, so a one-off is unaffected. */
+    function setTimer(next) {
+      askScope(bl, window.selectedDate, pop, function (target) {
+        target.timer = next;
+        save();
+        paintTimer();
+        paint();
+        if (target !== bl) { closeEditor(); openEditor(target, null, null); }
+      });
+    }
     tOn.addEventListener('click', function (e) {
       e.preventDefault();
-      bl.timer = bl.timer ? null : 25;     /* a sensible first value */
-      save(); paintTimer();
+      setTimer(bl.timer ? null : 25);      /* a sensible first value */
     });
     tMinus.addEventListener('click', function (e) {
       e.preventDefault();
-      bl.timer = Math.max(5, (bl.timer || 25) - 5); save(); paintTimer();
+      setTimer(Math.max(5, (bl.timer || 25) - 5));
     });
     tPlus.addEventListener('click', function (e) {
       e.preventDefault();
-      bl.timer = Math.min(180, (bl.timer || 25) + 5); save(); paintTimer();
+      setTimer(Math.min(180, (bl.timer || 25) + 5));
     });
     timerWrap.appendChild(tMinus);
     timerWrap.appendChild(tOn);
@@ -31031,7 +31501,20 @@ body[data-fb="on"] .fb-band { display: block; }
      would have let an exception overlap the sessions around it unchecked. Ask the
      day itself instead. An exception against its OWN parent answers false, because
      appliesTo() already knows the parent yields that day. */
-  function sameWhen(a, b) {
+  function sameWhen(a, b, iso) {
+    /* CARD 18, 2026-09-21 - operator: "I am moving a future dated focus session a
+       couple of hours ahead but i am getting this message that it conflicts with
+       another session, but its conflickting with previus days session."
+
+       Without a day, this asks "could these two EVER land on the same day?" - two
+       weekly sessions collide if their days arrays intersect ANYWHERE. So editing a
+       Mon+Wed session was refused because of a Wed-only session while the operator
+       was standing on Monday.
+
+       Every caller that knows which day is being edited now passes it, and the
+       question becomes the right one: are BOTH of these on THAT day? The dayless
+       form is kept for callers that genuinely have no day. */
+    if (iso) return appliesTo(a, iso) && appliesTo(b, iso);
     if (a.date && b.date) return a.date === b.date;
     if (a.date) return appliesTo(b, a.date);
     if (b.date) return appliesTo(a, b.date);
@@ -31039,6 +31522,10 @@ body[data-fb="on"] .fb-band { display: block; }
     for (i = 0; i < da.length; i++) if (db.indexOf(da[i]) !== -1) return true;
     return false;
   }
+
+  /* CARD 18 - exported so the conflict rule can be tested directly, the same way
+     __fbAskScope and __fbOpenEditor already are. */
+  window.__fbSameWhen = sameWhen;
 
   document.addEventListener('click', function () { closeEditor(); });
 
@@ -31363,8 +31850,18 @@ body[data-fb="on"] .fb-band { display: block; }
 #treeRoot .tree-row .tree-actions .tree-notepen   { order: 2 !important; }
 #treeRoot .tree-row .tree-actions .rowmenu        { order: 3 !important; }
 
-/* an undated row's clock, and the plus, take no room until the row is hovered */
-#treeRoot .tree-row:not(:hover):not(.row-hover) .tree-actions .rowquick.q-add,
+/* CARD 14, 2026-09-21 - THE CLOCK MUST NOT MOVE OUT FROM UNDER THE POINTER.
+   Measured: with the pointer away the clock sits at left=190; hovering the row
+   reveals the + beside it and the clock slides to left=175. Fifteen pixels - the
+   width of one button - so aiming at the clock and pressing lands on the +.
+   The + now RESERVES its 15px at all times and only fades in, so revealing it
+   cannot reflow the row. Nothing else about the row changes. */
+#treeRoot .tree-row:not(:hover):not(.row-hover) .tree-actions .rowquick.q-add {
+  opacity: 0 !important; visibility: hidden !important; pointer-events: none !important;
+}
+
+/* an undated row's clock takes no room until the row is hovered */
+#treeRoot .tree-row:not(:hover):not(.row-hover) .tree-actions .rowquick.q-add--was,
 #treeRoot .tree-row:not(:hover):not(.row-hover) .tree-actions .tree-datechip:not(.hasdate) {
   width: 0 !important; min-width: 0 !important; flex: 0 0 0 !important;
   padding: 0 !important; margin: 0 !important; overflow: hidden !important;
@@ -32422,6 +32919,22 @@ body[data-fb="on"] .fb-band { display: block; }
 #habitsView .rt-tab:hover{color:var(--text-2,#9aa1ab);background:#1c1f26}
 #habitsView .rt-tab.on{background:#262a33;border-color:#3a3f4a;color:#e6e8ec;font-weight:600}
 #habitsView .rt-list{display:flex;flex-direction:column;gap:8px}
+
+/* CARD 7, 2026-09-21 - the add row had NO styling anywhere in the file: measured
+   input 147x20 and the Add button 23x18, which is why it read as broken. Built from
+   the pane's own .rt-row / .rt-tab pattern so it matches what is already there. */
+#habitsView .habit-add-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  background:#1c1f26;border:1px solid #2e323a;border-radius:10px;
+  padding:10px 12px;margin:0 0 12px}
+#habitsView .habit-input{flex:1 1 120px;min-width:0;background:#16181c;
+  border:1px solid #2e323a;border-radius:7px;color:#e6e8ec;font-family:inherit;
+  font-size:12.5px;padding:7px 10px;height:32px;box-sizing:border-box}
+#habitsView .habit-input:focus{outline:none;border-color:#4d8bff}
+#habitsView .btn-add-habit{flex:0 0 auto;background:#262a33;border:1px solid #3a3f4a;
+  color:#e6e8ec;border-radius:7px;padding:0 16px;height:32px;font-size:12.5px;
+  font-weight:600;cursor:pointer;font-family:inherit}
+#habitsView .btn-add-habit:hover{background:#2e323a}
+#habitsView .color-swatches{display:flex;gap:5px;flex:0 0 auto}
 #habitsView .rt-row{display:flex;align-items:center;gap:11px;background:#1c1f26;
   border:1px solid #2e323a;border-radius:10px;padding:10px 12px}
 #habitsView .rt-dot{width:9px;height:9px;border-radius:50%;background:#4d8bff;flex:0 0 9px}
@@ -33660,12 +34173,31 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
     box.appendChild(h); box.appendChild(p); box.appendChild(b);
     document.body.appendChild(box);
     try {
+      if (window.Notification && Notification.permission === 'default' &&
+          window.askAlarmPermission) {
+        /* CARD 13 - ask once, rather than staying silent forever because nobody
+           ever asked. */
+        try { window.askAlarmPermission(); } catch (e) { }
+      }
       if (window.Notification && Notification.permission === 'granted') {
         new Notification('Focus session finished',
                          { body: (bl.name || 'Focus') + ' - ' + bl.timer + ' minutes are up.' });
       }
     } catch (e) { }
-    if (window.playAlarmSound) { try { window.playAlarmSound(); } catch (e) { } }
+    /* CARD 13, 2026-09-21 - operator: "The focus sesion alarm is not working".
+
+       MEASURED: window.playAlarmSound appears exactly ONCE in the whole file - this
+       call. It is never defined anywhere, so the focus alarm has never made a sound
+       in any build. The reminders already use window.plannerBeep, the shared,
+       gesture-unlocked audio context (a fresh AudioContext made outside a user
+       gesture starts suspended and is silent, which is why there is one shared one).
+
+       The notification was also gated on permission being 'granted' while this
+       module never asked for it - so on a first run it was silent AND invisible.
+       window.askAlarmPermission already exists for exactly this. */
+    if (window.plannerBeep) { try { window.plannerBeep(); } catch (e) { } }
+    else if (window.playAlarmSound) { try { window.playAlarmSound(); } catch (e) { } }
+    if (navigator.vibrate) { try { navigator.vibrate([300, 150, 300]); } catch (e) { } }
   }
 
   function acknowledge(bl) {
