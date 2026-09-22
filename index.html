@@ -5402,6 +5402,15 @@ html:root #treeRoot .tree-row:not([data-depth="0"]){ height:32px !important; min
 .alc-body:hover{ background:#343a43 }
 .alc-body:focus-visible{ outline:2px solid #a8c7de; outline-offset:2px }
 .alc-time{ color:#8b93a1 }
+/* BOARD 27 CARD 3 - a SMALL two-line box, at the operator's instruction. */
+.alc-hide{
+  flex:0 0 auto; background:#2a2f38; border:1px solid #3a4049; color:#9aa1ab;
+  border-radius:7px; padding:3px 7px; margin-right:6px; cursor:pointer;
+  font:600 9.5px/1.15 ui-sans-serif,-apple-system,sans-serif;
+  text-align:center; letter-spacing:.02em;
+}
+.alc-hide:hover{ background:#333944; color:#e6e8ec }
+.alc-hide[data-on="1"]{ background:#2b3b57; border-color:#4a6da8; color:#cfe0ff }
 .alc-x{
   flex:0 0 30px; width:30px; height:30px; border:none; border-radius:8px; background:none;
   color:#8b93a1; font-size:14px; line-height:1; cursor:pointer;
@@ -5681,7 +5690,7 @@ body[data-newbranch="1"] #treeFilters{
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-09-22 11:34</span>
+    <span id="buildStamp">build 2026-09-22 15:18</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -8542,6 +8551,47 @@ window.renderTracker = function (kind) {
     if (e.key === 'Enter') addBtn.click();
   });
   addRow.appendChild(addBtn);
+
+  /* ============================================================== BOARD 27 CARD 6
+     Operator, 2026-09-22: "remove the search button where you put in typing in the
+     habits and routines and just put the add button, and that add button would open
+     up a similar to what we have on a task when we open a new task... and it will
+     pre-populate the location as habits or routines."
+     And: "I don't need the writing under it."
+
+     So the typing field and swatches go, and ONE button opens the ordinary task
+     window with Location already set.
+
+     WHY THE ITEM IS NAMED FIRST, measured on 2026-09-22: picking Habits in the
+     Location list CONVERTS the task, and that conversion is REFUSED when the title
+     is empty (one of onPick's four early returns). A button that opened a blank
+     task would therefore look like it did nothing. It creates the record with a
+     real name, then opens it for editing - so the name can be changed immediately
+     but is never empty. */
+  var newBtn = document.createElement('button');
+  newBtn.type = 'button';
+  newBtn.className = 'btn-new-tracker';
+  newBtn.textContent = '+  New ' + (kind === 'routines' ? 'routine' : 'habit');
+  newBtn.addEventListener('click', function () {
+    var label = (kind === 'routines' ? 'routine' : 'habit');
+    var rec = { id: uid(), name: 'New ' + label, color: palette[0],
+                freq: 'daily', targetPerWeek: 7 };
+    if (!Store.data[T.store]) Store.data[T.store] = [];
+    Store.data[T.store].push(rec);
+    Store.save();
+    if (typeof window.renderHabits === 'function') window.renderHabits();
+    else window.renderTracker(kind);
+    /* open it the same way a task opens, with Location already reading
+       Habits / Routines - that is the whole point of the card. */
+    if (window.__openTrackerEditor) window.__openTrackerEditor(rec, kind);
+  });
+  addRow.appendChild(newBtn);
+
+  /* the typing field and the swatches are what they asked to remove */
+  input.style.display = 'none';
+  swatchContainer.style.display = 'none';
+  addBtn.style.display = 'none';
+
   container.appendChild(addRow);
 
   // --- Habit list ---
@@ -11938,9 +11988,47 @@ function surfaceArrivals() {
       return [];
     }
     var node = f.node;
+    /* ============================================================ BOARD 27 CARD 9
+       Operator, 2026-09-22: "when I click the three dots, it doesn't show me the
+       mark complete option. It showed me mark incomplete." (on the CALENDAR side)
+
+       ROOT CAUSE, measured. There were TWO ways to complete a task and they did
+       not agree:
+         checkbox   -> records THAT DAY   (doneDates / repeatDone), node untouched
+         this menu  -> node.done = true   with no repeat check at all
+       So completing a REPEATING item from this menu finished the routine forever
+       rather than finishing today - which is why its menu then read "Mark not
+       complete" while every other routine read "Complete", and why the block
+       vanished from the calendar entirely.
+
+       THE FIX IS ONE PATH, not a label. A repeating item goes through
+       plannerCompleteOccurrence (the same call the checkbox makes, already
+       idempotent); a one-off keeps the plain node.done it always had. */
+    var __rep = !!(node.repeat || node.repeatDone);
+    var __iso = (window.plannerMenuDate) ||
+                (window.selectedDate) ||
+                (window.todayISO ? window.todayISO() : null);
+    function __isDoneNow() {
+      if (__rep && __iso) {
+        if (node.doneDates && node.doneDates.indexOf(__iso) !== -1) return true;
+        if (node.repeatDone && node.repeatDone[__iso]) return true;
+        return false;
+      }
+      return !!node.done;
+    }
     return [
-      { label: node.done ? 'Mark not complete' : 'Complete', kind: 'accent', run: function () {
-          node.done = !node.done; window.Store.save(); window.renderAll(); } },
+      { label: __isDoneNow() ? 'Mark not complete' : 'Complete', kind: 'accent', run: function () {
+          var want = !__isDoneNow();
+          if (__rep && __iso && window.plannerCompleteOccurrence) {
+            window.plannerCompleteOccurrence(node, __iso, want);
+            /* a repeating item that was previously stuck done FOREVER by the old
+               menu is released here, so today's state is the only thing that
+               decides. This is the "clear the stuck flag" half of the card. */
+            if (node.done) node.done = false;
+          } else {
+            node.done = want;
+          }
+          window.Store.save(); window.renderAll(); } },
       { sep: true },
       { label: 'Due today', run: function () {
           node.date = window.todayISO(); window.Store.save(); window.renderAll(); } },
@@ -12118,7 +12206,12 @@ function surfaceArrivals() {
     if (r.right > window.innerWidth) menu.style.left = Math.round(window.innerWidth - r.width - 8) + 'px';
   }
   /* every caller of this is a tree row - the calendar calls openMenu directly */
-  window.__openActMenu = function (id, x, y) { return openMenu(id, x, y, true); };
+  window.__openActMenu = function (id, x, y) {
+    /* BOARD 27 CARD 9 - the tree has no day of its own, so clear any date left
+       over from a calendar block or the next tree completion would record it. */
+    window.plannerMenuDate = null;
+    return openMenu(id, x, y, true);
+  };
 
   function decorate() {
     var els = document.querySelectorAll('.tgevent, .tgchip, .mchip');
@@ -12136,6 +12229,21 @@ function surfaceArrivals() {
         b.addEventListener('click', function (e) {
           e.preventDefault(); e.stopPropagation();
           var r = b.getBoundingClientRect();
+          /* ======================================================== BOARD 27 CARD 9
+             WHICH DAY this block is. Completing a repeating item records the DAY,
+             so a block sitting on Thursday must record Thursday - not today.
+             The column (.tgcol / .wcell / .tgalldaycell) carries dataset.iso; the
+             month view's chip carries its own. Falls back to the selected date.
+             Caught by the globals audit: this was referenced and never defined. */
+          (function () {
+            var iso = null, n = el;
+            while (n && n !== document.body) {
+              if (n.dataset && n.dataset.iso) { iso = n.dataset.iso; break; }
+              n = n.parentNode;
+            }
+            window.plannerMenuDate = iso ||
+              (window.selectedDate || (window.todayISO ? window.todayISO() : null));
+          })();
           openMenu(el.dataset.nodeId, window.scrollX + r.left, window.scrollY + r.bottom + 4);
         });
       })(el, b);
@@ -12482,7 +12590,11 @@ function surfaceArrivals() {
         } else if (v.key === 'undo') {
           var s = document.createElement('span');
           s.className = 'view-count';
-          s.textContent = ' (' + (window.__undoList ? window.__undoList().length : 0) + ')';
+          /* BOARD 27 CARD 2 - was window.__undoList, which read data.sync.changes:
+             an array nothing in this file ever writes, so the tab could only
+             ever read (0). */
+          s.textContent = ' (' + (window.plannerUndoEntries ?
+                                  window.plannerUndoEntries().length : 0) + ')';
           btn.appendChild(s);
         }
         btn.addEventListener('click', function() {
@@ -12633,7 +12745,11 @@ function surfaceArrivals() {
     }
     if (window.treeView === 'undo') {
       root.classList.add('done-only');
-      var ul = window.__undoList();
+      /* BOARD 27 CARD 2 - read the history that is actually kept. __undoList()
+         read Store.data.sync.changes, which nothing in this file ever writes, so
+         this list was permanently empty and every delete looked unrecorded. */
+      var ul = window.plannerUndoEntries ? window.plannerUndoEntries()
+                                         : (window.__undoList ? window.__undoList() : []);
       var ulist = document.createElement('div');
       ulist.className = 'donelist trashlist';
       if (!ul.length) {
@@ -12670,7 +12786,15 @@ function surfaceArrivals() {
           ub.addEventListener('click', function (ev) {
             ev.preventDefault();
             ev.stopPropagation();
-            if (window.undoLastChange) window.undoLastChange();
+            /* BOARD 27 CARD 2 - undo THIS entry (and anything stacked on top of
+               it), not "the last change" - window.undoLastChange does not exist,
+               so this button did nothing at all. */
+            if (window.plannerUndoAt && typeof rec.depth === 'number') {
+              window.plannerUndoAt(rec.depth);
+            } else if (window.plannerUndo) {
+              window.plannerUndo();
+            }
+            if (window.renderAll) window.renderAll();
           });
           it.appendChild(ub);
           ulist.appendChild(it);
@@ -15139,7 +15263,8 @@ function firstConnect(remote, rAt, lAt) {
       // of its alarms carries its own date. Dropping the whole task meant an
       // alarm set for "Aug 20, 09:00" on an undated task could never fire - and
       // most tasks in a planner are undated.
-      var ownAlarms = window.alarmsOf ? window.alarmsOf(n) : [];
+      /* BOARD 27 CARDS 3+5 - calendar surface: honour hide-from-calendar */
+      var ownAlarms = window.alarmsForCalendar ? window.alarmsForCalendar(n) : [];
       var datedAlarm = null, da;
       for (da = 0; da < ownAlarms.length; da++) {
         if (ownAlarms[da] && ownAlarms[da].kind === 'at' && ownAlarms[da].date) {
@@ -15182,7 +15307,9 @@ function firstConnect(remote, rAt, lAt) {
       // Every alarm on the task becomes its own VALARM. This read the single
       // n.reminder field, so once tasks gained a LIST of alarms the calendar
       // silently carried none of them - which defeated the whole feature.
-      var alarms = window.alarmsOf ? window.alarmsOf(n) : (n.reminder && n.reminder.mode ? [n.reminder] : []);
+      /* BOARD 27 CARDS 3+5 - calendar surface: honour hide-from-calendar */
+      var alarms = window.alarmsForCalendar ? window.alarmsForCalendar(n)
+                 : (n.reminder && n.reminder.mode ? [n.reminder] : []);
       var ai;
       for (ai = 0; ai < alarms.length; ai++) {
         var am = alarms[ai];
@@ -16647,6 +16774,39 @@ function firstConnect(remote, rAt, lAt) {
     head.textContent = 'ALARMS';
     host.appendChild(head);
 
+    /* ============================================================ BOARD 27 CARD 5
+       Operator, 2026-09-22: "I changed my mind. I would like to show all alarms in
+       calendar within the alarms tab. So that would be a button in the alarms tab
+       in the bottom of the priority tree, and on the top of it, it would show a
+       button that says 'Show all alarms on calendar'."
+       (This REPLACES the earlier shape, which put it beside Focus sessions in the
+       calendar header - they moved it here.)
+
+       It sits directly under the ALARMS heading, above the list, so the control and
+       the alarms it controls are in one place. The state is a single setting, so it
+       survives a reload and every view reads the same answer. */
+    (function () {
+      var st = window.Store && window.Store.data && window.Store.data.settings;
+      if (!st) return;
+      var on = !!st.showAllAlarmsOnCalendar;
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.id = 'btnShowAllAlarms';
+      btn.className = 'alarms-showall';
+      btn.textContent = on ? 'Hide all alarms on calendar'
+                           : 'Show all alarms on calendar';
+      if (on) btn.setAttribute('data-on', '1');
+      btn.onclick = function () {
+        st.showAllAlarmsOnCalendar = !st.showAllAlarmsOnCalendar;
+        window.Store.save();
+        /* re-render EVERYTHING, not just future alarms: the operator would read a
+           stale calendar as the button being broken. */
+        window.renderAll();
+        if (window.showAlarmsList) window.showAlarmsList();
+      };
+      host.appendChild(btn);
+    })();
+
     if (!items.length) {
       var none = document.createElement('div');
       none.className = 'trash-empty';
@@ -16671,6 +16831,28 @@ function firstConnect(remote, rAt, lAt) {
       list.appendChild(row);
     }
     host.appendChild(list);
+  };
+
+  /* ============================================================== BOARD 27 CARDS 3 + 5
+     ONE rule for "does this alarm belong on the calendar", so the per-alarm hide
+     box (card 3) and the Show-all button (card 5) cannot disagree.
+
+       - an alarm marked hideFromCal stays OFF the calendar
+       - EXCEPT when Show all alarms on calendar is on, which shows everything
+         (the operator chose this: "showing all means showing everything, and the
+         individual hide is forgotten")
+
+     Every calendar surface calls this instead of filtering for itself. */
+  window.alarmsForCalendar = function (node) {
+    var all = window.alarmsOf ? window.alarmsOf(node) : [];
+    var st = (window.Store && window.Store.data && window.Store.data.settings) || {};
+    if (st.showAllAlarmsOnCalendar) return all;
+    var out = [], i;
+    for (i = 0; i < all.length; i++) {
+      if (all[i] && all[i].hideFromCal) continue;
+      out.push(all[i]);
+    }
+    return out;
   };
 
   window.alarmsOf = function (node) {
@@ -17625,7 +17807,8 @@ function firstConnect(remote, rAt, lAt) {
       why = '';
       // Matches the export rule exactly: an undated task still counts if one of
       // its alarms carries its own date.
-      var oa = window.alarmsOf ? window.alarmsOf(n) : [];
+      /* BOARD 27 CARDS 3+5 - calendar surface: honour hide-from-calendar */
+      var oa = window.alarmsForCalendar ? window.alarmsForCalendar(n) : [];
       var dAl = null, z;
       for (z = 0; z < oa.length; z++) {
         if (oa[z] && oa[z].kind === 'at' && oa[z].date) { dAl = oa[z]; break; }
@@ -18045,7 +18228,8 @@ function firstConnect(remote, rAt, lAt) {
       var jobs = [], made = 0, updated = 0, i;
       for (i = 0; i < all.length; i++) {
         (function (n) {
-          var alarms = window.alarmsOf ? window.alarmsOf(n) : [];
+          /* BOARD 27 CARDS 3+5 - calendar surface: honour hide-from-calendar */
+          var alarms = window.alarmsForCalendar ? window.alarmsForCalendar(n) : [];
           var al = alarms.length ? alarms[0] : null;
           var wanted = (!n.done && al) ? eventFor(n, al) : null;
           if (!wanted) {
@@ -21985,6 +22169,8 @@ if (r.freq === 'yearly') {
   var restoring = false;
   var btn = null;
 
+  var notes = [];            /* BOARD 27 CARD 2 - one description per stack entry */
+
   function snap() {
     try { return JSON.stringify(window.Store.data); } catch (e) { return null; }
   }
@@ -21996,21 +22182,98 @@ if (r.freq === 'yearly') {
     btn.style.opacity = stack.length ? '1' : '.5';
   }
 
+  /* ============================================================== BOARD 27 CARD 2
+     Operator, 2026-09-22: "I just deleted something from the counter and it didn't
+     pop up in the undo section. That needs to get fixed. That's the point of doing
+     that."
+
+     ROOT CAUSE, measured 2026-09-22: the Undo tab counted
+     window.Store.data.sync.changes - an array that is READ in exactly one place and
+     WRITTEN in none. Nothing has ever populated it, so the tab could only ever say
+     (0). Meanwhile this module has carried a real, working undo stack the whole
+     time; it just had no description per entry to list.
+
+     So the fix is not a new history - it is giving the history we already keep a
+     label, and pointing the tab at it. One source of truth. */
+  function describe(beforeJson, afterJson) {
+    try {
+      var a = JSON.parse(beforeJson), b = JSON.parse(afterJson);
+      var ca = [], cb = [];
+      (function walk(list, out) {
+        for (var i = 0; list && i < list.length; i++) {
+          if (!list[i]) continue;
+          out.push(list[i]);
+          walk(list[i].children, out);
+        }
+      })(a.tree, ca);
+      (function walk(list, out) {
+        for (var i = 0; list && i < list.length; i++) {
+          if (!list[i]) continue;
+          out.push(list[i]);
+          walk(list[i].children, out);
+        }
+      })(b.tree, cb);
+      var ida = {}, idb = {}, i2;
+      for (i2 = 0; i2 < ca.length; i2++) ida[ca[i2].id] = ca[i2];
+      for (i2 = 0; i2 < cb.length; i2++) idb[cb[i2].id] = cb[i2];
+      var gone = [], added = [], renamed = [];
+      for (i2 = 0; i2 < ca.length; i2++) {
+        var n = ca[i2];
+        if (!idb[n.id]) gone.push(n.title || 'Untitled');
+        else if ((idb[n.id].title || '') !== (n.title || '')) {
+          renamed.push((n.title || 'Untitled') + ' \u2192 ' + (idb[n.id].title || 'Untitled'));
+        }
+      }
+      for (i2 = 0; i2 < cb.length; i2++) {
+        if (!ida[cb[i2].id]) added.push(cb[i2].title || 'Untitled');
+      }
+      if (gone.length === 1)  return 'Deleted \u201c' + gone[0] + '\u201d';
+      if (gone.length > 1)    return 'Deleted ' + gone.length + ' items';
+      if (added.length === 1) return 'Added \u201c' + added[0] + '\u201d';
+      if (added.length > 1)   return 'Added ' + added.length + ' items';
+      if (renamed.length)     return 'Renamed ' + renamed[0];
+      if ((a.trash || []).length !== (b.trash || []).length) return 'Changed the trash';
+      return 'Changed a task';
+    } catch (e) { return 'Changed something'; }
+  }
+
   function record() {
     if (restoring) return;
     if (prev !== null) {
       var cur = snap();
       if (cur !== null && cur !== prev) {
         stack.push(prev);
-        if (stack.length > MAX) stack.shift();
+        /* BOARD 27 CARD 2 - what the change WAS, so the Undo tab can list it.
+           Kept in step with `stack` (same push, same shift) so an entry and its
+           description can never drift apart. */
+        notes.push({ what: describe(prev, cur), at: Date.now() });
+        if (stack.length > MAX) { stack.shift(); notes.shift(); }
       }
     }
     prev = snap();
     label();
   }
 
+  /* BOARD 27 CARD 2 - the Undo tab reads THIS, the history that actually exists. */
+  window.plannerUndoEntries = function () {
+    var out = [];
+    for (var i = notes.length - 1; i >= 0; i--) {
+      out.push({ what: notes[i].what, at: notes[i].at, depth: i });
+    }
+    return out;
+  };
+
+  window.plannerUndoAt = function (depth) {
+    /* undo everything back to (and including) that entry */
+    var n = stack.length - depth;
+    var ok = false;
+    for (var i = 0; i < n; i++) ok = window.plannerUndo() || ok;
+    return ok;
+  };
+
   window.plannerUndo = function () {
     if (!stack.length) return false;
+    notes.pop();
     var s = stack.pop();
     var parsed;
     try { parsed = JSON.parse(s); } catch (e) { return false; }
@@ -25962,7 +26225,15 @@ ancestor that can move.
   try {
     if (window.__dp2Place) return;
     window.__dp2Place = true;
-    setInterval(function () {
+    /* BOARD 27 CARD 1, 2026-09-22 - ONE OWNER, NOT A TIMER.
+       This used to run every 100ms while clamp() below ran every 150ms, so the
+       picker was written by two different rules four times a second. The file's
+       own comments record the same fight on 2026-09-03 and again on 2026-09-14.
+       Both are now replaced by window.__centreInDialog (see below): one function,
+       called once when the picker appears plus one requestAnimationFrame after,
+       because the dialog's transition and the picker's own grid both settle a
+       frame late. No polling, so nothing can overwrite it afterwards. */
+    window.__dp2PlaceOnce = function () {
       try {
         var d = document.querySelector('.dp2');
         if (!d) return;
@@ -26001,10 +26272,12 @@ ancestor that can move.
         }
         var top = r.bottom + 8;
         if (top + h > window.innerHeight - 12) top = Math.max(12, r.top - h - 8);
-        d.style.left = Math.round(left) + 'px';
-        d.style.top = Math.round(top) + 'px';
+        /* the centring rule is the one owner now */
+        if (window.__centreInDialog) window.__centreInDialog(d);
+        else { d.style.left = Math.round(left) + 'px';
+               d.style.top = Math.round(top) + 'px'; }
       } catch (e) {}
-    }, 100);
+    };
   } catch (e) {}
 })();
 
@@ -27422,9 +27695,36 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
       x.title = 'Remove this alarm';
       x.textContent = '✕';
 
+      /* ============================================================ BOARD 27 CARD 3
+         Operator, 2026-09-22: "a feature with the alarm that would be on the right
+         of it that shows hide alarm from calendar", then: "regarding hide from
+         calendar, you could make it a smaller box and then have two lines on top of
+         each other."
+         So: a SMALL box to the right of the alarm, its label on TWO lines
+         ("hide from" / "calendar"), not one long control. */
+      var hide = document.createElement('button');
+      hide.type = 'button';
+      hide.className = 'alc-hide';
+      hide.title = 'Keep this alarm off the calendar';
+      hide.innerHTML = 'hide from<br>calendar';
+      if (alarm.hideFromCal) hide.setAttribute('data-on', '1');
+
       chip.appendChild(bell);
       chip.appendChild(body);
+      chip.appendChild(hide);
       chip.appendChild(x);
+
+      (function (a, h) {
+        h.addEventListener('click', function (ev) {
+          ev.preventDefault();
+          ev.stopPropagation();
+          a.hideFromCal = !a.hideFromCal;
+          if (a.hideFromCal) h.setAttribute('data-on', '1');
+          else h.removeAttribute('data-on');
+          if (window.Store) window.Store.save();
+          if (window.renderAll) window.renderAll();
+        });
+      })(alarm, hide);
 
       (function (a, b, xBtn) {
         b.addEventListener('click', function () {
@@ -27491,15 +27791,10 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
       el.style.setProperty('max-width', cap + 'px', 'important');
       el.style.setProperty('box-sizing', 'border-box', 'important');
     }
-    var r = el.getBoundingClientRect();
-    var want = mr.right + window.pageXOffset - r.width;
-    if (want < mr.left + window.pageXOffset) want = mr.left + window.pageXOffset;
-    el.style.left = want + 'px';
-    if (r.bottom > window.innerHeight - 8) {
-      var ny = window.innerHeight - 8 - r.height + window.pageYOffset;
-      if (ny < 8 + window.pageYOffset) ny = 8 + window.pageYOffset;
-      el.style.top = ny + 'px';
-    }
+    /* BOARD 27 CARD 1 - clamp() now only SIZES. It used to place the picker on the
+       dialog's right edge while the module above placed it under the field, which
+       is the two-owner bug this board fixed. Placing belongs to one function. */
+    if (window.__centreInDialog) window.__centreInDialog(el);
   }
 
   function clampAll() {
@@ -27530,9 +27825,9 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
   /* 2026-09-03: the date picker is repositioned by two later modules after it is built, so a clamp
      that runs once at insert time gets overwritten. Measured: it still hung 419px past the dialog.
      Re-clamp on a short tick while any panel is open - it is a no-op when nothing is showing. */
-  setInterval(function () {
-    if (document.querySelector('.tp2, .dp2')) clampAll();
-  }, 150);
+  /* BOARD 27 CARD 1 - the 150ms re-clamp is gone. It existed because a later
+     module moved the picker after insert; that module no longer positions at all,
+     so there is nothing to correct. One rAF covers the late layout instead. */
 })();
 </script>
 
@@ -29178,6 +29473,17 @@ body[data-bb="habits"] #treeRoot, body[data-bb="habits"] .tree-toolbar { visibil
 body[data-habits-left="1"] #habitsLeft { display: block; }
 /* the Alarms tab owns the left pane, like Habits does (2026-09-19) */
 #alarmsList { display: none; padding: 10px 10px 0; overflow: auto; }
+/* BOARD 27 CARD 5 - the show-all control, styled from the app's own buttons. */
+#alarmsList .alarms-showall {
+  display: block; width: 100%; margin: 8px 0 12px; padding: 10px 12px;
+  background: #262a33; border: 1px solid #3a3f4a; color: #e6e8ec;
+  border-radius: 9px; cursor: pointer; text-align: center;
+  font: 600 12.5px ui-sans-serif, -apple-system, sans-serif;
+}
+#alarmsList .alarms-showall:hover { background: #2d323c; }
+#alarmsList .alarms-showall[data-on="1"] {
+  background: #2b3b57; border-color: #4a6da8; color: #cfe0ff;
+}
 body[data-bb="alarms"] #alarmsList { display: block; }
 body[data-bb="alarms"] #treeRoot,
 body[data-bb="alarms"] #treeFilters,
@@ -32923,6 +33229,12 @@ body[data-fb="on"] .fb-band { display: block; }
 /* CARD 7, 2026-09-21 - the add row had NO styling anywhere in the file: measured
    input 147x20 and the Add button 23x18, which is why it read as broken. Built from
    the pane's own .rt-row / .rt-tab pattern so it matches what is already there. */
+/* BOARD 27 CARD 6 - one button, no typing field, nothing written under it. */
+#habitsView .btn-new-tracker{display:block;width:100%;margin:0 0 13px;
+  background:#262a33;border:1px solid #3a3f4a;color:#e6e8ec;border-radius:9px;
+  padding:11px 0;cursor:pointer;
+  font:600 13px ui-sans-serif,-apple-system,sans-serif}
+#habitsView .btn-new-tracker:hover{background:#2d323c}
 #habitsView .habit-add-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;
   background:#1c1f26;border:1px solid #2e323a;border-radius:10px;
   padding:10px 12px;margin:0 0 12px}
@@ -34240,6 +34552,401 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
   window.__fbTimerTick = tick;                 /* so a check can drive it */
   window.__fbTimerShow = show;                 /* and photograph the alarm */
   setInterval(tick, 30000);
+})();
+</script>
+
+<script>
+/* ============================================================================
+   BOARD 27, CARDS 1 / 3 / 8 - ONE PLACER, ONE OWNER.
+   Operator, 2026-09-22:
+     card 1  "one approve, to have as one month calendar just like the other one"
+             "it should be in the middle of the Edit Activity"
+     card 3  "the calendar is not shown in the middle of the edit of the task"
+             "that today and tomorrow, that should be inside the calendar"
+     card 8  "I want it to be in the middle of the focus session"
+
+   WHY ONE FUNCTION. Three separate panels were each being positioned by two
+   different pieces of code on two different timers, so whichever wrote last won
+   and the panel visibly drifted. The file already records this fight twice
+   (2026-09-03, 2026-09-14). The durable fix is not a third timer - it is one
+   owner. Everything else now calls this and nothing else writes left/top.
+
+   WHY ONE-SHOT PLUS ONE rAF, not a timer: the dialog animates in and the picker
+   builds its day grid after it becomes visible, so a single synchronous call can
+   measure a box that is not final yet. One extra frame catches both. Polling
+   catches nothing more and is what caused the drift.
+   ========================================================================== */
+(function () {
+  if (window.__centreInstalled) return;
+  window.__centreInstalled = true;
+
+  function hostFor(el) {
+    /* a focus-session panel centres in the focus session; everything else
+       centres in the Edit dialog's BODY (.ea), not the shell (.modal).
+       Measured on 2026-09-22: shell 575px vs body 541px, and centring on the
+       shell left a constant 17px offset at every screen width. */
+    if (el.classList && el.classList.contains('fb-scope')) {
+      return document.querySelector('.fb-pop');
+    }
+    return document.querySelector('.modal .ea') || document.querySelector('.modal');
+  }
+
+  function place(el) {
+    if (!el || !document.body.contains(el)) return;
+    var host = hostFor(el);
+    if (!host) return;
+    var h = host.getBoundingClientRect();
+    var r = el.getBoundingClientRect();
+    if (!r.width || !r.height) return;          /* not laid out yet - the rAF retries */
+    var left = h.left + (h.width - r.width) / 2;
+    var top  = h.top  + (h.height - r.height) / 2;
+    /* never off the screen, whatever the host is doing */
+    if (left < 8) left = 8;
+    if (left + r.width > window.innerWidth - 8) left = window.innerWidth - 8 - r.width;
+    if (left < 8) left = 8;
+    if (top < 8) top = 8;
+    if (top + r.height > window.innerHeight - 8) top = window.innerHeight - 8 - r.height;
+    if (top < 8) top = 8;
+    el.style.setProperty('position', 'fixed', 'important');
+    el.style.setProperty('left', Math.round(left) + 'px', 'important');
+    el.style.setProperty('top',  Math.round(top)  + 'px', 'important');
+  }
+
+  window.__centreInDialog = function (el) {
+    place(el);
+    if (window.requestAnimationFrame) requestAnimationFrame(function () { place(el); });
+    else setTimeout(function () { place(el); }, 16);
+  };
+
+  /* ------------------------------------------------------------------ ONE MONTH
+     Operator approved one month "just like the other one", for BOTH calendars.
+     Two comfortable months need about 618px and the Edit dialog body is 541px,
+     so they cannot both fit at a readable size. One month plus the < > arrows. */
+  function oneMonth(pop) {
+    if (!pop) return;
+    var months = pop.querySelectorAll('.dp2-m, .rp2-m, .tp2-m');
+    if (months.length > 1) {
+      for (var i = 1; i < months.length; i++) {
+        months[i].style.setProperty('display', 'none', 'important');
+      }
+      var wrap = months[0].parentNode;
+      if (wrap) {
+        wrap.style.setProperty('gap', '0', 'important');
+        wrap.style.setProperty('justify-content', 'center', 'important');
+      }
+      months[0].style.setProperty('flex', '0 0 auto', 'important');
+    }
+  }
+
+  /* -------------------------------------------------- TODAY / TOMORROW, card 3
+     They asked for these INSIDE the calendar the reminder opens, not beside it. */
+  function isoOf(offset) {
+    var d = new Date();
+    d.setDate(d.getDate() + offset);
+    var m = d.getMonth() + 1, day = d.getDate();
+    return d.getFullYear() + '-' + (m < 10 ? '0' + m : m) + '-' +
+           (day < 10 ? '0' + day : day);
+  }
+
+  function quickRow(pop) {
+    if (!pop || pop.querySelector('.qk-row')) return;
+    var body = pop.querySelector('.rp2-body') || pop;
+    var row = document.createElement('div');
+    row.className = 'qk-row';
+    row.style.cssText = 'display:flex;gap:8px;padding:2px 2px 10px';
+    [['TODAY', 0], ['TOMORROW', 1]].forEach(function (pair) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'qk-btn';
+      b.textContent = pair[0];
+      b.style.cssText = 'flex:1 1 0;background:#343a44;border:1px solid #444b57;' +
+        'color:#e9ecf1;border-radius:8px;padding:9px 0;cursor:pointer;' +
+        'font:600 12px ui-sans-serif,-apple-system,sans-serif;letter-spacing:.04em';
+      b.onclick = function (e) {
+        e.preventDefault(); e.stopPropagation();
+        var want = isoOf(pair[1]);
+        var inputs = document.querySelectorAll('input[data-dp2="1"]');
+        for (var i = 0; i < inputs.length; i++) {
+          if (inputs[i].offsetParent !== null) {
+            inputs[i].value = want;
+            if (window.jQuery) window.jQuery(inputs[i]).trigger('change');
+            else inputs[i].dispatchEvent(new Event('change', { bubbles: true }));
+            break;
+          }
+        }
+        var day = pop.querySelector('[data-date="' + want + '"]');
+        if (day) day.click();
+      };
+      row.appendChild(b);
+    });
+    body.insertBefore(row, body.firstChild);
+  }
+
+  /* One MutationObserver, because a panel can appear at any time. It only reacts
+     to a panel being ADDED - it never re-runs on a tick, so it cannot fight. */
+  var mo = new MutationObserver(function (recs) {
+    for (var i = 0; i < recs.length; i++) {
+      var added = recs[i].addedNodes;
+      for (var j = 0; j < added.length; j++) {
+        var n = added[j];
+        if (n.nodeType !== 1) continue;
+        var pop = null;
+        if (n.matches && n.matches('.dp2, .tp2, .rp2, .fb-scope')) pop = n;
+        else if (n.querySelector) pop = n.querySelector('.dp2, .tp2, .rp2, .fb-scope');
+        if (!pop) continue;
+        (function (el) {
+          if (el.classList.contains('dp2') || el.classList.contains('rp2') ||
+              el.classList.contains('tp2')) {
+            oneMonth(el);
+            if (el.classList.contains('rp2')) quickRow(el);
+          }
+          window.__centreInDialog(el);
+        })(pop);
+      }
+    }
+  });
+  mo.observe(document.body, { childList: true, subtree: true });
+})();
+</script>
+
+<script>
+/* ============================================================================
+   BOARD 27 CARD 6 - opening a habit or routine like a task.
+   Operator: "as soon as I click the new tab, it would open up a task thing that
+   basically has a pre-populated location as habits or routine", and "when we have
+   the items there I want to be able to double click in and open it just like I
+   would open a task."
+   ========================================================================== */
+(function () {
+  if (window.__trackerEditorInstalled) return;
+  window.__trackerEditorInstalled = true;
+
+  function locate(rec, kind) {
+    /* Put the record in the tree so the ordinary task editor can open it, under
+       the synthetic Habits / Routines location the Location list already offers.
+       Measured 2026-09-22: .lf-list already carries "Habits" and "Routines" rows
+       under "Or make it a", so this reuses the app's own idea of location rather
+       than inventing a second one. */
+    if (!window.Store || !window.Store.data) return null;
+    var tree = window.Store.data.tree || (window.Store.data.tree = []);
+    var wantId = (kind === 'routines') ? '__routines' : '__habits';
+    var wantTitle = (kind === 'routines') ? 'Routines' : 'Habits';
+    var host = null, i;
+    for (i = 0; i < tree.length; i++) {
+      if (tree[i] && tree[i].id === wantId) { host = tree[i]; break; }
+    }
+    if (!host) {
+      host = { id: wantId, title: wantTitle, notes: '', kind: 'task', done: false,
+               priority: 'normal', date: null, time: null, block: null,
+               duration: 60, repeat: null, tags: [], areaId: null, endDate: null,
+               collapsed: false, children: [] };
+      tree.push(host);
+    }
+    if (!host.children) host.children = [];
+    for (i = 0; i < host.children.length; i++) {
+      if (host.children[i] && host.children[i].id === rec.id) return host.children[i];
+    }
+    var node = { id: rec.id, title: rec.name || wantTitle, notes: '', kind: 'task',
+                 done: false, priority: 'normal', date: null, time: null,
+                 block: null, duration: 60,
+                 repeat: { freq: 'daily', interval: 1, until: null },
+                 tags: [], areaId: null, endDate: null, collapsed: false,
+                 children: [] };
+    host.children.push(node);
+    return node;
+  }
+
+  window.__openTrackerEditor = function (rec, kind) {
+    if (!rec) return;
+    var node = locate(rec, kind);
+    if (!node) return;
+    if (window.Store) window.Store.save();
+    if (window.renderAll) window.renderAll();
+    if (window.editActivity) window.editActivity(node.id);
+  };
+
+  /* double-click any habit or routine in the list to open it like a task */
+  document.addEventListener('dblclick', function (e) {
+    var view = document.getElementById('habitsView');
+    if (!view || !view.contains(e.target)) return;
+    var row = e.target;
+    while (row && row !== view && !(row.dataset && row.dataset.habitId ||
+                                    row.dataset && row.dataset.id)) {
+      row = row.parentNode;
+    }
+    if (!row || row === view) return;
+    var id = (row.dataset.habitId || row.dataset.id);
+    if (!id) return;
+    var kind = /routine/i.test(view.textContent || '') ? 'routines' : 'habits';
+    var list = (window.Store && window.Store.data &&
+                window.Store.data[kind === 'routines' ? 'routines' : 'habits']) || [];
+    for (var i = 0; i < list.length; i++) {
+      if (list[i] && list[i].id === id) {
+        window.__openTrackerEditor(list[i], kind);
+        return;
+      }
+    }
+  });
+})();
+</script>
+
+<script>
+/* ============================================================================
+   BOARD 27 CARD 4 - pressing + on the Reminder row creates a real alarm.
+
+   Operator, 2026-09-22: "I added an alarm on a task and it didn't show up in the
+   alarm section." and "if I go to the setting and go through alarm section, it
+   should be showing there."
+
+   MEASURED on the live build: pressing + opens the date picker and leaves
+   node.reminders at ZERO. The alarm is only created inside the picker's Set
+   callback - so pressing + and closing the picker leaves nothing behind. Nothing
+   existed, so nothing could appear in the Alarms tab; the tab was never at fault.
+
+   WHY THIS WRAPS openReminderPicker RATHER THAN LISTENING FOR THE CLICK:
+   my first attempt added a capture listener on document. It never ran once -
+   measured, zero hits - because the app's own + handler calls
+   stopImmediatePropagation(), which kills every listener registered after it on
+   the same node. Racing a handler that stops propagation cannot work; hooking the
+   function it calls does.
+
+   So: the alarm is created the moment the picker opens, defaulted to the task's
+   own date and time. The picker then EDITS that alarm. Closing it without
+   pressing Set still leaves a real alarm, which is what they expected. */
+(function () {
+  if (window.__plusMakesAlarmInstalled) return;
+  window.__plusMakesAlarmInstalled = true;
+
+  function install() {
+    if (typeof window.openReminderPicker !== 'function') return false;
+    if (window.openReminderPicker.__card4) return true;
+    var base = window.openReminderPicker;
+    var wrapped = function (anchor, date, time, onPick) {
+      var node = null;
+      try {
+        /* only the + on the Reminder row creates: the chip's own body passes the
+           alarm's existing date, so it is an EDIT and must not add a second one. */
+        var isAdd = anchor && anchor.className &&
+                    String(anchor.className).indexOf('al-add') !== -1;
+        if (isAdd && window.findNode && window.__editingId) {
+          var f = window.findNode(window.__editingId);
+          node = f && f.node;
+        }
+      } catch (e) {}
+      var created = null;
+      if (node) {
+        try {
+          if (!node.reminders || !node.reminders.length) node.reminders = [];
+          created = window.newAlarm ? window.newAlarm(node)
+                  : { id: (window.uid ? window.uid() : String(Date.now())),
+                      kind: 'at',
+                      date: node.date || (window.todayISO ? window.todayISO() : null),
+                      time: node.time || '09:00', mode: 'sound' };
+          node.reminders.push(created);
+          if (window.Store) window.Store.save();
+          if (window.showAlarmsList) window.showAlarmsList();
+        } catch (e) { created = null; }
+      }
+      return base.call(this, anchor, date, time, function (dateISO, hhmm) {
+        /* Set was pressed: update the alarm we already made, rather than letting
+           the original callback push a SECOND one. */
+        if (created) {
+          try {
+            created.date = dateISO;
+            created.time = hhmm;
+            if (window.Store) window.Store.save();
+            if (window.showAlarmsList) window.showAlarmsList();
+            if (window.renderAll) window.renderAll();
+          } catch (e) {}
+          return;
+        }
+        if (typeof onPick === 'function') return onPick(dateISO, hhmm);
+      });
+    };
+    wrapped.__card4 = true;
+    window.openReminderPicker = wrapped;
+    return true;
+  }
+
+  if (!install()) {
+    /* the picker module may load after this one - try again on a few frames,
+       then stop. This is a one-time hook, never a polling positioner. */
+    var tries = 0;
+    var iv = setInterval(function () {
+      if (install() || ++tries > 40) clearInterval(iv);
+    }, 50);
+  }
+})();
+</script>
+
+<script>
+/* ============================================================================
+   BOARD 27 CARD 7 - paste a picture into the notes box.
+
+   Operator, 2026-09-22: "also inside the notes button, I still was not able to
+   paste a picture." (Approved on an earlier board and never built - so nothing
+   had changed, which is exactly what they reported.)
+
+   MEASURED: the notes field is div.note-rich with contenteditable="true", so it
+   CAN hold an image already. What was missing is catching the paste and storing
+   the picture INSIDE the note - a pasted image otherwise becomes a temporary
+   blob: link that dies on reload, which would look like it worked and then lost
+   the picture. It is read as a data URL so it is saved with the note itself.
+   ========================================================================== */
+(function () {
+  if (window.__notesPasteInstalled) return;
+  window.__notesPasteInstalled = true;
+
+  var MAX = 4 * 1024 * 1024;     /* a note is saved with the planner - keep it sane */
+
+  function insert(html) {
+    try {
+      if (document.queryCommandSupported && document.queryCommandSupported('insertHTML')) {
+        document.execCommand('insertHTML', false, html);
+        return true;
+      }
+    } catch (e) {}
+    return false;
+  }
+
+  document.addEventListener('paste', function (e) {
+    var el = e.target;
+    if (!el || !el.closest) return;
+    var note = el.closest('.note-rich, [contenteditable="true"]');
+    if (!note) return;
+    var dt = e.clipboardData || window.clipboardData;
+    if (!dt) return;
+    var items = dt.items || [];
+    var file = null, i;
+    for (i = 0; i < items.length; i++) {
+      if (items[i] && items[i].type && items[i].type.indexOf('image/') === 0) {
+        file = items[i].getAsFile();
+        break;
+      }
+    }
+    if (!file) return;                       /* ordinary text paste - leave it alone */
+    e.preventDefault();
+    if (file.size > MAX) {
+      if (window.toast) window.toast('That picture is too large to save in a note.', 'err');
+      return;
+    }
+    var fr = new FileReader();
+    fr.onload = function () {
+      var img = '<img src="' + fr.result + '" style="max-width:100%;height:auto;' +
+                'border-radius:8px;display:block;margin:6px 0">';
+      if (!insert(img)) {
+        var d = document.createElement('div');
+        d.innerHTML = img;
+        note.appendChild(d.firstChild);
+      }
+      /* tell the app the note changed, the same way typing does */
+      try {
+        note.dispatchEvent(new Event('input', { bubbles: true }));
+        note.dispatchEvent(new Event('change', { bubbles: true }));
+      } catch (err) {}
+    };
+    fr.readAsDataURL(file);
+  }, true);
 })();
 </script>
 
