@@ -1754,6 +1754,17 @@ body{font-family:ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif;font-s
 .daycol{background:var(--surface);border-right:1px solid var(--border)}
 .daycol-head{font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-dim);padding:8px 10px;border-bottom:1px solid var(--border)}
 .quickadd{height:30px;border:none;border-top:1px solid var(--border);padding:0 10px;font-size:12px;background:transparent;width:100%}
+/* BOARD 28 CARD 4 - the journal note body is a rich box now (it must be able to
+   hold a pasted picture, which a <textarea> never can). Styled to look exactly
+   like the field it replaces, with a placeholder that behaves the same way. */
+#journalView .jn-rich{width:100%;min-height:150px;box-sizing:border-box;
+  background:#0f1216;border:1px solid #2e323a;border-radius:10px;
+  color:#e6e8ec;font-size:14px;line-height:1.6;padding:12px;outline:none;
+  overflow-wrap:break-word;white-space:pre-wrap}
+#journalView .jn-rich:focus{border-color:#4c9aff}
+#journalView .jn-rich:empty:before{content:attr(data-ph);color:#6b7280}
+#journalView .jn-rich img{max-width:100%;height:auto;border-radius:8px;
+  display:block;margin:6px 0}
 #journalView textarea{width:100%;min-height:420px;border:none;background:transparent;font-size:14px;line-height:1.6;resize:none;outline:none;padding:12px}
 .habit-cell{width:34px;height:34px;border-radius:6px;border:1px solid var(--border);font-size:10px}
 #toast .toast,.modal{box-shadow:0 8px 24px rgba(0,0,0,0.18);border-radius:8px;background:var(--surface);border:1px solid var(--border)}
@@ -5100,10 +5111,26 @@ padding:0 14px;font-family:ui-sans-serif,system-ui,sans-serif;line-height:34px}
    centred month title, dark rounded day cells, selected day pale blue. */
 .dp2{position:absolute;z-index:2147483400;background:#2b3038;color:#e9ecf1;
   border:1px solid #3a4049;border-radius:12px;padding:20px 22px;
-  box-shadow:0 24px 64px rgba(0,0,0,.55)}
+  box-shadow:0 24px 64px rgba(0,0,0,.55);
+  /* BOARD 28 CARD 1 - the panel sizes to its content and never clips a column */
+  box-sizing:border-box}
 .dp2-head{display:none}
 .dp2-months{display:flex;gap:34px}
-.dp2-m{min-width:236px}
+/* ============================================================ BOARD 28 CARD 1
+   Operator, 2026-09-22: "the picture for after looks like it's cut off for the
+   dates, so that needs to get fixed."
+
+   MEASURED: the Saturday column (5, 12, 19, 26) ran to x=860 while the picker
+   ended at x=849 - 11px past its own edge - and the panel has overflow:hidden,
+   so that column was clipped.
+
+   CAUSE: min-width:236px forced the month WIDER than the capped panel, and the
+   cap is what keeps the picker inside the Edit dialog. A fixed minimum inside a
+   box whose width is decided elsewhere will always overflow at some size.
+   The month now fits whatever width it is given. */
+.dp2-m{min-width:0;width:100%;box-sizing:border-box}
+.dp2-grid,.dp2-dows{width:100%;box-sizing:border-box}
+.dp2-day,.dp2-blank{min-width:0;box-sizing:border-box}
 
 /* CARD 1, 2026-09-22 - operator: "why can't you just fit to screen."
    clamp() (further down) caps the picker's width to the dialog and then places it.
@@ -5176,14 +5203,39 @@ padding:0 14px;font-family:ui-sans-serif,system-ui,sans-serif;line-height:34px}
 .dp2 .dp2-grid{grid-auto-rows:34px}
 .dp2 .dp2-day{box-sizing:border-box;width:100%;padding:0}
 
-/* Measured: cells came out 24px in one month and 27px in the other, because each month
-   block sized itself to its own content. Pin both blocks and the cells to one size. */
-.dp2 .dp2-m{width:252px !important;min-width:252px !important;flex:0 0 252px !important}
-.dp2 .dp2-grid{grid-template-columns:repeat(7,32px) !important;justify-content:space-between !important;
-  gap:4px !important}
-.dp2 .dp2-day{width:32px !important;height:32px !important;min-width:32px !important;
-  padding:0 !important;display:flex;align-items:center;justify-content:center}
-.dp2 .dp2-dow{width:32px !important;text-align:center}
+/* ============================================================ BOARD 28 CARD 1
+   Operator, 2026-09-22: "the picture for after looks like it's cut off for the
+   dates, so that needs to get fixed."
+
+   MEASURED, and the arithmetic is the whole story:
+     grid-template-columns: repeat(7, 32px) + 6 gaps of 4px = 248px of columns
+     the grid element is only                                  216px wide
+   So the SEVENTH column - Saturday - sat at x 828-860 while the grid ended at
+   828. The panel clips overflow, so those dates were cut off, and
+   elementFromPoint on the last day returned `ea-row`: not even clickable.
+
+   CAUSE: this block pinned the month to 252px and the cells to 32px, while the
+   panel is CAPPED to fit inside the Edit dialog. Two rules deciding one width,
+   and the fixed one loses its content. The original comment below explains why
+   the pin was added - both months had to match - which is no longer a concern
+   because only ONE month is shown (operator approved, board 27 card 1).
+
+   FIX: the columns SHARE whatever width the panel gives them. minmax(0,1fr)
+   lets a column shrink below its content instead of overflowing, which is
+   exactly what a plain 1fr will not do.
+
+   (Original note: cells came out 24px in one month and 27px in the other,
+   because each month block sized itself to its own content.) */
+.dp2 .dp2-m{width:100% !important;min-width:0 !important;max-width:100% !important;
+  flex:1 1 auto !important;box-sizing:border-box !important}
+.dp2 .dp2-grid{grid-template-columns:repeat(7,minmax(0,1fr)) !important;
+  justify-content:stretch !important;gap:4px !important;
+  width:100% !important;box-sizing:border-box !important}
+.dp2 .dp2-day{width:auto !important;height:32px !important;min-width:0 !important;
+  padding:0 !important;display:flex;align-items:center;justify-content:center;
+  box-sizing:border-box !important}
+.dp2 .dp2-dow{width:auto !important;min-width:0 !important;text-align:center;
+  box-sizing:border-box !important}
 
 
 /* --- review-loop round 1 findings (Minimax, measured) --- */
@@ -5690,7 +5742,7 @@ body[data-newbranch="1"] #treeFilters{
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-09-22 15:18</span>
+    <span id="buildStamp">build 2026-09-23 12:41</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -17385,6 +17437,20 @@ function firstConnect(remote, rAt, lAt) {
     var f = window.findNode(id);
     var node = f && f.node;
     if (!node) return;
+    /* ========================================================= BOARD 28 CARD A
+       Operator, 2026-09-22: "I made a reminder and I put a time, I saved it, and
+       then when I go back inside, the alarm is not over there."
+
+       ROOT CAUSE, measured: `pending` is a SNAPSHOT of the alarms taken when the
+       dialog opens, and Save writes that snapshot back over node.reminders. Any
+       alarm added by a different code path is therefore DESTROYED by Save.
+       My own board-27 card-4 fix did exactly that - it pushed onto
+       node.reminders directly, so Save overwrote it with the stale empty copy.
+       Measured: 1 alarm after +, 1 after Set, 0 after Save.
+
+       The fix is ONE OWNER: `pending` is the dialog's list, everything that adds
+       an alarm adds to it, and Save writes it once. Exposing it is what makes
+       that possible. */
     pending = (window.alarmsOf(node) || []).map(function (a) {
       var c = {}; for (var k in a) { if (a.hasOwnProperty(k)) c[k] = a[k]; } return c;
     });
@@ -17402,7 +17468,38 @@ function firstConnect(remote, rAt, lAt) {
     wireSave(id);
   }
 
+
+  /* ========================================================= BOARD 28 CARD A
+     THE DIALOG'S ALARM LIST IS `pending`, AND IT IS THE ONLY OWNER.
+     Save writes `pending` over node.reminders, so an alarm added anywhere else
+     is destroyed by Save. Measured on build 15:18: 1 alarm after +, 1 after
+     Set, 0 after Save, and the Alarms tab empty afterwards - exactly what the
+     operator reported.
+     Anything that adds an alarm while the dialog is open calls __alAdd. */
+  window.__alPending = function () { return pending; };
+  window.__alAdd = function (alarm) {
+    if (!pending || typeof pending.push !== 'function') return false;
+    pending.push(alarm);
+    /* the row painter redraws on its own tick; redraw() is nested inside
+       build() and is not reachable from here. */
+    return true;
+  };
+
+  /* ========================================================= BOARD 28 CARD 2/6
+     WHY THIS WAS STILL LOSING THE ALARM, found by instrumenting the gate suite:
+     `dataset.alWired` is set on the SAVE BUTTON, and that button OUTLIVES the
+     dialog. So the listener was attached once, on the first dialog ever opened,
+     and its closure captured THAT dialog's `id` and `pending`. Every later task
+     pressed a Save handler belonging to an older dialog - measured: pending=1 on
+     the current dialog, 0 written to the node.
+
+     The flag now records WHICH dialog the handler belongs to, and the handler
+     reads the CURRENT id and list rather than the ones it closed over. One
+     handler, always writing the dialog actually on screen. */
+  var alCurrentId = null;
+
   function wireSave(id) {
+    alCurrentId = id;
     var btns = document.querySelectorAll('.modal-footer button'), i;
     for (i = 0; i < btns.length; i++) {
       if (btns[i].textContent.trim() !== 'Save') continue;
@@ -17410,8 +17507,9 @@ function firstConnect(remote, rAt, lAt) {
       btns[i].dataset.alWired = '1';
       btns[i].addEventListener('click', function () {
         var want = pending;
+        var who = alCurrentId;              /* the dialog on screen NOW */
         setTimeout(function () {
-          var g = window.findNode(id);
+          var g = window.findNode(who);
           if (!g || !g.node || !want) return;
           g.node.reminders = want;
           g.node.reminder = want.length ? true : null;
@@ -29279,6 +29377,12 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
   function hasNotes(n) {
     if (!n) return false;
     if (n.notesHtml) {
+      /* ========================================================= BOARD 28 CARD 4
+         A PICTURE IS CONTENT. This stripped every tag and asked whether any TEXT
+         was left, so a note holding only a pasted snapshot read as EMPTY - no pen
+         mark, and the task looked exactly as if nothing had been pasted. Measured:
+         paste a picture, save, reload -> the picture is stored, pen marks = 0. */
+      if (/<img\b/i.test(n.notesHtml)) return true;
       var t = String(n.notesHtml).replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ');
       return t.replace(/^\s+|\s+$/g, '').length > 0;
     }
@@ -33017,22 +33121,48 @@ body[data-fb="on"] .fb-band { display: block; }
         hd.addEventListener('click', function () {
           openNote = (openNote === n.id) ? null : n.id; draw(true);
           if (openNote === n.id) {
-            var t = document.querySelector('#snRoot .note-card.open .bd textarea'); if (t) t.focus();
+            /* BOARD 28 CARD 4 - the body is a rich box now, not a textarea */
+            var t = document.querySelector('#snRoot .note-card.open .bd .jn-rich') ||
+                    document.querySelector('#snRoot .note-card.open .bd textarea');
+            if (t) t.focus();
           }
         });
         var bd = el('div', 'bd');
         var ti2 = document.createElement('input'); ti2.type = 'text';
         ti2.value = n.title || ''; ti2.placeholder = 'Title';
-        var body = document.createElement('textarea');
-        body.value = n.body || ''; body.placeholder = 'Write anything.';
+        /* ============================================================ BOARD 28 CARD 4
+           Operator, 2026-09-23: "inside the notes section in the edit, and inside the
+           notes section in the journal under notes. Whenever I open a new note, if I
+           add a picture in there where I copy paste it from a snapshot, it does not
+           save. That needs to be featured correctly."
+
+           MEASURED on the live build: this was a <textarea> (569x150, the box that
+           says "Write anything"). A textarea holds TEXT ONLY - pasting a snapshot
+           into it produced 0 pictures and 0 characters. No paste handler could ever
+           fix that, because the field itself cannot hold an image.
+
+           So the field becomes the SAME rich box the task notes use. It keeps every
+           existing note: `body` is still written as plain text for anything that
+           reads it (the preview line, search, sync), and `bodyHtml` carries the
+           pictures. An old note with no bodyHtml simply shows its text. */
+        var body = document.createElement('div');
+        body.className = 'note-rich jn-rich';
+        body.setAttribute('contenteditable', 'true');
+        body.setAttribute('data-ph', 'Write anything.');
+        if (n.bodyHtml) body.innerHTML = n.bodyHtml;
+        else body.textContent = n.body || '';
         var touch = function () {
           var store = notes();
-          store[n.id] = { id:n.id, title:ti2.value, body:body.value,
+          /* plain text for everything that reads a note as text, HTML for the
+             pictures. One note, two views of it - never two sources of truth. */
+          var plain = body.innerText || '';
+          store[n.id] = { id:n.id, title:ti2.value, body:plain,
+                          bodyHtml:body.innerHTML,
                           updatedAt:new Date().toISOString() };
           save(); flashSaved();
           ti.textContent = String(ti2.value).trim() || '';
           ti.className = 'ti' + (String(ti2.value).trim() ? '' : ' blank');
-          pv.textContent = firstLine(body.value) || 'empty';
+          pv.textContent = firstLine(plain) || 'empty';
         };
         ti2.addEventListener('input', touch);
         body.addEventListener('input', touch);
@@ -34580,10 +34710,64 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
   if (window.__centreInstalled) return;
   window.__centreInstalled = true;
 
+  /* BOARD 28 CARD 5 - remember WHICH CONTROL was pressed, so a pop-up can open
+     beside it. Recorded on the capture phase of a real pointer press, before any
+     handler runs and before the pop-up exists. Buttons and the small controls
+     only: pressing the page background should not anchor anything. */
+  function remember(ev) {
+    var t = ev.target;
+    if (!t || !t.closest) return;
+    var c = t.closest('button, [role="button"], .actbtn, .tree-datechip, ' +
+                      '.alc-body, .fb-timerstep, .fb-timerbtn, .lf-field, ' +
+                      '.tgevent, .tgchip, .mchip, input[data-dp2], .ea-row button');
+    if (c) window.__lastPressed = c;
+  }
+  document.addEventListener('pointerdown', remember, true);
+  document.addEventListener('mousedown', remember, true);
+  document.addEventListener('click', remember, true);
+
+  /* ============================================================== BOARD 28 CARD 5
+     Operator, 2026-09-23: "whenever we have a pop-up it has to show close to where
+     I am putting it in - that's a rule for the whole app actually."
+     And, asked which wins where: "that rule only if it's in the whole calendar;
+     however, if a pop-up is inside the edit, it needs to be centre."
+
+     SO THERE ARE TWO RULES, AND WHICH ONE APPLIES IS DECIDED BY WHERE THE POP-UP
+     LIVES, never by its class name:
+       inside the Edit window (.modal)  ->  CENTRED in the dialog body
+       anywhere else (the calendar)     ->  ANCHORED to the control you pressed
+
+     MEASURED on build 15:18: the focus-session pop-up landed 145px from the button.
+     The focus editor is NOT inside .modal, so by the operator's own split it is a
+     calendar pop-up and belongs beside the control.
+
+     This is one rule for all ten kinds of pop-up in the planner (.dp2 .tp2 .rp2
+     .datepop .actmenu .al-pop .fb-scope .sd-cal .tagpick .lf-list) so none of them
+     can drift apart again. */
+  function anchorRect(el) {
+    /* the control the operator just pressed. Recorded on any real pointer press,
+       so it is the thing they actually touched - not a guess from the DOM. */
+    var a = window.__lastPressed;
+    if (!a || !a.isConnected) return null;
+    if (el.contains && el.contains(a)) return null;   /* never anchor to itself */
+    var r = a.getBoundingClientRect();
+    if (!r.width && !r.height) return null;
+    return r;
+  }
+
+  function inEditWindow(el) {
+    /* a pop-up is an EDIT pop-up when it belongs to the dialog - either it sits
+       inside it, or the control that opened it does. The pickers are moved to
+       document.body, so the element's own ancestry is not enough. */
+    if (el.closest && el.closest('.modal')) return true;
+    var a = window.__lastPressed;
+    if (a && a.closest && a.closest('.modal')) return true;
+    return false;
+  }
+
   function hostFor(el) {
-    /* a focus-session panel centres in the focus session; everything else
-       centres in the Edit dialog's BODY (.ea), not the shell (.modal).
-       Measured on 2026-09-22: shell 575px vs body 541px, and centring on the
+    /* Centring host, used only for EDIT pop-ups. Measured 2026-09-22: the modal
+       SHELL is 575px while the dialog BODY (.ea) is 541px, and centring on the
        shell left a constant 17px offset at every screen width. */
     if (el.classList && el.classList.contains('fb-scope')) {
       return document.querySelector('.fb-pop');
@@ -34593,13 +34777,42 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
 
   function place(el) {
     if (!el || !document.body.contains(el)) return;
+    var r = el.getBoundingClientRect();
+    if (!r.width || !r.height) return;          /* not laid out yet - the rAF retries */
+
+    var left, top;
+
+    if (!inEditWindow(el)) {
+      /* ======================================================== BOARD 28 CARD 5
+         A CALENDAR POP-UP OPENS BESIDE WHAT YOU PRESSED.
+         Below the control by preference, above it if there is no room, and
+         nudged inward only as far as needed to stay fully on screen. */
+      var a = anchorRect(el);
+      if (a) {
+        left = a.left;
+        top  = a.bottom + 6;
+        if (top + r.height > window.innerHeight - 8) {
+          var above = a.top - 6 - r.height;
+          top = (above >= 8) ? above : Math.max(8, window.innerHeight - 8 - r.height);
+        }
+        left = Math.min(left, window.innerWidth - 8 - r.width);
+        if (left < 8) left = 8;
+        if (top < 8) top = 8;
+        el.style.setProperty('position', 'fixed', 'important');
+        el.style.setProperty('left', Math.round(left) + 'px', 'important');
+        el.style.setProperty('top',  Math.round(top)  + 'px', 'important');
+        el.style.setProperty('z-index', '2147483647', 'important');
+        if (el.parentNode !== document.body) document.body.appendChild(el);
+        return;
+      }
+      /* no control recorded - fall through to centring rather than guessing */
+    }
+
     var host = hostFor(el);
     if (!host) return;
     var h = host.getBoundingClientRect();
-    var r = el.getBoundingClientRect();
-    if (!r.width || !r.height) return;          /* not laid out yet - the rAF retries */
-    var left = h.left + (h.width - r.width) / 2;
-    var top  = h.top  + (h.height - r.height) / 2;
+    left = h.left + (h.width - r.width) / 2;
+    top  = h.top  + (h.height - r.height) / 2;
     /* never off the screen, whatever the host is doing */
     if (left < 8) left = 8;
     if (left + r.width > window.innerWidth - 8) left = window.innerWidth - 8 - r.width;
@@ -34610,18 +34823,81 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
     el.style.setProperty('position', 'fixed', 'important');
     el.style.setProperty('left', Math.round(left) + 'px', 'important');
     el.style.setProperty('top',  Math.round(top)  + 'px', 'important');
+    /* ========================================================= BOARD 28 CARD B
+       Operator, 2026-09-22: "the edit portion for the due date, the calendar is
+       not showing, and I believe it's in the background behind the edit line."
+
+       MEASURED: the picker WAS rendered - display block, visibility visible,
+       opacity 1, on screen - but elementFromPoint at its own centre returned
+       `note-rich`. It was painted BEHIND the notes box, so it may as well not
+       have been there.
+
+       CAUSE, and it is mine: the old placer set zIndex 2147483647 on every tick.
+       Consolidating the two owners into this one function, I kept the position
+       and dropped the z-index, so the picker fell back to the stylesheet's 9999
+       while #modalHost is 99999. Moving it to position:fixed on document.body
+       also took it OUT of the modal's stacking context, which is what let the
+       dialog's own children paint over it.
+
+       One owner means this function owns EVERYTHING about where the panel sits,
+       including its stacking order. */
+    el.style.setProperty('z-index', '2147483647', 'important');
+    if (el.parentNode !== document.body) document.body.appendChild(el);
   }
 
   window.__centreInDialog = function (el) {
     place(el);
-    if (window.requestAnimationFrame) requestAnimationFrame(function () { place(el); });
-    else setTimeout(function () { place(el); }, 16);
+    if (window.requestAnimationFrame) {
+      requestAnimationFrame(function () {
+        /* BOARD 28 CARD 1 - size the month to the panel AFTER the cap has been
+           applied, then re-centre with the true width. Order matters: fitting
+           before the cap measures the wrong box. */
+        fitMonth(el);
+        place(el);
+      });
+    } else {
+      setTimeout(function () { fitMonth(el); place(el); }, 16);
+    }
   };
 
   /* ------------------------------------------------------------------ ONE MONTH
      Operator approved one month "just like the other one", for BOTH calendars.
      Two comfortable months need about 618px and the Edit dialog body is 541px,
      so they cannot both fit at a readable size. One month plus the < > arrows. */
+  /* ============================================================ BOARD 28 CARD 1
+     Operator: "the picture for after looks like it's cut off for the dates."
+     MEASURED on the live build: 5 day cells (the Saturday column) sat PAST the
+     panel's right edge, and elementFromPoint on the last day returned `ea-row`,
+     not the day - so those dates were both clipped and unclickable.
+     CAUSE: the panel is capped to fit the dialog, but the month carried
+     min-width:236px, so the grid stayed wider than the box that clips it.
+     A fixed minimum inside a box whose width is decided elsewhere always
+     overflows at some size. The month is sized to the panel's INNER width,
+     measured after the cap has been applied. */
+  function fitMonth(pop) {
+    if (!pop) return;
+    var pr = pop.getBoundingClientRect();
+    if (!pr.width) return;
+    var cs = getComputedStyle(pop);
+    var padL = parseFloat(cs.paddingLeft) || 0;
+    var padR = parseFloat(cs.paddingRight) || 0;
+    var inner = Math.floor(pr.width - padL - padR);
+    if (inner < 120) return;
+    var parts = pop.querySelectorAll('.dp2-m, .rp2-m, .tp2-m');
+    for (var i = 0; i < parts.length; i++) {
+      if (parts[i].style.display === 'none') continue;
+      parts[i].style.setProperty('min-width', '0', 'important');
+      parts[i].style.setProperty('width', inner + 'px', 'important');
+      parts[i].style.setProperty('max-width', inner + 'px', 'important');
+      parts[i].style.setProperty('box-sizing', 'border-box', 'important');
+    }
+    var grids = pop.querySelectorAll('.dp2-grid, .rp2-grid, .dp2-dows');
+    for (var g = 0; g < grids.length; g++) {
+      grids[g].style.setProperty('width', '100%', 'important');
+      grids[g].style.setProperty('box-sizing', 'border-box', 'important');
+    }
+  }
+
   function oneMonth(pop) {
     if (!pop) return;
     var months = pop.querySelectorAll('.dp2-m, .rp2-m, .tp2-m');
@@ -34691,8 +34967,12 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
         var n = added[j];
         if (n.nodeType !== 1) continue;
         var pop = null;
-        if (n.matches && n.matches('.dp2, .tp2, .rp2, .fb-scope')) pop = n;
-        else if (n.querySelector) pop = n.querySelector('.dp2, .tp2, .rp2, .fb-scope');
+        /* BOARD 28 CARD 5 - every kind of pop-up in the planner, so one rule
+           governs all of them and none can drift apart again. */
+        var SEL = '.dp2, .tp2, .rp2, .fb-scope, .actmenu, .datepop, .al-pop, ' +
+                  '.sd-cal, .tagpick-pop, .lf-list';
+        if (n.matches && n.matches(SEL)) pop = n;
+        else if (n.querySelector) pop = n.querySelector(SEL);
         if (!pop) continue;
         (function (el) {
           if (el.classList.contains('dp2') || el.classList.contains('rp2') ||
@@ -34836,14 +35116,22 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
       var created = null;
       if (node) {
         try {
-          if (!node.reminders || !node.reminders.length) node.reminders = [];
           created = window.newAlarm ? window.newAlarm(node)
                   : { id: (window.uid ? window.uid() : String(Date.now())),
                       kind: 'at',
                       date: node.date || (window.todayISO ? window.todayISO() : null),
                       time: node.time || '09:00', mode: 'sound' };
-          node.reminders.push(created);
-          if (window.Store) window.Store.save();
+          /* BOARD 28 CARD A - add to the DIALOG'S list, which is what Save writes.
+             This used to push straight onto node.reminders; Save then overwrote
+             node.reminders with its own snapshot and the alarm vanished. Measured:
+             1 after +, 1 after Set, 0 after Save. Never write to a second place. */
+          if (window.__alAdd && window.__alAdd(created)) {
+            /* the dialog owns it now - it redraws and Save persists it */
+          } else {
+            if (!node.reminders || !node.reminders.length) node.reminders = [];
+            node.reminders.push(created);
+            if (window.Store) window.Store.save();
+          }
           if (window.showAlarmsList) window.showAlarmsList();
         } catch (e) { created = null; }
       }
@@ -34899,6 +35187,22 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
 
   var MAX = 4 * 1024 * 1024;     /* a note is saved with the planner - keep it sane */
 
+  /* BOARD 28 CARD 4 - ONE inserter for both paths (a pasted file and a picture
+     copied from a browser), so the two can never behave differently. */
+  function insertImage(note, dataUrl) {
+    var img = '<img src="' + dataUrl + '" style="max-width:100%;height:auto;' +
+              'border-radius:8px;display:block;margin:6px 0">';
+    if (!insert(img)) {
+      var d = document.createElement('div');
+      d.innerHTML = img;
+      if (d.firstChild) note.appendChild(d.firstChild);
+    }
+    try {
+      note.dispatchEvent(new Event('input', { bubbles: true }));
+      note.dispatchEvent(new Event('change', { bubbles: true }));
+    } catch (err) {}
+  }
+
   function insert(html) {
     try {
       if (document.queryCommandSupported && document.queryCommandSupported('insertHTML')) {
@@ -34924,27 +35228,57 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
         break;
       }
     }
-    if (!file) return;                       /* ordinary text paste - leave it alone */
+
+    /* ============================================================ BOARD 28 CARD 4
+       A SNAPSHOT and a BROWSER COPY arrive differently, and only one was handled.
+       Measured on the live build:
+         snip / screenshot  -> clipboard carries a FILE      -> worked
+         copy from a browser-> clipboard carries text/html   -> 0 pictures
+       So copying a picture from a web page did nothing at all. The HTML case is
+       handled here, and the picture is FETCHED AND STORED in the note rather than
+       left as a link - a link dies when you are offline or the page goes away,
+       which would look exactly like losing the picture. */
+    if (!file) {
+      var html = '';
+      try { html = dt.getData('text/html') || ''; } catch (err) { html = ''; }
+      var m = html.match(/<img[^>]+src=["']([^"']+)["']/i);
+      if (m && m[1]) {
+        var src = m[1];
+        e.preventDefault();
+        if (src.indexOf('data:image/') === 0) {
+          insertImage(note, src);           /* already a stored copy */
+          return;
+        }
+        /* fetch it into the note so it survives offline */
+        try {
+          fetch(src).then(function (r) { return r.blob(); }).then(function (b) {
+            if (b.size > MAX) {
+              if (window.toast) window.toast('That picture is too large to save in a note.', 'err');
+              return;
+            }
+            var fr2 = new FileReader();
+            fr2.onload = function () { insertImage(note, fr2.result); };
+            fr2.readAsDataURL(b);
+          })['catch'](function () {
+            /* cross-site rules can refuse the copy - say so rather than
+               silently leaving a link that will break later */
+            if (window.toast) {
+              window.toast('That site would not let the picture be copied. ' +
+                           'Save it and paste the file instead.', 'err');
+            }
+          });
+        } catch (err2) {}
+        return;
+      }
+      return;                                /* ordinary text paste - leave it alone */
+    }
     e.preventDefault();
     if (file.size > MAX) {
       if (window.toast) window.toast('That picture is too large to save in a note.', 'err');
       return;
     }
     var fr = new FileReader();
-    fr.onload = function () {
-      var img = '<img src="' + fr.result + '" style="max-width:100%;height:auto;' +
-                'border-radius:8px;display:block;margin:6px 0">';
-      if (!insert(img)) {
-        var d = document.createElement('div');
-        d.innerHTML = img;
-        note.appendChild(d.firstChild);
-      }
-      /* tell the app the note changed, the same way typing does */
-      try {
-        note.dispatchEvent(new Event('input', { bubbles: true }));
-        note.dispatchEvent(new Event('change', { bubbles: true }));
-      } catch (err) {}
-    };
+    fr.onload = function () { insertImage(note, fr.result); };
     fr.readAsDataURL(file);
   }, true);
 })();
