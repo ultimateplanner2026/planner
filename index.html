@@ -4553,6 +4553,34 @@ input:focus, textarea:focus, select:focus {
 .note-rich:focus { outline: 2px solid var(--accent-q, #4c9aff); outline-offset: -1px; }
 .note-rich a { color: #7fa6f0; text-decoration: underline; cursor: pointer; }
 .note-rich a:hover { color: #a9c6ff; }
+
+/* ================================================================ BOARD 30 CARD 1
+   Operator, 2026-09-25: "for the notes in the edit button and notes in the journal
+   I want to have the option to resize the pictures there", and: "on the phone it
+   will be the same exact resizing, kind of like what the web browser would have."
+
+   So: tap a picture to get sizes, or drag its corner. Identical on both, because
+   pointer events cover mouse and touch with one code path. */
+.note-rich img, .note-card img { max-width: 100%; height: auto; display: block;
+  border-radius: 6px; cursor: pointer; }
+.note-rich img.npick, .note-card img.npick {
+  outline: 2px solid var(--accent-q, #4c9aff); outline-offset: 1px; }
+.nsize {
+  position: fixed; z-index: 2147483000; display: flex; gap: 6px; padding: 6px;
+  background: var(--s-raised, #262a33); border: 1px solid var(--line, #333844);
+  border-radius: 9px; box-shadow: 0 10px 28px rgba(0,0,0,.5); }
+.nsize button {
+  min-width: 44px; height: 32px; padding: 0 10px; cursor: pointer;
+  border: 1px solid var(--line, #333844); border-radius: 7px;
+  background: var(--s-base, #1c1f26); color: var(--t-1, #e8eaed); font-size: 12.5px; }
+.nsize button:hover { filter: brightness(1.15); }
+.nsize button[data-on="1"] { background: var(--accent-q, #4c9aff); color: #fff;
+  border-color: var(--accent-q, #4c9aff); }
+.ngrip {
+  position: fixed; z-index: 2147483001; width: 18px; height: 18px;
+  border-radius: 5px; background: var(--accent-q, #4c9aff);
+  border: 2px solid #fff; box-shadow: 0 2px 8px rgba(0,0,0,.5);
+  cursor: nwse-resize; touch-action: none; }
 .note-bar2 {
   display: flex; gap: 4px; flex-wrap: wrap; padding: 6px 8px;
   background: var(--s-raised, #262a33);
@@ -5013,6 +5041,12 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
    on screen. Measured: branch VISIBLE, its dated child hidden. Hidden means GONE - no ghost, no
    grey. CSS does the hiding so nothing fights a timer. */
 #treeRoot:not(.show-future) .tree-row.fb-hide{ display:none !important; }
+/* ================================================================ BOARD 30 CARD 4
+   Operator, 2026-09-25: "let's have another button under show future branches in the
+   setting in the priority tree and name it show habits slash routines."
+   Its OWN switch, so revealing a genuinely future task never drags habits into view
+   with it - the two reasons for hiding stay apart. */
+#treeRoot:not(.show-hr) .tree-row.hr-hide{ display:none !important; }
 
 .tree-gearmenu .gearitem .kids{
   margin-left:auto; font-size:10px; color:#6b7280; background:#2f343e;
@@ -8515,6 +8549,19 @@ window.renderJournal = function() {
    touched, which is the thing the consistency rule exists to prevent.
    TRACKERS holds what differs: which array the records live in, which log holds the ticks,
    and the noun used in the UI. Nothing else differs. */
+window.__countsAsCompleted = function (node, parent, fromTaskMap) {
+  /* ============================================================== BOARD 30 CARD 8
+     The SINGLE test for "does this belong in Completed". The tab count and the list
+     both call it, so they cannot drift - a tab reading (2) over a one-item list is
+     exactly what happened when I filtered the list and left the counter alone. */
+  if (!node || !node.done) return false;
+  var m = fromTaskMap || (window.__habitRoutineTaskIds ? window.__habitRoutineTaskIds() : {});
+  if (m[node.id]) return false;                       /* has a habit/routine record */
+  if (node.repeat && node.repeat.freq) return false;  /* a repeat never finishes */
+  if (parent && (parent.id === '__habits' || parent.id === '__routines')) return false;
+  return true;
+};
+
 window.TRACKERS = {
   habits:   { store: 'habits',   log: 'habitLog',   noun: 'habit',   label: 'New habit' },
   routines: { store: 'routines', log: 'routineLog', noun: 'routine', label: 'New routine' }
@@ -8664,11 +8711,34 @@ window.renderTracker = function (kind) {
   records.forEach(function (habit) {
     var row = document.createElement('div');
     row.className = 'habit-row';
+    /* BOARD 30 CARD 3 - the row must carry its id, or nothing can find it.
+       MEASURED on the live build: .habit-row had NO data-id at all, so the
+       existing double-click handler walked up looking for one, found none, and
+       returned - which is why clicking a habit never opened anything. */
+    row.dataset.habitId = habit.id;
 
     // name
     var nameEl = document.createElement('span');
     nameEl.className = 'habit-name';
     nameEl.textContent = habit.name;
+    /* ============================================================ BOARD 30 CARD 3
+       Operator, 2026-09-25: "I want to be able to open a task or a habit... when I
+       click stretch, it would open up the whole task", then: "I also want it to be
+       like a double click on the browser and on the phone."
+
+       So the NAME opens the whole task - on a single click and on a double click,
+       and the same on a phone. The tick cells stay separate, as they chose, so
+       marking a day done never opens anything. */
+    nameEl.style.cursor = 'pointer';
+    nameEl.title = 'Open this ' + T.noun;
+    (function (rec) {
+      function open(ev) {
+        if (ev) { ev.preventDefault(); ev.stopPropagation(); }
+        if (window.__openTrackerEditor) window.__openTrackerEditor(rec, kind);
+      }
+      nameEl.addEventListener('click', open);
+      nameEl.addEventListener('dblclick', open);
+    })(habit);
     row.appendChild(nameEl);
 
     // 7‑day cells (oldest left, today right)
@@ -12624,7 +12694,9 @@ function surfaceArrivals() {
              empty list; the exclusion lives in one helper so the two cannot drift. */
           var cnt = 0;
           var skipHR = window.__habitRoutineTaskIds ? window.__habitRoutineTaskIds() : {};
-          window.walkTree(function(n) { if (n.done && !skipHR[n.id]) cnt++; });
+          window.walkTree(function(n, d, p) {
+            if (window.__countsAsCompleted(n, p, skipHR)) cnt++;
+          });
           var s = document.createElement('span');
           s.className = 'view-count';
           s.textContent = ' (' + cnt + ')';
@@ -12720,7 +12792,27 @@ function surfaceArrivals() {
           return;
         }
         if (node.done) {
-          if (fromTask[node.id]) { skipped[node.id] = true; return; }
+          if (!window.__countsAsCompleted(node, parent, fromTask)) {
+            skipped[node.id] = true;
+            return;
+          }
+          /* ====================================================== BOARD 30 CARD 8
+             Operator, 2026-09-25: "for routines and habits, these are something
+             continuously that will not stop unless I delete the habit or routine.
+             So whenever I press complete, it should not show up on the complete
+             section", and: "it would have to go through the habits and routines
+             section really, and it would have like the mark off and tally."
+
+             The fromTask test above only catches a task that has a habit RECORD
+             pointing at it. Measured on the live build: a plain REPEATING task
+             ("Morning routine", daily) has no such record, so it landed in
+             Completed beside an ordinary task - exactly what the operator says
+             must never happen.
+
+             A repeat never finishes, so "done" on it means "done today", not
+             "finished forever". Anything that repeats is therefore kept out of
+             Completed; its tick lives in the habits and routines section and on
+             the day itself. */
           collected.push({ node: node, parent: parent });
           skipped[node.id] = true;
         }
@@ -15070,11 +15162,88 @@ function firstConnect(remote, rAt, lAt) {
     }
     if (r.mode === 'sound') beep();
     if (navigator.vibrate) { try { navigator.vibrate([300,150,300]); } catch (e) {} }
+    /* BOARD 30 CARD 10 - start the ladder, unless this one is already settled */
+    if (!acknowledged(node) && !nags[node.id]) {
+      nags[node.id] = { n: 1, timer: null, firstAt: Date.now() };
+      scheduleNag(node);
+    }
     banner(node);
   }
 
+  /* =============================================================== BOARD 30 CARD 10
+     Operator, 2026-09-25: "the reminder should show the frequency until it's
+     acknowledged", then, on the shape I proposed: "Number 10 approved and you're
+     right, I should only see one. However, the notification should be re-alerted
+     every whatever minutes is the option there."
+
+     So: ONE notice on screen at a time, re-alerted on a ladder until it is
+     acknowledged, and it stops after an hour so nothing nags forever.
+       5 min -> 15 min -> 30 min, then every 30 until the hour is up
+       "Got it"  ends it.  "Snooze" restarts the ladder.
+       Opening the task counts as acknowledging it.
+     The repeat carries a COUNT so a later notice never reads like a fresh one. */
+  var NAG_STEPS = [5, 15, 30];
+  var NAG_STOP_AFTER = 60;              /* minutes */
+  var nags = {};                        /* node id -> {n, timer, firstAt} */
+
+  function nagKey(node) { return 'planner.ack.' + node.id; }
+
+  function acknowledged(node) {
+    try { return localStorage.getItem(nagKey(node)) === '1'; }
+    catch (e) { return false; }
+  }
+
+  function acknowledge(node) {
+    try { localStorage.setItem(nagKey(node), '1'); } catch (e) {}
+    var st = nags[node.id];
+    if (st && st.timer) { clearTimeout(st.timer); }
+    delete nags[node.id];
+    var old = document.querySelector('.rem-banner[data-node="' + node.id + '"]');
+    if (old && old.parentNode) old.parentNode.removeChild(old);
+  }
+  window.__remAcknowledge = acknowledge;
+
+  /* "Opening the task also counts - if you acted on it, you acknowledged it."
+     One listener, rather than a hook inside every path that opens a task. */
+  (function () {
+    var realOpen = null;
+    function wrap() {
+      if (realOpen || typeof window.editActivity !== 'function') return;
+      realOpen = window.editActivity;
+      window.editActivity = function (id) {
+        try {
+          var f = window.findNode ? window.findNode(id) : null;
+          if (f && f.node) acknowledge(f.node);
+        } catch (e) {}
+        return realOpen.apply(this, arguments);
+      };
+    }
+    wrap();
+    setTimeout(wrap, 1200);
+  })();
+
+  function scheduleNag(node) {
+    var st = nags[node.id];
+    if (!st) return;
+    var elapsed = (Date.now() - st.firstAt) / 60000;
+    if (elapsed >= NAG_STOP_AFTER) { delete nags[node.id]; return; }
+    var idx = Math.min(st.n - 1, NAG_STEPS.length - 1);
+    var wait = NAG_STEPS[idx < 0 ? 0 : idx];
+    st.timer = setTimeout(function () {
+      if (acknowledged(node)) { delete nags[node.id]; return; }
+      st.n += 1;
+      banner(node);
+      scheduleNag(node);
+    }, wait * 60000);
+  }
+  window.__remNagState = function (id) { return nags[id] || null; };
+
   function banner(node) {
+    /* ONE notice at a time for this task - never a stack of them */
+    var prev = document.querySelector('.rem-banner[data-node="' + node.id + '"]');
+    if (prev && prev.parentNode) prev.parentNode.removeChild(prev);
     var b = document.createElement('div'); b.className = 'rem-banner';
+    b.setAttribute('data-node', node.id);
     b.style.cssText = 'position:fixed;left:50%;top:16px;transform:translateX(-50%);z-index:99999;'
       + 'background:var(--surface,#222);color:var(--text,#fff);border:1px solid var(--accent,#59f);'
       + 'border-radius:10px;padding:12px 16px;box-shadow:0 8px 30px rgba(0,0,0,.4);'
@@ -15084,17 +15253,54 @@ function firstConnect(remote, rAt, lAt) {
     var strong = document.createElement('div');
     strong.style.cssText = 'font-weight:600';
     strong.textContent = node.title || 'Reminder';
+    var st = nags[node.id];
+    if (st && st.n > 1) {
+      var tag = document.createElement('span');
+      tag.style.cssText = 'margin-left:8px;font-size:10px;font-weight:800;'
+        + 'letter-spacing:.05em;text-transform:uppercase;background:#3a2a12;'
+        + 'color:#f0b354;border:1px solid #6b4d1c;border-radius:999px;padding:2px 8px';
+      tag.textContent = ordinal(st.n) + ' reminder';
+      strong.appendChild(tag);
+    }
     var sub = document.createElement('div');
     sub.style.cssText = 'font-size:11px;opacity:.75';
-    sub.textContent = (node.time || '') + '  ' + (node.date || '');
+    sub.textContent = (node.time || '') + '  ' + (node.date || '')
+      + (st && st.n > 1 ? '  \u00b7 ' + lateBy(st.firstAt) : '');
     t.appendChild(strong); t.appendChild(sub);
-    var x = document.createElement('button');
-    x.type = 'button'; x.textContent = 'Dismiss';
-    x.style.cssText = 'font-size:11px;padding:6px 10px;border-radius:6px;cursor:pointer';
-    x.addEventListener('click', function () { if (b.parentNode) b.parentNode.removeChild(b); });
-    b.appendChild(t); b.appendChild(x);
+
+    var got = document.createElement('button');
+    got.type = 'button'; got.textContent = 'Got it';
+    got.style.cssText = 'font-size:11px;padding:6px 12px;border-radius:6px;cursor:pointer;'
+      + 'background:var(--accent,#2f6fed);color:#fff;border:1px solid var(--accent,#2f6fed);'
+      + 'font-weight:600';
+    got.addEventListener('click', function () { acknowledge(node); });
+
+    var snooze = document.createElement('button');
+    snooze.type = 'button'; snooze.textContent = 'Snooze';
+    snooze.style.cssText = 'font-size:11px;padding:6px 10px;border-radius:6px;cursor:pointer';
+    snooze.addEventListener('click', function () {
+      if (b.parentNode) b.parentNode.removeChild(b);
+      var s2 = nags[node.id];
+      if (s2) { s2.n = 1; if (s2.timer) clearTimeout(s2.timer); scheduleNag(node); }
+    });
+
+    b.appendChild(t); b.appendChild(got); b.appendChild(snooze);
     document.body.appendChild(b);
-    setTimeout(function () { if (b.parentNode) b.parentNode.removeChild(b); }, 60000);
+    /* it stays until it is acknowledged or the next one replaces it - it does not
+       quietly vanish after a minute, which is what "until acknowledged" means */
+  }
+
+  function ordinal(n) {
+    var s2 = ['th', 'st', 'nd', 'rd'], v = n % 100;
+    return n + (s2[(v - 20) % 10] || s2[v] || s2[0]);
+  }
+
+  function lateBy(firstAt) {
+    var mins = Math.round((Date.now() - firstAt) / 60000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return mins + ' min ago';
+    var h = Math.floor(mins / 60);
+    return h + (h === 1 ? ' hour ago' : ' hours ago');
   }
 
   function walk(list, out) {
@@ -15450,6 +15656,37 @@ function firstConnect(remote, rAt, lAt) {
       if (window.showCalendarSync) window.showCalendarSync();
     });
     host.appendChild(sub);
+
+    /* ============================================================== BOARD 30 CARD 4
+       Operator, 2026-09-25: "let's have another button under show future branches in
+       the setting in the priority tree and name it show habits slash routines."
+
+       Same class, same place, same shape as the button above it - the match-the-
+       existing-layout rule. It reads its state from __hrShowing so the switch and
+       the tree can never disagree. */
+    if (!document.getElementById('btnShowHR')) {
+      var hr = document.createElement('button');
+      hr.id = 'btnShowHR';
+      hr.type = 'button';
+      hr.className = 'drawer-btn';
+      function labelHR() {
+        var on = window.__hrShowing ? window.__hrShowing() : false;
+        hr.textContent = on ? 'Hide habits / routines'
+                            : 'Show habits / routines';
+        hr.setAttribute('data-on', on ? '1' : '0');
+      }
+      hr.addEventListener('click', function (e) {
+        e.preventDefault();
+        var on = window.__hrShowing ? window.__hrShowing() : false;
+        if (window.__hrSetShowing) window.__hrSetShowing(!on);
+        /* read the state back AFTER the write, not before - labelling from the
+           pre-click value left the button one press behind what it had just done. */
+        labelHR();
+        setTimeout(labelHR, 0);
+      });
+      labelHR();
+      host.appendChild(hr);
+    }
   }
 
 
@@ -22330,6 +22567,70 @@ if (r.freq === 'yearly') {
       if (added.length === 1) return 'Added \u201c' + added[0] + '\u201d';
       if (added.length > 1)   return 'Added ' + added.length + ' items';
       if (renamed.length)     return 'Renamed ' + renamed[0];
+
+      /* ========================================================= BOARD 30 CARD 5
+         Operator, 2026-09-25: "I wanted to show what is the actual change", and:
+         "show the old value too (60 -> 90), or just the new? both."
+
+         Until here the describer only understood deletes, adds and renames, so
+         EVERY field edit - duration, priority, date, time - fell through to the
+         useless 'Changed a task'. Measured on the live build: twelve entries, all
+         twelve reading 'Changed a task'.
+
+         So: compare the fields a person actually edits and name the one that moved,
+         with its OLD value and its NEW one. */
+      var FIELDS = [
+        { key: 'title',    label: 'name' },
+        { key: 'duration', label: 'duration', unit: ' min' },
+        { key: 'priority', label: 'priority' },
+        { key: 'date',     label: 'date' },
+        { key: 'time',     label: 'time' },
+        { key: 'notes',    label: 'notes' },
+        { key: 'done',     label: 'done' }
+      ];
+      function shown(v, unit) {
+        if (v === null || v === undefined || v === '') return 'empty';
+        if (v === true) return 'yes';
+        if (v === false) return 'no';
+        return String(v) + (unit || '');
+      }
+      var edits = [];
+      for (i2 = 0; i2 < ca.length; i2++) {
+        var was = ca[i2], now = idb[was.id];
+        if (!now) continue;
+        for (var f2 = 0; f2 < FIELDS.length; f2++) {
+          var F = FIELDS[f2];
+          if (F.key === 'title') continue;           /* renames are handled above */
+          if (was[F.key] === now[F.key]) continue;
+          edits.push({
+            who: now.title || was.title || 'Untitled',
+            what: F.label,
+            from: shown(was[F.key], F.unit),
+            to: shown(now[F.key], F.unit)
+          });
+        }
+      }
+      if (edits.length === 1) {
+        var e1 = edits[0];
+        return e1.who + ' \u2014 ' + e1.what + ' ' + e1.from +
+               ' \u2192 ' + e1.to;
+      }
+      if (edits.length > 1) {
+        var names = {}, k2;
+        for (k2 = 0; k2 < edits.length; k2++) names[edits[k2].who] = 1;
+        var only = Object.keys(names);
+        if (only.length === 1) {
+          var parts = [];
+          for (k2 = 0; k2 < edits.length && k2 < 3; k2++) {
+            parts.push(edits[k2].what + ' ' + edits[k2].from +
+                       ' \u2192 ' + edits[k2].to);
+          }
+          return only[0] + ' \u2014 ' + parts.join(', ') +
+                 (edits.length > 3 ? ' and ' + (edits.length - 3) + ' more' : '');
+        }
+        return 'Changed ' + edits.length + ' things on ' + only.length + ' tasks';
+      }
+
       if ((a.trash || []).length !== (b.trash || []).length) return 'Changed the trash';
       return 'Changed a task';
     } catch (e) { return 'Changed something'; }
@@ -23939,6 +24240,7 @@ nesting to 20 levels, so the whole tree is serialised rather than stored as nest
     }
 
     window.__focusApply = function (id) {
+      /* accepts one id or a list of them (BOARD 30 CARD 12) */
       window.__focusId = id;
       window.__focusPick = false;
       redraw();
@@ -24216,14 +24518,29 @@ nesting to 20 levels, so the whole tree is serialised rather than stored as nest
     }
 
     function allowedIds(){
+      /* ============================================================ BOARD 30 CARD 12
+         Operator, 2026-09-25: "if I do have two different focus branches, that means
+         the two focus branches would be applied to the calendar. And that will be the
+         only two branches shown, period."
+
+         __focusId held exactly ONE id, so two branches could never both be shown.
+         It now accepts an ARRAY as well, and every named branch (with everything
+         inside it) is allowed - and nothing else. One id still works exactly as
+         before, so no existing behaviour changes. */
       if (!window.__focusId) return null;
+      var wanted = window.__focusId;
+      if (!(wanted instanceof Array)) wanted = [wanted];
+      if (!wanted.length) return null;
+
       var result = {};
-      var found = null;
+      var hits = [];
       window.walkTree(function(node){
-        if (found) return;
-        if (node && node.id === window.__focusId) found = node;
+        if (!node || node.id == null) return;
+        for (var w = 0; w < wanted.length; w++) {
+          if (node.id === wanted[w]) { hits.push(node); return; }
+        }
       });
-      if (!found) return result;
+      if (!hits.length) return result;
       function collect(n){
         if (!n) return;
         if (n.id != null) result[n.id] = true;
@@ -24231,7 +24548,7 @@ nesting to 20 levels, so the whole tree is serialised rather than stored as nest
           for (var i = 0; i < n.children.length; i++) collect(n.children[i]);
         }
       }
-      collect(found);
+      for (var h = 0; h < hits.length; h++) collect(hits[h]);
       return result;
     }
 
@@ -28826,6 +29143,19 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
     return showing();
   };
 
+  /* BOARD 30 CARD 4 - "show habits / routines", its own switch */
+  window.__hrShowing = function(){
+    try {
+      return window.localStorage.getItem('planner.showHabitsRoutines') === '1';
+    } catch(e){ return false; }
+  };
+  window.__hrSetShowing = function(v){
+    try {
+      window.localStorage.setItem('planner.showHabitsRoutines', v ? '1' : '0');
+    } catch(e){}
+    if (window.renderAll) { try { window.renderAll(); } catch(e){} }
+  };
+
   function paint(){
     if (!window.Store || !window.Store.data || !window.Store.data.tree) return;
     if (typeof window.walkTree !== 'function') return;
@@ -28839,6 +29169,32 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
     } else {
       removeClass(root, 'show-future');
     }
+
+    /* BOARD 30 CARD 4 - the Habits / Routines branches get their own switch */
+    if (window.__hrShowing && window.__hrShowing()){
+      addClass(root, 'show-hr');
+    } else {
+      removeClass(root, 'show-hr');
+    }
+    (function(){
+      var hrRows = root.querySelectorAll ? root.querySelectorAll('.tree-row') : [];
+      var hrIds = { '__habits': 1, '__routines': 1 };
+      var inside = {};
+      if (typeof window.walkTree === 'function') {
+        window.walkTree(function (n, d, parent) {
+          if (!n || n.id == null) return;
+          if (hrIds[n.id]) { inside[n.id] = 1; return; }
+          if (parent && (inside[parent.id] || hrIds[parent.id])) inside[n.id] = 1;
+        });
+      }
+      for (var k = 0; k < hrRows.length; k++){
+        var r2 = hrRows[k];
+        var id2 = r2 && r2.getAttribute ? r2.getAttribute('data-id') : null;
+        if (!id2) continue;
+        if (inside[id2]) addClass(r2, 'hr-hide');
+        else removeClass(r2, 'hr-hide');
+      }
+    })();
 
     var futureSet = futureBranchIds();
     var rows = root.querySelectorAll ? root.querySelectorAll('.tree-row') : [];
@@ -30484,6 +30840,14 @@ body[data-fb="on"] .fb-band { display: block; }
 .al-quick .al-day { height: 24px; padding: 0 10px; border-radius: 6px; font-size: 11.5px;
   background: #24272e; border: 1px solid #2e323a; color: #e6e8ec; cursor: pointer; }
 .al-quick .al-day:hover { background: #2b2f38; border-color: #3a3f4a; }
+/* BOARD 30 CARD 12 - the Apply focus in calendar button, inside the session */
+.fb-applyrow { display: block; margin: 2px 0 10px; }
+.fb-applybtn { width: 100%; height: 32px; border-radius: 8px; cursor: pointer;
+  border: 1px solid #2f6fed; background: #2f6fed; color: #fff;
+  font-size: 12.5px; font-weight: 600; }
+.fb-applybtn:hover { filter: brightness(1.07); }
+.fb-applybtn[data-on="1"] { background: #14603a; border-color: #14603a; }
+.fb-applynote { font-size: 10.5px; color: #6b7280; margin: 5px 0 0; line-height: 1.4; }
 .fb-itemsnote { font-size: 10.5px; color: #6b7280; margin: -2px 0 6px; min-height: 12px;
   text-align: right; }
 .fb-itemmenu { width: 218px; padding: 6px; }
@@ -31719,6 +32083,98 @@ body[data-fb="on"] .fb-band { display: block; }
 
     /* which items inside that branch this session is for */
     var relabelItems = itemsRow(pop, bl, function () {});
+
+    /* ============================================================= BOARD 30 CARD 12
+       Operator, 2026-09-25: "it's inside the focus session. When I click on the open
+       focus session... there should be a button under focus branch, apply focus in
+       calendar, and that would be within that."
+       And: "if I do have two different focus branches, that means the two focus
+       branches would be applied to the calendar. And that will be the only two
+       branches shown, period."
+
+       The filtering engine already exists (window.__focusCalendar / __focusApply);
+       what was missing was a way to reach it from the session you are looking at.
+       __focusApply takes the session's OWN branch list, so two named branches means
+       both are shown and nothing else - which is the rule they stated. */
+    (function () {
+      var wrap = document.createElement('div');
+      wrap.className = 'fb-row fb-applyrow';
+
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'fb-applybtn';
+      btn.textContent = 'Apply focus in calendar';
+
+      var note = document.createElement('div');
+      note.className = 'fb-applynote';
+
+      /* the branches THIS session names. bl.itemIds is what the Focus branch box
+         writes - measured: typing "Willingboro, Home" stores ["w","h"]. */
+      function wanted() {
+        var ids = (bl && bl.itemIds && bl.itemIds.length) ? bl.itemIds.slice() : [];
+        return ids;
+      }
+      function sameAsMine() {
+        var mine = wanted();
+        var cur = window.__focusId;
+        if (!mine.length || !cur) return false;
+        if (!(cur instanceof Array)) cur = [cur];
+        if (cur.length !== mine.length) return false;
+        for (var i = 0; i < mine.length; i++) {
+          if (cur.indexOf(mine[i]) === -1) return false;
+        }
+        return true;
+      }
+      function paintState() {
+        var on = sameAsMine();
+        btn.setAttribute('data-on', on ? '1' : '0');
+        btn.textContent = on ? 'Focus is on \u2014 press to clear'
+                             : 'Apply focus in calendar';
+        var n = wanted().length;
+        note.textContent = on
+          ? (n > 1 ? 'the calendar is showing only these ' + n + ' branches'
+                   : 'the calendar is showing only this branch')
+          : (n > 1 ? 'the calendar will show only these ' + n +
+                     ' branches, and nothing else'
+                   : 'the calendar will show only this session\u2019s branches, ' +
+                     'and nothing else');
+      }
+
+      btn.addEventListener('click', function (ev) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        var on = btn.getAttribute('data-on') === '1';
+        try {
+          if (on) {
+            if (window.__focusClear) window.__focusClear();
+          } else {
+            var ids = wanted();
+            if (!ids.length) {
+              if (window.toast) window.toast('Name a branch first, in Focus branch above.', 'err');
+              return;
+            }
+            /* pass the WHOLE list - two branches means both, and only those */
+            if (window.__focusApply) window.__focusApply(ids);
+          }
+        } catch (e) { }
+        if (window.__focusCalendar) { try { window.__focusCalendar(); } catch (e) { } }
+        paintState();
+      });
+
+      paintState();
+      wrap.appendChild(btn);
+      wrap.appendChild(note);
+      /* directly UNDER the Focus branch row, as they asked */
+      /* itemsRow() returns the ROW ELEMENT itself, already appended to the
+         popover - measured, not assumed: it ends "pop.appendChild(r); return r;".
+         Reading .row off it was always undefined, so the button silently fell
+         back to the end of the panel instead of sitting under Focus branch. */
+      if (relabelItems && relabelItems.parentNode) {
+        relabelItems.parentNode.insertBefore(wrap, relabelItems.nextSibling);
+      } else {
+        pop.appendChild(wrap);
+      }
+    })();
 
     /* switching branch must not silently drop the ticks - they are the operator's
        choice, and the branch only supplies the colour once items are chosen. */
@@ -35036,13 +35492,69 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
     return node;
   }
 
+  /* ============================================================ BOARD 30 CARD 6
+     Operator, 2026-09-25: "whenever I open or make a new habit from the new habit
+     or routine section, it should automatically show up on the calendar view" and
+     "a new habit would be same exact thing as a new task... if it's not filled, it
+     would be starting today."
+
+     MEASURED on the live build, by driving + New habit for real: the record saved
+     as name:"New habit" (the placeholder) although "Stretch" was typed, and the
+     tree node saved with date:null. The calendar draws BY DATE, so a habit with no
+     date has no day to appear on - which is exactly the operator's report.
+
+     Root cause: locate() copies rec.name INTO the tree node once, and nothing ever
+     copies the edited title back, nor gives the node a date. Two one-way halves
+     that never meet.
+
+     The fix is one function, called after every save, that makes the habit record
+     and its tree node agree: the title you typed becomes the habit's name, and an
+     empty date becomes today so it appears on the calendar straight away. */
+  function syncTracker(rec, kind, node) {
+    if (!rec || !node) return;
+    var t = (node.title || '').replace(/^\s+|\s+$/g, '');
+    var placeholder = (kind === 'routines') ? 'New routine' : 'New habit';
+    /* the title the operator typed wins, unless they left it untouched */
+    if (t && t !== placeholder) rec.name = t;
+    else if (rec.name && rec.name !== placeholder) node.title = rec.name;
+    /* no date means "start today", so it lands on the calendar immediately */
+    if (!node.date && window.todayISO) node.date = window.todayISO();
+    if (!node.repeat) node.repeat = { freq: 'daily', interval: 1, until: null };
+    /* the link the calendar and the habits list both read */
+    rec.fromTask = node.id;
+    if (rec.color && !node.colour) node.colour = rec.color;
+  }
+  window.__syncTracker = syncTracker;
+
   window.__openTrackerEditor = function (rec, kind) {
     if (!rec) return;
     var node = locate(rec, kind);
     if (!node) return;
+    syncTracker(rec, kind, node);
     if (window.Store) window.Store.save();
     if (window.renderAll) window.renderAll();
     if (window.editActivity) window.editActivity(node.id);
+
+    /* Keep them in step while the editor is open. The editor writes into the tree
+       node; this mirrors the parts the habits list and the calendar read. It stops
+       by itself when the dialog closes, so there is ONE owner and no stray timer
+       (the two-owners class of bug this project has been bitten by). */
+    if (window.__trackerSyncTimer) {
+      clearInterval(window.__trackerSyncTimer);
+      window.__trackerSyncTimer = null;
+    }
+    window.__trackerSyncTimer = setInterval(function () {
+      var open = document.querySelector('#modalHost .modal .ea');
+      if (!open || window.__editingId !== node.id) {
+        clearInterval(window.__trackerSyncTimer);
+        window.__trackerSyncTimer = null;
+        syncTracker(rec, kind, node);
+        if (window.Store) window.Store.save();
+        if (window.renderAll) window.renderAll();
+        return;
+      }
+      syncTracker(rec, kind, node);
+    }, 400);
   };
 
   /* double-click any habit or routine in the list to open it like a task */
@@ -35284,5 +35796,165 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
 })();
 </script>
 
+
+<script>
+/* ================================================================ BOARD 30 CARD 1
+   Resize a picture in task notes and in Journal notes.
+
+   ONE pointer path, so a phone behaves exactly like the browser (the operator's
+   requirement). Sizes are written as a percentage width on the image itself, so
+   they survive a save - the notes are stored as HTML.
+
+   Anything already pasted keeps its current width until you resize it; nothing
+   goes back and changes pictures that are already placed. */
+(function () {
+  if (window.__noteImgResizeInstalled) return;
+  window.__noteImgResizeInstalled = true;
+
+  var SIZES = [['S', 25], ['M', 50], ['L', 75], ['Full', 100]];
+  var bar = null, grip = null, current = null;
+
+  function editorOf(img) {
+    var n = img;
+    while (n && n !== document.body) {
+      if (n.classList && (n.classList.contains('note-rich') ||
+                          n.classList.contains('note-card'))) return n;
+      n = n.parentNode;
+    }
+    return null;
+  }
+
+  function pctOf(img) {
+    var host = editorOf(img);
+    if (!host) return 100;
+    var w = img.getBoundingClientRect().width;
+    var hw = host.clientWidth || 1;
+    return Math.round(w / hw * 100);
+  }
+
+  function setPct(img, pct) {
+    pct = Math.max(10, Math.min(100, Math.round(pct)));
+    img.style.width = pct + '%';
+    img.style.height = 'auto';
+    img.setAttribute('data-npct', String(pct));
+    fire(img);
+  }
+
+  function fire(img) {
+    var host = editorOf(img);
+    if (!host) return;
+    /* the notes box saves on input - tell it something changed */
+    try { host.dispatchEvent(new Event('input', { bubbles: true })); } catch (e) {}
+  }
+
+  function close() {
+    if (bar && bar.parentNode) bar.parentNode.removeChild(bar);
+    if (grip && grip.parentNode) grip.parentNode.removeChild(grip);
+    bar = null; grip = null;
+    if (current) current.classList.remove('npick');
+    current = null;
+  }
+
+  function place() {
+    if (!current) return;
+    var r = current.getBoundingClientRect();
+    if (bar) {
+      var bw = bar.getBoundingClientRect().width || 220;
+      var left = Math.max(8, Math.min(r.left, window.innerWidth - bw - 8));
+      var top = r.top - 42;
+      if (top < 8) top = Math.min(r.bottom + 8, window.innerHeight - 48);
+      bar.style.left = Math.round(left) + 'px';
+      bar.style.top = Math.round(top) + 'px';
+    }
+    if (grip) {
+      grip.style.left = Math.round(r.right - 9) + 'px';
+      grip.style.top = Math.round(r.bottom - 9) + 'px';
+    }
+  }
+
+  function open(img) {
+    close();
+    current = img;
+    img.classList.add('npick');
+
+    bar = document.createElement('div');
+    bar.className = 'nsize';
+    var now = pctOf(img);
+    for (var i = 0; i < SIZES.length; i++) {
+      (function (label, pct) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.textContent = label;
+        if (Math.abs(now - pct) <= 6) b.setAttribute('data-on', '1');
+        b.addEventListener('click', function (ev) {
+          ev.preventDefault();
+          ev.stopPropagation();
+          setPct(img, pct);
+          var all = bar.querySelectorAll('button');
+          for (var k = 0; k < all.length; k++) all[k].removeAttribute('data-on');
+          b.setAttribute('data-on', '1');
+          place();
+        });
+        bar.appendChild(b);
+      })(SIZES[i][0], SIZES[i][1]);
+    }
+    document.body.appendChild(bar);
+
+    grip = document.createElement('div');
+    grip.className = 'ngrip';
+    grip.title = 'Drag to resize';
+    document.body.appendChild(grip);
+
+    var dragging = false, startX = 0, startW = 0, hostW = 1;
+    grip.addEventListener('pointerdown', function (ev) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      dragging = true;
+      startX = ev.clientX;
+      startW = img.getBoundingClientRect().width;
+      var host = editorOf(img);
+      hostW = (host && host.clientWidth) || 1;
+      try { grip.setPointerCapture(ev.pointerId); } catch (e) {}
+    });
+    grip.addEventListener('pointermove', function (ev) {
+      if (!dragging) return;
+      ev.preventDefault();
+      var w = startW + (ev.clientX - startX);
+      setPct(img, w / hostW * 100);
+      place();
+      var pct = pctOf(img), all = bar.querySelectorAll('button');
+      for (var k = 0; k < all.length; k++) {
+        if (Math.abs(pct - SIZES[k][1]) <= 6) all[k].setAttribute('data-on', '1');
+        else all[k].removeAttribute('data-on');
+      }
+    });
+    function stop(ev) {
+      if (!dragging) return;
+      dragging = false;
+      try { grip.releasePointerCapture(ev.pointerId); } catch (e) {}
+    }
+    grip.addEventListener('pointerup', stop);
+    grip.addEventListener('pointercancel', stop);
+
+    place();
+  }
+
+  document.addEventListener('click', function (e) {
+    var t = e.target;
+    if (t && t.tagName === 'IMG' && editorOf(t)) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (current === t) { close(); return; }
+      open(t);
+      return;
+    }
+    if (bar && !bar.contains(t) && t !== grip) close();
+  }, true);
+
+  window.addEventListener('scroll', place, true);
+  window.addEventListener('resize', place);
+  window.__noteImgClose = close;
+})();
+</script>
 </body>
 </html>
