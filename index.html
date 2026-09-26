@@ -5776,7 +5776,7 @@ body[data-newbranch="1"] #treeFilters{
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-09-23 12:41</span>
+    <span id="buildStamp">build 2026-09-26 03:00</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -17717,8 +17717,35 @@ function firstConnect(remote, rAt, lAt) {
   window.__alAdd = function (alarm) {
     if (!pending || typeof pending.push !== 'function') return false;
     pending.push(alarm);
-    /* the row painter redraws on its own tick; redraw() is nested inside
-       build() and is not reachable from here. */
+    return true;
+  };
+
+  /* BOARD 30, 2026-09-26: redraw() is nested inside build() and was unreachable,
+     so an alarm added from outside never appeared until the dialog was reopened.
+     This rebuilds the Reminder row from the list that is already the one owner -
+     it does not add or remove anything itself. */
+  window.__alRepaint = function () {
+    var f = window.findNode(alCurrentId);
+    if (!f || !f.node) return false;
+    /* BOARD 30, 2026-09-26: draw from the node, and make sure the node carries
+       what the dialog is holding. Measured: `pending` read through the exposed
+       hook was 1 while the row still rendered empty, so build()'s closure and
+       the hook are not looking at the same array. Rather than guess which copy
+       wins, put the alarms where BOTH can see them - on the node - and let Save
+       write the same list it already writes. */
+    if (pending && pending.length) {
+      f.node.reminders = pending;
+      f.node.reminder = true;
+    }
+    var rows = document.querySelectorAll('.ea .ea-row'), host = null, i, lab;
+    for (i = 0; i < rows.length; i++) {
+      lab = rows[i].querySelector('.ea-label');
+      if (lab && lab.textContent === 'Reminder') { host = rows[i]; break; }
+    }
+    if (!host) return false;
+    var old = host.querySelector('.al-wrap');
+    if (old && old.parentNode) old.parentNode.removeChild(old);
+    host.appendChild(build(f.node));
     return true;
   };
 
@@ -17740,6 +17767,22 @@ function firstConnect(remote, rAt, lAt) {
     var btns = document.querySelectorAll('.modal-footer button'), i;
     for (i = 0; i < btns.length; i++) {
       if (btns[i].textContent.trim() !== 'Save') continue;
+      /* ======================================================== BOARD 30, 2026-09-26
+         WHY THE ALARM WAS STILL LOST, measured rather than reasoned about:
+         `pending` held the alarm at click time, on the next tick, and 100ms later -
+         and the task still ended with []. So the handler never ran at all.
+
+         The flag lived on the button and the button OUTLIVES the dialog, but the
+         guard only asked "is it wired?", not "is it wired FOR THIS DIALOG?". After
+         the first dialog of the session, every later one hit `continue` and got no
+         Save handler, so nothing ever wrote `pending` back.
+
+         The 2026-09-22 note above says the flag "now records WHICH dialog the
+         handler belongs to". It records '1'. This makes that true. */
+      /* ONE listener for the life of the button, not one per dialog - re-wiring
+         on every open would stack a fresh listener each time and they would all
+         fire. It reads alCurrentId and `pending` when it RUNS, so it always
+         writes whichever dialog is on screen. */
       if (btns[i].dataset.alWired) continue;
       btns[i].dataset.alWired = '1';
       btns[i].addEventListener('click', function () {
@@ -27212,12 +27255,45 @@ window.openReminderPicker = function(anchorEl, initDate, initTime, onSet) {
       /* 2026-09-03: alarmsOf() returns node.reminders ONLY when it is already non-empty; on an
          empty array it hands back a fresh throwaway array, so pushing to it went nowhere and the
          alarm silently never appeared. node.reminders is the array the app actually stores. */
-      if (!node.reminders || !node.reminders.length) node.reminders = [];
-      node.reminders.push(a);
-      window.Store.save();
-      /* 2026-09-03: this used to remove the modal and call editActivity again, so adding an alarm
-         blanked the dialog and rebuilt it scrolled back to the top. The chip painter already
-         redraws the row on its own tick - just let it. */
+      /* ========================================================= BOARD 30, 2026-09-26
+         TWO OWNERS, AND THE ALARM LOST BETWEEN THEM.
+
+         MEASURED on the live build, and on the build before any of this session's
+         work, so this is long-standing and not new: press + on Reminder, press
+         Set, and the task ends with ZERO reminders. The chip never appears either.
+
+         Why. There are two writers:
+           1. THIS handler pushed the alarm onto node.reminders directly.
+           2. wireSave() writes `pending` - the dialog's own list - OVER
+              node.reminders when Save is pressed.
+         So whatever this handler wrote was destroyed moments later by Save,
+         exactly the failure BOARD 28 CARD A fixed for one path and left open
+         on this one.
+
+         And the chip never drew because this listener runs in the CAPTURE phase
+         and calls stopImmediatePropagation(), which kills the + button's own
+         onclick - the handler that pushes to `pending` AND calls redraw().
+
+         THE FIX IS THE SAME RULE, APPLIED HERE TOO: `pending` is the one owner.
+         Add to it through the documented hook, then let the dialog repaint. Save
+         writes that single list, so nothing can be overwritten by a second
+         writer. Falls back to the old behaviour only when no dialog is open. */
+      var added = (typeof window.__alAdd === 'function') ? window.__alAdd(a) : false;
+      if (!added) {
+        if (!node.reminders || !node.reminders.length) node.reminders = [];
+        node.reminders.push(a);
+        window.Store.save();
+      }
+      /* repaint the Reminder row so the chip appears immediately. redraw() lives
+         inside build()'s closure and cannot be called from here, so the row is
+         rebuilt through the module's own entry point. */
+      /* on the next tick: the picker closes itself in this same handler, and the
+         row must be rebuilt after that or it is torn down again immediately. */
+      setTimeout(function () {
+        if (typeof window.__alRepaint === 'function') {
+          try { window.__alRepaint(); } catch (e) {}
+        }
+      }, 0);
     });
   }, true);
 })();
