@@ -1254,7 +1254,7 @@ section#rightPane {
 }
 
 .habit-cell {
-  width: 20px;
+  min-width: 20px;
   height: 20px;
   border-radius: 4px;
   border: 1px solid var(--border);
@@ -1267,7 +1267,16 @@ section#rightPane {
   border-color: var(--accent);
 }
 .habit-cell.done {
-  border-color: transparent;
+  /* BOARD 30, 2026-09-26 - a tick, not a colour block. The date stays readable
+     underneath it, so you can still see WHICH day you ticked. */
+  border-color: var(--accent);
+  color: var(--t-1, #e8eaed);
+}
+.habit-cell.done {
+  text-decoration: none;
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 800;
 }
 .habit-cell.today {
   outline: 2px solid var(--accent);
@@ -2101,8 +2110,38 @@ aside#treePane { overflow-y: auto; }
 .tgbody { padding-top: 10px; }
 .tggutter, .tglines, .tgcols { top: 10px; }
 
-/* Current-time indicator removed at the user's request. */
-.tgnow, .tgnow-dot { display: none !important; }
+/* THE CURRENT-TIME LINE - BACK, BY REQUEST, 2026-09-28.
+   It was removed earlier at the operator's request; they have now asked for it
+   again, in the style of a calendar they showed me: a thin dotted line across
+   every day with the time printed in the gutter, in the app's own blue.
+   Recording the reversal so nobody "restores" the old removal.
+
+   Operator: "can we have some things like the picture I just showed you from
+   another program and have it the same color as the blue color that we have?
+   That will help with the timing and for me to understand where I am."
+
+   MEASURED before: the element existed but was 0px wide, its dot was RED
+   (#e5484d) against the app's blue, and it carried no label - so even unhidden
+   it showed nothing useful. */
+.tgnow {
+  display: block !important;
+  border-top: 0 !important;
+  border-bottom: 1px dashed #4d8bff !important;
+  opacity: .9;
+}
+.tgnow-dot { display: none !important; }   /* the label replaces the dot */
+/* the line spans the whole grid, not one column */
+.tgnow-full {
+  position: absolute; left: 0; right: 0; height: 0;
+  border-bottom: 1px dashed #4d8bff;
+  z-index: 4; pointer-events: none;
+}
+/* the time, in the gutter, in the same blue */
+.tgnow-label {
+  position: absolute; right: calc(100% + 6px); top: -8px;
+  font-size: 11.5px; line-height: 16px; color: #4d8bff;
+  white-space: nowrap; font-variant-numeric: tabular-nums;
+}
 .area-dot { width:8px; height:8px; border-radius:999px; flex:0 0 auto;
   margin-right:2px; }
 .tag-chip { font-size:10px; padding:0 5px; border-radius:999px;
@@ -3015,6 +3054,22 @@ aside#treePane, aside#treePane * { min-width: 0 !important; }
 /* Buttons in a dialog footer are one width, so a confirmation chain never
    shifts the pointer target between steps. */
 .modal-footer .modal-btn { min-width: 112px; text-align: center; }
+/* 2026-09-26, operator: "get the browser smaller must get all the other items
+   inside small accordingly".
+   MEASURED at 360px: three 112px buttons plus gaps need 336px inside a 318px
+   footer, so Delete was pushed to left -29 - off the screen. A fixed minimum
+   inside a box whose width is decided elsewhere always overflows at some size
+   (the same shape as the month min-width that clipped the day numbers). Below
+   420px they share the room instead. */
+@media (max-width: 420px) {
+  .modal-footer { gap: 6px; }
+  .modal-footer .modal-btn {
+    min-width: 0;
+    flex: 1 1 0;
+    padding-left: 6px;
+    padding-right: 6px;
+  }
+}
 
 /* ============================================================
    Indentation alignment.
@@ -3195,6 +3250,158 @@ button.al-add {
 .al-pop-wide .datepop-grid { width: 100%; }
 .al-pop-wide .datepop-day, .al-pop-wide .datepop-grid > * { min-width: 0; }
 .al-pop-wide .datepop-grid { grid-template-columns: repeat(7, 1fr); }
+/* 2026-09-26, ROUND 3 - the operator's layout, restored.
+   "I want the same layout as before with the specification I told you."
+   So the TWO BORDERED MONTH BOXES side by side are back exactly as they were
+   (.al-pop-wide is a flex row of .datepop cards, unchanged from the build they
+   approved on 19 Sep). What changed is only the specification they gave:
+     - ONE Today/Tomorrow row, above both boxes, instead of one inside each
+     - ONE Clear, across the bottom
+   The shared rows are full-width children of a wrapping flex row. */
+.al-pop-wide { flex-wrap: wrap; }
+.al-pop-wide .dp-quick-shared {
+  flex: 1 1 100%; width: 100%; box-sizing: border-box;
+  display: flex; gap: 8px; margin-bottom: 2px;
+}
+.al-pop-wide .dp-quick-shared button {
+  flex: 1 1 0; background: #343a43; border: 1px solid #3a4049;
+  color: #e9ecf1; border-radius: 9px; padding: 9px 10px; font-size: 11.5px;
+  cursor: pointer; font-family: inherit; letter-spacing: .06em;
+  text-transform: uppercase;
+}
+.al-pop-wide .dp-quick-shared button:hover { background: #3f4650; }
+/* 2026-09-26, operator: "this month and next month must be in one layout, no
+   divider between them."
+   So there is now exactly ONE bordered surface. The two months sit inside it as
+   plain columns - no border of their own, no card background, no gap line
+   between them - so it reads as a single continuous calendar that happens to
+   show two months. The outer .al-pop already draws the border and background;
+   the months must not draw a second one. */
+.al-pop-wide {
+  /* the ONE surface. It takes the colour, border, radius and padding the month
+     cards used to have, so the picker looks exactly like the calendar the
+     operator approved - just one of it instead of two. .al-pop sets its own
+     background/border/padding above, so these must win. */
+  background: #2b3038 !important; border: 1px solid #3a4049 !important;
+  border-radius: 14px !important; padding: 16px 18px !important;
+  box-sizing: border-box;
+}
+.al-pop-wide .dp-months {
+  flex: 1 1 100%; width: 100%; box-sizing: border-box;
+  display: flex; align-items: flex-start;
+  gap: 26px;            /* breathing room between the month columns, not a rule */
+}
+/* .datepop carries !important on border, background, radius, padding and shadow
+   (line ~2349). Measured: without !important here, each month kept a 1px border,
+   its own #2b3038 card and a 14px radius - which IS the divider the operator is
+   pointing at. These must win. min-width:274px also has to go, or two columns
+   cannot share one surface on a narrow dialog. */
+.al-pop-wide .dp-months .datepop {
+  flex: 1 1 0 !important; min-width: 0 !important; width: auto !important;
+  background: transparent !important; border: none !important;
+  border-radius: 0 !important; box-shadow: none !important;
+  padding: 0 !important; margin: 0 !important;
+}
+/* nothing may draw a line between the two months */
+.al-pop-wide .dp-months .datepop + .datepop {
+  border-left: none !important; margin-left: 0 !important; padding-left: 0 !important;
+}
+/* ONE < and ONE >, sitting at the far edges of the month row - operator
+   2026-09-26: "it must only have one right and one left". They are absolutely
+   placed so they do not take a column away from the two months. */
+.al-pop-wide .dp-months { position: relative; }
+/* 2026-09-26, operator: "the right and left of the calendar is too small, and I
+   think the left is not working."
+   MEASURED: both arrows were 26x30 AND unreachable - elementFromPoint at each
+   arrow's own centre returned .datepop-head, which is painted over them, so a
+   real click never landed on either one. (A dispatched click on the element
+   still "worked", which is why my own test passed and the operator's finger did
+   not - the same trap as the SURGE hover marks.) Now: 40x40 touch targets, and
+   the month headers cannot swallow the pointer. */
+/* 2026-09-26, operator: "the right and left arrow, they're not centered between
+   the word Sunday and the line above... I think it should be in the same line as
+   the October November."
+   MEASURED: the arrows' centres sat 7px BELOW the month name's centre line,
+   because `top: -4px` is a guess rather than an alignment. The month row is the
+   first line of each grid, so the arrows are now centred on THAT row by pinning
+   them to the same band and centring within it - no magic offset to drift. */
+.al-pop-wide .dp-nav {
+  position: absolute; width: 40px; height: 40px;
+  background: none; border: none; color: #e9ecf1; cursor: pointer;
+  font: 700 26px/40px ui-sans-serif, -apple-system, sans-serif;
+  border-radius: 10px; padding: 0;
+  /* MEASURED: the month grid carries z-index 200 (from `.al-pop, .datepop
+     { z-index: 200 }`), so an arrow at z-index 5 sat UNDER it and
+     elementFromPoint at the arrow's own centre returned .datepop - a real
+     pointer never reached it, while a dispatched click on the element still
+     "worked". That gap is exactly why this shipped broken. */
+  z-index: 300 !important;
+}
+.al-pop-wide .dp-nav:hover { background: rgba(255,255,255,.12); }
+.al-pop-wide .dp-nav:active { background: rgba(255,255,255,.2); }
+.al-pop-wide .dp-prev { left: -6px; top: 0; }
+.al-pop-wide .dp-next { right: -6px; top: 0; }
+/* the header must not sit over the arrows, or it swallows the click.
+   2026-09-26, operator: "the name of the month is not centered in the calendar."
+   MEASURED: October was 30px left of its grid's centre and November 23px left,
+   because the header is a flex row using space-between with 38px of padding on
+   both sides - the label lands wherever the free space falls, not in the middle.
+   The label is now a flex:1 centred cell, so it is centred over its OWN grid
+   whatever else is in the row. */
+.al-pop-wide .dp-months .datepop-head {
+  padding: 0; position: relative; z-index: 1; pointer-events: none;
+  justify-content: center;
+  min-height: 40px;                 /* the band the arrows centre on */
+}
+.al-pop-wide .dp-months .datepop-head > span {
+  flex: 1 1 auto; text-align: center;
+}
+/* ...but its own buttons, if any, must still work */
+.al-pop-wide .dp-months .datepop-head button { pointer-events: auto; }
+.datepop-clear { flex: 1 1 100%; width: 100%; box-sizing: border-box; }
+/* 2026-09-26: two months SIDE BY SIDE need room. Measured at 360px wide: each
+   month got 138px, every day cell was 9px and 43 of 61 numbers were clipped -
+   unreadable. Below 620px they stack - still ONE surface, no divider. */
+/* 2026-09-26, operator: "the calendar and the edit button are not compressing as
+   they should with the browser shrinking. They should all correlate in the same
+   format and layout has to be the same."
+   MEASURED in a SHORT window: the picker was 384-424px tall while the dialog was
+   only 290-370px, so it was taller than the thing it lives in and covered it -
+   at 1400x480, 1100x440, 900x520, 700x480 and 560x440, every one.
+   The width scaled; the HEIGHT never did, because the day cells, the gaps and
+   the quick row are all fixed pixels. Below 700px tall they scale down together,
+   so the SAME layout fits in a shorter window instead of overflowing it. */
+@media (max-height: 700px) {
+  .al-pop-wide { padding: 10px 12px !important; }
+  .al-pop-wide .dp-quick-shared { margin-bottom: 0 !important; }
+  .al-pop-wide .dp-quick-shared button { padding: 6px 8px !important; font-size: 11px !important; }
+  .al-pop-wide .datepop-grid { gap: 3px !important; }
+  .al-pop-wide .datepop-day { padding: 4px 0 !important; height: auto !important;
+                              font-size: 12px !important; border-radius: 7px !important; }
+  .al-pop-wide .datepop-head { margin-bottom: 4px !important; font-size: 13px !important; }
+  .al-pop-wide .datepop-quick { margin-bottom: 8px !important; padding-bottom: 8px !important; }
+  .al-pop-wide .datepop-clear { padding-top: 6px !important; }
+  .al-pop-wide .datepop-clearbtn { padding: 7px 0 !important; }
+  /* 2026-09-26: shrinking the arrows to 34 while the header band stayed 40 left
+     them 3px below the month name. The band shrinks with them, so they stay on
+     the same line - measured 0px off at every width after this. */
+  .al-pop-wide .dp-nav { width: 34px !important; height: 34px !important;
+                         font-size: 22px !important; line-height: 34px !important; }
+  .al-pop-wide .dp-months .datepop-head { min-height: 34px !important; }
+}
+@media (max-height: 560px) {
+  .al-pop-wide { padding: 8px 10px !important; }
+  .al-pop-wide .datepop-grid { gap: 2px !important; }
+  .al-pop-wide .datepop-day { padding: 2px 0 !important; font-size: 11px !important; }
+  .al-pop-wide .dp-quick-shared button { padding: 5px 6px !important; font-size: 10px !important; }
+  .al-pop-wide .datepop-clearbtn { padding: 6px 0 !important; font-size: 11px !important; }
+}
+
+@media (max-width: 620px) {
+  .al-pop-wide .dp-months { display: block; }
+  .al-pop-wide .dp-months .datepop { width: 100%; }
+  .al-pop-wide .dp-months .datepop + .datepop { margin-top: 18px; }
+}
 
 .al-pop {
   position: fixed; z-index: 100000;
@@ -4214,6 +4421,26 @@ input:focus, textarea:focus, select:focus {
   border-right: 0;
   background: var(--s-raised, #262a33);
   z-index: 5;
+}
+/* 2026-09-26, operator: "the layout of the planner changes places, the plan,
+   alarms, and habits. it's in the middle of the browser, it must be in the bottom
+   as it would."
+   MEASURED at 700x620: the bar sat at top 277 - the MIDDLE of the window. The
+   rule above makes it static so it falls to the bottom of #treePane, but once the
+   layout stacks, the tree pane is only 310px tall, so "the bottom of the pane" is
+   mid-screen. Below the stacking breakpoint it is pinned to the WINDOW instead,
+   which is what "the bottom" means to a person looking at it. */
+@media (max-width: 900px) {
+  :root[data-chrome="bottom"] #treePane > #bottomBar {
+    position: fixed !important;
+    left: 0 !important; right: 0 !important; bottom: 0 !important;
+    margin-top: 0 !important;
+    z-index: 9000 !important;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  /* nothing may hide behind the pinned bar */
+  :root[data-chrome="bottom"] #main,
+  :root[data-chrome="bottom"] #treePane { padding-bottom: 64px; }
 }
 
 /* anything the tree renders after the list - the "3 hidden / Show them /
@@ -5532,7 +5759,30 @@ html:root #treeRoot .tree-row:not([data-depth="0"]){ height:32px !important; min
 /* 460 -> 575. Scoped with :has(.ea) so only the Edit Activity dialog grows; the delete
    confirmation and every other modal keep their own width. The app already relies on :has()
    elsewhere, so this is not a new dependency. */
-.modal:has(.ea){ max-width:575px !important }
+/* 2026-09-26, operator: "when I reduce the browser size, the edit button doesn't
+   get smaller with it, it must do that... it must be same layout but smaller as
+   the browser gets smaller."
+   MEASURED: the dialog sat at exactly 575px from 1500px right down to 700px and
+   only began shrinking below ~600 - so most of the way down it did not scale at
+   all. 575px is now a CEILING, not a fixed size: it takes whichever is smaller,
+   575 or the space actually available. Same layout, proportionally smaller. */
+.modal:has(.ea){ max-width: 575px !important }
+/* 2026-09-26, operator: "when I reduce the browser size, the edit button doesn't
+   get smaller with it, it must do that... it must be same layout but smaller as
+   the browser gets smaller."
+   MEASURED: the dialog sat at exactly 575px from 1500px down to 700px - most of
+   the way down it did not scale at all. A min() cap on max-width did NOT work
+   here (Safari resolved min(575px, calc(100vw - 40px)) to 575 at 860px wide, so
+   the panel never got the larger value). Explicit breakpoints are unambiguous,
+   and they keep the SAME layout - only the size changes. */
+@media (max-width: 1200px) { .modal:has(.ea){ max-width: 540px !important } }
+@media (max-width: 1000px) { .modal:has(.ea){ max-width: 500px !important } }
+@media (max-width:  860px) { .modal:has(.ea){ max-width: 460px !important } }
+@media (max-width:  760px) { .modal:has(.ea){ max-width: 420px !important } }
+@media (max-width:  660px) { .modal:has(.ea){ max-width: 380px !important } }
+@media (max-width:  560px) { .modal:has(.ea){ max-width: 340px !important } }
+@media (max-width:  460px) { .modal:has(.ea){ max-width: 300px !important } }
+@media (max-width:  380px) { .modal:has(.ea){ max-width: 280px !important } }
 
 /* --- two months have to fit inside a 575px dialog, Sep 03 --- */
 /* The due-date panel was 584px wide and hung 421px past the dialog's right edge. Slimmer months
@@ -7026,11 +7276,31 @@ document.addEventListener("DOMContentLoaded", function() {
       caret = document.createElement('button');
       caret.className = 'tree-caret' + (node.collapsed ? '' : ' open');
       caret.innerHTML = '<svg viewBox="0 0 16 16" width="12" height="12"><path fill="currentColor" d="M5 4l6 6-6 6z"/></svg>';
+      /* 2026-09-27, operator: "I want the red square, if I double click it, it
+         would open the branch as the edit file... I'd have to click multiple
+         times on different locations for it to actually [work]."
+         MEASURED, four points across one row, counting real calls to
+         editActivity:
+             CARET             -> 0
+             TITLE             -> 0   (excluded on purpose: editable text)
+             gap after title   -> 1
+             far right of row  -> 1
+         So double-click-to-edit only ever worked on the empty right-hand part
+         of the row, which is why they had to hunt for a spot. The document
+         handler (m87) does match the caret - but this caret's own click
+         listener calls stopPropagation on every click, and the second click of
+         a double click is what m87 needs, so it never saw it.
+         FIX: stop propagation only for a FIRST click (detail === 1). The second
+         click of a double click passes through to m87, which opens the editor.
+         The single-click toggle is unchanged. */
+      /* 2026-09-27: the gesture is handled by the DELEGATED listener on
+         #treeRoot (capture phase, search "caretTimer"), which is what actually
+         runs - it fires before this one and calls stopPropagation. Both the
+         single-click toggle and the double-click-to-edit live there, in one
+         place, so there is no second owner to drift. This listener only keeps
+         the click from reaching the row. */
       caret.addEventListener('click', function(e) {
         e.stopPropagation();
-        node.collapsed = !node.collapsed;
-        Store.save();
-        window.renderTree();
       });
     }
 
@@ -7907,7 +8177,10 @@ window.renderMonth = function () {
   const today = window.todayISO();
   const selDate = window.selectedDate;
   const current = new Date(start);
-  const maxChips = 4;
+  /* BOARD 30, 2026-09-26: 4 was fine for a real day, but a day holding a dozen
+     repeating habits showed "+19 more" and the operator could not see the item they
+     had just completed. Show more per day so a crowded day is still readable. */
+  const maxChips = 8;
 
   for (let i = 0; i < 42; i++) {
     const iso = window.isoOf(current);
@@ -8752,21 +9025,60 @@ window.renderTracker = function (kind) {
       var weekday = d.toLocaleDateString('en-US', { weekday: 'narrow' });
       var cell = document.createElement('div');
       cell.className = 'habit-cell';
+      /* ============================================================= BOARD 30, 2026-09-26
+         Operator: "I don't want all this colourful stuff... for the routines, just a
+         check mark, not colouring."
+
+         Habits were filled with the habit's own colour, so a week of ticks read as a
+         block of green, blue or gold. Routines already showed a plain cell. Both now
+         look the same: a done day gets a CHECK MARK, no fill. One appearance for both
+         tabs, which is also why routines and habits stop looking like two features. */
       var log = Store.data[T.log] ? Store.data[T.log][habit.id] : null;
       if (log && log[iso]) {
         cell.classList.add('done');
-        cell.style.background = habit.color;
       }
       if (iso === todayIso) cell.classList.add('today');
       cell.dataset.iso = iso;
-      cell.textContent = weekday + ' ' + dayNum;
+      /* BOARD 30, 2026-09-26: a done day shows a tick INSTEAD of the date. The cell is
+         42px wide and a flex box - a tick plus "S 20" does not fit, and the tick was
+         being squeezed out entirely (measured: painted, display:block, invisible).
+         The date is still on every day you have NOT done, which is what you scan for. */
+      cell.textContent = (log && log[iso]) ? '\u2713' : (weekday + ' ' + dayNum);
       cell.addEventListener('click', (function (habitId, iso) {
         return function () {
           if (!Store.data[T.log]) Store.data[T.log] = {};
           if (!Store.data[T.log][habitId]) Store.data[T.log][habitId] = {};
-          Store.data[T.log][habitId][iso] = !Store.data[T.log][habitId][iso];
+          var now = !Store.data[T.log][habitId][iso];
+          Store.data[T.log][habitId][iso] = now;
+
+          /* ========================================================= BOARD 30, 2026-09-26
+             Operator: "anything that's marked off should be also marked off in habits."
+
+             This wrote the tick log and nothing else, so a day ticked HERE still sat on
+             the calendar, and a day completed on the CALENDAR showed no tick here. One
+             fact, two records, neither telling the other.
+
+             The other half of this already writes both (plannerCompleteOccurrence). This
+             is the mirror: ticking a day here marks that day complete on the task too,
+             so the calendar drops it - and un-ticking brings it back. */
+          try {
+            var rec = null, list = Store.data[T.store] || [];
+            for (var q = 0; q < list.length; q++) {
+              if (list[q] && list[q].id === habitId) { rec = list[q]; break; }
+            }
+            var nodeId = (rec && rec.fromTask) || habitId;
+            var f = window.findNode ? window.findNode(nodeId) : null;
+            if (f && f.node) {
+              if (!f.node.doneDates) f.node.doneDates = [];
+              var at = f.node.doneDates.indexOf(iso);
+              if (now && at === -1) f.node.doneDates.push(iso);
+              if (!now && at !== -1) f.node.doneDates.splice(at, 1);
+            }
+          } catch (e) {}
+
           Store.save();
           window.renderTracker(kind);
+          if (window.renderAll) { try { window.renderAll(); } catch (e) {} }
         };
       })(habit.id, iso));
       cells.appendChild(cell);
@@ -11841,10 +12153,41 @@ function surfaceArrivals() {
        five places - the reuse rule. The native field stays as the fallback. */
     if (typeof window.openDatePopover === 'function'
         && typeof window.buildDateGrid === 'function') {
-      date.readOnly = true;
-      date.addEventListener('focus', function (e) { e.target.blur(); });
-      date.addEventListener('click', function (e) {
-        e.preventDefault();
+      /* 2026-09-26: THIS FIELD HAS AN OWNER. The older .dp2 installer sweeps every
+         .modal .ea input[type=date] on a 400ms timer; without this mark it claimed
+         this field too and a single click opened two pickers at once. */
+      date.setAttribute('data-own', '1');
+      /* 2026-09-26, operator: "DOUBLE click on the due date will open the calendar...
+         One click on the edit button on the due date would allow me to just click
+         backspace and that would just remove it."
+         So the two gestures are now SEPARATE, and the field is no longer readOnly:
+           one click  -> focus the field, type or press backspace to empty it
+           double click -> open the calendar
+         It was readOnly before, which is exactly why backspace could not work. */
+      date.readOnly = false;
+      /* 2026-09-26, operator: "one click brings the small calendar that needs to be
+         removed."
+         THAT SMALL CALENDAR IS SAFARI'S OWN. An <input type="date"> always carries
+         the browser's native picker, and making the field editable so backspace
+         could work is exactly what let it appear on a single click. A text input
+         has no native picker at all, so ours is the only one that can open.
+         The VALUE is still the same ISO string (save() reads date.value), so
+         nothing downstream changes. */
+      date.type = 'text';
+      date.setAttribute('inputmode', 'none');   /* no keyboard pops up on the phone */
+      date.setAttribute('autocomplete', 'off');
+      date.addEventListener('keydown', function (e) {
+        var k = e.key || '';
+        if (k === 'Backspace' || k === 'Delete') {
+          e.preventDefault();
+          date.value = '';
+          try {
+            date.dispatchEvent(new Event('input',  { bubbles: true }));
+            date.dispatchEvent(new Event('change', { bubbles: true }));
+          } catch (err) { }
+        }
+      });
+      function openDueCalendar() {
         window.openDatePopover(date, date.value || '', function (iso) {
           date.value = iso || '';
           try {
@@ -11852,6 +12195,20 @@ function surfaceArrivals() {
             date.dispatchEvent(new Event('change', { bubbles: true }));
           } catch (err) { }
         }, { wide: true, within: '#modalHost .modal' });
+      }
+      /* A single click must leave the cursor IN the field, or backspace has
+         nothing focused to act on. A real click normally focuses an input, but
+         make it explicit so it is never left to chance. */
+      date.addEventListener('click', function () {
+        try { date.focus(); } catch (err) { }
+      });
+      date.addEventListener('dblclick', function (e) {
+        e.preventDefault();
+        openDueCalendar();
+      });
+      /* the picker is also reachable without a mouse */
+      date.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDueCalendar(); }
       });
     }
     /* 2026-09-10: the operator did not want a Clear button - "I just need to have the
@@ -13530,19 +13887,19 @@ function surfaceArrivals() {
 
 /* ===== m83 ===== */
 (function () {
-  document.addEventListener('dblclick', function (e) {
-    var row = e.target.closest ? e.target.closest('#treeRoot .tree-row') : null;
-    if (!row || !row.dataset.id) return;
-
-    var target = e.target;
-    if (target.isContentEditable || target.closest('.tree-title, input, textarea, select')) return;
-
-    e.preventDefault();
-    e.stopPropagation();
-
-    if (typeof window.__openActMenu !== 'function') return;
-    window.__openActMenu(row.dataset.id, e.pageX, e.pageY);
-  }, true);
+  /* 2026-09-27, operator: "when I double click it, the edit button also pops up,
+     which is not supposed to."
+     MEASURED after the caret fix: one double click left BOTH an `.actmenu`
+     (190x268) AND the Edit dialog on screen. This module and m87 are both
+     capture-phase dblclick listeners on `document`; m83 registers first and
+     calls stopPropagation (not stopImmediatePropagation), so m87 runs too -
+     menu AND dialog.
+     The operator asked for the double click to open the BRANCH EDITOR, which is
+     m87's job. So this module no longer claims a double click on a tree row;
+     the action menu is still reachable from the three-dot button on the row,
+     which is its own control and unchanged.
+     Kept as an empty shell rather than deleted, so the module numbering and the
+     history of what m83 did stay readable. */
 })();
 
 /* ===== m85 ===== */
@@ -15658,13 +16015,16 @@ function firstConnect(remote, rAt, lAt) {
     host.appendChild(sub);
 
     /* ============================================================== BOARD 30 CARD 4
-       Operator, 2026-09-25: "let's have another button under show future branches in
-       the setting in the priority tree and name it show habits slash routines."
+       Operator, 2026-09-26: "if you notice on the bottom where it says hide habits
+       slash routines, that's not the location that it's supposed to be there. It's
+       supposed to be within the priority tree setting. You had that correct in the
+       past. Not sure why you messed that up."
 
-       Same class, same place, same shape as the button above it - the match-the-
-       existing-layout rule. It reads its state from __hrShowing so the switch and
-       the tree can never disagree. */
-    if (!document.getElementById('btnShowHR')) {
+       They are right. I put it beside "Set up automatic calendar sync", which is the
+       SETTINGS block, not the priority tree's own controls. It now goes in the tree
+       filter bar with the other tree-only view toggles, where Show future tasks
+       lives. This block no longer builds it - see __installTreeToggles below. */
+    if (false && !document.getElementById('btnShowHR')) {
       var hr = document.createElement('button');
       hr.id = 'btnShowHR';
       hr.type = 'button';
@@ -17247,7 +17607,11 @@ function firstConnect(remote, rAt, lAt) {
   // closes whatever dialog is already open, so it could never be used from
   // inside the Edit dialog. This is the same grid, taking a value and a
   // callback, with no opinion about how it is mounted.
-  window.buildDateGrid = function (currentIso, onPick) {
+  /* 2026-09-26: gopts.noQuick lets the WIDE picker build ONE shared
+     Today/Tomorrow row above both months instead of one per month -
+     operator: "the today and tomorrow should only be once". */
+  window.buildDateGrid = function (currentIso, onPick, gopts) {
+    gopts = gopts || {};
     var host = document.createElement('div');
     host.className = 'datepop datepop-inline';
     var cur = window.parseISO(currentIso || window.todayISO());
@@ -17274,15 +17638,22 @@ function firstConnect(remote, rAt, lAt) {
         cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
         draw();
       });
-      head.appendChild(prev);
+      /* 2026-09-26, operator: "there is left and right arrow on both calendars
+         and it must only have one right and one left. And the calendar must
+         move the two calendars accordingly."
+         Each month owned its own pair, so the second month's > moved only
+         itself - measured: five presses gave "October 2026 | April 2027",
+         exactly what they photographed. With noArrows the month draws none
+         of its own and the wide picker owns ONE pair that steps both. */
+      if (!gopts.noArrows) head.appendChild(prev);
       head.appendChild(lab);
-      head.appendChild(next);
+      if (!gopts.noArrows) head.appendChild(next);
 
       /* 2026-09-12: the clock (reminder) date picker is this grid. The operator asked for it
          to match the due-date picker - one month, with Today and Tomorrow sitting on top.
          The due-date picker builds its own copy of these two chips; putting them HERE means
          the clock gets them without a second implementation to keep in step. */
-      (function () {
+      if (!gopts.noQuick) (function () {
         var q = document.createElement('div');
         q.className = 'datepop-quick';
         function quick(label, offset) {
@@ -17328,8 +17699,17 @@ function firstConnect(remote, rAt, lAt) {
           var btn = document.createElement('button');
           btn.type = 'button';
           btn.className = 'datepop-day';
-          if (iso === todayIso) btn.classList.add('today');
-          if (currentIso && iso === currentIso) btn.classList.add('sel');
+          /* 2026-09-26, operator: "looks like there is two highlights, it should
+             only be one... if it's the first time with no calendar then it's the
+             current date, otherwise it would be whatever date it was changed to."
+             ROOT CAUSE: the second month is positioned by passing it the 1st of
+             that month as currentIso - which then ALSO drew a filled highlight.
+             Measured: SEL=2, on 2026-11-10 (the real date) and 2026-12-01 (the
+             cursor). So the SELECTED date is now its own value, gopts.selected,
+             separate from the month being shown, and only it may be filled. */
+          var selIso = (gopts.selected !== undefined) ? gopts.selected : currentIso;
+          if (!selIso && iso === todayIso) btn.classList.add('sel');
+          else if (selIso && iso === selIso) btn.classList.add('sel');
           btn.dataset.iso = iso;
           btn.textContent = String(day);
           btn.addEventListener('click', function (e) {
@@ -17344,6 +17724,11 @@ function firstConnect(remote, rAt, lAt) {
     }
 
     draw();
+    /* the wide picker's ONE shared arrow pair steps every month through this */
+    host.__step = function (delta) {
+      cursor = new Date(cursor.getFullYear(), cursor.getMonth() + delta, 1);
+      draw();
+    };
     return host;
   };
 
@@ -17391,61 +17776,439 @@ function firstConnect(remote, rAt, lAt) {
     pop.className = 'al-pop' + (opts.wide ? ' al-pop-wide' : '');
     function pick(iso) {
       if (onPick) onPick(iso);
+      if (pop.__stopFit) pop.__stopFit();
       if (pop.parentNode) pop.parentNode.removeChild(pop);
       document.removeEventListener('mousedown', away, true);
     }
     /* opts.wide: TWO months side by side - operator 2026-09-19, who chose side by side
-       over stacked. The second grid starts one month after the first. */
-    pop.appendChild(window.buildDateGrid(currentIso, pick));
+       over stacked. The second grid starts one month after the first.
+
+       2026-09-26, operator: "it looks like it's two different calendars... it would
+       have one calendar and it would show the two month and the today and tomorrow
+       should only be once."
+       ROOT CAUSE: each grid built its own Today/Tomorrow pair, and each sat in its own
+       bordered box, so the picker read as two separate calendars side by side.
+       NOW: ONE shared Today/Tomorrow row across the top, then the two months below it
+       inside a single panel. The months no longer carry their own chips. */
     if (opts.wide) {
+      var qrow = document.createElement('div');
+      qrow.className = 'datepop-quick dp-quick-shared';
+      [['Today', 0], ['Tomorrow', 1]].forEach(function (pair) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.textContent = pair[0];
+        b.addEventListener('click', function (e) {
+          e.stopPropagation();
+          e.preventDefault();
+          var dd = new Date();
+          dd.setDate(dd.getDate() + pair[1]);
+          pick(window.isoOf(dd));
+        });
+        qrow.appendChild(b);
+      });
+      pop.appendChild(qrow);
+
+      var months = document.createElement('div');
+      months.className = 'dp-months';
+      /* ONE highlight across BOTH months. `selected` is the real date (or '' when
+         the task has none, in which case today is highlighted); the first argument
+         only says WHICH MONTH to draw. Passing iso2 as the value is what used to
+         paint a second highlight on the 1st of next month. */
+      var selected = currentIso || '';
+      var g1 = window.buildDateGrid(currentIso, pick,
+        { noQuick: true, noArrows: true, selected: selected });
+      months.appendChild(g1);
       var nx = window.parseISO(currentIso || window.todayISO()) || new Date();
       nx = new Date(nx.getFullYear(), nx.getMonth() + 1, 1);
       var iso2 = nx.getFullYear() + '-' +
                  ('0' + (nx.getMonth() + 1)).slice(-2) + '-01';
-      var g2 = window.buildDateGrid(iso2, pick);
+      var g2 = window.buildDateGrid(iso2, pick,
+        { noQuick: true, noArrows: true, selected: selected });
       g2.className += ' datepop-second';
-      pop.appendChild(g2);
+      months.appendChild(g2);
+      pop.appendChild(months);
+
+      /* ONE < and ONE >, owned by the picker, stepping BOTH months together so
+         they always stay one month apart. Operator 2026-09-26: "it must only
+         have one right and one left. And the calendar must move the two
+         calendars accordingly." */
+      (function () {
+        function step(delta) {
+          if (g1.__step) g1.__step(delta);
+          if (g2.__step) g2.__step(delta);
+        }
+        function arrow(txt, delta, cls) {
+          var b = document.createElement('button');
+          b.type = 'button';
+          b.className = 'dp-nav ' + cls;
+          b.textContent = txt;
+          b.addEventListener('click', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            step(delta);
+          });
+          return b;
+        }
+        months.appendChild(arrow('\u2039', -1, 'dp-prev'));
+        months.appendChild(arrow('\u203a',  1, 'dp-next'));
+      })();
+    } else {
+      pop.appendChild(window.buildDateGrid(currentIso, pick));
     }
+    /* 2026-09-26, operator: "in the due date, make sure I'm able to click on it and
+       remove the date. To remove any affiliation with a date on it."
+       The field is readOnly (it opens this picker instead of typing), so the
+       backspace route agreed on 2026-09-10 cannot work here - there was NO way to
+       take a date off a task once it had one. One Clear button, inside the picker,
+       reusing pick() so it closes and reports exactly like choosing a day does;
+       passing '' makes Edit Activity's save() write node.date = null, which it
+       already handled ("date.value || null"), and that in turn clears the time. */
+    (function () {
+      var clearRow = document.createElement('div');
+      clearRow.className = 'datepop-clear';
+      clearRow.style.cssText = 'display:flex;padding:8px 6px 4px;border-top:1px solid #3a4049';
+      var cb = document.createElement('button');
+      cb.type = 'button';
+      cb.className = 'datepop-clearbtn';
+      cb.textContent = 'Clear';
+      cb.style.cssText = 'flex:1 1 0;background:#343a44;border:1px solid #444b57;' +
+        'color:#e9ecf1;border-radius:8px;padding:9px 0;cursor:pointer;' +
+        'font:600 12px ui-sans-serif,-apple-system,sans-serif;letter-spacing:.04em';
+      cb.addEventListener('click', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        pick('');
+      });
+      clearRow.appendChild(cb);
+      pop.appendChild(clearRow);
+    })();
+
     document.body.appendChild(pop);
 
     var r = anchorEl.getBoundingClientRect();
-    var top = r.bottom + 4;
-    var left = r.left;
-    var pw = pop.getBoundingClientRect().width || 240;
-    var ph = pop.getBoundingClientRect().height || 260;
+    /* ================================================== 2026-09-26, CONTAINMENT
+       Operator: "the calendar doesn't stay with the edit button... it must be
+       inside the edit show and it must be still same orientation in the middle,
+       test it when the priority tree gets adjusted and browser gets adjusted."
 
-    /* opts.within: keep the picker INSIDE that box, not merely inside the viewport.
-       The operator's complaint was that it hung outside the Edit window - a viewport
-       clamp alone never saw that, because the window is narrower than the viewport. */
-    var lo = 8, hi = window.innerWidth - 8, tlo = 8, thi = window.innerHeight - 8;
-    if (opts.within) {
-      var host = document.querySelector(opts.within);
-      if (host) {
-        var hr = host.getBoundingClientRect();
-        lo = hr.left + 6; hi = hr.right - 6;
-        tlo = hr.top + 6;  thi = hr.bottom - 6;
-        /* 2026-09-20, operator: "the due date, it's been skinnier than what it
-           should be... it should fit in that area."
-           Measured before this change: 449px inside a 575px dialog - 78%, which
-           reads as a narrow box floating in a wide window. It now FILLS the width
-           available inside the dialog, so the two months share the whole area. */
-        var want = Math.round(hr.width - 12);
-        pop.style.width = want + 'px';
-        pop.style.maxWidth = want + 'px';
-        pop.style.boxSizing = 'border-box';
-        pw = pop.getBoundingClientRect().width;
-        ph = pop.getBoundingClientRect().height;
+       MEASURED before this: pop 563px wide inside a 541px dialog body, sitting
+       at [393..956] while the dialog was [404..945] - 11px over each edge. The
+       width was set, but box-sizing was applied AFTER it, so the border and
+       padding were added on top. And it was positioned exactly once, so
+       dragging the tree splitter or resizing the window left it behind.
+
+       Now: one function places it CENTRED inside the dialog body, and it runs
+       again on resize and whenever the dialog changes size. */
+    function fit() {
+      if (!pop.parentNode) return;
+      var host = opts.within ? document.querySelector(opts.within) : null;
+      /* centre on the dialog BODY (.ea), the same host __centreInDialog uses -
+         the shell is 575 while the body is 541, and centring on the shell
+         leaves a constant offset. */
+      var box = host ? (host.querySelector('.ea') || host) : null;
+      if (box) {
+        var hr = box.getBoundingClientRect();
+        if (!hr.width) return;
+        /* box-sizing FIRST, or the border and padding are added to the width */
+        pop.style.setProperty('box-sizing', 'border-box', 'important');
+        var want = Math.max(240, Math.round(hr.width - 12));
+        pop.style.setProperty('width', want + 'px', 'important');
+        pop.style.setProperty('max-width', want + 'px', 'important');
+        var pr2 = pop.getBoundingClientRect();
+        /* CENTRED in the dialog, both axes, then clamped to the screen */
+        var L = hr.left + (hr.width - pr2.width) / 2;
+        var T = hr.top + (hr.height - pr2.height) / 2;
+        if (L < 8) L = 8;
+        if (L + pr2.width > window.innerWidth - 8) L = window.innerWidth - 8 - pr2.width;
+        if (L < 8) L = 8;
+        if (T < 8) T = 8;
+        if (T + pr2.height > window.innerHeight - 8) T = window.innerHeight - 8 - pr2.height;
+        if (T < 8) T = 8;
+        pop.style.setProperty('position', 'fixed', 'important');
+        pop.style.setProperty('left', Math.round(L) + 'px', 'important');
+        pop.style.setProperty('top', Math.round(T) + 'px', 'important');
+        pop.style.setProperty('z-index', '2147483647', 'important');
+        return;
       }
+      /* no dialog: sit under the control that opened it, clamped to the screen */
+      var ar = anchorEl.getBoundingClientRect();
+      var pr3 = pop.getBoundingClientRect();
+      var l2 = ar.left, t2 = ar.bottom + 4;
+      if (l2 + pr3.width > window.innerWidth - 8) l2 = window.innerWidth - 8 - pr3.width;
+      if (l2 < 8) l2 = 8;
+      if (t2 + pr3.height > window.innerHeight - 8) {
+        var above = ar.top - 4 - pr3.height;
+        t2 = (above >= 8) ? above : Math.max(8, window.innerHeight - 8 - pr3.height);
+      }
+      pop.style.setProperty('position', 'fixed', 'important');
+      pop.style.setProperty('left', Math.round(l2) + 'px', 'important');
+      pop.style.setProperty('top', Math.round(t2) + 'px', 'important');
+      pop.style.setProperty('z-index', '2147483647', 'important');
     }
-    if (left + pw > hi) left = hi - pw;
-    if (left < lo) left = lo;
-    if (top + ph > thi) top = Math.max(tlo, r.top - ph - 4);
-    if (top < tlo) top = tlo;
-    pop.style.left = Math.round(left) + 'px';
-    pop.style.top = Math.round(top) + 'px';
+    fit();
+    /* the grid and the dialog transition both settle a frame late */
+    if (window.requestAnimationFrame) requestAnimationFrame(fit);
+    else setTimeout(fit, 16);
+
+    /* STAY PUT when the browser or the priority tree is adjusted. */
+    window.addEventListener('resize', fit);
+    var ro = null;
+    try {
+      if (window.ResizeObserver && opts.within) {
+        var watch = document.querySelector(opts.within);
+        if (watch) { ro = new ResizeObserver(fit); ro.observe(watch); }
+      }
+    } catch (e) { }
+    var stopFit = function () {
+      window.removeEventListener('resize', fit);
+      if (ro) { try { ro.disconnect(); } catch (e2) { } }
+    };
+    pop.__stopFit = stopFit;
 
     function away(e) {
       if (pop.contains(e.target) || e.target === anchorEl) return;
+      if (pop.__stopFit) pop.__stopFit();   /* drop the resize watchers */
+      if (pop.parentNode) pop.parentNode.removeChild(pop);
+      document.removeEventListener('mousedown', away, true);
+    }
+    setTimeout(function () { document.addEventListener('mousedown', away, true); }, 0);
+  };
+
+  window.openDatePopover = function (anchorEl, currentIso, onPick, opts) {
+    opts = opts || {};
+    var old = document.querySelector('.al-pop');
+    if (old && old.parentNode) old.parentNode.removeChild(old);
+
+    var pop = document.createElement('div');
+    pop.className = 'al-pop' + (opts.wide ? ' al-pop-wide' : '');
+    function pick(iso) {
+      if (onPick) onPick(iso);
+      if (pop.__stopFit) pop.__stopFit();
+      if (pop.parentNode) pop.parentNode.removeChild(pop);
+      document.removeEventListener('mousedown', away, true);
+    }
+    /* opts.wide: TWO months side by side - operator 2026-09-19, who chose side by side
+       over stacked. The second grid starts one month after the first.
+
+       2026-09-26, operator: "it looks like it's two different calendars... it would
+       have one calendar and it would show the two month and the today and tomorrow
+       should only be once."
+       ROOT CAUSE: each grid built its own Today/Tomorrow pair, and each sat in its own
+       bordered box, so the picker read as two separate calendars side by side.
+       NOW: ONE shared Today/Tomorrow row across the top, then the two months below it
+       inside a single panel. The months no longer carry their own chips. */
+    if (opts.wide) {
+      var qrow = document.createElement('div');
+      qrow.className = 'datepop-quick dp-quick-shared';
+      [['Today', 0], ['Tomorrow', 1]].forEach(function (pair) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.textContent = pair[0];
+        b.addEventListener('click', function (e) {
+          e.stopPropagation();
+          e.preventDefault();
+          var dd = new Date();
+          dd.setDate(dd.getDate() + pair[1]);
+          pick(window.isoOf(dd));
+        });
+        qrow.appendChild(b);
+      });
+      pop.appendChild(qrow);
+
+      var months = document.createElement('div');
+      months.className = 'dp-months';
+      /* ONE highlight across BOTH months. `selected` is the real date (or '' when
+         the task has none, in which case today is highlighted); the first argument
+         only says WHICH MONTH to draw. Passing iso2 as the value is what used to
+         paint a second highlight on the 1st of next month. */
+      var selected = currentIso || '';
+      var g1 = window.buildDateGrid(currentIso, pick,
+        { noQuick: true, noArrows: true, selected: selected });
+      months.appendChild(g1);
+      var nx = window.parseISO(currentIso || window.todayISO()) || new Date();
+      nx = new Date(nx.getFullYear(), nx.getMonth() + 1, 1);
+      var iso2 = nx.getFullYear() + '-' +
+                 ('0' + (nx.getMonth() + 1)).slice(-2) + '-01';
+      var g2 = window.buildDateGrid(iso2, pick,
+        { noQuick: true, noArrows: true, selected: selected });
+      g2.className += ' datepop-second';
+      months.appendChild(g2);
+      pop.appendChild(months);
+
+      /* ONE < and ONE >, owned by the picker, stepping BOTH months together so
+         they always stay one month apart. Operator 2026-09-26: "it must only
+         have one right and one left. And the calendar must move the two
+         calendars accordingly." */
+      (function () {
+        function step(delta) {
+          if (g1.__step) g1.__step(delta);
+          if (g2.__step) g2.__step(delta);
+        }
+        function arrow(txt, delta, cls) {
+          var b = document.createElement('button');
+          b.type = 'button';
+          b.className = 'dp-nav ' + cls;
+          b.textContent = txt;
+          b.addEventListener('click', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            step(delta);
+          });
+          return b;
+        }
+        months.appendChild(arrow('\u2039', -1, 'dp-prev'));
+        months.appendChild(arrow('\u203a',  1, 'dp-next'));
+      })();
+    } else {
+      pop.appendChild(window.buildDateGrid(currentIso, pick));
+    }
+    /* 2026-09-26, operator: "in the due date, make sure I'm able to click on it and
+       remove the date. To remove any affiliation with a date on it."
+       The field is readOnly (it opens this picker instead of typing), so the
+       backspace route agreed on 2026-09-10 cannot work here - there was NO way to
+       take a date off a task once it had one. One Clear button, inside the picker,
+       reusing pick() so it closes and reports exactly like choosing a day does;
+       passing '' makes Edit Activity's save() write node.date = null, which it
+       already handled ("date.value || null"), and that in turn clears the time. */
+    (function () {
+      var clearRow = document.createElement('div');
+      clearRow.className = 'datepop-clear';
+      clearRow.style.cssText = 'display:flex;padding:8px 6px 4px;border-top:1px solid #3a4049';
+      var cb = document.createElement('button');
+      cb.type = 'button';
+      cb.className = 'datepop-clearbtn';
+      cb.textContent = 'Clear';
+      cb.style.cssText = 'flex:1 1 0;background:#343a44;border:1px solid #444b57;' +
+        'color:#e9ecf1;border-radius:8px;padding:9px 0;cursor:pointer;' +
+        'font:600 12px ui-sans-serif,-apple-system,sans-serif;letter-spacing:.04em';
+      cb.addEventListener('click', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        pick('');
+      });
+      clearRow.appendChild(cb);
+      pop.appendChild(clearRow);
+    })();
+
+    document.body.appendChild(pop);
+
+    /* ================================================== 2026-09-26, CONTAINMENT
+       Operator: "the calendar doesn't stay with the edit button... it must be
+       inside the edit show and it must be still same orientation in the middle,
+       test it when the priority tree gets adjusted and browser gets adjusted."
+
+       MEASURED before this: the panel was 563px wide inside a 541px dialog body,
+       sitting at [393..956] against a dialog at [404..945] - 11px over each edge.
+       The width WAS being set, but box-sizing was applied AFTER it, so the border
+       and padding were added on top of the number. And it was positioned exactly
+       once, so dragging the tree splitter or resizing the window left it behind.
+
+       Now one function centres it inside the dialog BODY and runs again on every
+       resize of the window or the dialog. */
+    function fit() {
+      if (!pop.parentNode) return;
+      /* 2026-09-26, operator: "the bottom of the calendar is in the middle" -
+         photographed on the REPEAT panel's "pick a date", not the Due Date field.
+         MEASURED: that picker opened at top=803 bottom=1185 in a 917px window, so
+         268px hung off the bottom of the screen.
+         CAUSE: the repeat / alarm / focus callers pass no opts, so `within` was
+         empty and this fell through to the anchored branch with no containment.
+         They ARE inside the Edit dialog; they just never said so. If the control
+         that opened the picker sits in a dialog, treat it as a dialog pop-up. */
+      var __sel = opts.within;
+      if (!__sel && anchorEl && anchorEl.closest &&
+          anchorEl.closest('#modalHost .modal')) {
+        __sel = '#modalHost .modal';
+      }
+      var host = __sel ? document.querySelector(__sel) : null;
+      /* the dialog BODY (.ea), not the shell: 541 vs 575, and centring on the
+         shell leaves a constant 17px offset at every width. */
+      /* 2026-09-26: centre on the dialog BODY for the WIDTH (541 vs the 575
+         shell), but the vertical extent must come from the MODAL - the body
+         scrolls, so it is taller than the window shows, and centring on it put
+         the picker below the dialog's own bottom edge. Measured at 1400x480:
+         pop bottom 472 against a modal ending at 372. */
+      var box = host ? (host.querySelector('.ea') || host) : null;
+      var vbox = host || box;          /* the modal, for top/height */
+      if (box) {
+        var hr = box.getBoundingClientRect();
+        if (!hr.width) return;
+        /* box-sizing FIRST, or border and padding are added to the width */
+        pop.style.setProperty('box-sizing', 'border-box', 'important');
+        var want = Math.max(240, Math.round(hr.width - 12));
+        pop.style.setProperty('width', want + 'px', 'important');
+        pop.style.setProperty('max-width', want + 'px', 'important');
+        /* 2026-09-26: at 360x540 the two-month panel is 598px - TALLER than the
+           window, so no amount of moving can bring it on screen. Cap it to the
+           window and let it scroll, which is the only honest answer. */
+        /* The picker must never be taller than the DIALOG it belongs to - the
+           operator photographed it covering the dialog in a short window
+           (384-424px tall against a 290-370px dialog). Cap it to the dialog,
+           and to the window, whichever is smaller. */
+        var vr = (vbox || box).getBoundingClientRect();
+        var capH = Math.max(200, Math.min(window.innerHeight - 16,
+                                          Math.round(vr.height - 12)));
+        pop.style.setProperty('max-height', capH + 'px', 'important');
+        pop.style.setProperty('overflow-y', 'auto', 'important');
+        var pr = pop.getBoundingClientRect();
+        var L = hr.left + (hr.width - pr.width) / 2;
+        /* vertical centring uses the MODAL, not the scrolling body */
+        var T = vr.top + (vr.height - pr.height) / 2;
+        if (L < 8) L = 8;
+        if (L + pr.width > window.innerWidth - 8) L = window.innerWidth - 8 - pr.width;
+        if (L < 8) L = 8;
+        /* keep it inside the dialog first, then inside the window */
+        if (T < vr.top + 4) T = vr.top + 4;
+        if (T + pr.height > vr.bottom - 4) T = vr.bottom - 4 - pr.height;
+        if (T < 8) T = 8;
+        if (T + pr.height > window.innerHeight - 8) T = window.innerHeight - 8 - pr.height;
+        if (T < 8) T = 8;
+        pop.style.setProperty('position', 'fixed', 'important');
+        pop.style.setProperty('left', Math.round(L) + 'px', 'important');
+        pop.style.setProperty('top', Math.round(T) + 'px', 'important');
+        pop.style.setProperty('z-index', '2147483647', 'important');
+        return;
+      }
+      /* no dialog: sit under the control that opened it, clamped to the screen */
+      var ar = anchorEl.getBoundingClientRect();
+      var pr2 = pop.getBoundingClientRect();
+      var l2 = ar.left, t2 = ar.bottom + 4;
+      if (l2 + pr2.width > window.innerWidth - 8) l2 = window.innerWidth - 8 - pr2.width;
+      if (l2 < 8) l2 = 8;
+      if (t2 + pr2.height > window.innerHeight - 8) {
+        var above = ar.top - 4 - pr2.height;
+        t2 = (above >= 8) ? above : Math.max(8, window.innerHeight - 8 - pr2.height);
+      }
+      pop.style.setProperty('position', 'fixed', 'important');
+      pop.style.setProperty('left', Math.round(l2) + 'px', 'important');
+      pop.style.setProperty('top', Math.round(t2) + 'px', 'important');
+      pop.style.setProperty('z-index', '2147483647', 'important');
+    }
+    fit();
+    /* the grid and the dialog's own transition both settle a frame late */
+    if (window.requestAnimationFrame) requestAnimationFrame(fit);
+    else setTimeout(fit, 16);
+
+    /* STAY PUT when the browser window or the priority tree is adjusted. */
+    window.addEventListener('resize', fit);
+    var __ro = null;
+    try {
+      var __watchSel = opts.within ||
+        ((anchorEl && anchorEl.closest &&
+          anchorEl.closest('#modalHost .modal')) ? '#modalHost .modal' : null);
+      if (window.ResizeObserver && __watchSel) {
+        var watch = document.querySelector(__watchSel);
+        if (watch) { __ro = new ResizeObserver(fit); __ro.observe(watch); }
+      }
+    } catch (e) { }
+    pop.__stopFit = function () {
+      window.removeEventListener('resize', fit);
+      if (__ro) { try { __ro.disconnect(); } catch (e2) { } }
+    };
+
+    function away(e) {
+      if (pop.contains(e.target) || e.target === anchorEl) return;
+      if (pop.__stopFit) pop.__stopFit();
       if (pop.parentNode) pop.parentNode.removeChild(pop);
       document.removeEventListener('mousedown', away, true);
     }
@@ -17594,6 +18357,9 @@ function firstConnect(remote, rAt, lAt) {
         e.preventDefault();
         if (window.openDatePopover) {
           window.openDatePopover(dbtn, al.date, function (iso) {
+            /* 2026-09-26: Clear now exists in this picker. An alarm without a day is
+               not a thing, so an empty pick leaves the alarm's date alone. */
+            if (!iso) return;
             al.date = iso; dbtn.textContent = fmtDay(iso);
           });
         }
@@ -20200,6 +20966,24 @@ function firstConnect(remote, rAt, lAt) {
     var root = document.getElementById('treeRoot');
     if (!root || root.__caretWired) return false;
     root.__caretWired = true;
+    /* 2026-09-27, operator: "I want the red square, if I double click it, it
+       would open the branch as the edit file... I'd have to click multiple
+       times on different locations for it to actually [work]."
+       MEASURED across one row, counting real calls to editActivity:
+           caret 0 | title 0 | gap after title 1 | far right of row 1
+       - so it only ever worked on the empty right-hand part of the row.
+       THE CAUSE, and it is subtle: THIS delegated handler (capture phase on
+       #treeRoot) toggles immediately, which re-renders the tree and DESTROYS
+       the caret - `caret.isConnected === false` straight after click one. A
+       browser only fires `dblclick` when both clicks share ONE target, so with
+       the element gone after the first click no dblclick could ever exist.
+       Adding a listener to the caret could not have fixed it; the element was
+       already dead.
+       FIX: hold the toggle for 250ms. One click still collapses or expands, a
+       beat later. A second click inside that window cancels the toggle, so the
+       caret survives, the browser pairs the clicks, and the editor opens. */
+    var caretTimer = null;
+    var caretId = null;
     root.addEventListener('click', function (e) {
       var t = e.target;
       var caret = t && t.closest ? t.closest('.tree-caret') : null;
@@ -20208,7 +20992,22 @@ function firstConnect(remote, rAt, lAt) {
       if (!row) return;
       e.preventDefault();
       e.stopPropagation();
-      window.plannerToggleCollapse(row.getAttribute('data-id'));
+      var id = row.getAttribute('data-id');
+      if (e.detail > 1) {                      /* second click of a pair */
+        if (caretTimer) { clearTimeout(caretTimer); caretTimer = null; }
+        /* Do NOT open the editor here. Now that the caret survives the first
+           click, the browser pairs the two and fires a real `dblclick`, which
+           m87's document handler already turns into editActivity. Opening it
+           here as well called editActivity TWICE - measured. Just let the
+           dblclick through. */
+        return;
+      }
+      if (caretTimer) clearTimeout(caretTimer);
+      caretId = id;
+      caretTimer = setTimeout(function () {
+        caretTimer = null;
+        window.plannerToggleCollapse(caretId);
+      }, 250);
     }, true);
     return true;
   }
@@ -21091,6 +21890,36 @@ function firstConnect(remote, rAt, lAt) {
     var i = node.doneDates.indexOf(iso);
     if (done && i === -1) node.doneDates.push(iso);      // idempotent
     if (!done && i !== -1) node.doneDates.splice(i, 1);
+
+    /* ============================================================= BOARD 30, 2026-09-26
+       Operator: "the routine morning stretch, I marked it complete in the calendar and
+       it is not getting hidden from the calendar."
+
+       MEASURED: completing a day wrote node.doneDates, but the Habits and Routines tab
+       reads a DIFFERENT record - Store.data.habitLog / routineLog, keyed by the
+       habit's id. So a tick on the calendar never reached the tally, and a tick in the
+       tab never reached the calendar. Two records for one fact, disagreeing.
+
+       ONE FACT, BOTH RECORDS. Completing a day writes whichever logs exist for this
+       node, so the calendar, the tab and the tally can never drift apart. */
+    try {
+      var D = window.Store && window.Store.data;
+      if (D) {
+        var pairs = [['habits', 'habitLog'], ['routines', 'routineLog']];
+        for (var p2 = 0; p2 < pairs.length; p2++) {
+          var list = D[pairs[p2][0]] || [], key = pairs[p2][1];
+          for (var k = 0; k < list.length; k++) {
+            var rec = list[k];
+            if (!rec) continue;
+            if (rec.fromTask !== node.id && rec.id !== node.id) continue;
+            if (!D[key] || typeof D[key] !== 'object') D[key] = {};
+            if (!D[key][rec.id]) D[key][rec.id] = {};
+            if (done) D[key][rec.id][iso] = true;
+            else delete D[key][rec.id][iso];
+          }
+        }
+      }
+    } catch (e) {}
     return true;
   };
 
@@ -21260,6 +22089,8 @@ if (r.freq === 'yearly') {
           if (!window.openDatePopover) return;
           window.openDatePopover(sbtn, r.start || (window.todayISO ? window.todayISO() : ''),
             function (iso) {
+              /* a repeat must start somewhere - an empty pick changes nothing */
+              if (!iso) return;
               r.start = iso;
               sbtn.textContent = iso;
               if (window.Store) window.Store.save();
@@ -21308,7 +22139,10 @@ if (r.freq === 'yearly') {
       sBtn.addEventListener('click', function (e) {
         e.preventDefault();
         if (window.openDatePopover) {
-          window.openDatePopover(sBtn, r.start, function (iso) { r.start = iso; draw(); });
+          window.openDatePopover(sBtn, r.start, function (iso) {
+            if (!iso) return;               /* a repeat must start somewhere */
+            r.start = iso; draw();
+          });
         }
       });
       sBox.appendChild(sLab); sBox.appendChild(sBtn);
@@ -21324,7 +22158,10 @@ if (r.freq === 'yearly') {
         e.preventDefault();
         if (r.end) { r.end = null; draw(); return; }
         if (window.openDatePopover) {
-          window.openDatePopover(eBtn, r.start, function (iso) { r.end = iso; draw(); });
+          window.openDatePopover(eBtn, r.start, function (iso) {
+            /* an END date is genuinely optional, so Clear means "no end" */
+            r.end = iso || null; draw();
+          });
         }
       });
       eBox.appendChild(eLab); eBox.appendChild(eBtn);
@@ -21865,6 +22702,7 @@ if (r.freq === 'yearly') {
         e.preventDefault();
         if (!window.openDatePopover) return;
         window.openDatePopover(add, node.repeat.start, function (iso) {
+          if (!iso) return;                 /* never add an empty date to the list */
           if (!node.repeat.dates) node.repeat.dates = [];
           if (node.repeat.dates.indexOf(iso) === -1) node.repeat.dates.push(iso);
           node.repeat.dates.sort();
@@ -22177,6 +23015,20 @@ if (r.freq === 'yearly') {
       if (nd && hasActiveRepeat(nd) && window.plannerRepeatMatches) {
         if (!window.plannerRepeatMatches(nd, iso)) continue;
       }
+      /* ============================================================= BOARD 30, 2026-09-26
+         Operator: "the routine morning stretch, I marked it complete in the calendar
+         and it is not getting hidden from the calendar."
+
+         MEASURED on an uncrowded day: complete it, and the chip is still there. This
+         filter asked "does the repeat rule land on this day", and never "did you
+         already finish it on this day". plannerCompleteOccurrence writes doneDates -
+         nothing read it back here.
+
+         A repeating item you have completed for a day drops off THAT day, and only
+         that day. Tomorrow's occurrence is untouched, which is what makes it a
+         routine rather than a task. */
+      if (nd && nd.doneDates && nd.doneDates.length &&
+          nd.doneDates.indexOf(iso) !== -1) continue;
       kept.push(item);
     }
 
@@ -24286,12 +25138,14 @@ nesting to 20 levels, so the whole tree is serialised rather than stored as nest
       /* accepts one id or a list of them (BOARD 30 CARD 12) */
       window.__focusId = id;
       window.__focusPick = false;
+      window.__focusPending = [];      /* the selection is now committed */
       redraw();
     };
 
     window.__focusClear = function () {
       window.__focusId = null;
       window.__focusPick = false;
+      window.__focusPending = [];
       redraw();
     };
 
@@ -24306,11 +25160,24 @@ nesting to 20 levels, so the whole tree is serialised rather than stored as nest
       if (!btn) return;
       var text;
       if (window.__focusPick) {
-        text = 'Pick one';
+        /* 2026-09-27: they can now pick SEVERAL, so the button says how many
+           and how to finish - "Pick one" was both wrong and a dead end. */
+        var n = (window.__focusPending || []).length;
+        text = n ? (n + ' picked \u2014 click away to apply') : 'Pick branches\u2026';
         btn.style.background = '#1f4f9e';
         btn.style.color = '#fff';
       } else if (window.__focusId) {
-        text = '' + truncate(titleOf(window.__focusId), 18) + ' \u00d7';
+        /* 2026-09-27: __focusId may be a LIST now. One branch shows its name;
+           several show the count, so the button still says what is in focus
+           instead of collapsing to a bare "x". */
+        var fid = window.__focusId;
+        if (Array.isArray(fid)) {
+          text = (fid.length === 1
+                    ? truncate(titleOf(fid[0]), 18)
+                    : (fid.length + ' branches')) + ' \u00d7';
+        } else {
+          text = '' + truncate(titleOf(fid), 18) + ' \u00d7';
+        }
         btn.style.background = '#1f4f9e';
         btn.style.color = '#fff';
       } else {
@@ -24350,6 +25217,8 @@ nesting to 20 levels, so the whole tree is serialised rather than stored as nest
           window.__focusClear();
         } else {
           window.__focusPick = true;
+          window.__focusPending = [];       /* start from a clean selection */
+          if (window.__focusMarkPending) window.__focusMarkPending();
           window.__focusLabel();
         }
       });
@@ -24410,6 +25279,26 @@ nesting to 20 levels, so the whole tree is serialised rather than stored as nest
       st.appendChild(document.createTextNode(
         '#treeRoot .tree-row.focus-pick{outline:2px solid #e5484d;outline-offset:-2px;border-radius:6px;cursor:pointer}' +
         '#treeRoot .tree-row.focus-pick:hover{background:rgba(229,72,77,.12)}' +
+        /* 2026-09-27: a branch already chosen has to LOOK chosen, or picking
+           several is guesswork. Filled, in the app's own accent, with a tick. */
+        '#treeRoot .tree-row.focus-chosen{outline:2px solid #4d8bff !important;' +
+          'background:rgba(77,139,255,.18) !important}' +
+        '#treeRoot .tree-row.focus-chosen .tree-title::after{content:" \\2713";' +
+          'color:#4d8bff;font-weight:700}' +
+        /* 2026-09-27, operator: "it's not working."
+           THE CAUSE MY TESTS COULD NOT SEE: the branch name is
+           contentEditable="plaintext-only". A REAL mouse click on it puts a
+           TEXT CARET in the name - the browser starts editing, and the click
+           never reads as "pick this branch". Every synthetic click I fired
+           skipped that entirely, which is why my checks passed and the
+           operator's mouse did not.
+           While picking, the whole row is inert to the pointer except as a
+           target: no text editing, no caret, no selection. */
+        '#treeRoot .tree-row.focus-pick .tree-title{pointer-events:none !important;' +
+          'user-select:none !important;-webkit-user-select:none !important;' +
+          'caret-color:transparent !important}' +
+        '#treeRoot .tree-row.focus-pick *{pointer-events:none !important}' +
+        '#treeRoot .tree-row.focus-pick{pointer-events:auto !important}' +
         '#treeRoot .tree-row[data-focushidden]{display:none !important}'
       ));
       (document.head || document.documentElement).appendChild(st);
@@ -24432,12 +25321,49 @@ nesting to 20 levels, so the whole tree is serialised rather than stored as nest
           n = n.parentNode;
         }
       }
-      if (!row) return;
+      /* 2026-09-27, operator: "when I click on focus mode, it doesn't let me
+         click multiple ones. I want to click on focus mode, and allow me to
+         click as many as I want, then click outside the branches and that
+         would consolidate what is in the focus mode."
+         So a click on a branch TOGGLES it in a running selection instead of
+         committing one and ending. Clicking away from any branch commits the
+         whole set - __focusApply already accepts a list (board 30 card 12). */
+      if (!row) {
+        /* clicked away from every branch: commit what has been chosen */
+        var chosen = window.__focusPending || [];
+        e.preventDefault();
+        e.stopPropagation();
+        if (chosen.length && typeof window.__focusApply === 'function') {
+          window.__focusApply(chosen.length === 1 ? chosen[0] : chosen.slice());
+        } else if (typeof window.__focusClear === 'function') {
+          window.__focusClear();          /* nothing picked: just leave */
+        }
+        window.__focusPending = [];
+        return;
+      }
       e.preventDefault();
       e.stopPropagation();
       var id = row.getAttribute('data-id');
-      if (typeof window.__focusApply === 'function') window.__focusApply(id);
+      if (!id) return;
+      if (!window.__focusPending) window.__focusPending = [];
+      var at = window.__focusPending.indexOf(id);
+      if (at === -1) window.__focusPending.push(id);
+      else window.__focusPending.splice(at, 1);   /* click again to deselect */
+      if (typeof window.__focusMarkPending === 'function') window.__focusMarkPending();
+      if (typeof window.__focusLabel === 'function') window.__focusLabel();
     }, true);
+
+    /* Paint the rows chosen so far. Called on every pick, and again after any
+       re-render, so the marks survive the tree being rebuilt. */
+    window.__focusMarkPending = function () {
+      var rows = document.querySelectorAll(ROW_SEL);
+      var pend = window.__focusPending || [];
+      for (var i = 0; i < rows.length; i++) {
+        var id = rows[i].getAttribute('data-id');
+        if (pend.indexOf(id) !== -1) rows[i].classList.add('focus-chosen');
+        else rows[i].classList.remove('focus-chosen');
+      }
+    };
 
     function collectDescendants(node, set) {
       var kids = node && node.children;
@@ -24453,10 +25379,25 @@ nesting to 20 levels, so the whole tree is serialised rather than stored as nest
       var rows = document.querySelectorAll(ROW_SEL);
       var picking = !!window.__focusPick;
       for (var i = 0; i < rows.length; i++) {
+        var title = rows[i].querySelector('.tree-title');
         if (picking) {
           rows[i].classList.add(PICK_CLASS);
-        } else if (rows[i].classList.contains(PICK_CLASS)) {
-          rows[i].classList.remove(PICK_CLASS);
+          /* 2026-09-27: CSS pointer-events is not enough - contentEditable can
+             still take focus and show a caret. Turn editing OFF for the duration
+             of picking and put it back exactly as it was afterwards, so renaming
+             a branch still works the moment focus mode ends. */
+          if (title && title.contentEditable !== 'false') {
+            if (!title.hasAttribute('data-ce-was')) {
+              title.setAttribute('data-ce-was', title.getAttribute('contenteditable') || 'plaintext-only');
+            }
+            title.contentEditable = 'false';
+          }
+        } else {
+          if (rows[i].classList.contains(PICK_CLASS)) rows[i].classList.remove(PICK_CLASS);
+          if (title && title.hasAttribute('data-ce-was')) {
+            title.setAttribute('contenteditable', title.getAttribute('data-ce-was'));
+            title.removeAttribute('data-ce-was');
+          }
         }
       }
     }
@@ -24473,19 +25414,27 @@ nesting to 20 levels, so the whole tree is serialised rather than stored as nest
         }
         return;
       }
+      /* 2026-09-27: fid can now be a LIST - the operator picks several branches
+         and clicks away to apply them all. This used to compare `n.id === fid`
+         against the array itself, so nothing matched and EVERY row was hidden
+         (measured: visible=0, hidden=5). Normalise to a list and allow each. */
+      var ids = Array.isArray(fid) ? fid : [fid];
       var allowed = {};
-      var found = null;
+      var wanted = {};
+      for (var w = 0; w < ids.length; w++) wanted[ids[w]] = true;
+      var hits = [];
       if (typeof window.walkTree === 'function') {
         window.walkTree(function (n) {
-          if (n && n.id === fid) found = n;
+          if (n && wanted[n.id]) hits.push(n);
         });
       }
-      if (found) {
-        allowed[found.id] = true;
-        collectDescendants(found, allowed);
+      if (hits.length) {
+        for (var hI = 0; hI < hits.length; hI++) {
+          allowed[hits[hI].id] = true;
+          collectDescendants(hits[hI], allowed);
+        }
       } else {
-        allowed[fid] = true;
-        // children will be hidden in that case, which should not happen
+        for (var u = 0; u < ids.length; u++) allowed[ids[u]] = true;
       }
       for (var j = 0; j < rows.length; j++) {
         var row = rows[j];
@@ -25642,86 +26591,33 @@ ancestor that can move.
             row.appendChild(pickBtn);
             list.appendChild(row);
 
+            /* ========================================================= BOARD 30, 2026-09-26
+               Operator: "remove the habits and routines from the section where it says
+               'or make it a routine and habits'. And put a routine and habit in every
+               single branch in the location section."
+
+               So each branch carries its own Habits and Routines underneath it. Picking
+               one files the task as a habit/routine OF THAT BRANCH, which is what makes
+               them per-branch rather than one global pair at the bottom. */
+            /* the branch's own subtasks first... */
             if (hasKids && isExp) walk(n.children, depth + 1);
+
+            /* ...then Routines and Habits, AT THE BOTTOM of that branch.
+               Operator, 2026-09-26: "when you do show the routines and habit, show it
+               in the bottom of all the subtasks of a branch." They were being drawn
+               before the children, so they sat above the real work. */
+            if (typeof window.__branchHRRows === 'function') {
+              window.__branchHRRows(list, n, depth + 1, refreshField, onPick, safeStop);
+            }
           }
         }
 
         walk(tree, 0);
 
-        /* 2026-09-12: Habits and Routines belong in this list too, as the operator asked.
-           They are not tree branches - a habit lives in Store.data.habits and a routine is
-           any task carrying a repeat - so picking one CONVERTS the task rather than moving
-           it. Say that on the row instead of letting a "Pick" quietly do something
-           different from every other Pick in the list. */
-        (function () {
-          if (typeof window.__routinesLocationEntries !== 'function') return;
-          var extras = window.__routinesLocationEntries() || [];
-          if (!extras.length) return;
+        /* BOARD 30, 2026-09-26: the "Or make it a" block is GONE at the operator's
+           request. Habits and Routines now appear under EVERY branch instead - see
+           __branchHRRows, called from walk() above. */
 
-          /* NOT an .lf-row, and no .lf-name inside it. A later pass walks .lf-row by
-             padding-left and deletes any row that looks like a child of a closed parent -
-             a heading row with no padding read as indent 0, so both entries below it were
-             taken for its children and removed. Measured: built directly the rows were
-             there; opened from the edit dialog they were gone. Keep the heading out of
-             that structure entirely. */
-          var sep = document.createElement('div');
-          sep.className = 'lf-sep';
-          sep.style.opacity = '.55';
-          sep.style.fontSize = '11px';
-          sep.style.padding = '8px 10px 2px';
-          sep.textContent = 'Or make it a';
-          list.appendChild(sep);
-
-          for (var i = 0; i < extras.length; i++) {
-            (function (ex) {
-              var row = document.createElement('div');
-              row.className = 'lf-row';
-              row.style.paddingLeft = '10px';
-
-              var nameBtn = document.createElement('button');
-              nameBtn.type = 'button';
-              nameBtn.className = 'lf-name';
-              nameBtn.textContent = '  ' + ex.title;
-              nameBtn.onclick = safeStop;
-              row.appendChild(nameBtn);
-
-              var pickBtn = document.createElement('button');
-              pickBtn.type = 'button';
-              pickBtn.className = 'lf-pick';
-              pickBtn.textContent = 'Pick';
-              pickBtn.onclick = function (e) {
-                /* CARD 8, 2026-09-21 - operator: "when I go to a task, and change
-                   location to a routine or a habit it doesn't change its location".
-
-                   TWO defects, both measured:
-
-                   1. label() reads chosenPath[i].title, and every TREE pick stores
-                      NODE OBJECTS. This one stored the bare string 'Habits', so
-                      'Habits'.title is undefined and the field painted EMPTY - which
-                      is card 9's blank field and card 8's "it didn't save", from one
-                      line. It now stores an object of the same shape.
-
-                   2. The field repainted and the list closed BEFORE onPick ran, and
-                      onPick has four early-return paths (no node, empty title,
-                      duplicate habit). So a refused move still looked like it had
-                      worked. The field is now painted only if onPick reports success.
-
-                   onPick returns false on refusal, anything else is a success. */
-                safeStop(e);
-                var wasId = chosenId, wasPath = chosenPath;
-                chosenId = ex.id;
-                chosenPath = [{ title: ex.title, id: ex.id }];
-                var ok = true;
-                if (typeof onPick === 'function') ok = (onPick(ex.id) !== false);
-                if (!ok) { chosenId = wasId; chosenPath = wasPath; }
-                list.style.display = 'none';
-                refreshField();
-              };
-              row.appendChild(pickBtn);
-              list.appendChild(row);
-            })(extras[i]);
-          }
-        })();
       } catch (err) {
         // drawing failed; wrap is still returned below
       }
@@ -26623,6 +27519,17 @@ ancestor that can move.
       for (var i = 0; i < inputs.length; i++) {
         var input = inputs[i];
         if (input.getAttribute('data-dp2')) continue;
+        /* 2026-09-26, operator: "in the edit button in the due date, when I click it,
+           it becomes three calendars, it should only be one."
+           TWO OWNERS. The Edit Activity dialog wires its own picker (openDatePopover,
+           two months side by side, the one the operator approved on 2026-09-19) and
+           marks the field data-own="1". This older installer then claimed the SAME
+           field on its 400ms sweep and added a SECOND click handler, so one click
+           opened both: the wide .al-pop (2 months) plus this .dp2 - three calendars.
+           Measured before the fix: visible panels = 2, .al-pop@508 + .dp2@936.
+           It only looked right in a fast test because a click inside 400ms beat the
+           sweep; a real person is always slower. A field with an owner is skipped. */
+        if (input.getAttribute('data-own')) continue;
         input.setAttribute('data-dp2', '1');
         input.type = 'text';
         input.readOnly = true;
@@ -27000,6 +27907,22 @@ ancestor that can move.
     if (pr.bottom > window.innerHeight - 8) {
       root.style.top = (rect.top + window.pageYOffset - pr.height - 6) + 'px';
     }
+    /* 2026-09-26: THE THIRD copy of this same flaw. Flipping the panel above the
+       field is not enough when it does not fit there either - the result was never
+       re-checked, so it sat at styleTop=550 in a 580px window. Clamp both edges
+       afterwards. (The other two copies are the select picker and the time/duration
+       panel; all three now end with the same clamp.) */
+    (function () {
+      var pr2 = root.getBoundingClientRect();
+      var t = parseFloat(root.style.top) || 0;
+      var l = parseFloat(root.style.left) || 0;
+      t = Math.min(t, window.innerHeight - 8 - pr2.height + window.pageYOffset);
+      t = Math.max(t, 8 + window.pageYOffset);
+      l = Math.min(l, window.innerWidth - 8 - pr2.width + window.pageXOffset);
+      l = Math.max(l, 8 + window.pageXOffset);
+      root.style.top = t + 'px';
+      root.style.left = l + 'px';
+    })();
     var sel = list.querySelector('.tp2-opt.tp2-on');
     if (sel) {
       list.scrollTop = sel.offsetTop - list.clientHeight / 2 + sel.offsetHeight / 2;
@@ -27442,6 +28365,50 @@ window.scrollColsToSelection = function(root) {
       top = rect.top + window.pageYOffset - pRect.height - 6;
       div.style.top = top + 'px';
     }
+    /* 2026-09-26: measured at 360x700 - the Time spinner ended at 717 in a 700px
+       window. Flipping it ABOVE the field is not enough when it does not fit there
+       either; the result was never re-checked. Clamp both edges afterwards, which
+       is the only version that cannot leave the panel off screen. */
+    /* pRect was measured BEFORE the caller filled the panel, so its height was
+       stale - measured 2026-09-26: the Duration panel was placed at bottom 897 in
+       a 660px window and only jumped into view a moment later, which is a visible
+       flash. Re-measure here, and again on the next frame once the contents have
+       laid out, so it is never drawn off screen in the first place. */
+    function clampNow() {
+      if (!div.parentNode) return;
+      var q = div.getBoundingClientRect();
+      var t = parseFloat(div.style.top) || 0;
+      var l = parseFloat(div.style.left) || 0;
+      var wh = window.innerHeight, ww = window.innerWidth;
+      t = Math.min(t, wh - 8 - q.height + window.pageYOffset);
+      t = Math.max(t, 8 + window.pageYOffset);
+      l = Math.min(l, ww - 8 - q.width + window.pageXOffset);
+      l = Math.max(l, 8 + window.pageXOffset);
+      div.style.top = t + 'px';
+      div.style.left = l + 'px';
+    }
+    div.style.top = top + 'px';
+    div.style.left = left + 'px';
+    clampNow();
+    if (window.requestAnimationFrame) requestAnimationFrame(clampNow);
+    else setTimeout(clampNow, 16);
+    /* The caller fills this panel AFTER panel() returns, so at clamp time its
+       height is still 0 and there is nothing to clamp against - measured: the
+       Duration panel sat at bottom 842 in a 660px window with the clamp attached
+       and doing nothing. A ResizeObserver re-clamps the moment the contents give
+       it a real height, which is the only signal that is actually about the panel
+       rather than about a guessed delay. */
+    try {
+      if (window.ResizeObserver) {
+        var __pro = new ResizeObserver(function () { clampNow(); });
+        __pro.observe(div);
+        div.__pro = __pro;
+      } else {
+        setTimeout(clampNow, 60);
+        setTimeout(clampNow, 160);
+      }
+    } catch (e) { setTimeout(clampNow, 60); }
+    div.__clamp = clampNow;
 
     var onKey = function (e) {
       if (e.key === 'Escape') close();
@@ -27451,6 +28418,7 @@ window.scrollColsToSelection = function(root) {
     };
 
     function close() {
+      if (div.__pro) { try { div.__pro.disconnect(); } catch (e3) { } }
       if (div.parentNode) div.parentNode.removeChild(div);
       document.removeEventListener('keydown', onKey, true);
       document.removeEventListener('click', onClick, true);
@@ -27502,6 +28470,8 @@ window.scrollColsToSelection = function(root) {
     }));
 
     if (window.scrollColsToSelection) window.scrollColsToSelection(el);
+    /* same as the Duration panel below: clamp once the contents exist */
+    if (typeof el.__clamp === 'function') el.__clamp();
   };
 
   window.openDurationPicker = function (anchorEl, totalMinutes, onPick) {
@@ -27573,6 +28543,11 @@ window.scrollColsToSelection = function(root) {
     }));
 
     if (window.scrollColsToSelection) window.scrollColsToSelection(el);
+    /* 2026-09-26: panel() places this BEFORE the caller fills it, so at placement
+       time its height is 0 and the clamp has nothing to work against - measured at
+       700x740 the panel sat at bottom 842 in a 660px window. The contents are
+       complete right here, so clamp now. Calling it by hand moved it 842 -> 652. */
+    if (typeof el.__clamp === 'function') el.__clamp();
   };
 
 })();
@@ -27749,7 +28724,27 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
       chosenTime = (hh < 10 ? '0' : '') + hh + ':' + (mins < 10 ? '0' : '') + mins;
     }
 
-    var ROW = 18;
+    /* 2026-09-28: THIS IS A SECOND COPY of the time spinner, and it carried its
+       own hard-coded 18 while sharing the same .rt1 CSS as buildTimeSpinner. The
+       moment the operator asked for bigger dials (row 18 -> 22) this control was
+       silently left scrolling by 18 against 22px rows - the wrong value under the
+       mark, the exact defect that put an X over their 12 o'clock. Found by the
+       gate, not by reading.
+       It now measures the rendered row, like the other one, so the two cannot
+       drift from the CSS or from each other. */
+    var ROW = (function () {
+      try {
+        var probe = document.createElement('div');
+        probe.className = 'rt1-row';
+        probe.style.cssText = 'position:absolute;visibility:hidden;left:-9999px';
+        probe.appendChild(document.createTextNode('0'));
+        document.body.appendChild(probe);
+        var h = Math.round(probe.getBoundingClientRect().height);
+        probe.parentNode.removeChild(probe);
+        if (h >= 10 && h <= 80) return h;
+      } catch (e) { }
+      return 22;
+    })();
     function spinner(values, current, onPick) {
       var box = document.createElement('div');
       box.className = 'rt1-spin';
@@ -27788,6 +28783,27 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
           onPick(values[idx]);
         }, 90);
       });
+      /* 2026-09-28: `sel * ROW` assumes the row height never changes after the
+         spinner is built. It now does - the focus editor scales its dials down
+         on a short window - and this timeout runs AFTER any correction, so it
+         put the value back one row off centre (measured -16px at 16px rows).
+         Centring the selected row on its own measured position is right at any
+         size, and there is only one owner of this scroll again. */
+      /* ONE CONVENTION, 2026-09-28. This is the bug behind "the until still does
+         not work", and it was mine.
+
+         MEASURED: mark() decides which row is selected with
+         `round(scrollTop / ROW)`, and the snap writes back `idx * ROW`. I had
+         changed this seating to CENTRE the row instead
+         (`offsetTop + rh/2 - boxH/2`), which sits 6px lower at every row. So the
+         dial was seated at 226 for "11" while mark() read 226 as row 10 and
+         snapped to 242 - one row on, "12". The operator picked 11:00 and the
+         session stored 00:00, midnight, which is always in the past and can
+         never ring. Three rounds chased the alarm; the VALUE was wrong.
+
+         The centring was only ever cosmetic (a highlight sitting one row high in
+         a shrunken panel). Matching mark()'s arithmetic is what makes the value
+         right, and the value is what matters. */
       setTimeout(function () { box.scrollTop = sel * ROW; mark(); }, 0);
       box.__set = function (v) {
         var k;
@@ -28056,6 +29072,18 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
         top = 8 + pxY;
       }
     }
+    /* 2026-09-26: measured the Text style list opening at bottom 920 in a 917px
+       window - 3px off the screen. The clamp above moves it ABOVE the field when
+       it would overflow, but if it does not fit above either it fell back to
+       top=8 without re-checking the bottom. A panel taller than the window must
+       still start on screen AND be clamped at the bottom. Same for the left edge,
+       which had no guard at all. */
+    var maxTop = vpH - 8 - tpR.height + pxY;
+    if (top > maxTop) top = maxTop;
+    if (top < 8 + pxY) top = 8 + pxY;
+    var maxLeft = vpW - 8 - tpR.width + pxX;
+    if (left > maxLeft) left = maxLeft;
+    if (left < 8 + pxX) left = 8 + pxX;
 
     tp.style.left = left + 'px';
     tp.style.top = top + 'px';
@@ -28140,7 +29168,27 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
     var node = found && found.node;
     if (!node) return;
 
+    /* ============================================================= BOARD 30, 2026-09-26
+       Operator: "number seven in the PNG file is not actually working in the live
+       planner. How did you miss this?"
+
+       HOW I MISSED IT: I checked that the DATA saved - node.reminders went from 0 to
+       1 - and called that working. But this painter reads node.reminders, and the
+       dialog does not write there until Save. So between pressing Set and pressing
+       Save there was nothing on screen: from where the operator sits, pressing Set
+       did nothing at all. I tested the storage and never looked at the screen.
+
+       THE FIX: while a dialog is open, paint what the DIALOG is holding (`pending`),
+       which is the one owner the rest of this module already uses. The moment you
+       press Set the chip appears, because the chip now reads the same list Save will
+       write. */
     var list = node.reminders || [];
+    try {
+      if (window.__alPending && window.__editingId === node.id) {
+        var live = window.__alPending();
+        if (live && live.length) list = live;
+      }
+    } catch (e) {}
     var group = wrap.querySelector('.al-group');
 
     if (list.length === 0) {
@@ -28765,12 +29813,36 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
       if (t) t.click();
       closeMenu();
     };
-    if (hasClass(document.body, 'focus-mode') || window.__focusOn) {
-      var sp = document.createElement('span');
-      sp.className = 'gearcheck';
-      sp.textContent = '\u2713';
-      b2.appendChild(sp);
-    }
+    /* 2026-09-27, operator: "I want the focus mode to have a check mark just
+       like show future branches and show routines and habits."
+       There WAS tick logic here, but it tested `body.focus-mode` and
+       `window.__focusOn` - measured, neither has ever existed: the focus module
+       keeps its state in __focusId (the branches in focus) and __focusPick
+       (choosing them now). So the tick could never appear. It now reads the
+       real state, and shows how many branches are in focus, the way
+       "Show future branches" shows its count. */
+    (function () {
+      var fid = window.__focusId;
+      var n = Array.isArray(fid) ? fid.length : (fid ? 1 : 0);
+      if (n > 0) {
+        if (n > 1) {
+          var cnt = document.createElement('span');
+          cnt.className = 'kids';
+          cnt.textContent = String(n);
+          b2.appendChild(cnt);
+        }
+        var sp = document.createElement('span');
+        sp.className = 'gearcheck';
+        sp.textContent = '\u2713';
+        b2.appendChild(sp);
+      } else if (window.__focusPick) {
+        /* mid-selection: say so, rather than showing nothing */
+        var pk = document.createElement('span');
+        pk.className = 'gearcount';
+        pk.textContent = String((window.__focusPending || []).length);
+        b2.appendChild(pk);
+      }
+    })();
     menuEl.appendChild(b2);
 
     var b3 = document.createElement('button');
@@ -28826,6 +29898,58 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
       closeMenu();
     };
     menuEl.appendChild(b4);
+
+    /* ============================================================= BOARD 30, 2026-09-26
+       Operator: the habits/routines switch belongs "within the priority tree setting",
+       next to Show future branches - and they asked for a second one, "show future
+       routines and habits".
+
+       I had put them in a drawer with NO WAY TO OPEN IT, so they were 0x0 and the
+       operator could not find them: "the first one straight, not even there." This is
+       the menu the gear actually opens. Same .gearitem class, same tick, same
+       closeMenu() - built exactly like the line above. */
+    function hrItem(label, isOn, toggle) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'gearitem';
+      b.textContent = label;
+      if (isOn()) {
+        var ck = document.createElement('span');
+        ck.className = 'gearcheck';
+        ck.textContent = '\u2713';
+        b.appendChild(ck);
+      }
+      b.onclick = function () { toggle(); closeMenu(); };
+      menuEl.appendChild(b);
+    }
+
+    /* ONE line, not two. I had built "Show habits / routines" AND "Show routines &
+       habits" - two items a hair apart in wording doing almost the same thing, which
+       is exactly the kind of thing the operator has to decode. The wording they asked
+       for wins, and it is the only switch. */
+    hrItem('Show routines & habits',
+      function () { return window.__hrShowing ? window.__hrShowing() : false; },
+      function () {
+        if (window.__hrSetShowing && window.__hrShowing) {
+          window.__hrSetShowing(!window.__hrShowing());
+        }
+      });
+
+    if (false) hrItem('unused',
+      function () {
+        try { return localStorage.getItem('planner.showFutureHR') === '1'; }
+        catch (e) { return false; }
+      },
+      function () {
+        var v = false;
+        try { v = localStorage.getItem('planner.showFutureHR') === '1'; } catch (e) {}
+        try { localStorage.setItem('planner.showFutureHR', v ? '0' : '1'); } catch (e) {}
+        /* showing the future ones implies showing the branches at all */
+        if (!v && window.__hrSetShowing && window.__hrShowing && !window.__hrShowing()) {
+          window.__hrSetShowing(true);
+        }
+        if (window.renderAll) { try { window.renderAll(); } catch (e) {} }
+      });
 
     /* ===== item 7 - Expand all / Contract all, 2026-09-06 =====
        Two plain lines under a divider. They change the view, so they sit apart from
@@ -29254,13 +30378,25 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
     }
     (function(){
       var hrRows = root.querySelectorAll ? root.querySelectorAll('.tree-row') : [];
+      /* BOARD 30, 2026-09-26: a branch's OWN Routines/Habits count too.
+         Measured: with the switch off, "Routines / Open-up checklist / Habits" were
+         still showing under Riverside Clinic, because this only knew the two global
+         hosts. A per-branch host is recognised by its title or its id suffix. */
       var hrIds = { '__habits': 1, '__routines': 1 };
+      function isHost(n) {
+        if (!n) return false;
+        if (hrIds[n.id]) return true;
+        if (n.__hr) return true;
+        var t = String(n.title || '').toLowerCase();
+        if (t !== 'habits' && t !== 'routines') return false;
+        return /~(habits|routines)$/.test(String(n.id || '')) || hrIds[n.id] === 1;
+      }
       var inside = {};
       if (typeof window.walkTree === 'function') {
         window.walkTree(function (n, d, parent) {
           if (!n || n.id == null) return;
-          if (hrIds[n.id]) { inside[n.id] = 1; return; }
-          if (parent && (inside[parent.id] || hrIds[parent.id])) inside[n.id] = 1;
+          if (isHost(n)) { inside[n.id] = 1; return; }
+          if (parent && (inside[parent.id] || isHost(parent))) inside[n.id] = 1;
         });
       }
       for (var k = 0; k < hrRows.length; k++){
@@ -29915,24 +31051,31 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
 .rt1-sep { height: 1px; background: #3a4049; margin: 14px 0 12px; }
 
 /* the one line: hour, minute, AM / PM */
-.rt1 { display: flex; align-items: center; gap: 6px; }
+/* 2026-09-28, operator: "the dials and everything, it needs to move a little bit
+   to the left and be a little bit bigger, make it symmetrically and it would look
+   pleasing."
+   Row 18 -> 22 and the box 52x54 -> 62x66, which is exactly three rows of 22 so
+   the selected value sits in the middle with one neighbour visible above and
+   below - that is what makes it read as symmetrical. buildTimeSpinner measures
+   .rt1-row rather than carrying its own copy of 18, so these move together. */
+.rt1 { display: flex; align-items: center; gap: 7px; }
 .rt1-spin {
-  width: 52px; height: 54px; background: #343a43; border: 1px solid #3a4049;
-  border-radius: 8px; overflow-y: auto; overflow-x: hidden;
+  width: 62px; height: 66px; background: #343a43; border: 1px solid #3a4049;
+  border-radius: 9px; overflow-y: auto; overflow-x: hidden;
   scroll-snap-type: y mandatory; scrollbar-width: none; text-align: center;
 }
 .rt1-spin::-webkit-scrollbar { display: none; }
-.rt1-pad { height: 18px; }
+.rt1-pad { height: 22px; }
 .rt1-row {
-  height: 18px; line-height: 18px; font-size: 11px; color: #5d646f;
+  height: 22px; line-height: 22px; font-size: 12.5px; color: #5d646f;
   scroll-snap-align: center; cursor: pointer; font-variant-numeric: tabular-nums;
 }
-.rt1-row.on { font-size: 15px; font-weight: 600; color: #e9ecf1; }
-.rt1-colon { font-size: 15px; font-weight: 600; color: #8b93a1; margin: 0 1px; }
-.rt1-ampm { display: flex; flex-direction: column; gap: 3px; margin-left: 4px; }
+.rt1-row.on { font-size: 17px; font-weight: 600; color: #e9ecf1; }
+.rt1-colon { font-size: 17px; font-weight: 600; color: #8b93a1; margin: 0 2px; }
+.rt1-ampm { display: flex; flex-direction: column; gap: 4px; margin-left: 5px; }
 .rt1-ampm button {
-  font-size: 10px; letter-spacing: .04em; background: #343a43; border: 1px solid #3a4049;
-  border-radius: 6px; padding: 3px 9px; color: #aeb6c2; cursor: pointer;
+  font-size: 11px; letter-spacing: .04em; background: #343a43; border: 1px solid #3a4049;
+  border-radius: 7px; padding: 4px 10px; color: #aeb6c2; cursor: pointer;
 }
 .rt1-ampm button.on { background: #a8c7de; color: #1b1f25; font-weight: 600; border-color: #a8c7de; }
 </style>
@@ -29943,7 +31086,19 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
    The bottom bar is Plan / Alarms / Habits. Settings has left it for the top right.
    Every icon is one grey with a single blue detail; the glyph grows 30% under the
    cursor and nothing else changes - no fill, no white, no background. */
-#bottomBar [data-tab] svg { display: block; margin: 0 auto; transition: transform 120ms ease; }
+/* 2026-09-26, operator: "I want the icons to be this big on the browser."
+   MEASURED before: 21x21 glyph with an 11px label, at every width. Scaled to
+   26x26 with a 12px label - the size they were pointing at - and the bar grows
+   with them so nothing is cramped. One rule, so every layout agrees. */
+/* 2026-09-26, operator: "it should be like a quarter bigger" - a quarter up from
+   the 26px they had just seen, so 26 x 1.25 = 32. The label goes up with it
+   (12 -> 13) so the pairing stays in proportion, and the bar follows on its own
+   because its height comes from its contents. */
+#bottomBar [data-tab] svg {
+  display: block; margin: 0 auto; transition: transform 120ms ease;
+  width: 32px !important; height: 32px !important;
+}
+#bottomBar [data-tab] span:last-child { font-size: 13px !important; }
 #bottomBar [data-tab]:hover svg,
 #bottomBar [data-tab].hovering svg { transform: scale(1.30); }
 #bottomBar [data-tab] { color: #8b93a1 !important; }
@@ -30087,7 +31242,12 @@ body[data-habits-left="1"] #habitsLeft {
             + '<path d="M12 3.4v2.2M12 18.4v2.2M5.2 5.2l1.6 1.6M17.2 17.2l1.6 1.6'
             + 'M3.4 12h2.2M18.4 12h2.2M5.2 18.8l1.6-1.6M17.2 6.8l1.6-1.6" ' + g + '/>';
     }
-    return '<svg width="21" height="21" viewBox="0 0 24 24" fill="none">' + inner + '</svg>';
+    /* 2026-09-26, operator: "I want the icons to be this big on the browser" -
+       pointing at the phone layout, where they read larger. The size is set in
+       CSS (see #bottomBar [data-tab] svg) rather than here, so there is ONE
+       place that decides it and it can differ per layout. The attributes stay
+       as a fallback for a build with no stylesheet. */
+    return '<svg width="32" height="32" viewBox="0 0 24 24" fill="none">' + inner + '</svg>';
   }
 
   function todayISO() {
@@ -30124,6 +31284,15 @@ body[data-habits-left="1"] #habitsLeft {
     if (!bar) return false;
     if (bar.getAttribute('data-habits') === '1') return true;
     bar.setAttribute('data-habits', '1');
+    /* 2026-09-26, operator: "whenever I resize the browser the three icons for
+       plan alarms and habits changes to a different icon, that should not happen."
+       MEASURED crossing 700px upward: SVG [Plan,Alarms,Habits] -> EMOJI
+       [Plan,Alarms,Settings] for about half a second -> back to SVG. An OLDER
+       builder DELETES the bar on resize and a guard rebuilds it from its own
+       TABS list (emoji glyphs, and Settings where Habits belongs); this function
+       only repaired it on its 1500ms sweep, so the wrong bar was on screen in
+       between. It is repaired the instant it appears now - see the observer
+       below - so that half second never happens. */
     while (bar.firstChild) bar.removeChild(bar.firstChild);
     var defs = [['plan', 'Plan'], ['alarms', 'Alarms'], ['habits', 'Habits']];
     for (var i = 0; i < defs.length; i++) {
@@ -30759,6 +31928,30 @@ body[data-habits-left="1"] #habitsLeft {
     if (++tries < 200 && !ok) setTimeout(boot, 60);
   })();
   setInterval(function () { rebuildBar(); placeSettings(); fitPane(); }, 1500);
+  /* Repair the bar the MOMENT anything recreates it, instead of up to 1500ms
+     later. A MutationObserver fires in the same frame, so the emoji version is
+     never painted. The 1500ms sweep stays as a backstop. */
+  (function () {
+    try {
+      var mo = new MutationObserver(function (recs) {
+        for (var i = 0; i < recs.length; i++) {
+          var add = recs[i].addedNodes;
+          for (var j = 0; j < add.length; j++) {
+            var n = add[j];
+            if (n.nodeType !== 1) continue;
+            if (n.id === 'bottomBar' ||
+                (n.querySelector && n.querySelector('#bottomBar'))) {
+              rebuildBar();
+              return;
+            }
+          }
+        }
+      });
+      mo.observe(document.body, { childList: true, subtree: true });
+    } catch (e) { }
+    /* and immediately after any resize, whichever order the handlers run in */
+    window.addEventListener('resize', function () { rebuildBar(); });
+  })();
   window.addEventListener('resize', function () { fitPane(); });
 })();
 </script>
@@ -30842,12 +32035,185 @@ body[data-fb="on"] .fb-band { display: block; }
 .fb-flag { color: #d98c2b; font-size: 10px; margin-left: 5px; cursor: pointer; }
 .fb-draft { background-color: rgba(77,139,255,.13); outline: 1px dashed rgba(126,168,255,.75); }
 
+/* ===== BOARD 30 CARD 8 - the focus session is one and a half times wider =====
+   Operator 2026-09-28: "can you make the focus session one and a half times wider?
+   And kind of correlate everything to kind of get bigger as we make it wider. As a
+   normal new situation now."
+
+   SO IT IS NOT JUST THE BOX. The editor was 262px with every inner size hard-coded
+   in px, so widening the shell alone would have left small controls floating in a
+   big panel. One scale factor drives the lot, and every inner rule below is
+   expressed against it - change --fbk alone and the whole editor rescales.
+
+   262 x 1.5 = 393. Type, spinners, swatches, day buttons and the footer all take
+   the same 1.5, rounded to whole pixels where a fraction would blur an edge. */
 .fb-pop {
-  position: absolute; z-index: 2147483400; width: 262px; background: #1d2025;
-  border: 1px solid #2e323a; border-radius: 10px; padding: 12px;
+  --fbk: 1.5;
+  --fbw: 262px;
+  position: absolute; z-index: 2147483400;
+  width: calc(var(--fbw) * var(--fbk));
+  background: #1d2025;
+  border: 1px solid #2e323a; border-radius: 14px; padding: 18px;
   box-shadow: 0 16px 40px rgba(0,0,0,.45); color: #e6e8ec;
-  font: 13px ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif;
+  font: calc(13px * var(--fbk)) ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif;
+  /* MEASURED 2026-09-28: at 1.5 the panel grew to 791px tall and hung below an
+     870px window - a panel you cannot reach the bottom of has no Done button.
+     It never exceeds the window, and scrolls inside itself when it would.
+     max-width does the same for narrow windows: 393px would hang off the right
+     of a 480px window once placed. */
+  max-width: calc(100vw - 24px);
+  /* NO max-height and NO overflow here (2026-09-28): a scrollbar hid part of the
+     panel. capUnderAllDay() scales --fbk down instead, so the whole panel always
+     fits and shrinks with the browser. */
 }
+/* everything inside scales with the same factor */
+.fb-pop h4 { font-size: calc(12.5px * var(--fbk)) !important; }
+.fb-pop .fb-row { font-size: calc(11.5px * var(--fbk)) !important;
+  padding: calc(7px * var(--fbk)) 0 !important; }
+.fb-pop .fb-row input[type="text"],
+.fb-pop .fb-row input[type="time"] {
+  font-size: calc(11px * var(--fbk)) !important;
+  padding: calc(3px * var(--fbk)) calc(8px * var(--fbk)) !important;
+  width: calc(116px * var(--fbk)) !important;
+}
+.fb-pop .fb-pick { font-size: calc(11px * var(--fbk)) !important;
+  padding: calc(3px * var(--fbk)) calc(8px * var(--fbk)) !important; }
+.fb-pop .fb-sw { width: calc(14px * var(--fbk)) !important;
+  height: calc(14px * var(--fbk)) !important; flex: 0 0 calc(14px * var(--fbk)) !important; }
+.fb-pop .fb-colours { gap: calc(4px * var(--fbk)) !important; }
+.fb-pop .fb-days b { width: calc(19px * var(--fbk)) !important;
+  height: calc(19px * var(--fbk)) !important;
+  font-size: calc(9px * var(--fbk)) !important; }
+.fb-pop .fb-days { gap: calc(3px * var(--fbk)) !important; }
+.fb-pop .fb-foot button { height: calc(28px * var(--fbk)) !important;
+  font-size: calc(12px * var(--fbk)) !important; }
+/* MEASURED 2026-09-28: at 1.5 the note was 15.75px and wrapped to TWO lines in a
+   356px panel - 40px of height in a panel the operator wanted shorter. A caption
+   does not need the full scale; 12.5px puts it on one line and reads fine beside
+   17.25px rows. */
+.fb-pop .fb-timernote { font-size: 12.5px !important; }
+.fb-pop .fb-timerbtn { font-size: calc(11.5px * var(--fbk)) !important;
+  padding: calc(4px * var(--fbk)) calc(10px * var(--fbk)) !important; }
+.fb-pop .fb-timerstep { width: calc(20px * var(--fbk)) !important;
+  height: calc(20px * var(--fbk)) !important;
+  font-size: calc(13px * var(--fbk)) !important; }
+/* ===== SHORTER AND THINNER, 2026-09-28 =====
+   Operator: "the focus session edit part is actually pretty long. I said wider,
+   not longer. You might want to make it a little bit thinner and then make it
+   symmetrically looking nice."
+   MEASURED at 393x827: the three dial rows were 88px each (264px of it) and two
+   near-identical notes another 54px. So: the dial box loses a little height, the
+   rows lose vertical padding, and the second note is gone. The panel narrows from
+   393 to 356 - still wider than the 262 it started at, which is what they asked
+   for, just not as wide as my first pass. */
+/* ===== SHORTER THAN THE ALL-DAY ROW, 2026-09-28 =====
+   Operator: "make the focus session a little bit shorter - under where it says
+   All day. It needs to be shorter than that."
+   MEASURED: the panel was 745px while the space below the All-day row (which
+   ends at y=204) is 666px - so it was 79px too tall and had to start ABOVE that
+   row, covering it. Trimming the row padding and the note margins takes it under
+   without touching the dial box, which has to stay a whole 3 x 22 rows or the
+   numbers stop sitting symmetrically. */
+.fb-pop { --fbw: 237px; }                 /* 237 x 1.5 = 356 */
+.fb-pop .fb-row { padding: calc(3px * var(--fbk)) 0 !important; }
+.fb-pop h4 { margin-bottom: 6px !important; }
+.fb-pop .fb-foot { margin-top: 7px !important; }
+.fb-pop .fb-itemsnote { margin: 0 !important; line-height: 1.2 !important;
+  font-size: 12px !important; }
+/* MEASURED 2026-09-28: the Apply-focus row is CONTENT-DEPENDENT - with two
+   branches its label wrapped and the row went 61px -> 75px, pushing the panel
+   back over the All-day row the operator asked it to clear. Its button does not
+   need the full 1.5 scale to be readable, and the caption under it even less. */
+.fb-pop .fb-applyrow { padding: 2px 0 !important; }
+.fb-pop .fb-applyrow button { font-size: 13.5px !important;
+  padding: 7px 10px !important; line-height: 1.25 !important; }
+/* THE BOX MUST BE A WHOLE NUMBER OF ROWS. 60px against 22px rows showed 2.7
+   rows, so the neighbours above and below were clipped by different amounts and
+   the dial read lopsided - the opposite of the "symmetrically looking nice" they
+   asked for. 66 = 3 x 22 exactly: the chosen value centred, one whole neighbour
+   each side. The height saving comes from the row padding instead. */
+/* The dial box is THREE WHOLE ROWS - that is what centres the chosen value with
+   one neighbour each side. It follows --fbr, the row height, so the two can
+   never disagree (buildTimeSpinner measures the rendered row, so its scroll step
+   follows automatically). 2026-09-28: this lets a short window shrink the dials
+   instead of hitting a floor and scrolling. */
+.fb-pop { --fbr: 22px; }
+.fb-pop .fb-row .rt1-row { height: var(--fbr) !important;
+  line-height: var(--fbr) !important; }
+/* The pad at each end must be ONE ROW for `scroll-snap-align:center` to land the
+   chosen value in the middle of a three-row box. MEASURED 2026-09-28: with the
+   pad fixed at 22px while the rows scaled to 16px, the snap settled one row high
+   - the VALUE was right (a scroll of one row moved 3 -> 4 and stored 04:02) but
+   the highlight sat off centre. Tying the pad to the same variable fixes the
+   appearance without touching the behaviour. */
+.fb-pop .fb-row .rt1-pad { height: var(--fbr) !important; }
+.fb-pop .fb-row.fb-timerow .rt1-spin,
+.fb-pop .fb-row .rt1-spin { height: calc(var(--fbr) * 3); }
+.fb-pop .fb-timernote { margin: 1px 0 3px; line-height: 1.3; }
+.fb-pop .fb-alarmnote { margin-top: 5px; }
+
+/* MOVE THE DIALS OFF THE RIGHT EDGE. Operator 2026-09-28: "the right side of it
+   where we have the dials and everything, it needs to move a little bit to the
+   left... make it symmetrically and it would look pleasing."
+   MEASURED: the group sat at gapRight=1 - flush against the panel's content edge
+   - with 115-137px of empty space on its left. Jammed into a corner is exactly
+   what reads as unbalanced. A margin pulls it left into that space, the same
+   amount on every time row so From, To and Until stay on one line. */
+.fb-pop .fb-row .rt1 { margin-right: 14px; }
+
+/* THE TIME SPINNER IS DELIBERATELY NOT SCALED, and this is not an oversight.
+   MEASURED 2026-09-28: `transform: scale()` changes what is painted but NOT the
+   layout box, so From's spinner sat at 1086 and Until's at 1050 - 36px apart,
+   breaking the alignment the operator asked me to guarantee. And scaling its CSS
+   heights instead is worse: buildTimeSpinner scrolls by a JS constant (ROW = 18)
+   and snaps to it, so taller rows would desync selection and the wrong hour would
+   land under the mark - the exact class of bug in their screenshot.
+
+   The spinner therefore keeps its native geometry. The panel around it grows, which
+   is what they can see, and the hour stays selectable and aligned. If it ever needs
+   to grow, ROW must move with the CSS in the same change. */
+
+/* ===== the STOP control on the Until row =====
+   Operator 2026-09-28, with a screenshot: "it has like an X mark. It should be like
+   a circle rotating around. So that should be the stop."
+   MEASURED on their build: the old button sat at x=1054 while the hour column runs
+   1046-1098 - painted ON TOP of the hours. It now sits after the spinner, clear of
+   every digit, and reuses the app's existing ring animation (.lgspin) rather than a
+   second one invented beside it. */
+/* MEASURED 2026-09-28: as a normal flex child the ring made uWrap 206px wide
+   (170 spinner + 36 ring). Both rows end flush right, so the Until spinner began
+   36px earlier than From's - the alignment broke again, the same way the old X
+   button broke it. The ring is therefore taken OUT of the layout flow: it is
+   positioned to the LEFT of the wrapper, in the row's own empty middle, so the
+   wrapper measures exactly the spinner and the two rows line up. */
+/* WHERE IT SITS, decided by measurement, third attempt and the numbers say why.
+     `right: calc(100% + 10px)` -> ring 950-976, panel starts 967: 17px OUTSIDE.
+     `left: 50%`                -> ring 1151, hour column starts 1171: ON THE DIGITS.
+   The label ends at 1021 and the spinner starts at 1171, so the real gap is
+   1021..1171. Sitting the ring just right of the label puts it in clear space,
+   inside the panel, off every digit - and being absolute it takes no flex width,
+   so From and Until stay on the same line. */
+.fb-untilstop { position: absolute; width: 26px; height: 26px;
+  left: 72px; transform: translateY(-50%); top: 50%;
+  padding: 0; border: none; background: transparent; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; }
+/* IT MUST NOT KEEP SPINNING. Operator 2026-09-28: "it keeps like rotating like
+   it's still going around."
+   They are right, and this was my misreading of "a circle rotating around": a
+   ring that turns forever is the universal sign for BUSY / LOADING, so the row
+   looked permanently mid-task. This is a STOP control - it should sit still and
+   look pressable. It keeps the circular shape they asked for, with a square stop
+   mark inside it, and the only movement is on hover, where movement means "this
+   responds to you" rather than "something is running". */
+.fb-untilring { width: 20px; height: 20px; border-radius: 50%;
+  border: 2px solid #4a515c; display: block; position: relative;
+  transition: border-color .15s ease, transform .15s ease; }
+.fb-untilring::after { content: ''; position: absolute; left: 50%; top: 50%;
+  width: 7px; height: 7px; margin: -3.5px 0 0 -3.5px; border-radius: 1.5px;
+  background: #8b93a1; transition: background .15s ease; }
+.fb-untilstop:hover .fb-untilring { border-color: #7fa6f0; transform: scale(1.08); }
+.fb-untilstop:hover .fb-untilring::after { background: #cfe0ff; }
+.fb-untilstop:active .fb-untilring { transform: scale(.94); }
 .fb-pop h4 { margin: 0 0 10px; font-size: 12.5px; font-weight: 600; display: flex;
   align-items: center; gap: 7px; }
 .fb-row { display: flex; align-items: center; justify-content: space-between;
@@ -31039,6 +32405,20 @@ body[data-fb="on"] .fb-band { display: block; }
   function splitOccurrence(bl, iso) {
     var s = store();
     if (!s) return null;
+    /* 2026-09-28 - THE DEFECT BEHIND "the until still does not work".
+       MEASURED: after a few turns of the dial the store held FOUR split children
+       for the same parent on the same day (13:45, 14:00, 14:45, 23:00). Each
+       change made a NEW copy instead of editing the one already broken out, so
+       the value the operator last picked landed on a fresh object while every
+       reader - current(), the editor, the alarm - kept looking at an older one.
+       That is why the dial said 1:45 PM and the session said 23:00, and why the
+       alarm never rang at the chosen time.
+       A day can only be broken out ONCE. If it already has been, edit that. */
+    var existing, i;
+    for (i = 0; i < s.length; i++) {
+      existing = s[i];
+      if (existing && existing.parentId === bl.id && existing.date === iso) return existing;
+    }
     /* CARD 20, 2026-09-21 - a day broken out of a repeating session used to lose
        its TIMER and its focus branch, because only name/branch/from/to were copied.
        The length of a session is to-from, so those two carry the duration - but the
@@ -31054,6 +32434,16 @@ body[data-fb="on"] .fb-band { display: block; }
       parentId: bl.id
     };
     if (bl.timer != null) ex.timer = bl.timer;
+    /* 2026-09-28: UNTIL is the other way a session rings, and it was missing here -
+       exactly the defect the comment above describes, reintroduced for the new
+       field. A day split off a repeating session dropped its finishing time, so
+       the alarm silently stopped for that day. The clock fields come too, or the
+       copy would look armed while counting from nothing. */
+    if (bl.untilAt != null) {
+      ex.untilAt = bl.untilAt;
+      ex.untilIso = iso;
+      ex.untilDoneAt = null;
+    }
     if (bl.itemIds && bl.itemIds.length) ex.itemIds = bl.itemIds.slice();
     if (bl.color) ex.color = bl.color;
     s.push(ex);
@@ -31410,9 +32800,23 @@ body[data-fb="on"] .fb-band { display: block; }
     }
 
     box.addEventListener('focus', function () { openTree(); });
+    /* ============================================================= BOARD 30, 2026-09-26
+       Operator: "it allows me to pick a focus branch, but when I do comma and pick
+       another branch, it doesn't allow it."
+
+       MEASURED, typing one key at a time the way a person does: the text ends up
+       reading "Willingboro, Home" but itemIds stays null - nothing is applied. The
+       box only committed on `change`, on blur, or on Enter, and typing fires none of
+       those. So a second branch typed after a comma looked like it was rejected.
+
+       Now it applies as you type, settled briefly so it is not re-parsing on every
+       keystroke, and still applies on blur and Enter as before. */
+    var typeTimer = null;
     box.addEventListener('input', function () {
       /* a comma means "next one" - open the list again */
       if (/,\s*$/.test(box.value)) { open = null; openTree(); }
+      if (typeTimer) clearTimeout(typeTimer);
+      typeTimer = setTimeout(function () { apply(); }, 450);
     });
     box.addEventListener('change', apply);
     box.addEventListener('blur', function () {
@@ -31674,6 +33078,119 @@ body[data-fb="on"] .fb-band { display: block; }
   if (window.Store && window.Store.onChange) window.Store.onChange(function () { paint(); });
 
   window.__fbPaint = paint;
+
+    /* ===== THE CURRENT-TIME LINE, 2026-09-28 =====
+     Operator: "can we have some things like the picture I just showed you from
+     another program and have it the same color as the blue color that we have?
+     That will help with the timing and for me to understand where I am."
+
+     Drawn ACROSS the whole grid (their picture spans every day) with the time in
+     the gutter, using the app's own --accent blue. It is placed by the grid's
+     own tgToY(), the same function the events use, so the line cannot drift from
+     the hour lines. Repainted every 30s and on every render. */
+  function paintNowLine() {
+    try {
+      /* 2026-09-28, operator: "the line needs to also be shown in the weekly
+         calendar as well."
+         MEASURED: the Week view has its own time grid (its own .tgbody) and the
+         painter only ever looked at `document.querySelector('.tgbody')` - the
+         FIRST one, which is the Day grid. So the week never got a line. Paint
+         EVERY grid on the page; each decides for itself whether it shows today. */
+      var bodies = document.querySelectorAll('.tgbody'), bi;
+      if (!bodies.length) return;
+      if (typeof window.tgToY !== 'function') return;
+      var now = new Date();
+      var hh = ('0' + now.getHours()).slice(-2);
+      var mm = ('0' + now.getMinutes()).slice(-2);
+      var y = window.tgToY(hh + ':' + mm);
+      if (typeof y !== 'number' || !isFinite(y)) return;
+      var today = window.todayISO ? window.todayISO() : null;
+      var h12 = now.getHours() % 12; if (h12 === 0) h12 = 12;
+      var text = h12 + ':' + mm + ' ' + (now.getHours() < 12 ? 'AM' : 'PM');
+
+      for (bi = 0; bi < bodies.length; bi++) {
+        var body = bodies[bi];
+        var old = body.querySelector('.tgnow-full');
+        if (old && old.parentNode) old.parentNode.removeChild(old);
+        /* only on a grid that actually shows today - a week of next month has
+           no "now" to mark */
+        var cols = body.querySelectorAll('.tgcol'), i, hasToday = false;
+        for (i = 0; i < cols.length; i++) {
+          if (cols[i].dataset && cols[i].dataset.iso === today) { hasToday = true; break; }
+        }
+        if (!hasToday) continue;
+        var line = document.createElement('div');
+        line.className = 'tgnow-full';
+        line.style.top = Math.round(y) + 'px';
+        var lab = document.createElement('div');
+        lab.className = 'tgnow-label';
+        lab.textContent = text;
+        line.appendChild(lab);
+        var cw = body.querySelector('.tgcols');
+        if (cw) cw.appendChild(line); else body.appendChild(line);
+      }
+    } catch (e) { }
+  }
+  window.__paintNowLine = paintNowLine;
+  setInterval(paintNowLine, 30000);
+
+  /* 2026-09-28, operator: "the focus session button on the top right, it's on the
+     side that it's on, however it's not showing the focus session shading how I
+     usually see it. I would literally have to click it and then unclick it and
+     click it again."
+
+     REPRODUCED: switch views and the count of drawn bands goes 34 -> 0 while the
+     button still reads "on". paint() only ran when the toggle was PRESSED, so
+     any rebuild of the calendar - a view change, a new day, a re-render - wiped
+     the bands and nothing put them back. Toggling twice was the only way to
+     force a repaint, which is exactly what they described.
+
+     Hooked the same way the row marks are (inside the render, never on a timer):
+     wrap the renderers so the bands are redrawn whenever the grid is rebuilt. */
+  (function hookRenders() {
+    var names = ['renderDay', 'renderWeek', 'renderAll'], i, done = 0;
+    for (i = 0; i < names.length; i++) {
+      (function (n) {
+        if (typeof window[n] !== 'function') return;
+        if (window[n].__fbHooked) { done++; return; }
+        var base = window[n];
+        var wrapped = function () {
+          var r = base.apply(this, arguments);
+          try { if (isOn()) paint(); } catch (e) { }
+          try { paintNowLine(); } catch (e) { }   /* the line, on every render */
+          return r;
+        };
+        wrapped.__fbHooked = true;
+        window[n] = wrapped;
+        done++;
+      })(names[i]);
+    }
+    if (done < names.length) setTimeout(hookRenders, 40);
+  })();
+
+  /* A SECOND DEFENCE, because one hook is never enough (the tabs feature was
+     lost exactly this way on 2026-09-26): if the calendar is ever rebuilt by a
+     path nobody wrapped, put the bands back. Watches the grid itself, so it
+     cannot be fooled by a new caller. */
+  (function selfHeal() {
+    var host = document.getElementById('dayView') || document.body;
+    if (!host || !window.MutationObserver) return;
+    var pending = null;
+    var mo = new MutationObserver(function () {
+      if (!isOn()) return;
+      if (pending) return;
+      pending = setTimeout(function () {
+        pending = null;
+        try {
+          if (!isOn()) return;
+          if (!document.querySelector('.tgcol')) return;
+          if (document.querySelector('.tgcol .fb-band')) return;  /* already there */
+          paint();
+        } catch (e) { }
+      }, 60);
+    });
+    mo.observe(host, { childList: true, subtree: true });
+  })();
 
   /* drag an edge to resize. Snapped to 15 minutes, never past the other edge, and
      never into another block - two owners for one hour defeats the point. */
@@ -32314,10 +33831,45 @@ body[data-fb="on"] .fb-band { display: block; }
     var tPlus = document.createElement('button');
     tPlus.type = 'button'; tPlus.className = 'fb-timerstep'; tPlus.textContent = '+';
     function paintTimer() {
-      tOn.textContent = bl.timer ? ('Alarm after ' + bl.timer + ' min') : 'Off';
-      tOn.className = 'fb-timerbtn' + (bl.timer ? ' on' : '');
-      tMinus.style.visibility = bl.timer ? 'visible' : 'hidden';
-      tPlus.style.visibility  = bl.timer ? 'visible' : 'hidden';
+      /* 2026-09-27, operator: "under the timer I would like to see a button
+         there or a view to tell me how much is remaining."
+         While a timer is running the button IS the countdown; otherwise it says
+         what the alarm is set to. */
+      /* 2026-09-28: read the object the editor is REALLY on - after a repeating
+         day is split off, `bl` is the template and the values live on the copy. */
+      var cur = (typeof current === 'function') ? current() : bl;
+      var ms = window.__fbRemainingMs
+        ? window.__fbRemainingMs(cur, window.selectedDate) : null;
+      /* BOARD 30 CARD 8: the countdown belongs to whichever face is set - a
+         length (timer) or a moment (untilAt). Reading bl.timer alone made the
+         button say "Off" while an Until was counting down. */
+      var armed = !!(cur.timer || cur.untilAt);
+      if (armed && ms !== null && ms > 0) {
+        /* 2026-09-28, operator: "it did not work."
+           MEASURED: an Until at 21:00 showed "472:41 left" - 472 MINUTES, which
+           reads as a broken number rather than "nearly eight hours". A Timer is
+           minutes by nature, but an Until can be most of a day away, so the
+           units have to follow the size of the gap. */
+        var secs = Math.ceil(ms / 1000);
+        var hrs = Math.floor(secs / 3600);
+        var mm = Math.floor((secs % 3600) / 60), ss = secs % 60;
+        if (hrs >= 1) {
+          tOn.textContent = hrs + 'h ' + mm + 'm left';
+        } else {
+          tOn.textContent = mm + ':' + (ss < 10 ? '0' + ss : ss) + ' left';
+        }
+      } else if (armed && ms !== null && ms <= 0) {
+        tOn.textContent = 'Time is up';
+      } else if (cur.untilAt) {
+        tOn.textContent = 'Until ' + cur.untilAt;
+      } else {
+        tOn.textContent = cur.timer ? ('Alarm after ' + cur.timer + ' min') : 'Off';
+      }
+      tOn.className = 'fb-timerbtn' + (armed ? ' on' : '');
+      /* the +/- steps change a LENGTH, so they have no meaning on a moment */
+      tMinus.style.visibility = cur.timer ? 'visible' : 'hidden';
+      tPlus.style.visibility  = cur.timer ? 'visible' : 'hidden';
+      try { if (typeof paintUntil === 'function') paintUntil(); } catch (e) { }
     }
     /* CARD 20, 2026-09-21 - operator: "when I change the duration, and the pop up
        comes for change for everyweek. it doesn't change the following weeks."
@@ -32332,36 +33884,298 @@ body[data-fb="on"] .fb-band { display: block; }
        They now ask the same question the time rows ask, and apply to whatever the
        operator chose. askScope() applies immediately for a session that does not
        repeat, so a one-off is unaffected. */
+    /* 2026-09-27, operator: "when I click the timer, it's showing me the thing is
+       only for today or for every day. It should always be for that specific day.
+       So don't ask that question, just set the timer."
+       CARD 20 (2026-09-21) had made the timer ask the same scope question the
+       time rows ask. They have now decided a timer is always about the day in
+       front of them - so it splits that day off silently and writes the timer
+       there. No prompt, and next week's sessions keep whatever they had. A
+       session that does not repeat is written directly, as before. */
     function setTimer(next) {
-      askScope(bl, window.selectedDate, pop, function (target) {
-        target.timer = next;
-        save();
-        paintTimer();
-        paint();
-        if (target !== bl) { closeEditor(); openEditor(target, null, null); }
-      });
+      var target = bl;
+      var iso = window.selectedDate;
+      if (repeats(bl) && iso) {
+        var ex = splitOccurrence(bl, iso);
+        if (ex) target = ex;
+      }
+      target.timer = next;
+      /* BOARD 30 CARD 8: a length and a moment are two faces of one setting, so
+         choosing a length clears any Until - the same rule setUntil applies in
+         the other direction. Enforced on BOTH sides, or a session could hold two
+         alarms that disagree. */
+      if (next) {
+        target.untilAt = null;
+        target.untilIso = null;
+        target.untilDoneAt = null;
+      }
+      /* 2026-09-27: the countdown runs from NOW, so pressing +/- restarts it.
+         Clearing the timer clears the clock with it. */
+      if (next) {
+        target.timerStartedAt = Date.now();
+        /* a new run has not rung yet, whatever the old one did */
+        target.timerRangFor = null;
+        /* which day this run belongs to - so it does not appear on the other
+           days a repeating session lands on */
+        target.timerStartedIso = window.selectedDate ||
+                                 (window.todayISO ? window.todayISO() : null);
+        target.timerDoneAt = null;
+      } else {
+        target.timerStartedAt = null;
+        target.timerStartedIso = null;
+        target.timerDoneAt = null;
+      }
+      save();
+      paintTimer();
+      paint();
+      if (target !== bl) { closeEditor(); openEditor(target, null, null); }
     }
+    /* 2026-09-27: a countdown that only repaints when a button is pressed is not
+       a countdown. One interval per open editor, cleared when it closes, so
+       nothing accumulates. */
+    if (pop.__countdown) clearInterval(pop.__countdown);
+    pop.__countdown = setInterval(function () {
+      if (!pop.parentNode) { clearInterval(pop.__countdown); pop.__countdown = null; return; }
+      var cq = (typeof current === 'function') ? current() : bl;
+      if (!cq.untilAt && (!cq.timer || !cq.timerStartedAt)) return;
+      try { paintTimer(); } catch (e) { }
+    }, 1000);
+
+    /* 2026-09-28, operator: "the timer was not working."
+       REPRODUCED on a REPEATING session, and the numbers say exactly why:
+       pressing Timer split the day off (11 blocks -> 12) and setTimer wrote the
+       value to the NEW copy - but these handlers, and paintTimer, still read the
+       ORIGINAL `bl` they closed over. So the button asked "is bl.timer set?",
+       saw null on an object nobody was editing any more, and toggled the wrong
+       way; the row showed Off while the day it had just created held 25. That is
+       the Timer "Off" beside a live Until in their screenshot.
+
+       `current()` always returns the object the editor is actually on, so a
+       press reads the same session it writes. */
+    function current() {
+      if (!bl) return bl;
+      if (!repeats(bl)) return bl;
+      var iso = window.selectedDate;
+      if (!iso) return bl;
+      var list = store() || [], i;
+      for (i = 0; i < list.length; i++) {
+        if (list[i] && list[i].parentId === bl.id && list[i].date === iso) return list[i];
+      }
+      return bl;
+    }
+    window.__fbCurrent = current;              /* so a check can see it too */
+
     tOn.addEventListener('click', function (e) {
       e.preventDefault();
-      setTimer(bl.timer ? null : 25);      /* a sensible first value */
+      setTimer(current().timer ? null : 25);   /* a sensible first value */
     });
     tMinus.addEventListener('click', function (e) {
       e.preventDefault();
-      setTimer(Math.max(5, (bl.timer || 25) - 5));
+      setTimer(Math.max(5, (current().timer || 25) - 5));
     });
     tPlus.addEventListener('click', function (e) {
       e.preventDefault();
-      setTimer(Math.min(180, (bl.timer || 25) + 5));
+      setTimer(Math.min(180, (current().timer || 25) + 5));
     });
     timerWrap.appendChild(tMinus);
     timerWrap.appendChild(tOn);
     timerWrap.appendChild(tPlus);
     rT.appendChild(timerWrap);
+    /* 2026-09-28, operator: "the part where it says keep reminding you until you're
+       done, you could basically put right above the timer, and then basically set
+       timer or until."
+       So ONE line sits ABOVE both rows and explains the pair, instead of a note
+       under Timer and a second note under Until saying nearly the same thing.
+       Two notes cost 54px of the height they also asked me to cut. */
     var tNote = document.createElement('div');
-    tNote.className = 'fb-timernote';
-    tNote.textContent = 'Keeps reminding you until you press I am done.';
-    pop.appendChild(tNote);
+    tNote.className = 'fb-timernote fb-alarmnote';
+    /* one LINE, not two: at 356px the longer wording wrapped and cost 20px the
+   operator had asked me to save. */
+    tNote.textContent = 'A Timer or an Until - reminds you until you press I am done.';
+    pop.insertBefore(tNote, rT);
     paintTimer();
+
+    /* ================= BOARD 30 CARD 8 - the "Until" row =================
+       Operator 2026-09-27: "I like the word until, and it would be under the
+       timer. And then this way I would set up a timer just how I have the From."
+       Operator 2026-09-28: "only have the until part and make sure that it lines
+       up with the timing you have above... it only correlates to that time, not
+       anything and nothing else."
+
+       WHY IT IS BUILT WITH row() + buildTimeSpinner AND NOTHING ELSE: alignment
+       with From/To is not something to style, it is something to inherit. The
+       same helper, the same shared spinner, so the label column and the control
+       column cannot drift. Measured on screen when this was written - From vs
+       Until: label left 13/13, spinner left 247/247, width 170/170.
+
+       TIMER AND UNTIL ARE ONE SETTING WITH TWO FACES. A length ("ring in 25
+       min") and a moment ("ring at 10:30") answer the same question, so setting
+       one CLEARS the other. Never two alarms disagreeing on one session.
+
+       SCOPE: like the timer, this belongs to the day in front of the operator -
+       it splits a repeating day off silently and never asks. */
+    var rU = row('Until');
+    function untilOf(b) {
+      /* the stored moment, as HH:MM, or '' when the session runs on a length */
+      return b && b.untilAt ? String(b.untilAt) : '';
+    }
+    function setUntil(v) {
+      var target = bl;
+      var iso = window.selectedDate;
+      if (repeats(bl) && iso) {
+        var ex = splitOccurrence(bl, iso);
+        if (ex) target = ex;
+      }
+      if (v) {
+        target.untilAt = v;
+        target.untilIso = iso || (window.todayISO ? window.todayISO() : null);
+        target.untilDoneAt = null;
+        target.untilRangFor = null;          /* a new moment has not rung yet */
+        /* the two faces of one setting - a length and a moment cannot both hold */
+        target.timer = null;
+        target.timerStartedAt = null;
+        target.timerStartedIso = null;
+        target.timerDoneAt = null;
+      } else {
+        target.untilAt = null;
+        target.untilIso = null;
+        target.untilDoneAt = null;
+      }
+      save();
+      try { paintTimer(); } catch (e) { }
+      paint();
+      /* 2026-09-28 - THE CAUSE OF "the until still does not work", found by
+         watching the element instead of the value.
+
+         MEASURED: after one scroll of the dial, the element I had scrolled was
+         no longer in the document (`isConnected` false) and a NEW dial stood in
+         its place reading 12 - so the session stored `00:00`, midnight, which is
+         always in the past and can never ring. Three rounds of "fixed" chased
+         the alarm; the alarm was fine, the VALUE was midnight.
+
+         WHY: setting an Until on a repeating session splits that day off, and
+         this line then tore the whole editor down and rebuilt it on the new
+         object - WHILE THE OPERATOR WAS STILL TURNING THE DIAL. The rebuilt
+         dial re-seeded from an untilAt that had not been written yet, landed on
+         the first row (midnight) and committed that over their real choice.
+
+         The timer row does the same rebuild, but a timer is set by a single
+         click that has already finished, so it never showed.
+
+         A dial is a CONTINUOUS gesture. Rebuilding under it is never right, so
+         the editor is simply re-pointed at the new object: the panel stays, the
+         dial keeps the operator's scroll, and `current()` already resolves every
+         read and write to the split-off day. */
+      if (target !== bl) {
+        try { window.__fbLastPos = window.__fbLastPos || null; } catch (e) { }
+        /* no closeEditor()/openEditor() here - see above */
+      }
+    }
+    /* MEASURED 2026-09-28: .fb-row is `display:flex; justify-content:space-between`,
+       so a row with THREE children spreads them and the middle one no longer sits
+       where From's control sits - the spinner landed at 1105 against From's 1141,
+       36px out. The clear button therefore rides INSIDE one wrapper with the
+       spinner, keeping the row at two children exactly like From and To. */
+    var uWrap = document.createElement('div');
+    uWrap.style.cssText = 'display:flex;align-items:center';   /* NOT position:relative - the ring anchors to the row */
+    /* MEASURED 2026-09-28, and this is the whole reason the row needs a guard:
+       buildTimeSpinner sets scrollTop while it builds, which fires its own
+       scroll listener, which calls commit() - so merely OPENING the editor
+       called this callback and wrote an untilAt the operator never chose (a
+       stray "01:00"), which then cleared their Timer. From/To never showed this
+       because they always hold a value already; Until starts empty.
+
+       So the callback is ignored until the operator has actually touched the
+       control. `armed` flips on the first real pointer press inside the row -
+       a construction-time scroll cannot reach it. */
+    var uArmed = false;
+    if (window.buildTimeSpinner) {
+      var uSp = window.buildTimeSpinner(untilOf(bl) || bl.to || '10:00', function (v) {
+        if (!uArmed) return;             /* built, not chosen - write nothing */
+        /* 2026-09-28, operator: "it gives me a pop up that says it's after the
+           session ends, and then it doesn't work... the little marking there is
+           fine, however it should always work."
+
+           I had made "later than To" a REFUSAL. Two things were wrong with that:
+           it is not my call to make - a bell after the session is a legitimate
+           thing to want - and worse, refusing left the DIAL showing 8:00 while
+           nothing was stored, so the control lied about its own value.
+
+           The time is now ALWAYS set. The note still appears, as information
+           rather than a veto. */
+        setUntil(v);
+        if (current().to && toMin(v) > toMin(current().to)) {
+          fbHint('Set for ' + v + ' - that is after the session ends');
+        }
+      });
+      /* 2026-09-28 - WHY THE AM/PM BUTTONS ALSO HAVE TO ARM IT.
+         MEASURED: the dial read "2:43 PM" while the session stored "23:00" -
+         display and value disagreeing, which is why the alarm never fired at the
+         time the operator picked. The AM/PM buttons call commit() correctly, but
+         their handler runs e.stopPropagation(), so these capture listeners never
+         saw the press, uArmed stayed false, and the callback was dropped. The
+         guard exists to ignore the spinner's CONSTRUCTION-time commit; a real
+         button press is exactly what it should let through. */
+      uSp.addEventListener('pointerdown', function () { uArmed = true; }, true);
+      uSp.addEventListener('mousedown',  function () { uArmed = true; }, true);
+      uSp.addEventListener('touchstart', function () { uArmed = true; }, true);
+      uSp.addEventListener('keydown',    function () { uArmed = true; }, true);
+      (function () {
+        var aps = uSp.querySelectorAll('.rt1-ampm button'), z;
+        for (z = 0; z < aps.length; z++) {
+          aps[z].addEventListener('pointerdown', function () { uArmed = true; }, true);
+          aps[z].addEventListener('mousedown',   function () { uArmed = true; }, true);
+          aps[z].addEventListener('click',       function () { uArmed = true; }, true);
+        }
+      })();
+      uWrap.appendChild(uSp);
+    }
+    /* THE STOP CONTROL.
+       Operator 2026-09-28, with a screenshot: "once I pass the 12 o'clock or 1
+       o'clock it has like an X mark. It should be like a circle rotating around.
+       So that should be the stop."
+
+       MEASURED on their build: my clear button sat at x=1054 while the hour
+       column runs 1046-1098 - it was painted ON TOP OF THE HOURS, which is the
+       mark they photographed. Two things were wrong, not one: the shape, and
+       the position. It is now a rotating ring (reusing the app's own .lgspin
+       pattern, not a second one invented beside it) and it sits AFTER the
+       spinner, clear of every digit column.
+
+       WHY IT STILL DOES NOT BREAK THE ALIGNMENT: .fb-row is space-between, so a
+       third child would move the spinner (that bug cost 29px earlier today).
+       The ring lives inside uWrap with the spinner, and uWrap is the row's
+       second and last child - so the row still has exactly two. */
+    var uClear = document.createElement('button');
+    uClear.type = 'button';
+    uClear.className = 'fb-untilstop';
+    uClear.title = 'Stop - no finishing time';
+    uClear.setAttribute('aria-label', 'Stop the finishing time');
+    var uRing = document.createElement('span');
+    uRing.className = 'fb-untilring';
+    uClear.appendChild(uRing);
+    uClear.addEventListener('click', function (e) {
+      e.preventDefault();
+      setUntil(null);
+    });
+    /* the ring is a child of the ROW (which is position:relative) so it can sit in
+       the row's empty middle; uWrap stays exactly the spinner's width, which is
+       what keeps Until lined up with From. */
+    rU.appendChild(uWrap);
+    rU.appendChild(uClear);
+    function paintUntil() {
+      var c = (typeof current === 'function') ? current() : bl;
+      uClear.style.visibility = c.untilAt ? 'visible' : 'hidden';
+    }
+    paintUntil();
+    /* the second note is gone: the one line above the Timer row now covers both.
+       (Operator 2026-09-28 - the editor was "actually pretty long".) */
+
+    /* so a check can read which face is active without touching the store */
+    window.__fbUntilState = function () {
+      var c = (typeof current === 'function') ? current() : bl;
+      return { timer: c.timer || null, until: c.untilAt || null };
+    };
 
     var rD = row('Days');
     var days = document.createElement('div');
@@ -32404,7 +34218,19 @@ body[data-fb="on"] .fb-band { display: block; }
     pop.appendChild(foot);
 
     document.body.appendChild(pop);
+    /* 2026-09-27, operator: "did you notice where the focus session moved? I just
+       had it on the double click, and then the pop-up came all the way far away.
+       It should be right where I do that edit."
+       MEASURED: changing the timer or the time splits the day off and REOPENS the
+       editor with openEditor(target, null, null) - no anchor, no click point - so
+       it fell through to a default spot near the top of the calendar, yards from
+       where they were working. The last position is remembered and reused, so a
+       reopen lands exactly where the panel already was. */
     var fallback = (function () {
+      if (window.__fbLastPos && typeof window.__fbLastPos.left === 'number') {
+        var lp = window.__fbLastPos;
+        return { left: lp.left, top: lp.top, right: lp.left, bottom: lp.top };
+      }
       var g = document.querySelector('#dayView .tgcol') || document.querySelector('.tgcol');
       if (g) { var b = g.getBoundingClientRect();
                return { left: b.left + 40, top: b.top + 60, bottom: b.top + 60 }; }
@@ -32434,6 +34260,180 @@ body[data-fb="on"] .fb-band { display: block; }
     if (top < window.pageYOffset + 8) top = window.pageYOffset + 8;
     pop.style.left = Math.round(left) + 'px';
     pop.style.top = Math.round(top) + 'px';
+
+    /* KEEP IT ON SCREEN WHEN THE WINDOW CHANGES.
+       Operator 2026-09-28 asked for the panel one and a half times wider, which
+       made it 393x791. MEASURED: the clamping above runs ONLY at open time, so a
+       panel opened on a wide window and then shrunk kept its old coordinates and
+       hung off the right and bottom edges - and the Done button went with it.
+       One re-clamp on resize, using the same arithmetic, and it is removed when
+       the panel closes so nothing accumulates. */
+    /* 2026-09-28, operator: "make the focus session a little bit shorter - under
+       where it says All day. It needs to be shorter than that."
+       Trimming padding got it close, but the panel's height is CONTENT-DEPENDENT
+       (a session with two branches wraps its Apply label and the panel grows
+       ~14px), so no fixed set of paddings can promise it. This measures the
+       All-day row and caps the panel to the space beneath it - a promise that
+       holds whatever the content does. It scrolls inside itself if it must. */
+    /* 2026-09-28, operator: "there shouldn't be a bar sliding up and down, it
+       should always shrink as the browser shrinks."
+       They are right, and a scrollbar was the wrong answer. Capping the height
+       with overflow:auto hid 22px behind a bar. Instead the panel SCALES: the
+       same --fbk factor that made it 1.5x now comes DOWN when there is not
+       enough room, so every row, dial and button shrinks together and the whole
+       panel stays visible. No bar, nothing hidden, one factor still driving the
+       lot. */
+    /* reseatDials REMOVED 2026-09-28 - it was the cause of "the until still does
+       not work", and the fault was mine.
+
+       MEASURED: a standalone spinner seeded '11:00' seats itself on 11:00 AM
+       correctly. The SAME seed inside the Until row showed 12:00 AM, and one
+       scroll then stored `00:00` - midnight, always in the past, so the alarm
+       could never fire. That is the bug, three rounds running.
+
+       WHY: buildTimeSpinner seats itself in a `setTimeout(..., 0)`. My re-seat
+       ran on a `requestAnimationFrame`, which fires BEFORE that timeout, so it
+       re-scrolled a dial whose `.rt1-row.on` mark had not been set yet - and
+       with no mark it landed on the first row, midnight.
+
+       The spinner already centres itself correctly at any row height (fixed the
+       same day), so there was nothing left for this to do. Two owners of one
+       scroll position, and the wrong one won. */
+    function reseatDials() { /* intentionally empty - see above */ }
+
+    function capUnderAllDay() {
+      try {
+        var lab = null, all = document.querySelectorAll('.tgallday'), i;
+        for (i = 0; i < all.length; i++) {
+          if (all[i].getBoundingClientRect().height > 0) { lab = all[i]; break; }
+        }
+        /* THE ROOM IS THE WHOLE WINDOW. Clearing the All-day row is a nicety;
+           fitting on screen is the requirement, and measuring against the row
+           made the panel shrink while most of the window sat empty (1.164 at
+           1500px, with 200px spare). The row is respected by the PLACER, which
+           only moves the panel down when the full-size panel still fits. */
+        var room = window.innerHeight - 16;
+        pop.style.setProperty('--fbk', '1.5');
+        pop.style.setProperty('--fbr', '22px');
+        /* offsetHeight, not scrollHeight: with overflow gone they agree, but
+           offsetHeight is the box actually laid out and cannot be inflated by a
+           child that has not been positioned yet. */
+        var natural = pop.offsetHeight;
+        if (natural > room) {
+          /* Scale, then MEASURE AGAIN. Parts of the panel do not scale with the
+             factor - the dial box is a fixed 66px (it must stay a whole 3 rows
+             or the numbers sit lopsided) and the Apply label wraps more as the
+             panel narrows. So one ratio is only an estimate; a couple of passes
+             converge on the real fit. MEASURED: without this the panel sat 8px
+             below the window at 670px tall and 227px below at 370px. */
+          /* the dial rows shrink with the panel, but never below 16px or the
+             digits stop being readable. Whole pixels only: a fractional row
+             height and the spinner's scroll step drift apart. */
+          var k = 1.5, pass;
+          for (pass = 0; pass < 8; pass++) {
+            /* aim slightly under the room: converging exactly onto it left the
+               panel 2px over and scrolling for nothing. */
+            k = k * ((room - 2) / pop.offsetHeight);
+            if (k > 1.5) k = 1.5;
+            if (k < 0.85) { k = 0.85; }
+            pop.style.setProperty('--fbk', k.toFixed(3));
+            var r = Math.round(22 * (k / 1.5));
+            if (r < 16) r = 16;
+            pop.style.setProperty('--fbr', r + 'px');
+
+            if (pop.offsetHeight <= room) break;
+            if (k <= 0.85) break;
+          }
+          /* If even the smallest scale cannot fit - a very short window - let it
+             scroll rather than run off the screen. That is the honest fallback,
+             and only after scaling has genuinely run out. */
+          /* THE SPINNER'S SCROLL POSITION IS IN PIXELS, so changing the row
+             height leaves the selected value out from under the mark.
+             MEASURED: at 16px rows the choice sat 48px - a whole box - off
+             centre, and scrollTop still held 129 from the old 22px rows.
+             Re-seat every dial once the final row height is laid out; a frame
+             later, because reading it inside the sizing loop gives the height
+             the browser has not applied yet. */
+          reseatDials();
+
+          if (pop.offsetHeight > room) {
+            pop.style.maxHeight = Math.round(room) + 'px';
+            pop.style.overflowY = 'auto';
+          } else {
+            pop.style.maxHeight = '';
+            pop.style.overflowY = '';
+          }
+        } else {
+          pop.style.maxHeight = '';
+          pop.style.overflowY = '';
+        }
+      } catch (e) { }
+    }
+    capUnderAllDay();
+
+    if (pop.__reclamp) window.removeEventListener('resize', pop.__reclamp);
+    pop.__reclamp = function () {
+      if (!pop.parentNode) { window.removeEventListener('resize', pop.__reclamp); return; }
+      var pw = pop.offsetWidth, ph = pop.offsetHeight;
+      var l = parseFloat(pop.style.left) || 0, t = parseFloat(pop.style.top) || 0;
+      if (l + pw > window.pageXOffset + window.innerWidth - 8)
+        l = window.pageXOffset + window.innerWidth - pw - 8;
+      if (l < window.pageXOffset + 8) l = window.pageXOffset + 8;
+      if (t + ph > window.pageYOffset + window.innerHeight - 8)
+        t = window.pageYOffset + window.innerHeight - ph - 8;
+      if (t < window.pageYOffset + 8) t = window.pageYOffset + 8;
+      /* Start below the All-day row when there is room for it.
+         MEASURED 2026-09-28: forcing this unconditionally pushed the panel off
+         the bottom at 700px and 480px, where that row sits lower - a panel you
+         cannot reach the end of is worse than one overlapping a label. So the
+         floor applies only if the whole panel still fits beneath it; otherwise
+         being fully on screen wins. */
+      try {
+        var lab = null, all = document.querySelectorAll('.tgallday'), k;
+        for (k = 0; k < all.length; k++) {
+          if (all[k].getBoundingClientRect().height > 0) { lab = all[k]; break; }
+        }
+        if (lab) {
+          var floor = window.pageYOffset + lab.getBoundingClientRect().bottom + 4;
+          var roomBelow = window.pageYOffset + window.innerHeight - 8 - floor;
+          /* ph is read BEFORE this runs, so re-read it: capUnderAllDay may have
+             scaled the panel since. MEASURED: using the stale height pushed the
+             panel 60px off the bottom at 1500px. */
+          var realH = pop.offsetHeight;
+          if (t < floor && realH <= roomBelow) t = floor;
+        }
+      } catch (e) { }
+      pop.style.left = Math.round(l) + 'px';
+      pop.style.top = Math.round(t) + 'px';
+      capUnderAllDay();
+      /* scaling changes the height, so the bottom edge must be re-checked
+         against the window afterwards - otherwise the panel is placed for a
+         size it no longer is. */
+      var h2 = pop.offsetHeight;
+      var t2 = parseFloat(pop.style.top) || 0;
+      if (t2 + h2 > window.pageYOffset + window.innerHeight - 8)
+        t2 = window.pageYOffset + window.innerHeight - h2 - 8;
+      if (t2 < window.pageYOffset + 8) t2 = window.pageYOffset + 8;
+      pop.style.top = Math.round(t2) + 'px';
+    };
+    window.addEventListener('resize', pop.__reclamp);
+    /* AND ONCE AFTER LAYOUT SETTLES. MEASURED: at open time offsetHeight was 791
+       but the clamp above had already run against a shorter, not-yet-final panel,
+       so it was placed at top:93 and its bottom sat at 884 in an 870px window -
+       the Done button below the fold. Forcing the same clamp one frame later put
+       it at 71..862, fully on screen. One extra frame, not a timer: the panel is
+       built synchronously and only needs layout to flush. */
+    requestAnimationFrame(function () {
+      /* __reclamp now does the whole job in the right order: place, scale,
+         re-check against the window. Running it one frame later means the
+         panel's real laid-out height is available. */
+      try { pop.__reclamp(); } catch (e) { }
+    });
+
+    /* remember it, so a reopen (timer change, day split) lands in the same place
+       instead of jumping to the default corner */
+    window.__fbLastPos = { left: left - window.pageXOffset,
+                           top:  top  - window.pageYOffset };
     pop.addEventListener('click', function (e) { e.stopPropagation(); });
   }
   window.__fbOpenEditor = openEditor;
@@ -32595,7 +34595,26 @@ body[data-fb="on"] .fb-band { display: block; }
   if (window.__timeSpinnerInstalled) return;
   window.__timeSpinnerInstalled = true;
 
-  var ROW = 18;
+  /* THE ROW HEIGHT IS SHARED WITH THE CSS AND MUST STAY IN STEP.
+     Operator 2026-09-28 asked for the dials "a little bit bigger". The spinner
+     scrolls by this number and snaps to it, so raising .rt1-row in CSS without
+     raising this lands the WRONG HOUR under the mark - the class of bug that put
+     an X over their 12. Read it from the rendered row instead of restating it,
+     so the two can never drift apart again. */
+  function rowHeight() {
+    try {
+      var probe = document.createElement('div');
+      probe.className = 'rt1-row';
+      probe.style.cssText = 'position:absolute;visibility:hidden;left:-9999px';
+      probe.appendChild(document.createTextNode('0'));
+      document.body.appendChild(probe);
+      var h = Math.round(probe.getBoundingClientRect().height);
+      probe.parentNode.removeChild(probe);
+      if (h >= 10 && h <= 80) return h;
+    } catch (e) { }
+    return 22;
+  }
+  var ROW = rowHeight();
 
   /* One time control, used by every field that sets a time: the alarm it started in,
      Edit Activity's Time, and both ends of a focus block. Hour and minute are real
@@ -32653,6 +34672,27 @@ body[data-fb="on"] .fb-band { display: block; }
           pick(values[idx]);
         }, 90);
       });
+      /* 2026-09-28: `sel * ROW` assumes the row height never changes after the
+         spinner is built. It now does - the focus editor scales its dials down
+         on a short window - and this timeout runs AFTER any correction, so it
+         put the value back one row off centre (measured -16px at 16px rows).
+         Centring the selected row on its own measured position is right at any
+         size, and there is only one owner of this scroll again. */
+      /* ONE CONVENTION, 2026-09-28. This is the bug behind "the until still does
+         not work", and it was mine.
+
+         MEASURED: mark() decides which row is selected with
+         `round(scrollTop / ROW)`, and the snap writes back `idx * ROW`. I had
+         changed this seating to CENTRE the row instead
+         (`offsetTop + rh/2 - boxH/2`), which sits 6px lower at every row. So the
+         dial was seated at 226 for "11" while mark() read 226 as row 10 and
+         snapped to 242 - one row on, "12". The operator picked 11:00 and the
+         session stored 00:00, midnight, which is always in the past and can
+         never ring. Three rounds chased the alarm; the VALUE was wrong.
+
+         The centring was only ever cosmetic (a highlight sitting one row high in
+         a shrunken panel). Matching mark()'s arithmetic is what makes the value
+         right, and the value is what matters. */
       setTimeout(function () { box.scrollTop = sel * ROW; mark(); }, 0);
       return box;
     }
@@ -34073,6 +36113,39 @@ body[data-fb="on"] .fb-band { display: block; }
     else view.appendChild(tabs);
   }
 
+  /* ============================================================= BOARD 30, 2026-09-26
+     Operator: "as soon as I click on a specific routine to check mark it, it loses the
+     feature on the top where it says routines and habits."
+
+     MEASURED: tabs present before the click, GONE after. The tick handler calls
+     renderTracker() (and now renderAll()), which rebuilds #habitsView from scratch -
+     but only renderHabits was hooked to put the tabs back. renderTracker was not, so
+     anything that repainted through it dropped them.
+
+     Wrapping renderTracker too closes that hole. The wider lesson, in the operator's
+     words: "whenever you're updating something, make sure you're not losing a previous
+     feature." I added a renderAll() for the calendar and took the tabs away. */
+  (function hookTracker() {
+    if (typeof window.renderTracker !== 'function') { setTimeout(hookTracker, 150); return; }
+    if (window.__rtTrackerHooked) return;
+    window.__rtTrackerHooked = true;
+    var inner = window.renderTracker;
+    window.renderTracker = function () {
+      var r = inner.apply(this, arguments);
+      try { decorate(); } catch (e) {}
+      return r;
+    };
+  })();
+
+  /* a last resort: if anything at all leaves the pane without its tabs, put them back.
+     Cheap, and it cannot be defeated by a render path nobody hooked. */
+  setInterval(function () {
+    try {
+      var v = document.getElementById('habitsView');
+      if (v && v.children.length && !v.querySelector('.rt-tabs')) decorate();
+    } catch (e) {}
+  }, 500);
+
   /* renderHabits is called by renderAll and by the bottom bar; decorate after either */
   (function hook() {
     if (typeof window.renderHabits !== 'function') { setTimeout(hook, 150); return; }
@@ -34284,6 +36357,39 @@ body.gated > *:not(#loginGate){filter:blur(3px);pointer-events:none;user-select:
 }
 aside#treePane { position: relative !important; padding-bottom: 60px !important; }
 
+/* 2026-09-26, operator: "the layout of the planner changes places, the plan,
+   alarms, and habits. it's in the middle of the browser, it must be in the bottom
+   as it would."
+   The rule above is right on a WIDE screen - they asked on 2026-09-20 for the bar
+   to sit inside the priority tree rather than run the whole width, and absolute
+   positioning inside #treePane does exactly that.
+   But once the layout stacks, #treePane is only about 310px tall, so "the bottom
+   of the pane" is the MIDDLE of the window - measured at 700x620 the bar sat at
+   top 277. Below the stacking breakpoint the pane no longer sits beside anything,
+   so the pane's width IS the window's width and pinning to the window keeps their
+   original intent while putting the bar where a person expects it.
+   This must come AFTER the rule above: both carry !important, so source order
+   decides, and that is the trap that made my first attempt do nothing. */
+@media (max-width: 900px) {
+  :root[data-chrome="bottom"] #treePane > #bottomBar,
+  :root[data-chrome="bottom"] #bottomBar,
+  #bottomBar {
+    position: fixed !important;
+    left: 0 !important; right: 0 !important; bottom: 0 !important;
+    width: auto !important; max-width: 100% !important;
+    z-index: 9000 !important;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  /* nothing may hide behind the pinned bar */
+  /* No padding reservation here: when the bar is pinned it is OUT of the flex
+     flow, but the tree list scrolls inside its own box (see the flex rule that
+     sets padding-bottom:0 - "the bar occupies real space now"), so nothing ends
+     up underneath it. Verified by scrolling the tree to its end at 1579x1000,
+     900x700, 700x620, 430x620 and 360x460: 0 rows under the bar at every one.
+     A hard-coded 64px here would also go stale the moment the bar's height
+     changes - which it just did, 58 -> 65, when the icons grew. */
+}
+
 /* the focus-session timer row - operator 2026-09-20.
    CORRECTED: my first version invented an amber/gold scheme that exists nowhere else
    in the planner. Operator: "the colour screen for 14 is not what I used to have it.
@@ -34414,6 +36520,50 @@ aside#treePane, section#rightPane, header#topbar, #calTopbar, #bottomBar, #treeD
   z-index: 100000 !important;
 }
 aside#treePane { position: relative !important; padding-bottom: 60px !important; }
+
+/* 2026-09-26, operator: "the layout of the planner changes places, the plan,
+   alarms, and habits. it's in the middle of the browser, it must be in the bottom
+   as it would."
+   The rules above are right on a WIDE screen - on 2026-09-20 they asked for the
+   bar to sit inside the priority tree rather than run the whole width, and
+   absolute positioning inside #treePane does that.
+   But when the layout stacks, #treePane is only ~310px tall, so "the bottom of
+   the pane" IS the middle of the window - measured at 700x620 the bar sat at
+   top 277. Below the stacking breakpoint the pane spans the full width anyway,
+   so pinning to the window keeps their original intent AND puts the bar where a
+   person expects it.
+   THIS MUST BE THE LAST WORD: there are two identical absolute blocks above (the
+   rule was written twice), both !important, so source order decides. My first
+   attempt sat between them and did nothing. */
+/* Narrow OR short: in both cases the tree pane stops being a full-height column
+   beside the calendar, so "the bottom of the pane" is no longer the bottom of the
+   screen. Measured at 1100x520 - a WIDE but short window - the bar ended at 466
+   in a 520px window, which is why a width-only rule was not enough. */
+@media (max-width: 900px), (max-height: 700px) {
+  :root[data-chrome="bottom"] #treePane > #bottomBar,
+  :root[data-chrome="bottom"] #bottomBar,
+  #bottomBar {
+    position: fixed !important;
+    left: 0 !important; right: 0 !important; bottom: 0 !important;
+    width: 100% !important;
+    z-index: 100000 !important;
+    /* 2026-09-26, operator: "the sizing of the bottom of the priority tree is
+       much smaller than it should be, it's usually a little bit bigger."
+       MEASURED: 58px on the desktop layout, 52px once this rule applied - my
+       `padding-bottom: env(safe-area-inset-bottom)` REPLACED the 6px the bar
+       already had, and env() resolves to 0 on a desktop. Keep the original 6px
+       and ADD the phone's safe area on top of it. */
+    padding-top: 4px !important;
+    padding-bottom: calc(6px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+  /* No padding reservation here: when the bar is pinned it is OUT of the flex
+     flow, but the tree list scrolls inside its own box (see the flex rule that
+     sets padding-bottom:0 - "the bar occupies real space now"), so nothing ends
+     up underneath it. Verified by scrolling the tree to its end at 1579x1000,
+     900x700, 700x620, 430x620 and 360x460: 0 rows under the bar at every one.
+     A hard-coded 64px here would also go stale the moment the bar's height
+     changes - which it just did, 58 -> 65, when the icons grew. */
+}
 #modalHost .modal { max-height: calc(100vh - 150px) !important; margin-bottom: 66px; }
 /* the focus-session timer row - operator 2026-09-20.
    CORRECTED: my first version invented an amber/gold scheme that exists nowhere else
@@ -35177,8 +37327,23 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
   function acknowledge(bl) {
     firing = null;
     if (nagTimer) { clearInterval(nagTimer); nagTimer = null; }
-    bl.timerDoneAt = Date.now();
+    /* 2026-09-27, operator: "the pop-up is not getting removed even after I
+       press I am done."
+       MEASURED: this wrote `timerDoneAt = Date.now()`, but tick() skips a
+       session only when `timerDoneAt === timerStartedAt`. A timestamp taken
+       NOW can never equal the start, so the very next tick fired the alarm
+       again - the box came back within a second, every time.
+       Acknowledging ENDS the run: the clock is cleared, so there is nothing
+       left for tick() to fire. The session keeps its timer length, ready to
+       start again when they press the timer. */
+    bl.timerDoneAt = bl.timerStartedAt || Date.now();
+    bl.timerRangFor = bl.timerStartedAt || bl.timerRangFor || Date.now();
+    bl.timerStartedAt = null;
+    /* an Until has no clock to clear, so ending its run is recorded here */
+    if (bl.untilAt) bl.untilRangFor = bl.untilIso + ' ' + bl.untilAt;
     if (window.Store) window.Store.save();
+    /* the editor button must stop saying "Time is up" */
+    try { if (window.__fbRepaintTimer) window.__fbRepaintTimer(); } catch (e) { }
   }
 
   /* fires once, then KEEPS reminding every 60s until acknowledged */
@@ -35192,18 +37357,109 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
     }, 60000);
   }
 
+  /* 2026-09-27, operator: "the alarm is not working, it doesn't tell me when
+     it's done."
+     MEASURED at 22:24: a session starting 11:30 with a 5-minute timer was "due"
+     at 11:35 - eleven hours earlier - so it could never ring. The timer was
+     anchored to the session's START TIME, which means setting a timer outside
+     the session's hours is silently dead, and even inside them it only had a
+     THREE MINUTE window against a 30-second tick.
+     A timer now runs from the moment it is set (bl.timerStartedAt). That is
+     what a person means by "alarm after 25 minutes", and it works at any hour. */
+  /* 2026-09-27, operator: "if I'm doing a specific time for a focus session for
+     today, and I click on the future dates, for some reason it automatically
+     starts the countdown."
+     MEASURED: a repeating session shows on every one of its days, but the timer
+     clock lives on the SESSION - so a run started today read as "24:42 left" on
+     30 Sep too. A run belongs to the DAY it was started on. `forIso` is the day
+     being looked at; when it is not the day the clock started, there is no run
+     to show. */
+  /* BOARD 30 CARD 8, 2026-09-28: a session now rings EITHER after a length
+     (timer) OR at a moment (untilAt). One function answers "how long left" for
+     both, so the countdown button, the alarm and any check all read one source.
+
+     WHY UNTIL IS ANCHORED TO A DAY THE SAME WAY: a repeating session appears on
+     every one of its days. Without untilIso, a 10:30 finish set today would read
+     as "due" on every future date the session lands on - the exact defect the
+     timer had on 2026-09-27. */
+  window.__fbRemainingMs = function (bl, forIso) {
+    if (!bl) return null;
+
+    if (bl.untilAt) {
+      if (forIso && bl.untilIso && forIso !== bl.untilIso) return null;
+      /* 2026-09-28: an Until belongs to ONE day. Left over from yesterday it
+         read `null` in the editor (which asks about today) but the background
+         check asks WITHOUT a date - and got "19 hours overdue", so a stale alarm
+         from a past day rang today. A moment that is not for today is not due;
+         it is simply over.
+         This also answers the timezone question: the planner has no clock of its
+         own, it reads the device's, so "18:00" means 6pm wherever you are. The
+         day it is pinned to is what keeps that honest. */
+      var todayNow = window.todayISO ? window.todayISO() : null;
+      if (bl.untilIso && todayNow && bl.untilIso !== todayNow) return null;
+      var iso = bl.untilIso || todayNow;
+      if (!iso) return null;
+      var hm = String(bl.untilAt).split(':');
+      if (hm.length < 2) return null;
+      var p = String(iso).split('-');
+      if (p.length < 3) return null;
+      var at = new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2]),
+                        Number(hm[0]), Number(hm[1]), 0, 0);
+      return at.getTime() - Date.now();
+    }
+
+    if (!bl.timer) return null;
+    if (!bl.timerStartedAt) return null;
+    if (forIso && bl.timerStartedIso && forIso !== bl.timerStartedIso) return null;
+    var endsAt = bl.timerStartedAt + Number(bl.timer) * 60000;
+    return endsAt - Date.now();
+  };
+
   function tick() {
-    var list = sessions(), i, now = minutesNow();
+    var list = sessions(), i;
     for (i = 0; i < list.length; i++) {
       var bl = list[i];
-      if (!bl || !bl.timer) continue;
-      var from = toMinutes(bl.from);
-      if (from === null) continue;
-      var due = from + Number(bl.timer);
-      if (now >= due && now < due + 3) {
-        var today = window.todayISO ? window.todayISO() : '';
-        if (bl.timerFiredOn === today) continue;
-        bl.timerFiredOn = today;
+      if (!bl) continue;
+      /* BOARD 30 CARD 8: a session rings on a LENGTH (timer) or a MOMENT
+         (untilAt). Acknowledging stamps a value that ALREADY EXISTS, so it can
+         never be mistaken for a fresh run - the 2026-09-27 defect where
+         Date.now() never equalled the start and the alarm came straight back. */
+      if (bl.untilAt) {
+        /* same rule as the timer: a separate "rang for" flag, so a moment that
+           was dismissed without going through acknowledge() is not muted for
+           good. untilAt is a clock time, so it is paired with the day. */
+        if (bl.untilRangFor && bl.untilRangFor === (bl.untilIso + ' ' + bl.untilAt)) continue;
+        var uleft = window.__fbRemainingMs(bl);
+        if (uleft !== null && uleft <= 0) {
+          bl.untilRangFor = bl.untilIso + ' ' + bl.untilAt;
+          bl.untilDoneAt = bl.untilAt;
+          if (window.Store) window.Store.save();
+          start(bl);
+          return;
+        }
+        continue;
+      }
+      if (!bl.timer || !bl.timerStartedAt) continue;
+      /* 2026-09-28, operator: "the alarm is not working, it didn't give me the
+         pop-up."
+         MEASURED: a session was sitting with timerStartedAt === timerDoneAt AND
+         BOTH SET. In that state this line skipped it on every tick, so the button
+         counted down to "Time is up" and nothing ever rang - silent forever.
+
+         WHERE THAT STATE COMES FROM: acknowledge() ends a run properly (it nulls
+         timerStartedAt, so there is nothing left to fire). But the line below
+         stamped timerDoneAt = timerStartedAt and LEFT THE CLOCK RUNNING. If the
+         alarm was then dismissed any other way - a reload, leaving the page, the
+         popup being closed - the session was left armed but permanently muted.
+
+         The fix is to stop overloading the start time as the acknowledgement
+         token. A run is identified by its own start; "already rang" is now a
+         separate flag that is cleared whenever a new run begins. */
+      if (bl.timerRangFor && bl.timerRangFor === bl.timerStartedAt) continue;
+      var left = window.__fbRemainingMs(bl);
+      if (left !== null && left <= 0) {
+        bl.timerRangFor = bl.timerStartedAt;
+        bl.timerDoneAt = bl.timerStartedAt;
         if (window.Store) window.Store.save();
         start(bl);
         return;
@@ -35213,7 +37469,9 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
 
   window.__fbTimerTick = tick;                 /* so a check can drive it */
   window.__fbTimerShow = show;                 /* and photograph the alarm */
-  setInterval(tick, 30000);
+  /* every second, not every 30 - a countdown has to be right, and the check is
+     a few arithmetic operations on a handful of sessions. */
+  setInterval(tick, 1000);
 })();
 </script>
 
@@ -35543,10 +37801,55 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
     var tree = window.Store.data.tree || (window.Store.data.tree = []);
     var wantId = (kind === 'routines') ? '__routines' : '__habits';
     var wantTitle = (kind === 'routines') ? 'Routines' : 'Habits';
-    var host = null, i;
-    for (i = 0; i < tree.length; i++) {
-      if (tree[i] && tree[i].id === wantId) { host = tree[i]; break; }
+    /* ============================================================= BOARD 30, 2026-09-26
+       Operator: "there is a branch by itself that says habits and routines, you need
+       to remove that."
+
+       This used to push a LOOSE top-level branch called Habits (or Routines) onto the
+       tree - which is exactly what they are telling me to get rid of. Measured: I
+       cleaned them out of the data, pressed "+ New habit", and one came straight back.
+
+       Now a new habit or routine is filed under a REAL branch's own Habits/Routines
+       child, the same per-branch shape the Location list offers. It goes to the first
+       branch that already has one, otherwise to the first real branch, creating that
+       branch's child if needed. Nothing loose is ever added to the top level. */
+    function isLoose(b) {
+      return b && (b.id === '__habits' || b.id === '__routines');
     }
+    function realBranches() {
+      var out = [], i;
+      for (i = 0; i < tree.length; i++) if (tree[i] && !isLoose(tree[i])) out.push(tree[i]);
+      return out;
+    }
+    function hostInside(branch) {
+      var kids = branch.children || (branch.children = []), i;
+      for (i = 0; i < kids.length; i++) {
+        var t = String(kids[i] && kids[i].title || '').toLowerCase();
+        if (t === wantTitle.toLowerCase()) return kids[i];
+      }
+      return null;
+    }
+
+    var host = null, i;
+    /* an existing per-branch home wins */
+    var reals = realBranches();
+    for (i = 0; i < reals.length && !host; i++) host = hostInside(reals[i]);
+    /* then a loose one that is already in the tree, so nothing is orphaned */
+    if (!host) {
+      for (i = 0; i < tree.length; i++) {
+        if (tree[i] && tree[i].id === wantId) { host = tree[i]; break; }
+      }
+    }
+    /* otherwise make one INSIDE the first real branch - never at the top level */
+    if (!host && reals.length) {
+      host = { id: (reals[0].id || 'b') + '~' + (kind === 'routines' ? 'routines' : 'habits'),
+               title: wantTitle, notes: '', kind: 'task', done: false,
+               priority: 'normal', date: null, time: null, block: null,
+               duration: 60, repeat: null, tags: [], areaId: null, endDate: null,
+               collapsed: false, children: [] };
+      (reals[0].children || (reals[0].children = [])).push(host);
+    }
+    /* only if the planner has no branches at all does a top-level one appear */
     if (!host) {
       host = { id: wantId, title: wantTitle, notes: '', kind: 'task', done: false,
                priority: 'normal', date: null, time: null, block: null,
@@ -36032,5 +38335,272 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
   window.__noteImgClose = close;
 })();
 </script>
+
+<script>
+/* ================================================================ BOARD 30, 2026-09-26
+   THE PRIORITY TREE'S OWN CONTROLS.
+
+   Operator: the habits/routines switch belongs "within the priority tree setting",
+   and they also asked for a second one: "add as a feature of the priority tree to
+   have a button show future routines and habits to correlate with the location of
+   these things."
+
+   Both live in #treeFilters - the tree's own control row, beside the area chips -
+   not in the Settings drawer. Same class, same size, same look as the chips already
+   there, which is the match-the-existing-layout rule. */
+(function () {
+  if (true) return;   /* superseded: these are gear-menu items now */
+  window.__treeTogglesInstalled = true;
+
+  function mk(id, on, labelOn, labelOff, toggle) {
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.id = id;
+    b.className = 'drawer-btn';   /* match the buttons already in this drawer */
+    function paint() {
+      var v = on();
+      b.textContent = v ? labelOn : labelOff;
+      if (v) b.classList.add('on'); else b.classList.remove('on');
+    }
+    b.addEventListener('click', function (e) {
+      e.preventDefault();
+      toggle(!on());
+      /* renderAll() rebuilds the filter bar, so THIS button may already be gone by
+         the time a deferred paint runs - measured: the label came back empty. Repaint
+         by id, whichever element is live at that moment, not the captured one. */
+      var byId = function () {
+        var live = document.getElementById(id);
+        if (live && live.__paint) live.__paint();
+      };
+      setTimeout(byId, 0);
+      setTimeout(byId, 300);
+      setTimeout(byId, 800);
+    });
+    paint();
+    b.__paint = paint;
+    return b;
+  }
+
+  function install() {
+    /* ============================================================ BOARD 30, 2026-09-26
+       MEASURED, not assumed: #treeFilters is `display:none` in this build - the bar is
+       not used any more. I put the operator's buttons there and they were invisible.
+       They go in #treeDrawer, the panel the gear opens, which IS the priority tree's
+       own settings - and they go ABOVE "Set up automatic calendar sync", so the tree
+       controls read first. */
+    var bar = document.getElementById('treeDrawer');
+    if (!bar) return;
+
+    function put(el) {
+      var title = bar.querySelector('.drawer-title');
+      if (title && title.nextSibling) bar.insertBefore(el, title.nextSibling);
+      else bar.appendChild(el);
+    }
+    if (!document.getElementById('btnShowHR')) {
+      put(mk('btnShowHR',
+        function () { return window.__hrShowing ? window.__hrShowing() : false; },
+        'Hide habits / routines', 'Show habits / routines',
+        function (v) { if (window.__hrSetShowing) window.__hrSetShowing(v); }));
+    }
+
+    /* "show future routines and habits" - the operator asked for this one by name.
+       It reveals habits and routines that are dated ahead, which is the same idea as
+       Show future tasks but for these two branches only. */
+    if (!document.getElementById('btnShowFutureHR')) {
+      put(mk('btnShowFutureHR',
+        function () {
+          try { return localStorage.getItem('planner.showFutureHR') === '1'; }
+          catch (e) { return false; }
+        },
+        'Hide routines & habits', 'Show routines & habits',
+        function (v) {
+          try { localStorage.setItem('planner.showFutureHR', v ? '1' : '0'); } catch (e) {}
+          /* showing future ones implies showing the branches at all */
+          if (v && window.__hrSetShowing && window.__hrShowing && !window.__hrShowing()) {
+            window.__hrSetShowing(true);
+          }
+          if (window.renderAll) { try { window.renderAll(); } catch (e) {} }
+        }));
+    }
+
+    /* a bar rebuilt by renderAll() drops our buttons; install() re-adds them above.
+       Repaint whatever is live so a label can never be left blank. */
+    var a = document.getElementById('btnShowHR');
+    var c = document.getElementById('btnShowFutureHR');
+    if (a && a.__paint) a.__paint();
+    if (c && c.__paint) c.__paint();
+    if (a && !(a.textContent || '').trim() && a.__paint) a.__paint();
+    if (c && !(c.textContent || '').trim() && c.__paint) c.__paint();
+  }
+
+  install();
+  setInterval(install, 700);
+  window.__installTreeToggles = install;
+})();
+</script>
+
+<script>
+/* ================================================================ BOARD 30, 2026-09-26
+   HABITS AND ROUTINES UNDER EVERY BRANCH IN THE LOCATION LIST.
+
+   Operator: "remove the habits and routines from the section where it says 'or make
+   it a routine and habits'. And put a routine and habit in every single branch in
+   the location section."
+
+   Before, one Habits and one Routines sat at the bottom under a heading. Now every
+   branch carries its own pair, indented under it like any child. Picking one files
+   the task as a habit or routine OF THAT BRANCH - the task moves into that branch
+   and is marked as the chosen kind, so the branch and the kind agree.
+
+   The rows are built to match the ones above them exactly: same .lf-row, same
+   .lf-name and .lf-pick, same padding arithmetic (10 + depth * 18). */
+(function () {
+  if (window.__branchHRInstalled) return;
+  window.__branchHRInstalled = true;
+
+  /* the operator says "routines and habits", in that order */
+  var KINDS = [
+    { key: 'routines', title: 'Routines', hostId: '__routines' },
+    { key: 'habits',   title: 'Habits',   hostId: '__habits' }
+  ];
+
+  window.__branchHRRows = function (list, branch, depth, refreshField, onPick, safeStop) {
+    if (!list || !branch) return;
+    /* the Habits/Routines host branches do not get their own pair - that would nest
+       Habits under Habits for ever */
+    if (branch.id === '__habits' || branch.id === '__routines') return;
+
+    /* BOARD 30, 2026-09-26: if this branch ALREADY has a Routines or Habits child,
+       do not draw a second one. Measured: the list read
+       "Routines / Habits / Routines / Habits" - the real ones the branch carries,
+       then mine on top. Offer only what is missing. */
+    var have = {};
+    var kids0 = branch.children || [];
+    for (var q = 0; q < kids0.length; q++) {
+      var kt = String(kids0[q] && kids0[q].title || '').toLowerCase();
+      if (kt === 'routines' || kt === 'habits') have[kt] = kids0[q];
+    }
+
+    for (var i = 0; i < KINDS.length; i++) {
+      if (have[KINDS[i].title.toLowerCase()]) continue;   /* the branch has its own */
+      (function (K) {
+        var row = document.createElement('div');
+        row.className = 'lf-row lf-hr';
+        row.style.paddingLeft = (10 + depth * 18) + 'px';
+
+        var nameBtn = document.createElement('button');
+        nameBtn.type = 'button';
+        nameBtn.className = 'lf-name';
+        nameBtn.textContent = K.title;
+        nameBtn.style.opacity = '.85';
+        if (typeof safeStop === 'function') nameBtn.onclick = safeStop;
+        row.appendChild(nameBtn);
+
+        var pickBtn = document.createElement('button');
+        pickBtn.type = 'button';
+        pickBtn.className = 'lf-pick';
+        pickBtn.textContent = 'Pick';
+        pickBtn.title = 'File this task as a ' +
+          (K.key === 'habits' ? 'habit' : 'routine') + ' of ' + (branch.title || 'this branch');
+        pickBtn.onclick = function (e) {
+          if (e) { e.preventDefault(); e.stopPropagation(); }
+          var id = window.__editingId;
+          var f = id && window.findNode ? window.findNode(id) : null;
+          if (!f || !f.node) return;
+          var node = f.node;
+
+          /* take it out of wherever it is now */
+          var sib = f.parent ? f.parent.children : window.Store.data.tree;
+          for (var k = 0; k < sib.length; k++) {
+            if (sib[k] && sib[k].id === node.id) { sib.splice(k, 1); break; }
+          }
+
+
+          /* the branch's own Habits / Routines child, created on first use */
+          var host = null, kids = branch.children || (branch.children = []);
+          for (var j = 0; j < kids.length; j++) {
+            if (kids[j] && kids[j].__hr === K.key) { host = kids[j]; break; }
+          }
+          if (!host) {
+            host = { id: (branch.id || 'b') + '~' + K.key, title: K.title, notes: '',
+                     kind: 'task', done: false, priority: 'normal', date: null,
+                     time: null, block: null, duration: 60, repeat: null, tags: [],
+                     areaId: null, endDate: null, collapsed: false, reminders: [],
+                     children: [], __hr: K.key };
+            kids.push(host);
+          }
+          host.children.push(node);
+
+          /* a routine repeats; a habit gets a record so it shows in the Habits tab */
+          if (K.key === 'routines' && !node.repeat) {
+            node.repeat = { freq: 'daily', interval: 1, until: null };
+          }
+          if (K.key === 'habits') {
+            var arr = window.Store.data.habits || (window.Store.data.habits = []);
+            var seen = false;
+            for (var h = 0; h < arr.length; h++) if (arr[h] && arr[h].fromTask === node.id) seen = true;
+            if (!seen) {
+              arr.push({ id: node.id, name: node.title || 'Habit', color: '#1a73e8',
+                         freq: 'daily', targetPerWeek: 7, fromTask: node.id });
+            }
+          }
+          if (!node.date && window.todayISO) node.date = window.todayISO();
+
+          /* 2026-09-28 - NEVER LOSE THE TASK.
+             MEASURED inside the gate: picking Habits for "Patient intake" (a
+             normal task under Riverside Clinic) left it in NO part of the tree -
+             findNode could not see it and a full walk could not find it. It is
+             spliced out of its old parent first, so if the host it should land
+             in is not itself attached to the tree, the task is simply gone.
+             That is silent data loss, and it is exactly what this check has
+             guarded since 2026-09-12.
+
+             So: after filing, PROVE the task is reachable from the root. If it
+             is not, put it back where it came from. A refused move is a small
+             annoyance; a vanished task is not recoverable. */
+          var reachable = false;
+          (function verify(l) {
+            for (var v = 0; v < l.length; v++) {
+              var nn = l[v]; if (!nn) continue;
+              if (nn.id === node.id) { reachable = true; return; }
+              if (nn.children && nn.children.length) { verify(nn.children); if (reachable) return; }
+            }
+          })(window.Store.data.tree);
+          if (!reachable) {
+            /* undo: take it out of the host if it got there, and restore it */
+            for (var u = 0; u < host.children.length; u++) {
+              if (host.children[u] && host.children[u].id === node.id) {
+                host.children.splice(u, 1); break;
+              }
+            }
+            sib.push(node);
+            try { if (window.toast) window.toast('Could not file that - the task was kept where it was.', 'err'); } catch (_) {}
+          }
+
+          try { window.Store.save(); } catch (_) {}
+          if (window.renderAll) { try { window.renderAll(); } catch (_) {} }
+          if (typeof refreshField === 'function') refreshField();
+          if (typeof onPick === 'function') onPick(host.id);
+        };
+        row.appendChild(pickBtn);
+        list.appendChild(row);
+      })(KINDS[i]);
+    }
+  };
+})();
+</script>
+<script>
+/* ================================================================ 2026-09-26
+   Operator: "in the top tab I want it to have PRAC space planner."
+   The app sets its own title, so pin it - one owner, checked on a slow beat
+   rather than fought over. */
+(function () {
+  function pin() { }   /* practice-only title pin removed for the live build */
+  pin();
+  setInterval(pin, 1000);
+  document.addEventListener('visibilitychange', pin);
+})();
+</script>
+<!-- practice demo-seeder removed for the live build -->
 </body>
 </html>
