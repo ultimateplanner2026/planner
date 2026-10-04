@@ -148,7 +148,7 @@ window.__settleThenIdle = function (fn, idleMs) {
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <title>Planner</title>
+  <title>PRAC Planner</title>
 
   <!-- Home-screen install, iPhone. These four tags are what actually make
        "Add to Home Screen" open fullscreen instead of inside Safari. -->
@@ -2123,13 +2123,83 @@ aside#treePane { overflow-y: auto; }
    MEASURED before: the element existed but was 0px wide, its dot was RED
    (#e5484d) against the app's blue, and it carried no label - so even unhidden
    it showed nothing useful. */
-.tgnow {
-  display: block !important;
-  border-top: 0 !important;
-  border-bottom: 1px dashed #4d8bff !important;
-  opacity: .9;
+/* 2026-09-28, operator: "the current time is leaving a lagging line when it's
+   not there. It looks like the calendar has to keep refreshing in order to
+   remove it."
+   MEASURED: TWO lines were being drawn at once. The app has its own `.tgnow`,
+   built inside the grid when it renders, and I had UNHIDDEN it while styling the
+   new full-width one. So `.tgnow` (1144px) and `.tgnow-full` (1201px) sat on top
+   of each other - and because only mine repaints on a clock, the old one stayed
+   where it was and showed as a second, stale line.
+   One owner: `.tgnow-full`, which is painted and re-painted by paintNowLine().
+   The app's own marker stays hidden, as it was before I touched it. */
+.tgnow, .tgnow-dot { display: none !important; }
+/* 2026-09-29 - an alarm's own mark on the calendar. It sits in ONE column (the
+   day the alarm lands on), unlike the now-line which spans them all, and it is
+   placed by the grid's own tgToY() so it lines up with the hour rules. Drawn by
+   paintAlarmMarks(); the three buttons in the Alarms tab decide which ones
+   exist at all. */
+/* 2026-10-01, operator: "the task becomes the alarm... have the task maybe a
+   different yellowish or orange colour to indicate it's an alarm."
+   No separate mark: the TASK itself goes orange. One rule per surface, matching
+   how .tgevent.high and .tgevent.done already modify the base look rather than
+   replacing it. The !important is deliberate - the colour-by-area feature sets an
+   inline background on these same elements, and the alarm must win or the task
+   silently reads as a normal one. */
+/* MEASURED 2026-10-01, after TWO wrong guesses - so I instrumented instead of
+   guessing a third time (the rule that keeps catching me).
+
+   Guess 1: a plain `.tgevent.is-alarm { background: ... !important }` at line
+   ~2149. It LOST to a later `.tgevent { background: var(--s-raised) !important }`
+   at ~4288 - same specificity, further down the file.
+   Guess 2: doubling the class and adding #dayView / #weekGrid prefixes. Also lost.
+   Measured with el.matches() against every rule that sets a background: the real
+   winner is
+       :root[data-v-event] #dayView .tgevent { background: var(--ev-bg) !important }
+   an attribute selector PLUS an id - more specific than anything I was writing,
+   and part of a whole THEMING LAYER (ten --ev-* presets the operator can switch).
+
+   So the fix is not to out-shout it. The calendar event block is driven by CSS
+   VARIABLES, and the right place for an alarm colour is those variables: set
+   --ev-bg / --ev-bd / --ev-lc on the alarm task itself and every themed rule
+   paints it orange for us, at any preset, with no !important arms race. */
+.tgevent.is-alarm,
+.tgchip.is-alarm,
+.mchip.is-alarm {
+  --ev-bg: #4a3410;
+  --ev-bd: 1px solid #f0a23a;
+  --ev-lw: 3px;
+  --ev-lc: #f0a23a;
+  --ev-fg: #ffd79a;
+  /* for any surface NOT covered by the themed rules (the all-day chips and the
+     month chips are not in that selector list today) */
+  background: #4a3410;
+  border: 1px solid #f0a23a;
+  color: #ffd79a;
 }
-.tgnow-dot { display: none !important; }   /* the label replaces the dot */
+/* the alarm's own time, shown only when it differs from the task's time */
+.alarm-at {
+  font-size: 10px;
+  color: #f0a23a;
+  margin-left: 4px;
+  white-space: nowrap;
+}
+/* NO prefers-color-scheme BLOCK HERE - deliberately, and this is the bug the
+   operator hit on 2026-10-01 ("it's still not showing").
+
+   MEASURED: this Mac reports prefers-color-scheme: LIGHT while the planner
+   renders DARK (body background rgb(22,24,28)). My light-mode rule therefore
+   fired on a dark calendar and painted the alarm task CREAM - rgb(255,243,220)
+   on a near-black grid. The colour was applied perfectly and was invisible.
+
+   The app settled this in its own palette block at the top of the file, 2026-09-12:
+   "There is one theme now and it is dark, so the default says so" - prefers-color-scheme
+   was REMOVED there because it kept flipping the planner light. I reintroduced
+   the exact bug this file had already fixed, one screenful below the comment
+   explaining it.
+
+   RULE: in this app a colour is never gated on prefers-color-scheme. One theme,
+   dark, and the alarm orange is tuned for it. */
 /* the line spans the whole grid, not one column */
 .tgnow-full {
   position: absolute; left: 0; right: 0; height: 0;
@@ -2907,20 +2977,26 @@ aside#treePane, aside#treePane * { min-width: 0 !important; }
 #treeRoot .tree-row > .tree-dateclear { display: none !important; }
 #treeRoot .tree-row > .tree-datechip { min-width: 96px; }
 
+/* 2026-10-02, operator: "the time there, the black box, just does not flow
+   correctly, and so is the No time. The layout of the square needs to be the same
+   exact layout on the top where it says today and tomorrow."
+
+   WHAT WAS WRONG: this row was built from `var(--surface)` and `var(--border)`
+   while the pills at the top of the SAME popup are #343a43 on #3a4049 - two
+   palettes in one 232px box, which is why the time read as a sunken black box
+   against two raised pills. The native time input also painted its own dark
+   field and a clock glyph that nothing else in the popup has.
+
+   SO: the two controls now ARE the top row's pills. Same background, same border,
+   same radius, same padding, same uppercase letter-spacing, same `flex:1 1 auto`
+   share of the width - the declarations are copied from `.datepop-quick button`
+   rather than approximated, so the two rows cannot drift apart. */
 .datepop-time {
-  display: flex; align-items: center; gap: 8px;
-  border-top: 1px solid var(--border); margin-top: 8px; padding-top: 8px;
-  font-size: 12px; color: var(--text-dim);
+  display: flex; gap: 8px;
+  border-top: 1px solid #3a4049; margin-top: 14px; padding-top: 14px;
 }
-.datepop-timeinput {
-  flex: 1; height: 26px; border: 1px solid var(--border); border-radius: 5px;
-  background: var(--surface); color: var(--text); font-size: 12px; padding: 0 6px;
-}
-.datepop-timeclear {
-  height: 26px; padding: 0 8px; border-radius: 5px; font-size: 11px;
-  border: 1px solid var(--border); background: var(--surface);
-  color: var(--text-dim); cursor: pointer;
-}
+.datepop-time > .datepop-timelabel { display: none; }   /* the pills say it themselves */
+
 .ahead-state { font-size: 11px; }
 .ahead-state.on  { color: var(--text-dim); }
 .ahead-state.off { color: var(--warn, #ca8a04); font-weight: 600; }
@@ -2975,6 +3051,33 @@ aside#treePane, aside#treePane * { min-width: 0 !important; }
 #treeRoot .tree-row:hover .tree-actions .tree-datechip,
 #treeRoot .tree-row:focus-within .tree-actions .tree-datechip { visibility: visible; }
 #treeRoot .tree-row .tree-actions .tree-datechip:hover { background: var(--surface-2); color: var(--text); }
+/* 2026-10-01, operator: "the clock needs to be as nice as the clock that's in the
+   priority tree. It looks like it has a black background around it. It should be
+   blending in."
+   MEASURED: the tree clock is transparent because of
+   `#treeRoot .tree-row .tree-actions .tree-datechip { background: transparent; ... }`
+   - a rule scoped to the TREE ROW. My past-due chip carries the same classes but
+   never matches that selector, so it fell back to the base `.tree-datechip`, which
+   is a pill with `background: var(--surface-2)` and a border. That is the black box.
+   Same geometry and the same transparency, scoped to the past-due row instead. */
+.pastitem .pastdue-clock,
+.trashitem .pastdue-clock {
+  order: 1;
+  min-width: 0;
+  width: 22px; height: 22px; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: transparent !important;
+  border: none !important;
+  border-radius: 5px;
+  font-size: 13px; line-height: 1;
+  color: var(--text-dim);
+  margin-left: auto;
+}
+.pastitem .pastdue-clock:hover,
+.trashitem .pastdue-clock:hover {
+  background: var(--surface-2) !important;
+  color: var(--text);
+}
 #treeRoot .tree-row .rowmenu { order: 2; }
 #treeRoot .tree-row .rowquick { order: 0; }
 
@@ -4954,6 +5057,95 @@ input[type="date"]::-webkit-datetime-edit-year-field:focus {
 }
 input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
 
+/* ---- the date popup's Time row ----------------------------------------------
+   PLACED HERE DELIBERATELY. MEASURED 2026-10-02: an identical rule 514 rules
+   earlier lost to `input[type="date"], input[type="time"] {...!important}` just
+   above - two !important declarations of equal specificity are decided by SOURCE
+   ORDER, and mine came first. Moving it below that rule is the fix; adding more
+   force was not. Keep it after the global input block.                        */
+/* MEASURED 2026-10-02, not guessed: the first version of this rule lost.
+   `input[type="time"]` at line ~5043 sets background/border/radius with
+   !important, so a plain class selector - however specific - could not repaint
+   the field, and the time stayed rgb(28,31,38) with a 6px radius beside a pill
+   at rgb(52,58,67) with 9px. That is precisely the "black box" complaint. So the
+   field's own declarations carry !important to out-rank it; `No time` is a
+   <button> and needs none, but is written in the same block so the two can never
+   be changed apart. */
+/* The Time field and `No time`, as the same pills as TODAY / TOMORROW above.
+
+   TWO THINGS MEASURED HERE, both of which silently produced a rule that was in
+   the sheet, matched the element, and did nothing:
+
+   1. SPECIFICITY, not source order. `input[type="time"]` (0-1-1) carries
+      background/border/radius with !important higher up. A bare `.datepop-timeinput`
+      is 0-1-0, so it LOSES even though it comes later and is also !important.
+      Proven in isolation: `.A` kept rgb(28,31,38); `.datepop .C` won at
+      rgb(52,58,67). Hence the `.datepop` ancestor - it raises specificity and
+      says truthfully that this styling belongs to this popup.
+
+   2. NO CSS-LIKE TEXT INSIDE A RULE BODY. An earlier version explained the fix
+      in a comment between the braces, quoting a declaration. The parser read the
+      quoted text as real declarations and discarded every property before
+      `cursor`. Reading `rule.cssText` back is what exposed it - the source
+      looked right and the computed value disagreed.
+
+   Values copied from `.datepop-quick button` so the two rows cannot drift. */
+.datepop .datepop-timeinput,
+.datepop .datepop-timeclear {
+  background: #343a43 !important;
+  border: 1px solid #3a4049 !important;
+  color: #e9ecf1 !important;
+  border-radius: 9px !important;
+  padding: 9px 10px !important;
+  font-size: 11.5px !important;
+  flex: 1 1 auto;
+  cursor: pointer; font-family: inherit; letter-spacing: .06em;
+  text-transform: uppercase; text-align: center; min-width: 0;
+}
+.datepop .datepop-timeinput:hover,
+.datepop .datepop-timeclear:hover { background: #3f4650 !important; }
+/* the native field paints its own dark background and a clock glyph; neither
+   exists on the pills beside it, so both are removed */
+.datepop .datepop-timeinput::-webkit-calendar-picker-indicator { display: none; }
+.datepop .datepop-timeinput::-webkit-datetime-edit { text-align: center; }
+.datepop .datepop-timeinput:focus {
+  outline: none !important; border-color: #4a5160 !important;
+  background: #3f4650 !important;
+}
+/* an empty time field would otherwise show nothing at all to click */
+/* An EMPTY time field shows the browser's own `-- -- --` placeholder, loud beside
+   the NO TIME pill and reading as broken rather than blank. Dimming it leaves the
+   field obviously empty and quiet, and the caret still shows where typing goes.
+
+   NOT `:invalid`. MEASURED 2026-10-02: an empty <input type="time"> with no
+   `required` attribute is VALID, so `:invalid` never matched and the rule did
+   nothing - the placeholder stayed bright and only the photograph showed it.
+   `data-empty` is set by the code that knows the answer. */
+.datepop .datepop-timeinput[data-empty="1"] { color: #6c7380 !important; }
+.datepop .datepop-timeinput[data-empty="1"]::-webkit-datetime-edit,
+.datepop .datepop-timeinput[data-empty="1"]::-webkit-datetime-edit-hour-field,
+.datepop .datepop-timeinput[data-empty="1"]::-webkit-datetime-edit-minute-field,
+.datepop .datepop-timeinput[data-empty="1"]::-webkit-datetime-edit-ampm-field,
+.datepop .datepop-timeinput[data-empty="1"]::-webkit-datetime-edit-text {
+  color: #6c7380 !important;
+}
+/* Clear is the only footer button now, so it sits in the middle at its own
+   width instead of being stretched edge to edge */
+/* Clear is the only footer button now, so it sits in the middle at its own
+   width instead of being stretched edge to edge. It is also given the same pill
+   treatment as every other button in this popup - I moved it, so its appearance
+   is mine to finish: it was the one control still painted from the older
+   var(--surface) palette, which is what made the popup look like two designs. */
+.datepop .datepop-foot { justify-content: center !important; border-top: 1px solid #3a4049; }
+.datepop .datepop-foot button {
+  flex: 0 0 auto !important; min-width: 128px;
+  background: #343a43 !important; border: 1px solid #3a4049 !important;
+  color: #e9ecf1 !important; border-radius: 9px !important;
+  padding: 9px 10px !important; font-size: 11.5px !important;
+  letter-spacing: .06em; text-transform: uppercase; height: auto !important;
+}
+.datepop .datepop-foot button:hover { background: #3f4650 !important; }
+
 /* ===== o14  the month grid reads like a schedule =====
    A task at 9:36 pm looked the same as an untimed one, so the month disagreed
    with the week and day views. The time now rides in front of the title, and a
@@ -5963,6 +6155,47 @@ body[data-newbranch="1"] #treeFilters{
   width:22px !important; min-width:22px !important; padding:0 !important; font-size:12px !important;
 }
 .tree-datenav #btnToday{ padding:0 8px !important; font-size:12px !important; }
+/* the compact time stepper - operator 2026-10-03, "not so bulky".
+   Sized and coloured from .datepop-quick button so it belongs to this popup. */
+/* MEASURED 2026-10-03: appended into the time ROW, the editor became a third
+   flex item and squeezed `12:30 PM` and `NO TIME` into unreadable slivers. It
+   takes its OWN full-width line under them instead - the row keeps its two pills
+   at full size and the editor is not competing with them. */
+.datepop .datepop-time { flex-wrap: wrap; }
+.datepop .ct-wrap.ct-inline {
+  flex: 0 0 100%; order: 9;
+  display: flex; align-items: center; justify-content: center; gap: 12px;
+  width: 100%; margin-top: 8px; padding: 7px 8px;
+  background: #2b3038; border: 1px solid #3a4049; border-radius: 10px;
+  box-sizing: border-box;
+}
+.datepop .ct-wrap .ct-line {
+  display: flex; align-items: center; justify-content: center; gap: 12px;
+}
+.datepop .ct-wrap .ct-col {
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+}
+.datepop .ct-wrap .ct-arrow {
+  background: #343a43; border: 1px solid #3a4049; color: #c9d1dc;
+  border-radius: 6px; width: 34px; height: 18px; line-height: 1;
+  font-size: 11px; cursor: pointer; padding: 0;
+}
+.datepop .ct-wrap .ct-arrow:hover { background: #3f4650; color: #fff; }
+.datepop .ct-wrap .ct-num {
+  font-size: 19px; font-weight: 700; color: #e9ecf1; min-width: 34px;
+  text-align: center; font-variant-numeric: tabular-nums;
+}
+.datepop .ct-wrap .ct-colon { color: #8d94a0; font-size: 17px; font-weight: 700; }
+.datepop .ct-wrap .ct-ampm {
+  background: #343a43; border: 1px solid #3a4049; color: #e9ecf1;
+  border-radius: 8px; padding: 7px 10px; font-size: 11.5px; cursor: pointer;
+  letter-spacing: .06em; margin-left: 2px;
+}
+.datepop .ct-wrap .ct-ampm:hover { background: #3f4650; }
+/* the Time button shows it is open */
+.datepop .datepop-timeinput[data-open="1"] {
+  background: #3f4650 !important; border-color: #4a5160 !important;
+}
 </style>
 </head>
 <body>
@@ -6026,7 +6259,7 @@ body[data-newbranch="1"] #treeFilters{
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-09-26 03:00</span>
+    <span id="buildStamp">build 2026-10-04 01:15</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -6196,6 +6429,15 @@ body[data-newbranch="1"] #treeFilters{
     }
     if (style === 'short') {
       return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    }
+    /* 2026-10-02, operator: "instead of putting was due 2026-09-26, make it
+       simple - just a small date and it'll be 9/26/26."
+       Numeric, two-digit year, no leading zeros - the terse house style. Added
+       here rather than formatted inline so every surface that wants it asks the
+       same function. */
+    if (style === 'tiny') {
+      return (d.getMonth() + 1) + '/' + d.getDate() + '/'
+             + String(d.getFullYear()).slice(-2);
     }
     if (style === 'month') {
       return d.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
@@ -7888,6 +8130,44 @@ document.addEventListener("DOMContentLoaded", function() {
 
   // ==================== SCHEDULED ON ====================
 
+  /* ===== 2026-10-01 - "SHOW ALARMS" MUST OVERRIDE A HIDDEN TASK =====
+     Operator: "I set up a new alarm, Inbox to zero, hide from planner. Great, it
+     is hiding from planner. However when I click on show alarms, it's not showing
+     alarm in the planner."
+
+     REPRODUCED exactly, with their task: Show alarms -> 0 on screen.
+
+     ROOT CAUSE: the hide-from-calendar button sets `__hideTask`, and that drops
+     the task out of scheduledOn ENTIRELY - which is what they asked for in
+     September ("that should hide the WHOLE TASK"). But then there is nothing left
+     on the calendar for "Show alarms" to colour, so the button is dead for
+     exactly the tasks a person would press it on.
+
+     Both instructions are right; they just meet here. The resolution that honours
+     both: `__hideTask` keeps hiding the task, EXCEPT when the mode is explicitly
+     'all' - "Show alarms" means show them, and it is a deliberate press. The other
+     two modes leave the hide alone.
+
+     WHY THIS WAS NEVER CAUGHT: every fixture I wrote set `hideFromCal` on the
+     ALARM and never `__hideTask` on the TASK, because I seeded the data instead of
+     pressing the button. The gate now presses it. */
+  window.__alarmsModeShowsAll = function () {
+    try {
+      var st = (window.Store && window.Store.data && window.Store.data.settings) || {};
+      return st.alarmsOnCalendar === 'all' || !!st.showAllAlarmsOnCalendar;
+    } catch (e) { return false; }
+  };
+
+  /* a task hidden from the calendar is still brought back by "Show alarms",
+     but only when it actually HAS an alarm - a hidden task with no alarm stays
+     hidden, because the button is about alarms, not about unhiding everything */
+  window.__hiddenButHasAlarm = function (node) {
+    if (!node || !node.__hideTask) return false;
+    if (!window.__alarmsModeShowsAll()) return false;
+    var al = (window.alarmsOf ? window.alarmsOf(node) : []) || [];
+    return al.length > 0;
+  };
+
   window.scheduledOn = function (dateISO) {
     var result = [];
     var dateObj = parseISO(dateISO);
@@ -7895,6 +8175,17 @@ document.addEventListener("DOMContentLoaded", function() {
     var dow = dateObj.getDay();
 
     walkTree(function (node) {
+      /* 2026-09-28, operator: "the feature hide from calendar, that should hide
+         the WHOLE TASK from the calendar."
+         MEASURED: hideFromCal only filtered the ALARM out (alarmsForCalendar
+         skips it) - the task itself still drew on every calendar view. Now the
+         flag means what they said: the task is not scheduled on any calendar at
+         all. It stays in the tree, keeps its date and its alarm, and the alarm
+         still rings - it is only hidden from the calendar, which is what the
+         label says.
+         One filter here covers day, week and month, because every view asks
+         scheduledOn for its entries. */
+      if (node.__hideTask && !window.__hiddenButHasAlarm(node)) return;
       if (node.date === dateISO) {
         result.push({
           id: node.id,
@@ -11594,22 +11885,6 @@ renderAll();
       var foot = document.createElement('div');
       foot.className = 'datepop-foot';
 
-      var todayBtn = document.createElement('button');
-      todayBtn.type = 'button';
-      todayBtn.textContent = 'Today';
-      todayBtn.addEventListener('click', function (e) {
-        e.stopPropagation();
-        var f = window.findNode(nodeId);
-        if (f && f.node) {
-          f.node.date = window.todayISO();
-          f.node.time = null;
-          f.node.block = null;
-          window.Store.save();
-        }
-        close();
-        window.renderAll();
-      });
-
       var clearBtn = document.createElement('button');
       clearBtn.type = 'button';
       clearBtn.textContent = 'Clear';
@@ -11626,7 +11901,13 @@ renderAll();
         window.renderAll();
       });
 
-      foot.appendChild(todayBtn);
+      /* 2026-10-02, operator: "fix the clear button in the bottom, put it maybe
+         in the middle, and then remove the one that says today on the bottom."
+         The bottom Today was a DUPLICATE - the TODAY pill at the top of this same
+         popup already does it (and does it better: it leaves the time alone,
+         where this one wiped time and block). Removing it leaves one way to pick
+         today, not two that disagree. Clear is now the only footer button, so it
+         is centred rather than stretched across the full width. */
       foot.appendChild(clearBtn);
       pop.appendChild(foot);
     }
@@ -13337,9 +13618,47 @@ function surfaceArrivals() {
             pn.textContent = '\u270E';
             it.appendChild(pn);
           }
+          /* 2026-10-01, operator: "Inside the past due, I want to have the clock
+             looking feature that we usually have on the priority tree and put it
+             there, so this way I could easily move it to a specific date."
+             Reusing the tree's own chip - same SVG clock, same classes, same
+             openDatePopover - rather than inventing a second date control. */
+          (function (n) {
+            var ck = document.createElement('button');
+            ck.type = 'button';
+            ck.className = 'tree-datechip chipclock hasdate pastdue-clock';
+            ck.title = 'Move to a different date';
+            ck.innerHTML = '<svg viewBox="0 0 16 16" width="13" height="13" '
+              + 'aria-hidden="true"><circle cx="8" cy="8" r="6.2" fill="none" '
+              + 'stroke="currentColor" stroke-width="1.6"></circle>'
+              + '<path d="M8 4.6V8l2.6 1.6" fill="none" stroke="currentColor" '
+              + 'stroke-width="1.6" stroke-linecap="round"></path></svg>';
+            /* 2026-10-02, operator: "the clock sign, it's not working how I wanted
+               it to be. Remember what I wanted it to be - just like the clock, the
+               reschedule section and in the edit button."
+               My first version opened a bare date picker. What they asked for is
+               the SAME control the Edit menu uses: the action menu whose Reschedule
+               row starts collapsed, shows Today / Tomorrow on one press and opens
+               the calendar on a second. That is window.__openActMenu, already
+               shared by the tree rows and the alarm rows - so this opens the very
+               same menu rather than a second way of doing it. */
+            /* NO per-element listener here. MEASURED 2026-10-02: the listener IS
+               attached during the render (instrumented addEventListener and saw
+               the 'click' attach), and by the time a click lands it is gone -
+               something rebuilds the row after this builder runs, so the element
+               on screen is not the one decorated here. A document-level delegate
+               below cannot be lost that way, which is why the clock kept doing
+               nothing however I wired it. */
+            it.appendChild(ck);
+          })(node);
           var w = document.createElement('span');
           w.className = 'past-when';
-          w.textContent = 'was due ' + node.date;
+          /* 2026-10-02, operator: "remove the due date that it was already due."
+             Everything in Past due is overdue by definition, so the date was
+             saying what the list already says. The row is now the title and the
+             clock. (fmtDate's 'tiny' style stays - it costs nothing and is the
+             house format if a small date is ever wanted again.) */
+          w.textContent = '';
           it.appendChild(w);
           plist.appendChild(it);
         })(pd[q]);
@@ -13366,7 +13685,11 @@ function surfaceArrivals() {
       item.appendChild(ttl);
       var dt = document.createElement('span');
       dt.className = 'trashitem-date';
-      dt.textContent = e.deletedAt ? ' (' + e.deletedAt + ')' : '';
+      /* 2026-10-02: this printed the raw ISO stamp -
+         "(2026-10-02T04:02:42.809Z)" - unreadable, and nothing else in the app
+         shows a date that way. Reusing undoWhen, the same "just now / 3 hours ago
+         / 2 days ago" the Undo list already uses, so the two lists read alike. */
+      dt.textContent = e.deletedAt ? undoWhen(Date.parse(e.deletedAt)) : '';
       item.appendChild(dt);
       /* 2026-09-19, operator: "a little pen mark if there is any notes inside of it...
          and for the delete option, I should have the feature of double clicking the task
@@ -13458,7 +13781,10 @@ function surfaceArrivals() {
     if (m < 60) return m + ' min ago';
     var h = Math.round(m / 60);
     if (h < 24) return h + (h === 1 ? ' hour ago' : ' hours ago');
-    return Math.round(h / 24) + ' days ago';
+    /* 2026-10-02: read "1 days ago" in the Deleted list once it had real content.
+       The hours branch above already handles its singular; this one did not. */
+    var dd = Math.round(h / 24);
+    return dd + (dd === 1 ? ' day ago' : ' days ago');
   }
 
   window.__applyTreeView = applyView;
@@ -14520,15 +14846,139 @@ function surfaceArrivals() {
     var wrap = document.createElement('div');
     wrap.className = 'datepop-time';
     var lab = document.createElement('span');
+    lab.className = 'datepop-timelabel';
     lab.textContent = 'Time';
-    var inp = document.createElement('input');
-    inp.type = 'time';
+    /* 2026-10-02, operator: "there's no section for me to put the time... there's
+       no timing that I could do there."
+
+       They are right, and the native field was the wrong control to put here. It
+       offers no visible way in: no caret until you click exactly the right third
+       of it, no up/down arrows, nothing that says "press me". On a phone it opens
+       the OS wheel; on a desktop it is three invisible segments.
+
+       MATCH THE EXISTING LAYOUT: the planner already has ONE time picker, the
+       spinner that `buildTimeSpinner` makes, which the Edit window and the alarm
+       dial both open through `openTimePopover`. So this becomes a BUTTON that
+       reads the current time and opens that same spinner. One time control in the
+       app, not two that behave differently. */
+    var inp = document.createElement('button');
+    inp.type = 'button';
     inp.className = 'datepop-timeinput';
+    function show12(hhmm) {
+      if (!hhmm) return 'Set time';
+      var pr = String(hhmm).split(':');
+      var h = parseInt(pr[0], 10), m = parseInt(pr[1], 10);
+      if (isNaN(h) || isNaN(m)) return 'Set time';
+      var mer = h >= 12 ? 'PM' : 'AM', h12 = h % 12;
+      if (h12 === 0) h12 = 12;
+      return h12 + ':' + (m < 10 ? '0' + m : m) + ' ' + mer;
+    }
     inp.value = node.time || '';
+    inp.textContent = show12(node.time);
+    inp.addEventListener('click', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      /* 2026-10-03, operator: "I don't like the bulky scrolling up and down, can
+         we have it only pop up when I click on the time so it's not so bulky."
+
+         MEASURED FIRST: the wheel was ALREADY hidden until pressed, so "only pop
+         up when I click" was already true - the bulk is the WHEEL ITSELF. Two
+         tall scrolling columns with half-visible numbers above and below, 80px
+         deep, hanging 17px past the popup.
+
+         So the wheel is not what opens here. A small stepper does: hour and
+         minute with an arrow above and below each, and one AM/PM button. Nothing
+         scrolls, nothing is half-cut, and it is about a third the height. It
+         appears IN the popup's own time row, so the popup does not grow and
+         there is no second floating panel to mis-place. */
+      if (wrap.querySelector('.ct-wrap')) { closeCompact(); return; }
+      var ed = window.buildCompactTime(inp.value || '09:00', function (v) {
+        inp.value = v || '';
+        inp.textContent = show12(v);
+        markEmpty();
+        var g = window.findNode(id);
+        if (g && g.node) { g.node.time = v || null; window.Store.save(); }
+      });
+      ed.className += ' ct-inline';
+      /* MEASURED 2026-10-03: the builder lays its parts out as three horizontal
+         rows - both up-arrows, then both numbers, then both down-arrows. Flattened
+         into one line that put every up on the left and every down on the right,
+         so nothing said which arrow moved the hour. Re-stack it into COLUMNS here:
+         each number gets its own arrow above and below, which is the only
+         arrangement that reads without a label. */
+      (function () {
+        var rows = ed.children;
+        if (rows.length < 3) return;
+        var up = rows[0], mid = rows[1], dn = rows[2];
+        var upH = up.children[0], upM = up.children[1];
+        var dnH = dn.children[0], dnM = dn.children[1];
+        var hour = mid.querySelector('.ct-hour');
+        var colon = mid.querySelector('.ct-colon');
+        var min = mid.querySelector('.ct-min');
+        var ampm = mid.querySelector('.ct-ampm');
+        if (!(upH && upM && dnH && dnM && hour && min && ampm)) return;
+        function col(a, n, b) {
+          var c = document.createElement('div');
+          c.className = 'ct-col';
+          c.appendChild(a); c.appendChild(n); c.appendChild(b);
+          return c;
+        }
+        var line = document.createElement('div');
+        line.className = 'ct-line';
+        line.appendChild(col(upH, hour, dnH));
+        if (colon) line.appendChild(colon);
+        line.appendChild(col(upM, min, dnM));
+        line.appendChild(ampm);
+        ed.textContent = '';
+        ed.appendChild(line);
+      })();
+      wrap.appendChild(ed);
+      inp.setAttribute('data-open', '1');
+    });
+    /* one owner for the empty flag, so the styling can never disagree with the
+       field - every path that changes the value calls this. */
+    function markEmpty() {
+      if (inp.value) inp.removeAttribute('data-empty');
+      else inp.setAttribute('data-empty', '1');
+    }
+    markEmpty();
+    inp.addEventListener('input', markEmpty);
     inp.addEventListener('change', function () {
       var g = window.findNode(id);
       if (g && g.node) { g.node.time = inp.value || null; window.Store.save(); window.renderAll(); }
+      markEmpty();
     });
+    /* 2026-10-02, operator: "for the clock, I want to have the feature where I
+       could click it. And then backspace."
+
+       MEASURED, and it is why my first check wrongly passed: a native time input
+       erases ONE SEGMENT per Backspace. Pressing it on the minutes of 12:30 PM
+       left the field reading `12 [] PM` on screen while `input.value` was already
+       '' and the stored time was already null. So code saw an empty field and the
+       operator saw a half-erased one - a value assertion could not tell them
+       apart, and only the photograph did.
+
+       So Backspace/Delete is taken over here: one press clears the WHOLE field,
+       whichever segment the caret happens to be in. The blur/focus pair drops the
+       segment highlight that otherwise stays on an already-empty field. */
+    inp.addEventListener('keydown', function (e) {
+      if (!(e.key === 'Backspace' || e.key === 'Delete'
+            || e.keyCode === 8 || e.keyCode === 46)) return;
+      e.preventDefault();
+      if (e.stopPropagation) e.stopPropagation();
+      inp.value = '';
+      inp.textContent = show12('');
+      markEmpty();
+      try { inp.blur(); inp.focus(); } catch (err) { }
+      var g = window.findNode(id);
+      if (g && g.node) { g.node.time = null; window.Store.save(); window.renderAll(); }
+      return false;
+    });
+    function closeCompact() {
+      var e = wrap.querySelector('.ct-wrap');
+      if (e && e.parentNode) e.parentNode.removeChild(e);
+      inp.removeAttribute('data-open');
+    }
     var clr = document.createElement('button');
     clr.type = 'button';
     clr.className = 'datepop-timeclear';
@@ -14539,6 +14989,7 @@ function surfaceArrivals() {
       var g = window.findNode(id);
       if (g && g.node) { g.node.time = null; window.Store.save(); window.renderAll(); }
       inp.value = '';
+      inp.textContent = show12('');
     });
     wrap.appendChild(lab); wrap.appendChild(inp); wrap.appendChild(clr);
     foot.parentNode.insertBefore(wrap, foot);
@@ -15601,14 +16052,13 @@ function firstConnect(remote, rAt, lAt) {
     if (prev && prev.parentNode) prev.parentNode.removeChild(prev);
     var b = document.createElement('div'); b.className = 'rem-banner';
     b.setAttribute('data-node', node.id);
-    b.style.cssText = 'position:fixed;left:50%;top:16px;transform:translateX(-50%);z-index:99999;'
-      + 'background:var(--surface,#222);color:var(--text,#fff);border:1px solid var(--accent,#59f);'
-      + 'border-radius:10px;padding:12px 16px;box-shadow:0 8px 30px rgba(0,0,0,.4);'
-      + 'display:flex;gap:12px;align-items:center;max-width:90vw';
+    /* 2026-09-28: the inline styles are gone - the shared `.fb-alarm, .rem-banner`
+       rule now gives BOTH alarms one look, at a size you cannot miss. Inline
+       styles would win over that rule, which is exactly how the two drifted
+       apart in the first place. */
     var t = document.createElement('div');
-    t.style.cssText = 'font-size:13px;line-height:1.35';
+    t.className = 'ra-title';
     var strong = document.createElement('div');
-    strong.style.cssText = 'font-weight:600';
     strong.textContent = node.title || 'Reminder';
     var st = nags[node.id];
     if (st && st.n > 1) {
@@ -15620,7 +16070,7 @@ function firstConnect(remote, rAt, lAt) {
       strong.appendChild(tag);
     }
     var sub = document.createElement('div');
-    sub.style.cssText = 'font-size:11px;opacity:.75';
+    sub.className = 'ra-sub';
     sub.textContent = (node.time || '') + '  ' + (node.date || '')
       + (st && st.n > 1 ? '  \u00b7 ' + lateBy(st.firstAt) : '');
     t.appendChild(strong); t.appendChild(sub);
@@ -17390,6 +17840,188 @@ function firstConnect(remote, rAt, lAt) {
      the alarms section, and that feature must be on every reminder that is set."
      window.showAlarmsList was called by the Alarms tab in two places and never defined
      anywhere - measured typeof 'undefined' - so the tab showed the priority tree. */
+  /* ===== 2026-10-01 - THE ALARM NOTIFICATION STOPPED WORKING =====
+     Operator: "the alarm notification when you are done, it used to work but it's
+     not working anymore, it needs to work now."
+
+     MEASURED, not guessed: the in-app banner fires correctly (fireAlarm called 1,
+     banner on screen 1). What is dead is the SYSTEM notification - the one you get
+     when the planner is not the front tab. Notification.permission read
+     'default': never granted, never denied, simply never ASKED.
+
+     Why it rots: permission is only requested from inside the alarm editor
+     (askAlarmPermission). Set your alarms before that existed, or dismiss the
+     browser prompt once, and it stays 'default' forever - deliver() then skips
+     `new Notification(...)` silently and you get nothing while the tab is behind
+     something. Nothing logs, nothing complains.
+
+     Fix: say so where the alarms live, and give a button that asks. One line in
+     the Alarms tab, only when it is actually a problem. */
+  window.__alarmNotifyState = function () {
+    if (typeof Notification === 'undefined') return 'unsupported';
+    return Notification.permission;      /* granted | denied | default */
+  };
+
+  /* 2026-10-01: a TOAST, not a panel. Shown at most once a minute so opening the
+     tab repeatedly does not nag, and never when permission is already granted. */
+  var __notifyToastAt = 0;
+  function alarmNotifyToast() {
+    try {
+      var st = window.__alarmNotifyState();
+      if (st === 'granted') return;
+      var now = Date.now();
+      if (now - __notifyToastAt < 60000) return;
+      __notifyToastAt = now;
+
+      if (st === 'unsupported') {
+        if (window.toast) window.toast(
+          'This browser cannot show alarm notifications. Alarms still ring while '
+          + 'the planner is open.', 'warn');
+        return;
+      }
+      if (st === 'denied') {
+        if (window.toast) window.toast(
+          'Alarm notifications are blocked for this site. Click the icon at the '
+          + 'left of the address bar \u2192 Notifications \u2192 Allow.', 'warn');
+        return;
+      }
+      /* 'default' - never asked. A toast cannot carry the browser prompt, because
+         requesting permission needs a real user gesture; so the toast offers it
+         and the gesture is the click on the toast itself. */
+      var host = document.getElementById('toast');
+      if (!host) return;
+      var t = document.createElement('div');
+      t.className = 'toast toast-warn alarm-notify-toast';
+      t.style.cursor = 'pointer';
+      t.textContent = 'Alarm notifications are off - tap to turn them on.';
+      t.addEventListener('click', function () {
+        try {
+          var p = Notification.requestPermission();
+          var done = function () {
+            if (t.parentNode) t.parentNode.removeChild(t);
+          };
+          if (p && p.then) { p.then(done, done); } else { setTimeout(done, 300); }
+        } catch (e) { }
+      });
+      host.appendChild(t);
+      setTimeout(function () {
+        if (t.parentNode) t.parentNode.removeChild(t);
+      }, 8000);
+    } catch (e) { }
+  }
+
+  /* ===== 2026-10-02 - THE PAST-DUE CLOCK: INLINE CHIPS, NOT A MENU =====
+     Operator: "remove Edit. Also remove the due date that it was already due. And
+     have the clock still there. However, if I click it once, it will show Today
+     left of that, and then Tomorrow left of that, and if I double click the clock
+     it will open the task."
+
+     So the clock no longer opens the action menu. One click opens two chips to its
+     LEFT - Tomorrow, Today, clock - and a double click opens the task editor,
+     where they change the date themselves. Nothing named Edit appears, and the
+     other menus (tree, calendar) keep their Edit row untouched, because this never
+     opens that menu any more.
+
+     DELEGATED on the document, and it must stay that way: measured 2026-10-02, a
+     listener attached to the clock itself IS attached during the render and is
+     GONE by click time, because the row is rebuilt afterwards. That is why the
+     clock silently did nothing however it was wired.
+
+     Single vs double click: a dblclick always fires a click first, so the single
+     action is DELAYED ~230ms and cancelled if a second press arrives. Otherwise
+     every double click would also toggle the chips. */
+  if (!window.__pastdueClockWired) {
+    window.__pastdueClockWired = true;
+
+    function pdShift(iso, days) {
+      var d = window.parseISO(iso);
+      d.setDate(d.getDate() + days);
+      return window.isoOf(d);
+    }
+
+    /* the chips live beside the clock, newest to its LEFT */
+    function pdChips(clock, id) {
+      var row = clock.closest ? clock.closest('[data-id]') : null;
+      if (!row) return;
+      if (row.querySelector('.pastdue-chip')) return;   /* already open */
+      [['Tomorrow', 1], ['Today', 0]].forEach(function (pair) {
+        var c = document.createElement('button');
+        c.type = 'button';
+        c.className = 'pastdue-chip';
+        c.textContent = pair[0];
+        c.addEventListener('click', function (ev) {
+          ev.stopPropagation();
+          ev.preventDefault();
+          var f = window.findNode(id);
+          var n = f && f.node;
+          if (!n) return;
+          n.date = pair[1] ? pdShift(window.todayISO(), pair[1]) : window.todayISO();
+          try { if (window.stampClocks) window.stampClocks(n); } catch (e) { }
+          window.Store.save();
+          window.renderAll();
+        });
+        /* insert BEFORE the clock: Today first, then Tomorrow lands left of it */
+        clock.parentNode.insertBefore(c, clock);
+      });
+    }
+
+    var pdTimer = null;
+    document.addEventListener('click', function (ev) {
+      var el = ev.target, hops = 0, clock = null;
+      while (el && hops < 6) {
+        if (el.classList && el.classList.contains('pastdue-clock')) { clock = el; break; }
+        el = el.parentElement; hops++;
+      }
+      if (!clock) return;
+      ev.stopPropagation();          /* the row opens the editor - not from here */
+      ev.preventDefault();
+      var row = clock.closest ? clock.closest('[data-id]') : null;
+      var id = row ? row.getAttribute('data-id') : null;
+      if (!id) return;
+      if (pdTimer) { clearTimeout(pdTimer); pdTimer = null; return; }  /* second press */
+      pdTimer = setTimeout(function () {
+        pdTimer = null;
+        pdChips(clock, id);
+      }, 230);
+    }, true);
+
+    document.addEventListener('dblclick', function (ev) {
+      var el = ev.target, hops = 0, clock = null;
+      while (el && hops < 6) {
+        if (el.classList && el.classList.contains('pastdue-clock')) { clock = el; break; }
+        el = el.parentElement; hops++;
+      }
+      if (!clock) return;
+      ev.stopPropagation();
+      ev.preventDefault();
+      if (pdTimer) { clearTimeout(pdTimer); pdTimer = null; }
+      var row = clock.closest ? clock.closest('[data-id]') : null;
+      var id = row ? row.getAttribute('data-id') : null;
+      if (id && typeof window.editActivity === 'function') window.editActivity(id);
+    }, true);
+  }
+
+  /* 2026-10-02 - the alarm list's date+time, in the house terse style.
+     '2026-09-26 01:44'  ->  '9/26/26 1:44 AM'
+     Date comes from fmtDate(.,'tiny') so there is ONE definition of a short date
+     in the app. The time is 12-hour with no leading zero, matching how every
+     other 12-hour time in the planner reads. */
+  function alWhen(dateISO, hhmm) {
+    var out = '';
+    if (dateISO && window.fmtDate) out = window.fmtDate(dateISO, 'tiny') || '';
+    if (hhmm) {
+      var parts = String(hhmm).split(':');
+      var h = parseInt(parts[0], 10);
+      var m = parseInt(parts[1], 10);
+      if (!isNaN(h) && !isNaN(m)) {
+        var mer = h >= 12 ? 'PM' : 'AM';
+        var h12 = h % 12; if (h12 === 0) h12 = 12;
+        out += (out ? ' ' : '') + h12 + ':' + (m < 10 ? '0' + m : m) + ' ' + mer;
+      }
+    }
+    return out;
+  }
+
   window.showAlarmsList = function () {
     var pane = document.getElementById('treePane');
     if (!pane) return;
@@ -17408,10 +18040,23 @@ function firstConnect(remote, rAt, lAt) {
         var i;
         for (i = 0; i < al.length; i++) {
           var a = al[i];
+          /* 2026-10-02, operator: "for the time and date that you have there, the
+             font is great, it's just the way it's written. So it should be month,
+             date, and year, and it should be more simple, like 10, 1, 26, and the
+             time. And that should be for all the three - show alarm, hide alarm,
+             and native settings."
+             ONE builder feeds all three tabs (the buttons change WHICH alarms are
+             listed, never how a row is written), so formatting here covers all of
+             them. fmtDate's 'tiny' style is the house terse date - reused rather
+             than formatted inline, per MATCH THE EXISTING LAYOUT. */
           var when = (a.kind === 'at')
-            ? ((a.date || n.date || '') + ' ' + (a.time || n.time || ''))
-            : ((n.date || '') + ' ' + (n.time || '') + (a.lead ? '  \u2212' + a.lead + ' min' : ''));
+            ? alWhen(a.date || n.date, a.time || n.time)
+            : (alWhen(n.date, n.time) + (a.lead ? '  \u2212' + a.lead + ' min' : ''));
+          /* 2026-10-01, operator: "these items that's on the alarm I should be
+             able to click them as if I would click on a task." The id travels
+             with the row so the row can open the real task editor. */
           items.push({ title: n.title || 'Untitled', when: String(when).replace(/^\s+|\s+$/g, ''),
+                       nodeId: n.id,
                        sort: (a.date || n.date || '9999') + ' ' + (a.time || n.time || '') });
         }
       });
@@ -17422,6 +18067,14 @@ function firstConnect(remote, rAt, lAt) {
     head.className = 'drawer-title';
     head.textContent = 'ALARMS';
     host.appendChild(head);
+
+    /* 2026-10-01, operator: "that yellow pop-up, that one should be removed, and
+       it should be only a pop-up, not a stationary thing whenever we have an
+       alarm issue or notification issue."
+       So the permanent panel is gone. The same information now arrives as the
+       app's own toast - once, when you open the Alarms tab - and it carries the
+       action so it is not merely an announcement. */
+    alarmNotifyToast();
 
     /* ============================================================ BOARD 27 CARD 5
        Operator, 2026-09-22: "I changed my mind. I would like to show all alarms in
@@ -17437,23 +18090,118 @@ function firstConnect(remote, rAt, lAt) {
     (function () {
       var st = window.Store && window.Store.data && window.Store.data.settings;
       if (!st) return;
-      var on = !!st.showAllAlarmsOnCalendar;
-      var btn = document.createElement('button');
-      btn.type = 'button';
-      btn.id = 'btnShowAllAlarms';
-      btn.className = 'alarms-showall';
-      btn.textContent = on ? 'Hide all alarms on calendar'
-                           : 'Show all alarms on calendar';
-      if (on) btn.setAttribute('data-on', '1');
-      btn.onclick = function () {
-        st.showAllAlarmsOnCalendar = !st.showAllAlarmsOnCalendar;
-        window.Store.save();
-        /* re-render EVERYTHING, not just future alarms: the operator would read a
-           stale calendar as the button being broken. */
-        window.renderAll();
-        if (window.showAlarmsList) window.showAlarmsList();
-      };
-      host.appendChild(btn);
+      /* 2026-09-28: the old two-way button promised "Hide all" and could not
+         deliver it - there was no such state. It now cycles the three states
+         that actually exist, and its label always says what pressing it will
+         DO next, so the control can never claim something it will not do. */
+      /* 2026-09-28, operator: "use each alarm's own setting, that should be
+         understood so you don't have to put that there... put like three options
+         on there instead: show all alarm, hide all alarm, and then alarms
+         [per-alarm]. Figure out the wording, give me a short wording, but they
+         all need to be working."
+
+         So: THREE buttons side by side, one always lit, not a button whose label
+         changes and whose current state you have to infer. The wording is the
+         shortest that still says what each one does:
+             Show all    - every alarm on the calendar, even ones marked hidden
+             Hide all    - none of them, whatever each one says
+             Per alarm   - each alarm's own hide-from-calendar setting decides
+         "Per alarm" is the default, so it reads as the neutral middle rather
+         than an instruction. */
+      if (!st.alarmsOnCalendar && st.showAllAlarmsOnCalendar) st.alarmsOnCalendar = 'all';
+      var mode = st.alarmsOnCalendar || 'each';
+      var group = document.createElement('div');
+      group.className = 'alarms-modes';
+      group.style.cssText = 'display:flex;gap:6px;margin:0 0 10px';
+      /* 2026-09-29, operator: "the wording should be show alarms, hide alarms
+         and native alarm settings or native settings."  Their words, shortened
+         only where the row cannot hold them: "Native settings" is the one they
+         offered as the shorter alternative, and it fits three across. */
+      var MODES = [
+        { key: 'all',  label: 'Show alarms', hint: 'Every alarm shows on the calendar' },
+        { key: 'none', label: 'Hide alarms', hint: 'No alarms on the calendar' },
+        { key: 'each', label: 'Native settings', hint: 'Each alarm\'s own setting decides' }
+      ];
+      MODES.forEach(function (m) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'alarms-showall';
+        if (m.key === 'all') b.id = 'btnShowAllAlarms';   /* kept: older code looks for it */
+        b.setAttribute('data-mode', m.key);
+        b.textContent = m.label;
+        b.title = m.hint;
+        b.style.cssText = 'flex:1 1 0';
+        if (m.key === mode) b.setAttribute('data-on', '1');
+        b.onclick = function () {
+          st.alarmsOnCalendar = m.key;
+          st.showAllAlarmsOnCalendar = (m.key === 'all');
+          window.Store.save();
+          window.renderAll();
+          if (window.showAlarmsList) window.showAlarmsList();
+          /* 2026-10-01, operator: "when you click on show alarms, it doesn't show
+             the alarm back in the calendar."
+             MEASURED, and they were right: the day grid scrolls to the CURRENT
+             TIME, so an alarm earlier in the day sits above the fold. The task
+             was correctly painted orange and was simply off screen - my check
+             counted getBoundingClientRect().width > 0, which is true for an
+             element scrolled out of view, so it reported three working modes.
+             Showing something the person cannot see is not showing it. */
+        };
+        group.appendChild(b);
+      });
+      host.appendChild(group);
+
+      /* 2026-10-01, operator: "when you click on show alarms, it doesn't show the
+         alarm back in the calendar."
+         MEASURED and they were right - but not for the reason either of us first
+         thought. The task WAS painted orange; the day grid scrolls to the CURRENT
+         TIME, so an alarm earlier in the day sits above the fold and pressing the
+         button appears to do nothing. (My own check had the same blind spot: it
+         counted getBoundingClientRect().width > 0, which is true for an element
+         scrolled out of view, so it reported three working modes while the
+         operator saw none.)
+         I tried auto-scrolling the grid to the alarm and will not ship it: it
+         fights `tgScrollToMorning`, which re-targets "now" on every render, and
+         silently moving someone's calendar when they press a filter is wrong
+         anyway. Instead, SAY what happened - how many alarms are on the calendar
+         and how many are out of view - so the button is never silent. */
+      (function () {
+        var line = document.createElement('div');
+        line.className = 'alarms-count';
+        line.style.cssText = 'margin:0 0 10px;font-size:11px;color:var(--t-2,#9aa0a8)';
+        var refresh = function () {
+          try {
+            var marks = document.querySelectorAll('.is-alarm');
+            var shown = 0, off = 0, i;
+            for (i = 0; i < marks.length; i++) {
+              var r = marks[i].getBoundingClientRect();
+              var sc = marks[i].closest ? marks[i].closest('.tgscroll') : null;
+              if (!sc) continue;
+              var sr = sc.getBoundingClientRect();
+              if (sr.width <= 0 || sr.height <= 0) continue;
+              if (r.bottom > sr.top && r.top < sr.bottom) shown++; else off++;
+            }
+            if (!marks.length) {
+              line.textContent = (mode === 'none')
+                ? 'No alarms on the calendar.'
+                : 'No alarms to show on this day.';
+            } else if (off) {
+              line.textContent = shown + ' on screen, ' + off
+                + ' further up or down the day - scroll to see ' + (off === 1 ? 'it' : 'them') + '.';
+            } else {
+              line.textContent = shown + ' alarm' + (shown === 1 ? '' : 's') + ' on the calendar.';
+            }
+          } catch (e) { }
+        };
+        /* after the render settles, so the count is of what is really drawn */
+        requestAnimationFrame(function () { requestAnimationFrame(refresh); });
+        setTimeout(refresh, 250);
+        host.appendChild(line);
+      })();
+
+      /* the old single cycling button is gone - the three above replace it, and
+         each one re-renders EVERYTHING when pressed, because a stale calendar
+         reads as the button being broken. */
     })();
 
     if (!items.length) {
@@ -17469,6 +18217,17 @@ function firstConnect(remote, rAt, lAt) {
     for (k = 0; k < items.length; k++) {
       var row = document.createElement('div');
       row.className = 'trashitem';
+      /* 2026-10-01: clickable, exactly like a past-due row - same editActivity
+         call, so there is one way to open a task and not two. */
+      (function (id) {
+        if (!id) return;
+        row.setAttribute('data-id', id);
+        row.style.cursor = 'pointer';
+        row.addEventListener('click', function (ev) {
+          ev.stopPropagation();
+          if (typeof window.editActivity === 'function') window.editActivity(id);
+        });
+      })(items[k].nodeId);
       var t = document.createElement('span');
       t.className = 't-title';
       t.textContent = items[k].title;
@@ -17495,7 +18254,20 @@ function firstConnect(remote, rAt, lAt) {
   window.alarmsForCalendar = function (node) {
     var all = window.alarmsOf ? window.alarmsOf(node) : [];
     var st = (window.Store && window.Store.data && window.Store.data.settings) || {};
-    if (st.showAllAlarmsOnCalendar) return all;
+    /* 2026-09-28, operator: "the hide all alarms from calendar feature in the
+       alarm section tab is not working."
+       MEASURED: the button read "Hide all alarms on calendar" but there was no
+       state that hid them. ON forced every alarm to show (3 on their data), OFF
+       merely respected each alarm's own flag (1) - it never reached 0, so the
+       half of the button labelled "hide all" did nothing it claimed.
+       There are genuinely THREE things one might want, so the setting now has
+       three states and the button cycles them:
+         'all'  - show every alarm, even ones marked hidden
+         null   - respect each alarm's own hide-from-calendar flag (the default)
+         'none' - hide every alarm, whatever its own flag says      */
+    if (st.alarmsOnCalendar === 'none') return [];
+    if (st.alarmsOnCalendar === 'all') return all;
+    if (st.showAllAlarmsOnCalendar) return all;   /* the old setting still honoured */
     var out = [], i;
     for (i = 0; i < all.length; i++) {
       if (all[i] && all[i].hideFromCal) continue;
@@ -17518,9 +18290,45 @@ function firstConnect(remote, rAt, lAt) {
   };
 
   window.newAlarm = function (node) {
+    /* 2026-09-28, operator: "the dial for the alarm... can you make it always in
+       the time that it's currently at, and then this way I will change it to
+       whatever I want after, so this way it's convenient."
+       MEASURED: a task with no time of its own fell back to a hard-coded
+       '09:00', so every new alarm opened at nine in the morning whatever the
+       hour - always a long scroll away from anything useful. NOW is the nearest
+       useful starting point: from there it is a short move either way.
+       A task that HAS a time still wins - that is the time they already chose. */
+    /* CORRECTED 2026-09-28, second report: "the reminder alarm toggle STILL
+       doesn't show or plant the current time."
+       My first fix only used the clock when the task had NO time of its own - I
+       reasoned a task's own time was a better default. Measured on their data:
+       the task carried 20:19, so every new alarm opened at 8:19 PM at midnight.
+       They asked for the CURRENT TIME, plainly, twice. A new alarm is a fresh
+       decision, not an echo of the task - so the clock always wins now, and
+       moving it is one short scroll.
+       The DATE still follows the task: a reminder for Tuesday's task belongs on
+       Tuesday. */
+    var now = new Date();
+    var nowHM = ('0' + now.getHours()).slice(-2) + ':' +
+                ('0' + now.getMinutes()).slice(-2);
     return { id: uid(), kind: 'at',
-      date: (node && node.date) || window.todayISO(),
-      time: (node && node.time) || '09:00',
+      /* 2026-10-01, operator: "Any calendar in the planner must always be set and
+         already clicked on TODAY, unless it's already scheduled for that day...
+         I'm trying to create a reminder and it has a date already set up for a
+         couple of days ago - that's not the way I want it to be."
+         MEASURED: a task dated in the PAST handed its own old date straight to
+         the new alarm, so the picker opened on a day that has already gone.
+         The rule now: the task's date wins only when it is TODAY OR LATER - that
+         is "already scheduled for that day". A past date falls back to today,
+         because a reminder you are creating now cannot usefully be set for last
+         Tuesday. */
+      date: (function () {
+        var own = node && node.date;
+        var today = window.todayISO();
+        if (own && own >= today) return own;   /* ISO dates compare as strings */
+        return today;
+      })(),
+      time: nowHM,
       mode: 'sound' };
   };
 
@@ -18251,23 +19059,79 @@ function firstConnect(remote, rAt, lAt) {
 
   window.plannerAudioReady = function () { return !!(ctx && ctx.state === 'running'); };
 
+  /* 2026-09-28: a way for the operator to test the sound in ONE real click.
+     I cannot prove audio myself - a dispatched click is not a user gesture, so
+     Safari keeps output muted for automation however 'running' the context
+     claims to be. This button is a genuine gesture, so it both UNLOCKS audio
+     and proves whether the alarm can be heard. It reports what it found rather
+     than assuming. */
+  /* any real gesture can wake the audio - exposed so the places where the
+     operator ARRANGES an alarm (pressing +, setting a timer) can unlock it
+     before the alarm is ever due. */
+  window.plannerUnlockAudio = function () {
+    try {
+      if (!ctx) unlock();
+      if (ctx && ctx.state === 'suspended' && ctx.resume) ctx.resume();
+      return !!(ctx && ctx.state === 'running');
+    } catch (e) { return false; }
+  };
+
+  window.plannerTestSound = function () {
+    var r = { clickedByAHuman: true };
+    try {
+      if (!ctx) unlock();
+      r.state = ctx ? ctx.state : 'no context';
+      window.plannerBeep();
+      r.said = 'six chirps should play now';
+      r.ready = window.plannerAudioReady ? window.plannerAudioReady() : '?';
+    } catch (e) { r.error = String(e).slice(0, 60); }
+    try {
+      if (window.toast) window.toast('Alarm sound test - you should hear six chirps.', 'ok');
+    } catch (e) { }
+    return r;
+  };
+
   window.plannerBeep = function () {
+    /* 2026-09-28, operator: "I didn't hear it, and I have the sound on loud."
+       MEASURED with an analyser on the graph: at the moment the tones were
+       scheduled the context was still 'suspended' and the peak output was 0 -
+       no signal at all. It reached 'running' about a second LATER.
+
+       CAUSE: resume() is ASYNCHRONOUS. This called it and then scheduled the
+       tones on the very next line, into a context that had not woken up yet, so
+       they played into nothing. The old sound was quiet enough that nobody
+       noticed it was also being dropped.
+
+       Now the tones are scheduled only once the context is actually running -
+       either straight away, or from resume()'s promise. */
+    function tones() {
+      try {
+        var t0 = ctx.currentTime, i;
+        for (i = 0; i < 6; i++) {
+          var o = ctx.createOscillator(), g = ctx.createGain();
+          o.type = 'triangle';
+          var st = t0 + 0.06 + i * 0.5;
+          o.frequency.setValueAtTime(880, st);
+          o.frequency.exponentialRampToValueAtTime(1320, st + 0.12);
+          o.frequency.exponentialRampToValueAtTime(880, st + 0.30);
+          g.gain.setValueAtTime(0.0001, st);
+          g.gain.exponentialRampToValueAtTime(1.0, st + 0.02);
+          g.gain.setValueAtTime(1.0, st + 0.26);
+          g.gain.exponentialRampToValueAtTime(0.0001, st + 0.42);
+          o.connect(g); g.connect(ctx.destination);
+          o.start(st); o.stop(st + 0.45);
+        }
+      } catch (e) { }
+    }
     try {
       if (!ctx) unlock();
       if (!ctx) return false;
-      if (ctx.state === 'suspended' && ctx.resume) ctx.resume();
-      var t0 = ctx.currentTime, i;
-      for (i = 0; i < 3; i++) {
-        var o = ctx.createOscillator(), g = ctx.createGain();
-        o.type = 'sine';
-        o.frequency.value = 880;
-        var s = t0 + i * 0.45;
-        g.gain.setValueAtTime(0.0001, s);
-        g.gain.exponentialRampToValueAtTime(0.6, s + 0.03);
-        g.gain.exponentialRampToValueAtTime(0.0001, s + 0.35);
-        o.connect(g); g.connect(ctx.destination);
-        o.start(s); o.stop(s + 0.4);
+      if (ctx.state === 'suspended' && ctx.resume) {
+        var p = ctx.resume();
+        if (p && p.then) { p.then(tones, tones); } else { setTimeout(tones, 60); }
+        return true;
       }
+      tones();
       return true;
     } catch (e) { return false; }
   };
@@ -18407,6 +19271,13 @@ function firstConnect(remote, rAt, lAt) {
               if (window.askAlarmPermission) {
                   window.askAlarmPermission();
               }
+              /* 2026-09-28, operator: "I didn't hear it, and I have the sound on
+                 loud." A browser refuses to make ANY sound until the page has had
+                 a real click, and setting an alarm IS one - so unlock the audio
+                 here, at the moment they arrange to be interrupted later. Without
+                 this the very first alarm of a session can be silent through no
+                 fault of the alarm. */
+              try { if (window.plannerUnlockAudio) window.plannerUnlockAudio(); } catch (e) { }
               pending.push(window.newAlarm(node));
               redraw();
           };
@@ -22244,6 +23115,14 @@ if (r.freq === 'yearly') {
     for (i = 0; i < all.length; i++) {
       var n = all[i];
       if (!n || !n.repeat) continue;
+      /* 2026-09-28, operator: "the button that says hide from calendar doesn't
+         work - the task itself still shows on the calendar."
+         MEASURED on a REPEATING task ("Every day"): on the calendar before AND
+         after hiding. The filter I added lives in the base scheduledOn, but this
+         wrapper pushes repeating items straight into the result afterwards, so
+         they walked round it. A repeating task must honour the flag like any
+         other - the whole point is that it is hidden every day, not just once. */
+      if (n.__hideTask && !window.__hiddenButHasAlarm(n)) continue;
       if (!window.plannerRepeatMatches(n, iso)) continue;
       out.push(n);
     }
@@ -28171,7 +29050,19 @@ window.openReminderPicker = function(anchorEl, initDate, initTime, onSet) {
     var f = window.findNode(window.__editingId);
     var node = f && f.node;
     if (!node) return;
-    window.openReminderPicker(btn, node.date || null, node.time || null, function (dateISO, hhmm) {
+    /* 2026-09-28, operator: "the reminder alarm toggle still doesn't show or
+       plant the current time."
+       MEASURED: this passed node.time, so the dial opened at whatever hour the
+       TASK happened to carry (or 09:00 when it carried none) - never now. For a
+       NEW alarm the useful starting point is the current time; they said so
+       plainly, and it is a short move either way from there.
+       The date still follows the task, because a reminder for Tuesday's task
+       belongs on Tuesday. */
+    var nowHM = (function () {
+      var n = new Date();
+      return ('0' + n.getHours()).slice(-2) + ':' + ('0' + n.getMinutes()).slice(-2);
+    })();
+    window.openReminderPicker(btn, node.date || null, nowHM, function (dateISO, hhmm) {
       var a = window.newAlarm(node);
       a.date = dateISO;
       a.time = hhmm;
@@ -28560,7 +29451,17 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
   }
 
   var chosenDate = initDate || window.todayISO();
-  var chosenTime = initTime || "09:00";
+  /* 2026-09-28, operator: "the reminder alarm toggle still doesn't show or plant
+     the current time."
+     MEASURED: the dial opened at 11:44 PM when it was 11:55 PM - and on a task
+     with no time at all it opened at 09:00. Fixing window.newAlarm was not
+     enough: the PICKER opens first and seeded itself from this hard-coded
+     fallback, so the operator never saw the new default.
+     NOW is the nearest useful starting point - a short move either way. */
+  var chosenTime = initTime || (function () {
+    var n = new Date();
+    return ('0' + n.getHours()).slice(-2) + ':' + ('0' + n.getMinutes()).slice(-2);
+  })();
 
   var initParts = chosenDate.split('-');
   var viewYear = parseInt(initParts[0], 10);
@@ -29253,17 +30154,24 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
       chip.appendChild(hide);
       chip.appendChild(x);
 
-      (function (a, h) {
+      (function (a, h, n) {
         h.addEventListener('click', function (ev) {
           ev.preventDefault();
           ev.stopPropagation();
+          /* 2026-09-28, operator: "that should hide the WHOLE TASK from the
+             calendar." It used to hide only the alarm, leaving the task on the
+             calendar - so the control did not do what its label said. Now it
+             sets both: the alarm stays off the calendar AND the task does.
+             Nothing is deleted - the task keeps its date, its alarm still
+             rings, and pressing the button again brings it back. */
           a.hideFromCal = !a.hideFromCal;
+          if (n) n.__hideTask = !!a.hideFromCal;
           if (a.hideFromCal) h.setAttribute('data-on', '1');
           else h.removeAttribute('data-on');
           if (window.Store) window.Store.save();
           if (window.renderAll) window.renderAll();
         });
-      })(alarm, hide);
+      })(alarm, hide, node);
 
       (function (a, b, xBtn) {
         b.addEventListener('click', function () {
@@ -29274,10 +30182,33 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
             paint();
           });
         });
-        xBtn.addEventListener('click', function () {
-          var idx = node.reminders.indexOf(a);
-          if (idx !== -1) node.reminders.splice(idx, 1);
-          window.Store.save();
+        xBtn.addEventListener('click', function (e) {
+          if (e) { e.preventDefault(); e.stopPropagation(); }
+          /* 2026-09-28, operator: "on the right side of the calendar, like the one
+             with this Tuesday September 29, it doesn't close out the alarm."
+             MEASURED: node.reminders held 0 while 1 chip was on screen. The chips
+             are drawn from the dialog's PENDING list (see the swap a few lines
+             above - it is what shows an alarm before Save), but this handler only
+             ever removed from node.reminders, which was already empty. So the
+             chip could not go away.
+             Remove it from WHICHEVER list is being shown, and from the saved one
+             too when it is there, so it cannot come back on the next repaint. */
+          var removed = false;
+          try {
+            if (window.__alPending && window.__editingId === node.id) {
+              var live = window.__alPending();
+              if (live && live.length) {
+                var pi = live.indexOf(a);
+                if (pi !== -1) { live.splice(pi, 1); removed = true; }
+              }
+            }
+          } catch (_) {}
+          if (node.reminders) {
+            var idx = node.reminders.indexOf(a);
+            if (idx !== -1) { node.reminders.splice(idx, 1); removed = true; }
+          }
+          if (removed && window.Store) window.Store.save();
+          try { if (window.__alRepaint) window.__alRepaint(); } catch (_) {}
           paint();
         });
       })(alarm, body, x);
@@ -31031,6 +31962,117 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
   line-height: 15px; cursor: pointer;
 }
 .actmenu-chip:hover { background: #2f343e; color: #fff; }
+/* 2026-10-02: the past-due row's own Today / Tomorrow chips. Same look as the
+   menu's chips above - one chip style in the app, not two - sitting to the LEFT
+   of the clock, which stays on the right where it has always been. */
+/* 2026-10-02, operator: "I don't like the black background around the wording,
+   and the wording itself doesn't look like it meshes in."
+   MEASURED on screen, not guessed:
+       row    bg rgb(36,39,46)
+       chip   bg rgb(29,32,37)  <- DARKER than the row it sits on = the black box
+       chip   1px border, while the clock beside it has none
+       chip   text rgb(230,232,236) at full brightness; the clock is rgb(154,161,171)
+   I had copied the menu chip's look, and that chip lives on a popup surface, not
+   on this row. Here it reads as a dark patch with a hard edge.
+   Now the chips are built like the clock they sit beside: no fill, no border,
+   the same muted text, and a soft tint only on hover - so the row reads as one
+   thing instead of three. */
+/* MEASURED which rule actually wins, instead of guessing a second time:
+   `.trashitem button { border: 1px solid var(--border); background: var(--surface); }`
+   at line ~2765 - a generic rule for any button in one of these rows. Same
+   specificity as a bare `.pastdue-chip`, and it sits LATER in the file, so it won
+   and kept the dark fill and the hard edge. Scoping to the row out-specifies it
+   without moving anything. */
+.trashitem .pastdue-chip,
+.pastitem .pastdue-chip,
+.pastdue-chip {
+  font-size: 11px;
+  color: var(--text-dim, #9aa1ab);
+  background: transparent;
+  border: none;
+  height: auto;
+  border-radius: 5px;
+  padding: 2px 6px;
+  line-height: 15px;
+  cursor: pointer;
+  flex: 0 0 auto;
+  margin-right: 2px;
+  white-space: nowrap;
+  letter-spacing: 0.01em;
+}
+.trashitem .pastdue-chip:hover,
+.pastitem .pastdue-chip:hover,
+.pastdue-chip:hover {
+  background: var(--surface-2, #24272e);
+  color: var(--text, #e6e8ec);
+}
+
+/* 2026-10-02, operator: "for the Complete section, the Uncomplete word in there
+   has the same thing - it doesn't flow. Make it the same exact thing you did for
+   the past due. Same thing for the Undo button."
+   MEASURED on both: button bg rgb(29,32,37) on a row of rgb(36,39,46) - DARKER
+   than the row it sits on - with a 1px border and full-brightness text. The same
+   `.trashitem button` rule that boxed the past-due chips. Same cure, same look:
+   no fill, no border, muted text, a soft tint only on hover. Scoped to the row so
+   that generic rule cannot win on source order. */
+.trashitem .done-undo,
+.pastitem .done-undo,
+.trashitem .trashitem-restore,
+.done-undo,
+.trashitem-restore {
+  font-size: 11px;
+  color: var(--text-dim, #9aa1ab);
+  background: transparent;
+  border: none;
+  border-radius: 5px;
+  padding: 2px 6px;
+  height: auto;
+  line-height: 15px;
+  cursor: pointer;
+  flex: 0 0 auto;
+  white-space: nowrap;
+  letter-spacing: 0.01em;
+}
+/* 2026-10-02: the Deleted list's own buttons had been left behind - seeing the
+   list populated showed "Restore" flowing correctly beside a boxed "Delete".
+   Same cure as the rest of these rows. The DANGER colour is kept: delete-forever
+   should not look like every other word on the row. */
+.trashitem .trashitem-purge,
+.trashitem button.danger,
+.trashitem-purge {
+  font-size: 11px;
+  color: var(--danger, #e06c75);
+  background: transparent;
+  border: none;
+  border-radius: 5px;
+  padding: 2px 6px;
+  height: auto;
+  line-height: 15px;
+  cursor: pointer;
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+.trashitem .trashitem-purge:hover,
+.trashitem button.danger:hover,
+.trashitem-purge:hover {
+  background: var(--surface-2, #24272e);
+  color: var(--danger, #e06c75);
+}
+.trashitem .done-undo:hover,
+.pastitem .done-undo:hover,
+.trashitem .trashitem-restore:hover,
+.done-undo:hover,
+.trashitem-restore:hover {
+  background: var(--surface-2, #24272e);
+  color: var(--text, #e6e8ec);
+}
+/* the clock keeps its place at the far right; the chips push in from its left */
+.pastitem .pastdue-clock, .trashitem .pastdue-clock { margin-left: auto; }
+.pastitem .pastdue-chip ~ .pastdue-clock,
+.trashitem .pastdue-chip ~ .pastdue-clock { margin-left: 0; }
+/* the first chip takes the auto margin instead, so the group stays right-aligned */
+.pastitem .pastdue-chip:first-of-type,
+.trashitem .pastdue-chip:first-of-type { margin-left: auto; }
 </style>
 
 
@@ -33096,6 +34138,14 @@ body[data-fb="on"] .fb-band { display: block; }
          painter only ever looked at `document.querySelector('.tgbody')` - the
          FIRST one, which is the Day grid. So the week never got a line. Paint
          EVERY grid on the page; each decides for itself whether it shows today. */
+      /* 2026-09-28: clear EVERY existing line first, not just the one in the
+         grid being painted. MEASURED: two .tgnow-full existed at once - the
+         second left behind in a grid that had been rebuilt - and a stale line
+         is exactly what the operator saw. One sweep, then draw. */
+      var stale = document.querySelectorAll('.tgnow-full'), sx;
+      for (sx = 0; sx < stale.length; sx++) {
+        if (stale[sx].parentNode) stale[sx].parentNode.removeChild(stale[sx]);
+      }
       var bodies = document.querySelectorAll('.tgbody'), bi;
       if (!bodies.length) return;
       if (typeof window.tgToY !== 'function') return;
@@ -33132,7 +34182,22 @@ body[data-fb="on"] .fb-band { display: block; }
     } catch (e) { }
   }
   window.__paintNowLine = paintNowLine;
-  setInterval(paintNowLine, 30000);
+  /* 2026-09-28, operator: "the clock timer, it looks like it has a lag of the
+     line for the timing - if I do refresh it goes away."
+     MEASURED: it repainted every 30 SECONDS, so the line and its label could sit
+     up to a minute behind the real time, and only a reload put it right. That is
+     exactly the lag they described.
+     Now every 5 seconds - the label shows minutes, so this can never be visibly
+     wrong - and also whenever the tab is brought back into view, because a
+     background tab throttles timers and would otherwise show a stale line the
+     moment you look at it. */
+  setInterval(paintNowLine, 5000);
+  document.addEventListener('visibilitychange', function () {
+    if (!document.hidden) { try { paintNowLine(); } catch (e) { } }
+  });
+  window.addEventListener('focus', function () {
+    try { paintNowLine(); } catch (e) { }
+  });
 
   /* 2026-09-28, operator: "the focus session button on the top right, it's on the
      side that it's on, however it's not showing the focus session shading how I
@@ -33158,6 +34223,7 @@ body[data-fb="on"] .fb-band { display: block; }
           var r = base.apply(this, arguments);
           try { if (isOn()) paint(); } catch (e) { }
           try { paintNowLine(); } catch (e) { }   /* the line, on every render */
+          try { paintAlarmMarks(); } catch (e) { }  /* and the alarm marks */
           return r;
         };
         wrapped.__fbHooked = true;
@@ -33167,6 +34233,214 @@ body[data-fb="on"] .fb-band { display: block; }
     }
     if (done < names.length) setTimeout(hookRenders, 40);
   })();
+
+  /* ===== 2026-09-29  ALARMS ARE DRAWN ON THE CALENDAR =====
+     Operator: "these buttons don't work they need to work."
+
+     MEASURED, and this is the root cause: alarmsForCalendar() had FOUR callers
+     and every one of them was an EXPORT - the ICS feed, the calendar-preview
+     report and the Google Calendar sync. Nothing on the in-app calendar ever
+     consulted it, because scheduledOn() only ever looks at a task's own date.
+     So all three buttons wrote a setting that changed what LEAVES the app and
+     nothing the operator could see. Counted on their data: 0 marks drawn in
+     'all', 0 in 'none', 0 in 'each'.
+
+     The fix is the missing half: paint a mark for every alarm the mode allows,
+     at the alarm's own time, in the grid's own tgToY() so it cannot drift from
+     the hour lines. Now 'Show alarms' shows them, 'Hide alarms' removes them,
+     and the third button leaves each alarm's own hide flag in charge.
+
+     Painted from the same render hook as the now-line, so one owner draws it
+     and a rebuilt grid cannot leave a stale mark behind. */
+  function alarmTimeOn(node, alarm, iso) {
+    /* the time this alarm actually lands on this day, or null if it does not */
+    if (!alarm) return null;
+    if (alarm.kind === 'at') {
+      var d = alarm.date || node.date;
+      if (d !== iso) return null;
+      return alarm.time || node.time || null;
+    }
+    /* an offset alarm hangs off the task's own date and time */
+    if (node.date !== iso) return null;
+    if (!node.time) return null;
+    var p = String(node.time).split(':');
+    var mins = (parseInt(p[0], 10) || 0) * 60 + (parseInt(p[1], 10) || 0)
+             - (Number(alarm.lead) || 0);
+    if (mins < 0) return null;            /* it belongs to the day before */
+    return ('0' + Math.floor(mins / 60)).slice(-2) + ':' + ('0' + (mins % 60)).slice(-2);
+  }
+
+  /* 2026-10-01, operator: "once I do set up the alarm, the alarm itself becomes a
+     task, and the task becomes the alarm... have the task maybe a different
+     yellowish or orange colour to indicate it's an alarm."
+
+     So there is no separate mark any more. A task that carries an alarm the
+     current mode allows is drawn ORANGE, in place, on every calendar surface.
+     Measured, not assumed - the surfaces that draw a task are `.tgevent` (day and
+     week grids) and `.mchip` (month). Both are handled here.
+
+     The three buttons still decide WHICH alarms count, so they keep meaning
+     something: Show alarms = orange everywhere, Hide alarms = no orange at all,
+     Native settings = orange only where that alarm is not individually hidden. */
+  function paintAlarmMarks() {
+    try {
+      /* any leftover separate marks from the earlier design, and any task we
+         previously painted - cleared first so a mode change cannot leave a stale
+         orange behind */
+      var stale = document.querySelectorAll('.tgalarm'), sx;
+      for (sx = 0; sx < stale.length; sx++) {
+        if (stale[sx].parentNode) stale[sx].parentNode.removeChild(stale[sx]);
+      }
+      var lit = document.querySelectorAll('.is-alarm'), lx;
+      for (lx = 0; lx < lit.length; lx++) {
+        lit[lx].classList.remove('is-alarm');
+        var ot = lit[lx].querySelector('.alarm-at');
+        if (ot && ot.parentNode) ot.parentNode.removeChild(ot);
+      }
+      paintAlarmTasks();
+      return;
+    } catch (e) { }
+  }
+
+  /* which alarm time applies to this task on this day, or null */
+  function alarmLabelFor(node, iso) {
+    var al = (window.alarmsForCalendar ? window.alarmsForCalendar(node) : []) || [];
+    var i, best = null;
+    for (i = 0; i < al.length; i++) {
+      var t = alarmTimeOn(node, al[i], iso);
+      if (t && (best === null || t < best)) best = t;
+    }
+    return best;
+  }
+
+  function paintAlarmTasks() {
+    try {
+      if (typeof window.alarmsForCalendar !== 'function') return;
+      if (!window.Store || !window.Store.data) return;
+
+      /* id -> node, so a drawn element can be matched back to its task */
+      var byId = {};
+      if (window.walkTree) {
+        window.walkTree(function (n) { if (n && n.id) byId[n.id] = n; });
+      }
+
+      function mark(el, iso) {
+        var id = el.dataset ? el.dataset.nodeId : null;
+        if (!id) return;
+        /* a repeating occurrence carries id@date - the task is the part before @ */
+        var at = String(id).indexOf('@');
+        if (at !== -1) id = String(id).slice(0, at);
+        var n = byId[id];
+        /* 2026-10-01: this guard ALSO had to learn that "Show alarms" overrides a
+           hidden task. scheduledOn was fixed first and the task appeared on the
+           calendar - still grey, because the painter refused it here. Measured:
+           drawn 4, drawnOrange 0. Two guards, one rule; both now ask the same
+           question. */
+        if (!n) return;
+        if (n.__hideTask && !window.__hiddenButHasAlarm(n)) return;
+        var when = alarmLabelFor(n, iso);
+        if (!when) return;
+        el.classList.add('is-alarm');
+        /* the operator asked to see the alarm time when it differs from the
+           task's own time - that is the thing you actually want to know */
+        if (n.time && when !== n.time && !el.querySelector('.alarm-at')) {
+          var tag = document.createElement('span');
+          tag.className = 'alarm-at';
+          tag.textContent = '\u23F0 ' + when;
+          var tt = el.querySelector('.tgevent-time');
+          if (tt && tt.parentNode) tt.parentNode.insertBefore(tag, tt.nextSibling);
+          else el.insertBefore(tag, el.firstChild);
+        }
+      }
+
+      /* day + week grids: each column knows its own date */
+      var cols = document.querySelectorAll('.tgcol'), ci;
+      for (ci = 0; ci < cols.length; ci++) {
+        var cr = cols[ci].getBoundingClientRect();
+        if (cr.width <= 0 || cr.height <= 0) continue;
+        var iso = cols[ci].dataset && cols[ci].dataset.iso;
+        if (!iso) continue;
+        var evs = cols[ci].querySelectorAll('.tgevent'), ei;
+        for (ei = 0; ei < evs.length; ei++) mark(evs[ei], iso);
+      }
+
+      /* the all-day row, in both views */
+      var cells = document.querySelectorAll('.tgalldaycell'), qi;
+      for (qi = 0; qi < cells.length; qi++) {
+        var ciso = cells[qi].dataset && cells[qi].dataset.iso;
+        if (!ciso) continue;
+        var chips = cells[qi].querySelectorAll('.tgchip'), hi;
+        for (hi = 0; hi < chips.length; hi++) mark(chips[hi], ciso);
+      }
+
+      /* month: a .mchip sits inside a cell carrying the date */
+      var mcs = document.querySelectorAll('.mchip'), mi;
+      for (mi = 0; mi < mcs.length; mi++) {
+        var host = mcs[mi], hiso = null, hop = 0;
+        while (host && hop < 6) {
+          if (host.dataset && host.dataset.iso) { hiso = host.dataset.iso; break; }
+          host = host.parentNode; hop++;
+        }
+        if (hiso) mark(mcs[mi], hiso);
+      }
+    } catch (e) { }
+  }
+  window.__paintAlarmTasks = paintAlarmTasks;
+
+  function __unusedOldMarkPainter() {
+    try {
+      if (typeof window.tgToY !== 'function') return;
+      if (typeof window.walkTree !== 'function') return;
+      if (typeof window.alarmsForCalendar !== 'function') return;
+
+      /* 2026-09-29: paint only grids that are actually on screen. MEASURED:
+         both the Day and the Week .tgbody live in the DOM at once, so walking
+         every .tgcol on the page drew every mark TWICE - 4 elements for 2
+         alarms. Only 2 were visible, so nothing looked wrong, but it is double
+         the work on every render and it would show as doubles the moment two
+         grids were ever visible together. */
+      var cols = [], allCols = document.querySelectorAll('.tgcol'), cq;
+      for (cq = 0; cq < allCols.length; cq++) {
+        var cr = allCols[cq].getBoundingClientRect();
+        if (cr.width > 0 && cr.height > 0) cols.push(allCols[cq]);
+      }
+      var ci;
+      if (!cols.length) return;
+
+      for (ci = 0; ci < cols.length; ci++) {
+        (function (col) {
+          var iso = col.dataset && col.dataset.iso;
+          if (!iso) return;
+          window.walkTree(function (n) {
+            if (!n || n.done) return;
+            /* hide-from-calendar on the TASK still hides the whole thing, the
+               way the operator asked on 2026-09-28 */
+            if (n.__hideTask) return;
+            var al = window.alarmsForCalendar(n) || [], i;
+            for (i = 0; i < al.length; i++) {
+              var t = alarmTimeOn(n, al[i], iso);
+              if (!t) continue;
+              var y = window.tgToY(t);
+              if (typeof y !== 'number' || !isFinite(y)) continue;
+              var m = document.createElement('div');
+              m.className = 'tgalarm';
+              m.style.top = Math.round(y) + 'px';
+              m.title = (n.title || 'Untitled') + '  -  alarm ' + t;
+              var b = document.createElement('span');
+              b.className = 'tgalarm-bell';
+              b.textContent = '⏰';
+              var lb = document.createElement('span');
+              lb.className = 'tgalarm-label';
+              lb.textContent = t + '  ' + (n.title || 'Untitled');
+              m.appendChild(b); m.appendChild(lb);
+              col.appendChild(m);
+            }
+          });
+        })(cols[ci]);
+      }
+    } catch (e) { }
+  }
+  window.__paintAlarmMarks = paintAlarmMarks;
 
   /* A SECOND DEFENCE, because one hook is never enough (the tabs feature was
      lost exactly this way on 2026-09-26): if the calendar is ever rebuilt by a
@@ -33967,6 +35241,10 @@ body[data-fb="on"] .fb-band { display: block; }
 
     tOn.addEventListener('click', function (e) {
       e.preventDefault();
+      /* 2026-09-28: pressing Timer is a real gesture and it is the moment the
+         operator arranges to be interrupted - so wake the audio here too, or the
+         very first focus alarm of a session can be silent. */
+      try { if (window.plannerUnlockAudio) window.plannerUnlockAudio(); } catch (_) { }
       setTimer(current().timer ? null : 25);   /* a sensible first value */
     });
     tMinus.addEventListener('click', function (e) {
@@ -34092,6 +35370,7 @@ body[data-fb="on"] .fb-band { display: block; }
     if (window.buildTimeSpinner) {
       var uSp = window.buildTimeSpinner(untilOf(bl) || bl.to || '10:00', function (v) {
         if (!uArmed) return;             /* built, not chosen - write nothing */
+        try { if (window.plannerUnlockAudio) window.plannerUnlockAudio(); } catch (_) { }
         /* 2026-09-28, operator: "it gives me a pop up that says it's after the
            session ends, and then it doesn't work... the little marking there is
            fine, however it should always work."
@@ -34619,9 +35898,153 @@ body[data-fb="on"] .fb-band { display: block; }
   /* One time control, used by every field that sets a time: the alarm it started in,
      Edit Activity's Time, and both ends of a focus block. Hour and minute are real
      scrollers - wheel, drag, or click a neighbour - and nothing pops up. */
+function buildCompactTime(initHHMM, onPick, onCancel) {
+  // Parse initHHMM as 24-hour 'HH:MM'; default '09:00' on missing/unparseable
+  var hour24 = 9;
+  var minute = 0;
+  if (typeof initHHMM === 'string') {
+    var parts = initHHMM.split(':');
+    if (parts.length === 2) {
+      var h = parseInt(parts[0], 10);
+      var m = parseInt(parts[1], 10);
+      if (!isNaN(h) && !isNaN(m) && h >= 0 && h < 24 && m >= 0 && m < 60) {
+        hour24 = h;
+        minute = m;
+      }
+    }
+  }
+  var isPM = hour24 >= 12;
+
+  // Formatting helpers and notifier
+  function pad2(n) { return n < 10 ? '0' + n : '' + n; }
+  function hour12() { var h = hour24 % 12; return pad2(h === 0 ? 12 : h); }
+  function minuteStr() { return pad2(minute); }
+  function emit() {
+    if (typeof onPick === 'function') {
+      onPick(pad2(hour24) + ':' + pad2(minute));
+    }
+  }
+  function render() {
+    hourEl.textContent = hour12();
+    minEl.textContent = minuteStr();
+    ampmEl.textContent = isPM ? 'PM' : 'AM';
+  }
+
+  // Root wrapper
+  var el = document.createElement('div');
+  el.className = 'ct-wrap';
+
+  // Reusable arrow-button factory (type="button", ct-arrow)
+  function makeArrow(symbol, handler) {
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'ct-arrow';
+    b.textContent = symbol;
+    b.addEventListener('click', handler);
+    return b;
+  }
+
+  // Row 1: up arrows over hour and minute
+  var upHour = makeArrow('\u25B2', function () {
+    hour24 = (hour24 + 1) % 24;   // wraps 11 PM (23) -> 12 AM (0)
+    isPM = hour24 >= 12;
+    emit();
+    render();
+  });
+  var upMin = makeArrow('\u25B2', function () {
+    minute = (minute + 5) % 60;   // wraps 55 -> 00
+    emit();
+    render();
+  });
+
+  // Row 2: hour readout, colon, minute readout, AM/PM toggle
+  var hourEl = document.createElement('span');
+  hourEl.className = 'ct-num ct-hour';
+  var colonEl = document.createElement('span');
+  colonEl.className = 'ct-colon';
+  colonEl.textContent = ':';
+  var minEl = document.createElement('span');
+  minEl.className = 'ct-num ct-min';
+  var ampmEl = document.createElement('button');
+  ampmEl.type = 'button';
+  ampmEl.className = 'ct-ampm';
+  ampmEl.addEventListener('click', function () {
+    isPM = !isPM;
+    hour24 = isPM ? (hour24 % 12) + 12 : hour24 % 12;
+    emit();
+    render();
+  });
+
+  // Row 3: down arrows over hour and minute
+  var downHour = makeArrow('\u25BC', function () {
+    hour24 = (hour24 - 1 + 24) % 24; // wraps 12 AM (0) -> 11 PM (23)
+    isPM = hour24 >= 12;
+    emit();
+    render();
+  });
+  var downMin = makeArrow('\u25BC', function () {
+    minute = (minute - 5 + 60) % 60; // wraps 00 -> 55
+    emit();
+    render();
+  });
+
+  // Assemble three rows
+  var row1 = document.createElement('div');
+  row1.appendChild(upHour);
+  row1.appendChild(upMin);
+  var row2 = document.createElement('div');
+  row2.appendChild(hourEl);
+  row2.appendChild(colonEl);
+  row2.appendChild(minEl);
+  row2.appendChild(ampmEl);
+  var row3 = document.createElement('div');
+  row3.appendChild(downHour);
+  row3.appendChild(downMin);
+  el.appendChild(row1);
+  el.appendChild(row2);
+  el.appendChild(row3);
+
+  // Escape key invokes onCancel when provided
+  el.addEventListener('keydown', function (e) {
+    if ((e.key === 'Escape' || e.keyCode === 27) && typeof onCancel === 'function') {
+      onCancel();
+    }
+  });
+
+  render();
+  return el;
+}
+  window.buildCompactTime = buildCompactTime;
+
   window.buildTimeSpinner = function (initTime, onChange) {
     var wrap = document.createElement('div');
     wrap.className = 'rt1';
+    /* 2026-10-03 - MEASURED, and it is why opening this spinner from the date
+       popup closed it instantly.
+
+       Building the dials SETS scrollTop, which fires a real `scroll` event, whose
+       90ms timeout calls pick() - so the spinner reported a chosen time that
+       nobody chose, before the operator had seen it. Callers that keep their host
+       open survived it (they just re-wrote the same value); a caller that CLOSES
+       on pick - like a popover - was destroyed by its own construction.
+
+       `building` is true until the element has been handed back, so a commit
+       raised by construction is ignored while a commit raised by a finger is
+       not. One flag in the shared builder rather than a workaround in each
+       caller. */
+    var building = true;
+    /* MEASURED 2026-10-03: clearing this on setTimeout(...,0) was too early. The
+       dials set their own scrollTop on a setTimeout(...,0) scheduled AFTER this
+       one, and the scroll handler then waits a further 90ms before committing -
+       so the flag was already false by the time the construction-scroll landed,
+       and the spinner still destroyed itself. It is cleared once the whole
+       build-and-settle sequence is past (the 90ms debounce plus margin), and
+       also by the first real pointer touch, so a finger is never ignored. */
+    var buildClear = setTimeout(function () { building = false; }, 260);
+    wrap.addEventListener('pointerdown', function () {
+      building = false;
+      if (buildClear) { clearTimeout(buildClear); buildClear = null; }
+    }, true);
 
     var parts = String(initTime || '09:00').split(':');
     var h24 = parseInt(parts[0], 10); if (isNaN(h24)) h24 = 9;
@@ -34630,6 +36053,12 @@ body[data-fb="on"] .fb-band { display: block; }
     var h12 = h24 % 12; if (h12 === 0) h12 = 12;
 
     function commit() {
+      /* MEASURED 2026-10-03: there are NINE functions named `commit` in this file.
+         My first guard went into one of the others and the trace said so -
+         "commit guards on building: false" while the flag itself read true. This
+         is the one that matters: the one inside buildTimeSpinner that calls
+         onChange, and so closes a popover that closes on pick. */
+      if (building) return null;   /* a scroll raised by building, not by a finger */
       var hh = h12 % 12;
       if (isPm) hh += 12;
       var v = (hh < 10 ? '0' : '') + hh + ':' + (mins < 10 ? '0' : '') + mins;
@@ -36415,6 +37844,55 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
 }
 .fb-timernote { margin: 4px 0 0; font-size: 10.5px; color: #6b7280; }
 /* the alarm when the time is up - the app's own dialog shape */
+/* ===== ONE ALARM LOOK, 2026-09-28 =====
+   Operator: "the pop-up is there... however it's actually pretty small. And the
+   alarms for the Reminder and focus session, they need to be the same."
+
+   MEASURED: the focus alarm was 260x118 - 17% of a 1500px screen - with a 14px
+   title, while the reminder was a thin strip pinned to top:16px with 13px text
+   and different buttons. Two separate builders, two different looks, both easy
+   to miss.
+
+   Now ONE rule for both: same size, same position, same type scale. Sized so it
+   is unmissable without covering the planner - about a third of a desktop
+   screen, and nearly full width on a phone. */
+.fb-alarm, .rem-banner {
+  position: fixed !important; left: 50% !important; top: 18% !important;
+  transform: translateX(-50%) !important;
+  z-index: 100002 !important;
+  background: var(--surface, #18181b) !important;
+  color: var(--text, #e6e8ec) !important;
+  border: 2px solid var(--accent, #4d8bff) !important;
+  border-radius: 16px !important;
+  padding: 26px 32px !important;
+  box-shadow: 0 18px 60px rgba(0,0,0,.6) !important;
+  text-align: center !important;
+  min-width: 420px !important;
+  max-width: min(560px, 92vw) !important;
+  display: block !important;
+}
+.fb-alarm h5, .rem-banner .ra-title {
+  margin: 0 0 8px !important; font-size: 22px !important; font-weight: 700 !important;
+  color: var(--text, #e6e8ec) !important; line-height: 1.25 !important;
+}
+.fb-alarm p, .rem-banner .ra-sub {
+  margin: 0 0 18px !important; font-size: 15px !important;
+  color: var(--text-dim, #9aa1ab) !important; opacity: 1 !important;
+}
+.fb-alarm button, .rem-banner button {
+  font-size: 15px !important; font-weight: 600 !important;
+  padding: 12px 22px !important; border-radius: 10px !important;
+  min-width: 128px !important; cursor: pointer !important;
+  margin: 0 5px !important;
+}
+/* the alarm gets attention without being a nuisance - it settles after 2 pulses */
+@keyframes alarmPulse {
+  0%   { box-shadow: 0 18px 60px rgba(0,0,0,.6), 0 0 0 0 rgba(77,139,255,.55); }
+  70%  { box-shadow: 0 18px 60px rgba(0,0,0,.6), 0 0 0 18px rgba(77,139,255,0); }
+  100% { box-shadow: 0 18px 60px rgba(0,0,0,.6), 0 0 0 0 rgba(77,139,255,0); }
+}
+.fb-alarm, .rem-banner { animation: alarmPulse 1.1s ease-out 2; }
+
 .fb-alarm {
   position: fixed; left: 50%; top: 22%; transform: translateX(-50%);
   z-index: 100002;
@@ -37602,7 +39080,21 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
     if (!host) return;
     var h = host.getBoundingClientRect();
     left = h.left + (h.width - r.width) / 2;
-    top  = h.top  + (h.height - r.height) / 2;
+    /* 2026-09-28, operator: "the calendar shows above the edit section... it has
+       to be in the middle of it."
+       MEASURED: the Edit dialog is 982px tall. In a 670px window only part of it
+       is on screen, so centring on the WHOLE dialog put the picker at the
+       dialog's midpoint - which is below the fold - and the clamp below then
+       shoved it to the top of the screen, 157px above where the operator was
+       looking. Centre on the part of the dialog they can actually SEE, which is
+       the same thing on a tall window and the right thing on a short one. */
+    var visTop = Math.max(h.top, 8);
+    var visBottom = Math.min(h.bottom, window.innerHeight - 8);
+    if (visBottom - visTop > 80) {
+      top = visTop + ((visBottom - visTop) - r.height) / 2;
+    } else {
+      top = h.top + (h.height - r.height) / 2;
+    }
     /* never off the screen, whatever the host is doing */
     if (left < 8) left = 8;
     if (left + r.width > window.innerWidth - 8) left = window.innerWidth - 8 - r.width;
@@ -37730,18 +39222,88 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
         'font:600 12px ui-sans-serif,-apple-system,sans-serif;letter-spacing:.04em';
       b.onclick = function (e) {
         e.preventDefault(); e.stopPropagation();
+        /* 2026-09-28, operator: "the buttons for today and tomorrow, they don't work."
+           MEASURED in the reminder picker (.tp2.rp2): it has ZERO elements with a
+           data-date attribute and ZERO visible input[data-dp2] - so both of the
+           things this handler reached for did not exist, and pressing the button
+           did nothing at all. The day cells are BUTTON.dp2-day carrying only
+           `type` and `class`; the month is a plain text label like "Sep 2026".
+
+           So: find the cell by its DAY NUMBER inside the month that matches the
+           wanted date, stepping the calendar if that month is not on screen, and
+           click it - the same thing a person does. */
         var want = isoOf(pair[1]);
-        var inputs = document.querySelectorAll('input[data-dp2="1"]');
-        for (var i = 0; i < inputs.length; i++) {
-          if (inputs[i].offsetParent !== null) {
-            inputs[i].value = want;
-            if (window.jQuery) window.jQuery(inputs[i]).trigger('change');
-            else inputs[i].dispatchEvent(new Event('change', { bubbles: true }));
-            break;
+        var parts = String(want).split('-');
+        var wantY = Number(parts[0]), wantM = Number(parts[1]), wantD = Number(parts[2]);
+        var MON = ['Jan','Feb','Mar','Apr','May','Jun',
+                   'Jul','Aug','Sep','Oct','Nov','Dec'];
+
+        function labels() {
+          var out = [], all = pop.querySelectorAll('div,span,h1,h2,h3,h4'), i;
+          for (i = 0; i < all.length; i++) {
+            if (all[i].children.length) continue;
+            var t = (all[i].textContent || '').trim();
+            var m = /^([A-Z][a-z]{2})\s+(\d{4})$/.exec(t);
+            if (m) out.push({ el: all[i], mon: MON.indexOf(m[1]) + 1, year: Number(m[2]) });
           }
+          return out;
         }
-        var day = pop.querySelector('[data-date="' + want + '"]');
-        if (day) day.click();
+
+        function clickWanted() {
+          var ls = labels(), i;
+          for (i = 0; i < ls.length; i++) {
+            if (ls[i].mon !== wantM || ls[i].year !== wantY) continue;
+            /* the grid that belongs to THIS label - its nearest container that
+               holds day cells */
+            var host = ls[i].el.parentNode, guard = 0;
+            while (host && guard++ < 6 && !host.querySelector('.dp2-day')) host = host.parentNode;
+            if (!host) continue;
+            var cells = host.querySelectorAll('.dp2-day'), k;
+            for (k = 0; k < cells.length; k++) {
+              if (Number((cells[k].textContent || '').trim()) === wantD &&
+                  !cells[k].disabled) {
+                cells[k].click();
+                return true;
+              }
+            }
+          }
+          return false;
+        }
+
+        if (clickWanted()) return;
+        /* 2026-09-28: the month is not on screen, so step TOWARDS it.
+           MEASURED: the first version only ever stepped FORWARD, so pressing
+           TODAY while looking at Oct 2026 ran the calendar all the way to
+           Jan 2028 and selected nothing. Which way to go is a fact on screen -
+           read the month being shown and compare. */
+        var steps = 0;
+        (function step() {
+          if (steps++ > 26) return;
+          var ls = labels();
+          if (!ls.length) return;
+          /* the earliest month on screen decides the direction */
+          var shown = ls[0], i;
+          for (i = 1; i < ls.length; i++) {
+            if (ls[i].year < shown.year ||
+                (ls[i].year === shown.year && ls[i].mon < shown.mon)) shown = ls[i];
+          }
+          var forward = (wantY > shown.year) ||
+                        (wantY === shown.year && wantM > shown.mon);
+          var arrows = pop.querySelectorAll('button'), btn = null;
+          for (i = 0; i < arrows.length; i++) {
+            var t = (arrows[i].textContent || '').trim();
+            if (t.length !== 1) continue;
+            var c = t.charCodeAt(0);
+            if (forward) {
+              if (c === 62 || c === 8250 || c === 9654) btn = arrows[i];
+            } else {
+              if (c === 60 || c === 8249 || c === 9664) { btn = arrows[i]; break; }
+            }
+          }
+          if (!btn) return;
+          btn.click();
+          setTimeout(function () { if (!clickWanted()) step(); }, 30);
+        })();
       };
       row.appendChild(b);
     });
@@ -38595,12 +40157,12 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
    The app sets its own title, so pin it - one owner, checked on a slow beat
    rather than fought over. */
 (function () {
-  function pin() { }   /* practice-only title pin removed for the live build */
+  function pin() { if (document.title !== 'PRAC Planner') document.title = 'PRAC Planner'; }
   pin();
   setInterval(pin, 1000);
   document.addEventListener('visibilitychange', pin);
 })();
 </script>
-<!-- practice demo-seeder removed for the live build -->
+
 </body>
 </html>
