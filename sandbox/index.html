@@ -104,55 +104,46 @@
 </script>
 <script>
 /* clear anything the pre-shim version of this page left behind */
-/* Clear what the PRE-SHIM version of this page left behind.
-
-   MEASURED 2026-10-05: the operator still saw their real activities here while a
-   fresh browser showed only demo data. The first published copy carried firebase;
-   opening it signed in and wrote their real planner into this origin's UNPREFIXED
-   localStorage keys. The shim added afterwards namespaces new reads and writes, but
-   cannot reach what was already written.
-
-   AND A SECOND MEASUREMENT, after the first attempt silently did nothing:
-   `localStorage` is an OWN property of `window` in this browser, NOT an accessor on
-   `Window.prototype`. Reading the descriptor from the prototype returned undefined,
-   so the purge returned early every time and __purgedLegacy stayed null. The shim
-   stashes the genuine object before replacing it, so ask IT - and fall back to the
-   window's own descriptor rather than the prototype's. */
 (function () {
+  // WHY wipe instead of detect: on a demo copy we cannot tell apart
+  // "user's real data" from "stale flag" — both must go, so we clear
+  // unconditionally on load. This IIFE is gated by __storagePrefix so
+  // it can never run on the real planner's own page.
   try {
     var PRE = window.__storagePrefix;
-    if (!PRE) return;                       /* never run on the real planner's page */
+    if (!PRE) { return; } // guard: real planner never sets the prefix
 
-    var raw = null;
-    /* 1. the shim keeps the original - the most reliable source */
-    if (window.__realLocalStorage) raw = window.__realLocalStorage;
-    /* 2. otherwise read the descriptor where it actually lives */
+    var raw = window.__realLocalStorage;
     if (!raw) {
-      var d = Object.getOwnPropertyDescriptor(window, 'localStorage')
-           || Object.getOwnPropertyDescriptor(Window.prototype, 'localStorage');
-      if (d) raw = d.get ? d.get.call(window) : d.value;
+      // Shim missing — recover the genuine storage via its accessor.
+      var desc = Object.getOwnPropertyDescriptor(window, 'localStorage');
+      if (desc && typeof desc.get === 'function') { raw = desc.get.call(window); }
+      if (!raw) {
+        desc = Object.getOwnPropertyDescriptor(Window.prototype, 'localStorage');
+        if (desc && typeof desc.get === 'function') { raw = desc.get.call(window); }
+      }
+      if (!raw) { return; }
     }
-    if (!raw || typeof raw.key !== 'function') return;
 
-    /* collect first, remove second - deleting while walking by index skips entries */
-    var doomed = [], i, k;
-    for (i = 0; i < raw.length; i++) {
-      k = raw.key(i);
-      if (k === null) continue;
-      k = String(k);
-      if (k.indexOf(PRE) === 0) continue;          /* ours - leave it */
-      if (k.indexOf('planner.') !== 0) continue;   /* not the planner's - leave it */
-      doomed.push(k);
+    // Snapshot every key first; deleting during an index loop would skip entries
+    // because the indices shift down as items are removed.
+    var keys = [];
+    for (var i = 0; i < raw.length; i++) { keys.push(raw.key(i)); }
+
+    var removed = 0;
+    for (var j = 0; j < keys.length; j++) {
+      var k = keys[j];
+      if (k && (k.indexOf(PRE) === 0 || k.indexOf('planner.') === 0)) {
+        raw.removeItem(k);
+        removed++;
+      }
     }
-    for (i = 0; i < doomed.length; i++) {
-      try { raw.removeItem(doomed[i]); } catch (e) { }
-    }
-    window.__purgedLegacy = doomed;
-    if (doomed.length && window.console && console.log) {
-      console.log('demo copy: cleared ' + doomed.length +
-                  ' leftover key(s) from before this page had its own storage.');
-    }
-  } catch (e) { }
+
+    window.__demoReset = removed;
+    console.log('demo copy: cleared ' + removed + ' key(s), starting fresh');
+  } catch (e) {
+    // Must never throw into the demo page.
+  }
 })();
 </script>
 
@@ -6414,7 +6405,7 @@ body[data-newbranch="1"] #treeFilters{
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-10-05 19:14 DEMO</span>
+    <span id="buildStamp">build 2026-10-05 19:23 DEMO</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
