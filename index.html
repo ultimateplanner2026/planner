@@ -148,7 +148,7 @@ window.__settleThenIdle = function (fn, idleMs) {
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <title>PRAC Planner</title>
+  <title>Planner</title>
 
   <!-- Home-screen install, iPhone. These four tags are what actually make
        "Add to Home Screen" open fullscreen instead of inside Safari. -->
@@ -6259,7 +6259,7 @@ body[data-newbranch="1"] #treeFilters{
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-10-04 01:15</span>
+    <span id="buildStamp">build 2026-10-04 19:32</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -10064,6 +10064,61 @@ colEl.appendChild(div);
 return count;
 }catch(err){return 0;}
 };
+/* ============================================================ 2026-10-04
+   MOVING ONE OCCURRENCE OF A REPEATING TASK, AND ROLLING IT OVER.
+
+   Operator: "I have a weekly routine set up to be continuously on every Sunday.
+   However it should be able to move that routine to the next day if I didn't
+   complete it within that week... I want to be able to move it to the next day
+   just in case I don't do it that day." They chose a COMBINATION: an unfinished
+   occurrence rolls over by itself, AND a move affects only that occurrence.
+
+   MEASURED first: dragging a weekly task wrote node.date, which re-anchored the
+   whole series - Oct 4 and Oct 11 became Oct 5 and Oct 12. One late week would
+   have silently changed the routine's day for good.
+
+   `node.repeat.exceptions` already existed in this file and was never read once;
+   this uses a sibling field, `repeat.moves`, keyed by the date the occurrence was
+   DUE, so the rule itself is never touched. */
+window.__moveOccurrence = function(node, toISO, time) {
+  // Not a repeating task - bail so caller uses default behaviour.
+  if (!node.repeat || !node.repeat.freq) return false;
+  // Ensure the per-occurrence moves map exists.
+  if (!node.repeat.moves || typeof node.repeat.moves !== 'object') {
+    node.repeat.moves = {};
+  }
+  var moves = node.repeat.moves;
+  // The chip was drawn for __dragFromISO, or for the anchor date otherwise.
+  var fromISO = node.__dragFromISO || node.date;
+  var t = time || null;
+  // If a prior move already targeted fromISO, re-point that entry to
+  // toISO so we don't leave a dangling intermediate hop.
+  for (var k in moves) {
+    if (Object.prototype.hasOwnProperty.call(moves, k) && moves[k] && moves[k].to === fromISO) {
+      moves[k] = {to: toISO, time: t};
+      return true;
+    }
+  }
+  moves[fromISO] = {to: toISO, time: t};
+  return true;
+};
+
+window.__occurrenceFor = function(node, iso) {
+  var moves = (node.repeat && node.repeat.moves) || {};
+  // A move whose .to lands on iso means this date shows the moved task.
+  for (var k in moves) {
+    if (Object.prototype.hasOwnProperty.call(moves, k) && moves[k] && moves[k].to === iso) {
+      return {shows: true, movedFrom: k, movedAway: false};
+    }
+  }
+  // If iso itself was moved away, it should not show.
+  if (Object.prototype.hasOwnProperty.call(moves, iso)) {
+    return {shows: false, movedFrom: null, movedAway: true};
+  }
+  // No opinion - let the normal repeat rule decide.
+  return {shows: null, movedFrom: null, movedAway: false};
+};
+
 window.tgWireDrops=function(colsWrap){
 try{
 if(!colsWrap)return;
@@ -10095,6 +10150,19 @@ var rect=c.getBoundingClientRect();
 var time=tgFromY(e.clientY-rect.top);
 var found=window.findNode(id);
 if(!found||!found.node)return;
+/* 2026-10-04, operator: "I have a weekly routine set up on every Sunday. It should
+   be able to move that routine to the next day if I didn't complete it within that
+   week... I want to be able to move it to the next day just in case I don't do it
+   that day." They chose: move THIS occurrence only, leave the rule alone.
+
+   MEASURED before building: dragging a weekly task wrote node.date directly, which
+   re-anchors the SERIES - a task on Oct 4 and Oct 11 became Oct 5 and Oct 12. One
+   late week would silently change the routine's day forever. */
+if (window.__moveOccurrence && window.__moveOccurrence(found.node, c.dataset.iso, time)) {
+  Store.save();
+  renderAll();
+  return;
+}
 found.node.date=c.dataset.iso;
 found.node.time=time;
 Store.save();
@@ -13745,11 +13813,67 @@ function surfaceArrivals() {
   }
   /* Past due: dated BEFORE today and never ticked off. Uses the app's own todayISO
      so it can never disagree with the rest of the planner about what "today" is. */
+  /* 2026-10-04, operator: "if I put a due date for a branch, and then the priority
+     tree catches up with that due date for that branch, in past due section that
+     branch should not be there because it's already in the priority tree showing...
+     Same thing for routines and habits. These should not be in the past due or
+     completed section."
+
+     MEASURED on their own data before writing this, with three seeded cases:
+       Kitchen refit (branch)  in Past due AND on the priority tree  -> duplicated
+       Morning routine         in Past due
+       Drink water (habit)     in Past due
+     Completed already excludes the last two, through __countsAsCompleted and its
+     __habitRoutineTaskIds map. Past due used no such rule - it took every dated
+     node. So this is not a new rule, it is the SAME rule the Completed tab already
+     applies, now applied here too; written as one shared test so the two lists
+     cannot drift apart.
+
+     What Past due is FOR: things that slipped and need you to act. A branch you
+     can already see in the tree has not slipped out of sight, and a routine that
+     repeats never "finishes" - listing them is noise that hides the real items. */
+  window.__belongsInPastDue = function (node, skipHR) {
+    if (!node || node.done || !node.date) return false;
+    var m = skipHR || (window.__habitRoutineTaskIds ? window.__habitRoutineTaskIds() : {});
+    if (m[node.id]) return false;                        /* a habit/routine record */
+    if (node.repeat && node.repeat.freq) return false;   /* a repeat never finishes */
+    var f = window.findNode ? window.findNode(node.id) : null;
+    var parent = f && f.parent;
+    if (parent && (parent.id === '__habits' || parent.id === '__routines')) return false;
+    /* A TOP-LEVEL item is never in Past due.
+
+       2026-10-04, operator: "I do have a past due task and it is actually a branch...
+       for example the Family in the past due. And even so, I still put it as a branch
+       itself. It still showing up in the past due. If I reclassify something, it
+       should be already caught."
+
+       MEASURED on their case: Family is top-level, past due, and has NO children yet
+       - kids=0, topLevel=true, inPastDue=true. The planner's OWN definition of a
+       branch (the one the Location list uses, line ~27420) is "top-level AND holds
+       something", so an empty branch is not recognised as a branch anywhere, which
+       is exactly why reclassifying it changed nothing here.
+
+       They chose the simpler rule: anything at the top level is out, children or not.
+       A top-level row is always visible in the priority tree with its own date chip,
+       so it has not slipped out of sight - which is what Past due is for.
+
+       THE TRADE-OFF, stated because it is real: a one-off task parked at the top
+       level with a past date will no longer appear in Past due either. It is still
+       in the tree, where it cannot be missed. */
+    var topLevel = !parent;
+    if (topLevel) return false;
+    /* deeper down, anything that HOLDS other tasks is a sub-branch and is visible
+       through its own parent chain */
+    if (node.children && node.children.length) return false;
+    return true;
+  };
+
   window.__pastDue = function () {
     var out = [], today = window.todayISO ? window.todayISO() : null;
     if (!today || !window.walkTree) return out;
+    var skipHR = window.__habitRoutineTaskIds ? window.__habitRoutineTaskIds() : {};
     window.walkTree(function (n) {
-      if (!n || n.done || !n.date) return;
+      if (!window.__belongsInPastDue(n, skipHR)) return;
       if (String(n.date) < today) out.push(n);
     });
     out.sort(function (a, b) { return String(a.date) < String(b.date) ? -1 : 1; });
@@ -20631,12 +20755,55 @@ function firstConnect(remote, rAt, lAt) {
     return t;
   }
 
+  /* 2026-10-04, operator: "when I click complete on a specific task and I was in a
+     specific time frame in the planner, it automatically moves down to the time
+     frame... right now we're at 6:11, it will jump down to 6:11. I would like it to
+     be consistent to wherever point of time I was."
+
+     MEASURED on their build: parked the day grid at scrollTop 0, ticked one task
+     off, and the grid jumped to 506 - the bottom of a 506px range. The cause is
+     here: the grid BUILDER calls tgScrollToMorning on every render, and this
+     override made that mean "jump to now". Opening a view that way is right;
+     doing it on every repaint steals the scroll out from under them.
+
+     So the jump happens only when the grid is genuinely NEW on screen. A repaint of
+     a grid they are already looking at keeps exactly where they were - measured by
+     the scroller's own scrollTop before the rebuild, and put straight back. */
   var oldMorning = window.tgScrollToMorning;
+  var lastTop = Object.create(null);   /* view key -> where they were */
+
+  function viewKey(scroll) {
+    var v = scroll.closest ? scroll.closest('#dayView, #weekView') : null;
+    return (v && v.id ? v.id : 'grid') + '|' + (window.selectedDate || '');
+  }
+
   window.tgScrollToMorning = function (scroll) {
     if (!scroll) return;
-    try { scroll.scrollTop = targetTop(scroll); }
+    try {
+      var key = viewKey(scroll);
+      var keep = lastTop[key];
+      if (keep !== undefined && keep !== null) {
+        /* a repaint of a grid they were already on - put them back, exactly */
+        scroll.scrollTop = keep;
+      } else {
+        /* genuinely new on screen: open at now, which is what they want on arrival */
+        scroll.scrollTop = targetTop(scroll);
+      }
+      /* remember where they end up, including anything they scroll to by hand */
+      if (!scroll.__keepWired) {
+        scroll.__keepWired = true;
+        scroll.addEventListener('scroll', function () {
+          lastTop[viewKey(scroll)] = scroll.scrollTop;
+        });
+      }
+      lastTop[key] = scroll.scrollTop;
+    }
     catch (e) { if (typeof oldMorning === 'function') oldMorning(scroll); }
   };
+
+  /* changing the DAY, or pressing Today, is an arrival - not a repaint - so the
+     next build of that view may open at now again. */
+  window.__gridForgetScroll = function () { lastTop = Object.create(null); };
 
   window.scrollGridToNow = function () {
     var hosts = document.querySelectorAll('.tgscroll'), i, did = false;
@@ -23859,6 +24026,73 @@ if (r.freq === 'yearly') {
     return base.apply(this, arguments);
   };
 })();
+
+/* PLACED HERE DELIBERATELY. MEASURED 2026-10-04: this wrapper first sat near
+   line 10128, but plannerRepeatMatches is defined at ~22890 and wrapped again at
+   ~24067 - so `base` was undefined, the wrapper returned at once, and every move
+   was recorded in the data yet never appeared on screen. It has to come after the
+   LAST assignment, so it wraps whatever is finally in place. */
+/* ---- moves and rollover applied to the ONE occurrence gate ----------------
+   Every surface (the day grid, the week grid, the tree) asks
+   plannerRepeatMatches(node, iso). Wrapping it here means a moved occurrence and a
+   rolled-over one appear everywhere at once, rather than in whichever view I
+   happened to patch. */
+(function () {
+  var base = window.plannerRepeatMatches;
+  if (typeof base !== 'function') return;
+  window.__rawRepeatMatches = base;   /* exposed so a check can see the RAW rule */
+
+  function ord(iso) {
+    var p = String(iso || '').split('-');
+    if (p.length !== 3) return NaN;
+    return Date.UTC(+p[0], +p[1] - 1, +p[2]) / 86400000;
+  }
+
+  window.plannerRepeatMatches = function (node, iso) {
+    /* 1. an occurrence MOVED to this date shows here, whatever the rule says */
+    var oc = window.__occurrenceFor ? window.__occurrenceFor(node, iso) : null;
+    if (oc && oc.shows === true) return true;
+    if (oc && oc.movedAway === true) return false;
+
+    var hit = base.apply(this, arguments);
+    if (hit) return true;
+
+    /* 2. ROLLOVER - operator's option C: "it rolls over by itself until done".
+       An occurrence that was due, was never ticked, and has not been moved keeps
+       showing on later days until it is done. It is shown on TODAY only, never
+       smeared across every day in between, so one missed week is one row and not
+       seven. */
+    if (!node || !node.repeat || !node.repeat.freq) return false;
+    if (!window.todayISO || iso !== window.todayISO()) return false;
+    var today = ord(iso);
+    if (isNaN(today)) return false;
+    var done = node.repeatDone || {};
+    var moves = (node.repeat && node.repeat.moves) || {};
+    var back, probe, p;
+    /* look back up to 60 days for an occurrence that is still outstanding */
+    /* MEASURED 2026-10-04: looking back 60 days and returning on the first
+       OUTSTANDING occurrence meant that after ticking last week's off, the loop
+       simply carried on and found the week before, and the week before that - so a
+       completed item kept rolling over forever. Only the MOST RECENT occurrence can
+       roll: if that one is done or was moved, there is nothing outstanding and the
+       search stops there rather than reaching further back. */
+    for (back = 1; back <= 60; back++) {
+      var d = new Date((today - back) * 86400000);
+      probe = d.getUTCFullYear() + '-' +
+              ('0' + (d.getUTCMonth() + 1)).slice(-2) + '-' +
+              ('0' + d.getUTCDate()).slice(-2);
+      if (!base.call(this, node, probe)) continue;
+      /* this is the most recent occurrence before today - it decides, alone */
+      if (done[probe]) return false;            /* it was done - nothing to roll */
+      if (moves[probe]) return false;           /* already moved somewhere explicit */
+      node.__rolledFrom = probe;                /* so the row can say so */
+      return true;
+    }
+    return false;
+  };
+})();
+
+
 
 
 /* ===== m173 routines drawn on every matching day ===== */
@@ -40157,12 +40391,17 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
    The app sets its own title, so pin it - one owner, checked on a slow beat
    rather than fought over. */
 (function () {
-  function pin() { if (document.title !== 'PRAC Planner') document.title = 'PRAC Planner'; }
+  /* 2026-10-04: the same self-reading pin the live build now uses. This copy's
+     <title> says "PRAC Planner" and the live one says "Planner", so one mechanism
+     serves both and neither can drift into the other again. */
+  var WANT = (document.title || 'Planner').trim() || 'Planner';
+  function pin() { if (document.title !== WANT) document.title = WANT; }
   pin();
   setInterval(pin, 1000);
   document.addEventListener('visibilitychange', pin);
 })();
 </script>
+
 
 </body>
 </html>
