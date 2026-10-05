@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
 <script>
-/* the work copy keeps its own storage - same origin as the real
-   planner, so without this it would overwrite their data. */
+/* the demo copy keeps its own storage - same origin as the real
+   planner, so without this it would share their data. */
 (function(){
   // Same origin, different path: localStorage is shared with the real app.
   // We replace localStorage with a wrapper that namespaces every key with PRE
@@ -93,6 +93,48 @@
 
   // Marker so a check can verify the shim is active and what prefix it uses.
   window.__storagePrefix = PRE;
+})();
+</script>
+<script>
+/* clear anything the pre-shim version of this page left behind */
+(function () {
+  try {
+    var PRE = window.__storagePrefix;
+    // Falsy means we're not on the demo page (no shim, no prefix). Do nothing -
+    // touching unprefixed keys on the real planner's own page would destroy real data.
+    if (!PRE) { return; }
+
+    // Reach the GENUINE localStorage. The shim has reassigned window.localStorage
+    // on this window instance, so calling window.localStorage here would hit the
+    // shim. Window.prototype's native getter still returns the real, unshimmed
+    // storage object, bypassing the override entirely.
+    var desc = Object.getOwnPropertyDescriptor(Window.prototype, 'localStorage');
+    var realStorage;
+    try {
+      if (!desc || typeof desc.get !== 'function') { return; }
+      realStorage = desc.get.call(window);
+    } catch (e) { return; }
+    if (!realStorage) { return; }
+
+    // Collect first, remove second. Removing during a length/indexed walk shifts
+    // subsequent entries and causes them to be skipped.
+    var toRemove = [];
+    for (var i = 0; i < realStorage.length; i++) {
+      var key = realStorage.key(i);
+      if (key && key.indexOf(PRE) !== 0 && key.indexOf('planner.') === 0) {
+        toRemove.push(key);
+      }
+    }
+
+    for (var j = 0; j < toRemove.length; j++) {
+      realStorage.removeItem(toRemove[j]);
+    }
+
+    window.__purgedLegacy = toRemove;
+    console.log('[legacy-purge] removed ' + toRemove.length + ' key(s)' + (toRemove.length ? ': ' + toRemove.join(', ') : ''));
+  } catch (e) {
+    // Swallow everything - this must never throw into the demo page.
+  }
 })();
 </script>
 
@@ -6354,7 +6396,7 @@ body[data-newbranch="1"] #treeFilters{
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-10-05 19:06 DEMO</span>
+    <span id="buildStamp">build 2026-10-05 19:12 DEMO</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
