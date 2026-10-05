@@ -2,23 +2,8 @@
 <html lang="en">
 <head>
 <script>
-/* ============================================================== 2026-10-05
-   THE WORK COPY'S STORAGE IS ITS OWN.
-
-   Operator: "I am at work now, I can access the PNG not the copy planner - can you
-   replicate the copy planner to a link I can access at work."
-
-   THE DANGER THIS CLOSES, and why it is the first thing on the page:
-   this copy is hosted at /planner/copy/ on the SAME ORIGIN as their real planner at
-   /planner/. localStorage is scoped to the ORIGIN, not the path - so without this,
-   opening the work copy would read, and then overwrite, their real planner's data.
-   Measured in this file before building: 15 literal storage keys, all prefixed
-   `planner.`, PLUS 49 calls whose key is built from a variable. Patching the
-   literals would have missed those 49 and leaked into their real data.
-
-   So the whole of localStorage is namespaced instead, before any app script runs.
-   The copy writes `copy~planner.data.v1`; the real planner writes `planner.data.v1`.
-   They cannot see each other. */
+/* the work copy keeps its own storage - same origin as the real
+   planner, so without this it would overwrite their data. */
 (function(){
   // Same origin, different path: localStorage is shared with the real app.
   // We replace localStorage with a wrapper that namespaces every key with PRE
@@ -6369,7 +6354,7 @@ body[data-newbranch="1"] #treeFilters{
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-10-05 18:00 COPY</span>
+    <span id="buildStamp">build 2026-10-05 18:04 COPY</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
