@@ -243,7 +243,7 @@ window.__settleThenIdle = function (fn, idleMs) {
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <title>COPY Planner</title>
+  <title>DEMO Planner</title>
 
   <!-- Home-screen install, iPhone. These four tags are what actually make
        "Add to Home Screen" open fullscreen instead of inside Safari. -->
@@ -6293,7 +6293,7 @@ body[data-newbranch="1"] #treeFilters{
 }
 </style>
 </head>
-<body><div id="practiceBanner" style="position:fixed;top:0;left:0;right:0;height:26px;z-index:2147483647;background:repeating-linear-gradient(45deg,#c00,#c00 12px,#a00 12px,#a00 24px);color:#fff;font:700 11px/26px -apple-system,system-ui;text-align:center;letter-spacing:.04em;pointer-events:none">WORK COPY &mdash; NOT YOUR PLANNER &middot; its data is separate</div><style>/* the banner is fixed, so the page must be pushed down by exactly its height or    it sits on top of the toolbar - the operator: "the red marking is covering some    of the setting and stuff up there". */html{padding-top:26px !important;box-sizing:border-box}#practiceBanner{top:0 !important}</style>
+<body><div id="practiceBanner" style="position:fixed;top:0;left:0;right:0;height:26px;z-index:2147483647;background:repeating-linear-gradient(45deg,#c00,#c00 12px,#a00 12px,#a00 24px);color:#fff;font:700 11px/26px -apple-system,system-ui;text-align:center;letter-spacing:.04em;pointer-events:none">DEMO COPY &mdash; made-up data, never syncs, not your planner</div><style>/* the banner is fixed, so the page must be pushed down by exactly its height or    it sits on top of the toolbar - the operator: "the red marking is covering some    of the setting and stuff up there". */html{padding-top:26px !important;box-sizing:border-box}#practiceBanner{top:0 !important}</style>
 <!-- ===== Internet Explorer notice - operator 2026-09-20 =====
      "It is Internet Explorer. Not sure if that makes any difference."
      It makes all the difference. The planner uses CSS variables in 1,074 places
@@ -6354,7 +6354,7 @@ body[data-newbranch="1"] #treeFilters{
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-10-05 18:04 COPY</span>
+    <span id="buildStamp">build 2026-10-05 18:46 DEMO</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -6426,10 +6426,6 @@ body[data-newbranch="1"] #treeFilters{
   <div id="modalHost"></div>
 <!-- Firebase compat SDK: loaded before the app script so `firebase` is defined when the
      sync modules run. Compat (not modular/ESM) because this app is one ES5 file with no build step. -->
-<script src="https://www.gstatic.com/firebasejs/11.6.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/11.6.0/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/11.6.0/firebase-firestore-compat.js"></script>
-
 <script>
 /* ===== m117 sign-in link ===== */
 /* Sign-in link. The token travels in the URL FRAGMENT, which browsers never
