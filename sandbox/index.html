@@ -6354,7 +6354,7 @@ body[data-newbranch="1"] #treeFilters{
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-10-05 19:01 DEMO</span>
+    <span id="buildStamp">build 2026-10-05 19:06 DEMO</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -38576,7 +38576,7 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
   /* 2026-09-11: back on. It was switched off because I misread "I can still get in" as
      "I can't get in" and rolled it back on a misreading. The operator confirmed the link
      takes them straight to their planner and the sign-in works. */
-  var GATE_ENABLED = true;
+  var GATE_ENABLED = false;  /* demo copy: no real data, no cloud, no gate */
   var host = String(location.hostname || '');
   var isLocal = !GATE_ENABLED || (location.protocol !== 'https:') ||
                 host === 'localhost' || host === '127.0.0.1' || host === '';
