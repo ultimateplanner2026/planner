@@ -3,277 +3,104 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Remove the demo data</title>
 <style>
-:root{--bg:#16181c;--surface:#1c1f26;--line:#2e323a;--text:#e6e8ec;--dim:#9aa1ab;
-      --ok:#2f8f5b;--warn:#e0c48a;--danger:#e06c75}
+:root{--bg:#16181c;--surface:#1c1f26;--line:#2e323a;--text:#e6e8ec;--dim:#9aa1ab;--warn:#e0c48a}
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--text);
-     font:15px/1.55 -apple-system,system-ui,sans-serif;padding:20px}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.55 -apple-system,system-ui,sans-serif;padding:20px}
 .wrap{max-width:720px;margin:0 auto}
 h1{font-size:20px;margin:0 0 4px}
 p.sub{color:var(--dim);margin:0 0 18px;font-size:13.5px}
-.box{background:var(--surface);border:1px solid var(--line);border-radius:10px;
-     padding:14px 16px;margin:0 0 14px}
+.box{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin:0 0 14px}
 .box.warn{border-color:var(--warn)}
-button{font:inherit;border-radius:9px;padding:11px 16px;cursor:pointer;
-       border:1px solid var(--line);background:#343a43;color:var(--text)}
-button:hover{background:#3f4650}
-button.go{background:#2f8f5b;border-color:#2f8f5b;color:#fff}
-button.go:disabled{opacity:.4;cursor:not-allowed}
-pre{white-space:pre-wrap;word-break:break-word;font-size:12.5px;color:var(--dim);
-    margin:10px 0 0;max-height:300px;overflow:auto}
-li{margin:3px 0}
-code{background:#11131a;padding:1px 5px;border-radius:4px;font-size:12.5px}
+ol{margin:8px 0 0;padding-left:20px}
+li{margin:8px 0}
+code{background:#11131a;padding:2px 6px;border-radius:4px;font-size:12.5px;
+     word-break:break-all;display:inline-block}
+pre{white-space:pre-wrap;word-break:break-word;background:#11131a;border:1px solid var(--line);
+    border-radius:8px;padding:12px;font-size:12px;color:#cfd4dc;margin:10px 0 0;
+    max-height:260px;overflow:auto;user-select:all}
+b.hl{color:#e0c48a}
 </style></head><body><div class="wrap">
 <h1>Remove the demo data from your planner</h1>
-<p class="sub">This page only touches data stored by
-<b>ultimateplanner2026.github.io</b> &mdash; the same place your planner keeps it.</p>
+<p class="sub">Five branches that a bad build planted between 26 September and 4 October.</p>
 
 <div class="box warn">
-<b>What happened.</b> Between <b>26 September and 4 October</b> your planner was
-serving a build that carried the practice copy's demo seeder. It planted invented
-items &mdash; <i>Riverside Clinic</i>, <i>Maple Street house</i>, <i>Harborview LLC</i>
-and others &mdash; into your own saved data. The build you are on now cannot plant
-anything; these are the leftovers.
+<b>Why the last page did nothing &mdash; measured, not guessed.</b><br><br>
+Your planner syncs through Firebase. Deleting from this page only touched the copy in
+this browser, and the next sync merged the cloud copy straight back. The removal has to
+happen <b>inside the planner itself</b>, so it is saved and synced like any edit you make.
+<br><br>
+It also missed <b>Family</b>: the list of demo branches was built with a pattern that
+required a space in the name, so the one-word branch was never on it.
 </div>
 
 <div class="box">
-<b>Step 1 &mdash; see what it found.</b> Nothing is changed by this.<br><br>
-<button id="scan">Show me what is demo data</button>
-<pre id="out">Press the button above.</pre>
+<b>What will be removed</b> &mdash; these five top-level branches and everything inside
+them, plus the demo habits and routines:
+<ol>
+<li>Riverside Clinic</li><li>Maple Street house</li><li>Harborview LLC</li><li>Family</li><li>Study - MSc</li>
+</ol>
+<p class="sub" style="margin:10px 0 0">Anything you created is kept &mdash; including
+your own tasks that sit <i>inside</i> one of these, which are moved up rather than
+deleted. A branch of yours that happens to share a name with something further down the
+demo tree (Kitchen, Garden, Admin) is not touched: only these five exact top-level names
+are matched.</p>
 </div>
 
 <div class="box">
-<b>Step 2 &mdash; remove it.</b> Only the items listed above are removed. Anything you
-created is kept, including your own tasks that sit <i>inside</i> a demo branch &mdash;
-those are moved up rather than deleted. A full backup is saved first, under
-<code>planner.data.BACKUP-before-demo-clean</code>.<br><br>
-<button id="go" class="go" disabled>Remove the demo data</button>
-<pre id="res"></pre>
+<b>How to run it</b>
+<ol>
+<li>Open your planner: <code>https://ultimateplanner2026.github.io/planner/</code></li>
+<li>Wait for it to finish loading and signing in.</li>
+<li>Open the browser console &mdash; on a Mac, <b class="hl">Option + Command + J</b> in
+Chrome, or <b class="hl">Option + Command + C</b> in Safari after enabling the Develop
+menu.</li>
+<li>Copy everything in the box below and paste it at the console prompt, then press
+Enter.</li>
+<li>It prints what it found and removed, saves, and the page refreshes itself.</li>
+</ol>
+<pre id="snippet"></pre>
 </div>
 </div>
 <script>
-
-
-(function () {
-  // Lists the caller substitutes in. Empty here so the tool is a no-op until they do.
-  var DEMO_IDS = ["family~habits", "family~routines", "fb1", "fb2", "harborview_llc~habits", "harborview_llc~routines", "hb_read", "hb_screens", "hb_stretch", "hb_walk", "maple_street_house~habits", "maple_street_house~routines", "riverside_clinic~habits", "riverside_clinic~routines", "rt_bins", "rt_books", "rt_reset", "rt_review", "study_-_msc~habits", "study_-_msc~routines"];
-  var DEMO_TITLES = ["Riverside Clinic", "Patient intake", "Call back Mrs Alvarez", "Chase referral for J. Okafor", "File insurance for 14 Sep batch", "Service the autoclave", "Order gloves and swabs", "Rota for October", "Interview - practice nurse", "Sign off Dani timesheet", "Open-up checklist", "Stock count", "Wash hands log", "Maple Street house", "Measure for the island", "Pick tile - three samples", "Call the electrician back", "Cut back the hedge", "Plant the bulbs", "Renew the buildings cover", "Boiler service booking", "Bins out", "Water the plants", "Tidy 15 minutes", "Harborview LLC", "Q4 planning", "Draft the budget", "Board pack - send Friday", "Forecast vs actuals", "Renewal call - Fenwick", "Proposal for Castellan", "Invoice March - chase", "Expenses to accounts", "Renew the domain", "Weekly numbers", "Invoice run", "Monday reset", "Friday review", "Month-end books", "Inbox to zero", "Parents evening", "Swimming kit - new goggles", "Football - away match", "Sunday lunch at Mum\\", "Book the half-term cottage", "Sunday call with Mum", "Read with Noor", "Morning stretch", "Read 20 pages", "Walk 8k steps", "No screens after 10", "Study - MSc", "Module 3", "Read chapters 7-9", "Problem set due", "Seminar - statistics", "Pick a supervisor", "Literature list - first pass", "Weekly reading block", "Clinic admin", "Deep work"];
-
-  function inDemoIds(id) {
-    for (var i = 0; i < DEMO_IDS.length; i++) {
-      if (DEMO_IDS[i] === id) return true;
-    }
-    return false;
-  }
-
-  function trimmed(s) {
-    if (typeof s !== 'string') return '';
-    return s.replace(/^\s+|\s+$/g, '');
-  }
-
-  function titleMatchesDemo(t) {
-    var tt = trimmed(t);
-    if (!tt) return false;
-    for (var i = 0; i < DEMO_TITLES.length; i++) {
-      if (DEMO_TITLES[i] === tt) return true;
-    }
-    return false;
-  }
-
-  function isDemoNode(node) {
-    if (!node) return false;
-    if (inDemoIds(node.id)) return true;
-    if (titleMatchesDemo(node.title)) return true;
-    return false;
-  }
-
-  function isDemoListItem(item) {
-    if (!item) return false;
-    if (inDemoIds(item.id)) return true;
-    if (titleMatchesDemo(item.name)) return true;
-    return false;
-  }
-
-  // Walk the tree and record every demo node plus any user-owned children
-  // that live directly under a demo parent.
-  function discover(nodes, foundTree, keptChildren) {
-    if (!nodes) return;
-    for (var i = 0; i < nodes.length; i++) {
-      var node = nodes[i];
-      if (!node) continue;
-      if (isDemoNode(node)) {
-        foundTree.push({ id: node.id, title: node.title });
-        if (node.children && node.children.length) {
-          // Direct non-demo children of a demo node are user data - report them.
-          for (var c = 0; c < node.children.length; c++) {
-            var child = node.children[c];
-            if (child && !isDemoNode(child)) {
-              keptChildren.push({ id: child.id, title: child.title });
-            }
-          }
-          // Still recurse so demos nested deeper inside this demo's subtree are found.
-          discover(node.children, foundTree, keptChildren);
-        }
-      } else {
-        // Not a demo, but it may contain demo descendants - recurse to find them.
-        if (node.children && node.children.length) {
-          discover(node.children, foundTree, keptChildren);
-        }
-      }
-    }
-  }
-
-  // Rebuild the tree stripping every demo node; user children of a dropped demo
-  // are spliced up to that demo's parent (or to the root if the demo was top-level).
-  function rebuildTree(nodes) {
-    var out = [];
-    if (!nodes) return out;
-    for (var i = 0; i < nodes.length; i++) {
-      var node = nodes[i];
-      if (!node) continue;
-      if (isDemoNode(node)) {
-        // Clean children first so any nested demos under this demo are also stripped.
-        var cleaned = [];
-        if (node.children && node.children.length) {
-          cleaned = rebuildTree(node.children);
-        }
-        // Splice the surviving children up to this node's parent.
-        for (var k = 0; k < cleaned.length; k++) {
-          out.push(cleaned[k]);
-        }
-        // The demo node itself is dropped.
-      } else {
-        if (node.children && node.children.length) {
-          node.children = rebuildTree(node.children);
-        }
-        out.push(node);
-      }
-    }
-    return out;
-  }
-
-  function scanList(list) {
-    var hits = [];
-    if (!list) return hits;
-    for (var i = 0; i < list.length; i++) {
-      var item = list[i];
-      if (!item) continue;
-      if (isDemoListItem(item)) {
-        hits.push({ id: item.id, name: item.name });
-      }
-    }
-    return hits;
-  }
-
-  function filterList(list) {
-    var out = [];
-    if (!list) return out;
-    for (var i = 0; i < list.length; i++) {
-      var item = list[i];
-      if (!item) continue;
-      if (!isDemoListItem(item)) {
-        out.push(item);
-      }
-    }
-    return out;
-  }
-
-  window.__findDemo = function (opts) {
-    opts = opts || {};
-    var raw;
-    try {
-      raw = localStorage.getItem('planner.data.v1');
-    } catch (e) {
-      return { error: 'localStorage read failed' };
-    }
-    if (raw === null || raw === undefined) {
-      return { error: 'missing planner.data.v1' };
-    }
-    var data;
-    try {
-      data = JSON.parse(raw);
-    } catch (e) {
-      return { error: 'unparseable planner.data.v1' };
-    }
-    if (!data || typeof data !== 'object') data = {};
-    if (!Array.isArray(data.tree)) data.tree = [];
-    if (!Array.isArray(data.habits)) data.habits = [];
-    if (!Array.isArray(data.routines)) data.routines = [];
-
-    var foundTree = [];
-    var keptChildren = [];
-    discover(data.tree, foundTree, keptChildren);
-    var foundHabits = scanList(data.habits);
-    var foundRoutines = scanList(data.routines);
-
-    var result = {
-      found: {
-        tree: foundTree,
-        habits: foundHabits,
-        routines: foundRoutines
-      },
-      keptChildren: keptChildren,
-      totalFound: foundTree.length + foundHabits.length + foundRoutines.length,
-      removed: false
-    };
-
-    if (opts.remove === true) {
-      // Write the untouched JSON to a backup key FIRST. If this throws (quota
-      // exceeded, storage disabled, private mode, etc.) we abort before
-      // touching anything so the user's original data is still recoverable.
-      try {
-        localStorage.setItem('planner.data.BACKUP-before-demo-clean', raw);
-      } catch (e) {
-        return { error: 'backup failed' };
-      }
-      // Backup is safe; it is now OK to mutate and overwrite the live key.
-      data.tree = rebuildTree(data.tree);
-      data.habits = filterList(data.habits);
-      data.routines = filterList(data.routines);
-      try {
-        localStorage.setItem('planner.data.v1', JSON.stringify(data));
-      } catch (e) {
-        return { error: 'save failed' };
-      }
-      result.removed = true;
-    }
-
-    return result;
-  };
-})();
-
-(function(){
-  var out=document.getElementById('out'), res=document.getElementById('res');
-  function render(r){
-    if(!r){ return 'No answer - is this the right site?'; }
-    if(r.error){ return 'Could not read your planner data: '+r.error; }
-    var L=[], f=r.found||{};
-    function add(t,a,k){ if(!a||!a.length) return;
-      L.push(t+' ('+a.length+'):');
-      for(var i=0;i<a.length;i++) L.push('   - '+(a[i][k]||a[i].id)); }
-    add('Demo tasks/branches', f.tree, 'title');
-    add('Demo habits', f.habits, 'name');
-    add('Demo routines', f.routines, 'name');
-    if(r.keptChildren && r.keptChildren.length){
-      L.push('');
-      L.push('YOUR items found inside a demo branch - these are KEPT:');
-      for(var j=0;j<r.keptChildren.length;j++)
-        L.push('   + '+(r.keptChildren[j].title||r.keptChildren[j].id));
-    }
-    if(!L.length) L.push('Nothing found. Your planner has no demo data left.');
-    return L.join('\n');
-  }
-  document.getElementById('scan').addEventListener('click', function(){
-    var r = window.__findDemo();
-    out.textContent = render(r);
-    document.getElementById('go').disabled = !(r && r.totalFound > 0);
-  });
-  document.getElementById('go').addEventListener('click', function(){
-    var r = window.__findDemo({remove:true});
-    if(r && r.error){ res.textContent = 'Nothing was removed: '+r.error; return; }
-    res.textContent = 'Removed '+(r.totalFound||0)+' demo items. A backup was saved '
-      + 'first. Open your planner and refresh.';
-    document.getElementById('go').disabled = true;
-  });
-})();
+var TOPS = ["Riverside Clinic", "Maple Street house", "Harborview LLC", "Family", "Study - MSc"];
+var NAMES = ["Morning stretch", "Read 20 pages", "Walk 8k steps", "No screens after 10", "Monday reset", "Friday review", "Bins out", "Month-end books", "Clinic admin", "Deep work"];
+var IDS = ["riverside_clinic~routines", "riverside_clinic~habits", "maple_street_house~routines", "rt_bins", "maple_street_house~habits", "harborview_llc~routines", "rt_reset", "rt_review", "rt_books", "harborview_llc~habits", "family~routines", "family~habits", "hb_stretch", "hb_read", "hb_walk", "hb_screens", "study_-_msc~routines", "study_-_msc~habits", "fb1", "fb2"];
+var code = [
+"(function(){",
+"  var TOPS=" + JSON.stringify(TOPS) + ";",
+"  var NAMES=" + JSON.stringify(NAMES) + ";",
+"  var IDS=" + JSON.stringify(IDS) + ";",
+"  if(!window.Store||!window.Store.data){console.log('Open this in the planner tab.');return;}",
+"  var d=window.Store.data, kept=[], removed=[];",
+"  try{localStorage.setItem('planner.data.BACKUP-before-demo-clean',JSON.stringify(d));}",
+"  catch(e){console.log('Backup failed - nothing removed.');return;}",
+"  var tree=d.tree||[], out=[];",
+"  for(var i=0;i<tree.length;i++){",
+"    var n=tree[i];",
+"    if(n && TOPS.indexOf(String(n.title||'').trim())>=0){",
+"      removed.push(n.title);",
+"      var ch=n.children||[];",
+"      for(var j=0;j<ch.length;j++){",
+"        /* a task YOU made inside a demo branch is yours - keep it */",
+"        if(IDS.indexOf(ch[j].id)<0 && String(ch[j].id||'').charAt(0)!=='x'){",
+"          kept.push(ch[j].title); out.push(ch[j]);",
+"        }",
+"      }",
+"    } else { out.push(n); }",
+"  }",
+"  d.tree=out;",
+"  function strip(a){ if(!a) return a; var r=[];",
+"    for(var k=0;k<a.length;k++){",
+"      var e=a[k];",
+"      if(IDS.indexOf(e.id)>=0 || NAMES.indexOf(String(e.name||'').trim())>=0) continue;",
+"      r.push(e); } return r; }",
+"  d.habits=strip(d.habits); d.routines=strip(d.routines);",
+"  window.Store.save();",
+"  console.log('Removed branches:', removed);",
+"  console.log('Kept your items that were inside them:', kept);",
+"  console.log('Backup saved as planner.data.BACKUP-before-demo-clean');",
+"  setTimeout(function(){location.reload();},1200);",
+"})();"
+].join('\n');
+document.getElementById('snippet').textContent = code;
 </script></body></html>
