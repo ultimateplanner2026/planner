@@ -6405,7 +6405,7 @@ body[data-newbranch="1"] #treeFilters{
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-10-05 19:23 DEMO</span>
+    <span id="buildStamp">build 2026-10-05 23:57 DEMO</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -6435,7 +6435,7 @@ body[data-newbranch="1"] #treeFilters{
   <main id="main">
     <aside id="treePane">
       <div class="tree-toolbar">
-        <input id="treeSearch" type="search" placeholder="Search priorities" title="Search the priority tree" autocomplete="off" spellcheck="false">
+        <input id="treeSearch" type="search" placeholder="Search" title="Search the priority tree" autocomplete="off" spellcheck="false">
         <button id="btnAddGoal" type="button" title="New branch">
           <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
           <span>New branch</span>
@@ -32067,7 +32067,7 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
     }
     wrap.className = picked.length ? 'ps-wrap on' : 'ps-wrap';
     // 44px of stub: any word would be truncated, so let the caret speak
-    input.placeholder = picked.length ? '' : 'Search priorities';
+    input.placeholder = picked.length ? '' : 'Search';
   }
 
   function setCls(el, cls, on) {
@@ -38461,6 +38461,222 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
   color: #cfe0ff; font-weight: 600;
 }
 .fb-alarm button:hover { background: rgba(77,139,255,.34); }
+
+/* ================================================ 2026-10-04 TOOLBAR
+   Operator: "always showing the boxes symmetrically... whenever I condense it the
+   setting sign is barely not showing, also the today and whatever is in it is not
+   showing correctly, and the search priority box is way too big, it should be
+   smaller, and it should stay Search instead of Search priorities."
+
+   MEASURED across seven widths before changing anything:
+     window 1100 -> search 239px      window 900 -> search 678px
+     window 760  -> search 538px      window 430 -> search 208px
+   The search input carried `flex: 1 1 auto; max-width: none`, so it absorbed every
+   spare pixel in the row and pushed the rest to the edge. At 760 the Today button
+   was already truncated to "Today ..." and the gear's right edge sat 8px from the
+   pane edge at EVERY width - which is the "barely not showing".
+
+   The fix gives the row a fixed order and fixed-size controls, and lets the SEARCH
+   box be the only thing that gives way - but with a ceiling, so it can never take
+   the row over again. */
+.tree-toolbar {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  flex-wrap: nowrap !important;
+  padding: 8px 10px !important;
+  box-sizing: border-box !important;
+}
+/* the search box: shrinks first, never grows past a sensible reading width */
+.tree-toolbar #treeSearch {
+  flex: 1 1 auto !important;
+  width: auto !important;
+  min-width: 72px !important;
+  max-width: 220px !important;   /* was none - this is the whole bug */
+  height: 30px !important;
+  box-sizing: border-box !important;
+}
+/* every other control keeps its size, so nothing is squeezed or clipped */
+/* MEASURED: the button's own text is "Today \00B7 Oct 4" but the button was fixed at
+   66px wide with text-overflow:ellipsis, so it always rendered as "Today ...". It
+   now sizes to its content - that is the whole of the "today is not showing
+   correctly" report. */
+.tree-toolbar #btnToday {
+  flex: 0 0 auto !important;
+  width: auto !important;
+  min-width: max-content !important;
+  max-width: none !important;
+  white-space: nowrap !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  padding-left: 10px !important;
+  padding-right: 10px !important;
+}
+/* and the group that holds the arrows must not clip it either */
+.tree-toolbar #treeDateGroup {
+  flex: 0 0 auto !important;
+  width: auto !important;
+  min-width: max-content !important;
+  overflow: visible !important;
+}
+.tree-toolbar #btnAddGoal { flex: 0 0 auto !important; }
+.tree-toolbar #treeGear   { flex: 0 0 auto !important; margin-right: 2px !important; }
+/* the gear sat 8px from the pane edge at every width; the row's own padding now
+   holds it clear, and nothing may overflow the pane */
+.tree-toolbar > * { min-width: 0 !important; }
+
+/* 2026-10-04: 66px was a deliberate squeeze, written when the row overlapped
+   itself in a 293px pane. MEASURED now: the label is "Today \00B7 Oct 4", which needs
+   91px, so at EVERY width it rendered as "Today ..." - including on a 1400px screen
+   with 200px of empty row beside it. The squeeze is kept for genuinely narrow
+   panes, where it earns its place, and released above that. */
+.tree-toolbar .tree-datenav #btnToday{
+  width:66px !important; min-width:66px !important; max-width:66px !important;
+  overflow:hidden !important; text-overflow:ellipsis !important;
+}
+@media (min-width: 560px) {
+  .tree-toolbar .tree-datenav #btnToday{
+    width:auto !important; min-width:0 !important; max-width:none !important;
+    overflow:visible !important; text-overflow:clip !important;
+    padding-left:10px !important; padding-right:10px !important;
+  }
+}
+/* 2026-10-04, operator: "the search priority box is way too big, it should be
+   smaller". MEASURED: `.ps-wrap` had `flex:1 1 40px; max-width:none`, so the search
+   wrapper absorbed every spare pixel - 678px at a 900px window. It now takes only
+   what it needs, up to a readable ceiling, and the spare width simply stays empty
+   so the row keeps its shape as the pane is resized. */
+.tree-toolbar .ps-wrap{
+  flex:0 1 220px !important; min-width:40px !important; max-width:220px !important;
+}
+
+
+/* ============================================================== 2026-10-05
+   THE FOCUS ALERT SITS IN THE MIDDLE OF THE CALENDAR, NOT THE WINDOW.
+
+   Operator: "the current now is the best actually, but can you put in the middle
+   of the calendar."
+
+   MEASURED on their layout before changing anything:
+     window centre   x = 1050
+     calendar centre x = 1398     (the day view starts at x=696)
+   The alert was pinned to `left: 50%` of the WINDOW, so it sat 348px left of the
+   calendar's middle - over the tree pane's edge and on top of the morning rows.
+
+   The look is unchanged, as they asked. Only the anchor moves: it centres on
+   whichever grid is on screen (day or week), and falls back to the window when
+   neither is - so it can never end up off screen. Re-measured on resize, because a
+   position worked out once is wrong the moment the pane is dragged. */
+.fb-alarm, .rem-banner {
+  left: var(--alarm-cx, 50%) !important;
+  /* 2026-10-05, operator: "now it needs to be lower."
+     MEASURED: having fixed the horizontal centring I left the vertical at the old
+     `top: 18%`, so the box sat at y=288 while the calendar's own centre is y=627 -
+     339px too high, still up by the date header. Both axes now come from the same
+     measurement of the calendar. */
+  top: var(--alarm-cy, 18%) !important;
+  transform: translate(-50%, -50%) !important;
+  /* MEASURED at 390px: max-width computed to 370 correctly but `width` was pinned to
+     420px by an earlier !important rule, so the box never shrank and ran 15px off
+     the left edge. Both have to be overridden, not just max-width. */
+  /* MEASURED: `width: min(420px, calc(100vw - 20px))` WON the cascade (confirmed by
+     reading the rule back) yet computed to 420px anyway - the min() was not applied
+     against an element already given an explicit width elsewhere. So state it the
+     plain way instead: auto width with a hard ceiling, which the box-model honours
+     without any function. */
+  /* MEASURED, after three wrong guesses: the box carries `min-width: 420px`. A
+     max-width can never shrink an element below its min-width, which is why both
+     `min(420px, 100vw-20px)` and `width:auto` won the cascade and changed nothing.
+     The min-width is what had to move. */
+  /* The look is unchanged on any normal screen: 420px wide, exactly as now.
+     MEASURED: releasing min-width outright shrank it to 312px on desktop too, which
+     is not what was asked for - they said the current look is the best one. So the
+     420 stays, and only a window too narrow to hold it releases the floor. */
+  width: 420px !important;
+  min-width: 420px !important;
+  max-width: calc(100vw - 20px) !important;
+  box-sizing: border-box !important;
+}
+@media (max-width: 460px) {
+  .fb-alarm, .rem-banner {
+    width: auto !important;
+    min-width: 0 !important;
+}
+</style>
+<script>
+(function () {
+  function hostRect() {
+    var sel = ['#dayView', '#weekGrid', '#monthGrid', '#main'];
+    for (var i = 0; i < sel.length; i++) {
+      var e = document.querySelector(sel[i]);
+      if (!e) continue;
+      var r = e.getBoundingClientRect();
+      if (r.width > 60 && r.height > 60) return r;
+    }
+    return null;
+  }
+  function place() {
+    try {
+      var r = hostRect();
+      var cx = r ? Math.round(r.left + r.width / 2) : null;
+      var cy = r ? Math.round(r.top + r.height / 2) : null;
+      /* Keep the box fully on screen.
+         MEASURED 2026-10-05 at 390px: a fixed 220px half-width pushed the box to
+         left:-48 - the clamp assumed the box always fits, and on a phone it does
+         not. Measure the box itself when it exists, and when it is WIDER than the
+         window just centre it there and let its own max-width handle the rest. */
+      if (cx !== null) {
+        var box = document.querySelector('.fb-alarm, .rem-banner');
+        var w = box ? box.getBoundingClientRect().width : 420;
+        var half = Math.round(w / 2) + 8;
+        if (half * 2 >= window.innerWidth) {
+          cx = Math.round(window.innerWidth / 2);
+        } else {
+          if (cx - half < 0) cx = half;
+          if (cx + half > window.innerWidth) cx = window.innerWidth - half;
+        }
+      }
+      /* keep it fully on screen vertically too - the box is ~176px tall */
+      if (cy !== null) {
+        var box2 = document.querySelector('.fb-alarm, .rem-banner');
+        var hh = box2 ? box2.getBoundingClientRect().height : 176;
+        var halfH = Math.round(hh / 2) + 8;
+        if (halfH * 2 >= window.innerHeight) {
+          cy = Math.round(window.innerHeight / 2);
+        } else {
+          if (cy - halfH < 0) cy = halfH;
+          if (cy + halfH > window.innerHeight) cy = window.innerHeight - halfH;
+        }
+      }
+      document.documentElement.style.setProperty(
+        '--alarm-cx', cx === null ? '50%' : (cx + 'px'));
+      document.documentElement.style.setProperty(
+        '--alarm-cy', cy === null ? '50%' : (cy + 'px'));
+    } catch (e) { }
+  }
+  place();
+  window.addEventListener('resize', place);
+  /* the pane can be dragged without a resize event, and the alert can appear at any
+     moment - so re-measure when one shows up rather than trusting a stale number */
+  try {
+    var mo = new MutationObserver(function (recs) {
+      for (var i = 0; i < recs.length; i++) {
+        var a = recs[i].addedNodes;
+        for (var j = 0; j < a.length; j++) {
+          var n = a[j];
+          if (n && n.classList &&
+              (n.classList.contains('fb-alarm') || n.classList.contains('rem-banner'))) {
+            place(); return;
+          }
+        }
+      }
+    });
+    mo.observe(document.body, { childList: true });
+  } catch (e) { }
+  window.__placeAlarm = place;
+})();
+</script>
+<style>
 </style>
 <script>
 (function () {
