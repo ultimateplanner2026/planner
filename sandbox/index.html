@@ -6405,7 +6405,7 @@ body[data-newbranch="1"] #treeFilters{
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-10-07 19:35 DEMO</span>
+    <span id="buildStamp">build 2026-10-07 20:56 DEMO</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -9880,7 +9880,20 @@ window.renderHabits = function () {
          planner.deviceId and planner.timemigrated - so those are STARTUP NOISE and
          prove nothing. The only keys that mean "this browser belongs to an account"
          are the two written when the cloud is actually involved. */
-      var traces = ['planner.cloudBase.v1', 'planner.everSignedIn'];
+      /* 2026-10-07, operator: "on the main planner, it's still showing the demo
+       planner set up when I log into my account."
+
+       MEASURED on the live build in a clean browser: the tree came back
+       ['Set up my planner'] with planner.seeded=1, while BOTH sign-in traces were
+       still null. So on a NEW device the seed fires before Firebase has answered,
+       and the starter tasks are then merged into an established account - which is
+       exactly the failure the comment above says was already reported three times.
+
+       The traces below are still right, they are just not available YET. So the seed
+       now WAITS instead of guessing: it holds for a moment, and if an account turns
+       up in that window it stands down for good. A new user sees their starter
+       tasks a heartbeat later; an existing user never sees them at all. */
+    var traces = ['planner.cloudBase.v1', 'planner.everSignedIn'];
       var t;
       for (t = 0; t < traces.length; t++) {
         if (localStorage.getItem(traces[t]) != null) return;   /* used before - never seed */
@@ -9956,9 +9969,53 @@ window.renderHabits = function () {
          Firebase has either restored the session (and the guards see it) or there
          genuinely is no account. A brand-new browser still gets its demo, just a
          moment later; an established account never does. */
-      setTimeout(function () {
-        try { seedFirstRun(); } catch (e) { }
-      }, 2500);
+      /* 2026-10-07 - A FIXED DELAY IS STILL A RACE, and they reported it again:
+         "on the main planner, it's still showing the demo planner set up when I log
+         into my account."
+
+         MEASURED on the live build: a clean browser came back with the tree
+         ['Set up my planner'] while BOTH sign-in traces were still null. 2.5s is
+         enough on this machine and not enough on a cold start or a slow link, and no
+         number is right for every case - which is why this has now been reported a
+         fourth time.
+
+         So it stops guessing a duration and WAITS FOR THE ANSWER: Firebase's
+         onAuthStateChanged fires exactly once it knows, signed in or not. The seed
+         runs only when that has happened and said "nobody". An account appearing at
+         any point cancels it for good, and a long backstop covers Firebase never
+         loading at all. */
+      (function () {
+        var done = false;
+        function sawAccount() {
+          try {
+            if (localStorage.getItem('planner.cloudBase.v1') != null) return true;
+            if (localStorage.getItem('planner.everSignedIn') != null) return true;
+            var k;
+            for (k in window.localStorage) {
+              if (typeof k === 'string' && k.indexOf('firebase:authUser:') === 0) return true;
+            }
+          } catch (e) { }
+          return false;
+        }
+        function seedNow() {
+          if (done) return;
+          done = true;
+          if (sawAccount()) return;          /* re-check at the last moment */
+          try { seedFirstRun(); } catch (e) { }
+        }
+        if (sawAccount()) { done = true; return; }
+        try {
+          if (window.firebase && firebase.auth) {
+            firebase.auth().onAuthStateChanged(function (user) {
+              if (user || sawAccount()) { done = true; return; }
+              seedNow();                      /* auth resolved: genuinely nobody */
+            });
+            setTimeout(seedNow, 12000);       /* Firebase loaded but never answered */
+            return;
+          }
+        } catch (e) { }
+        setTimeout(seedNow, 2500);            /* no Firebase at all - nothing to await */
+      })();
 
       // Render FIRST, synchronously. The cloud must never be able to keep the
       // page blank, and it must never reset the view after the user has begun
@@ -23345,7 +23402,56 @@ if (r.freq === 'yearly') {
         }
       });
       eBox.appendChild(eLab); eBox.appendChild(eBtn);
-      dates.appendChild(sBox); dates.appendChild(eBox);
+
+    /* 2026-10-07, operator: "maybe put a button where the red button [is], don't
+       keep showing up, maybe work on the button name." Then, on the wording:
+       "instead of keep showing it, toggle, switch on/off called (show next day if
+       missed)."
+
+       They are right that it is a TOGGLE, not a two-state button, and the planner
+       already has that pattern: 'Show routines & habits' and 'Show future branches'
+       are a label with a tick when on. This is built the same way, so it reads as
+       one of the app's switches rather than a new invention.
+
+       On the words: they offered "Show next day if missed" and chose "Show again if
+       missed" when I pointed out the first promises a schedule the behaviour does
+       not keep - a missed one reappears on TODAY whenever the planner is opened, so
+       after three days away you see it once on your return, not three times.
+       "Again" is true in every case; "next day" is only true in one. */
+    var kBox = document.createElement('div');
+    kBox.className = 'rep-date rep-toggle';
+    var kLab = document.createElement('div');
+    kLab.className = 'rep-sub';
+    kLab.textContent = 'If missed:';
+    var kBtn = document.createElement('button');
+    kBtn.type = 'button';
+    kBtn.className = 'rep-datebtn rep-switch';
+    function kOn() { return r.rollOver !== false; }
+    function kPaint() {
+      kBtn.textContent = '';
+      var t = document.createElement('span');
+      t.textContent = 'Show again';
+      kBtn.appendChild(t);
+      if (kOn()) {
+        var ck = document.createElement('span');
+        ck.className = 'gearcheck rep-check';
+        ck.textContent = '\u2713';
+        kBtn.appendChild(ck);
+      }
+      kBtn.setAttribute('aria-pressed', kOn() ? 'true' : 'false');
+      kBtn.title = kOn()
+        ? 'On - if you miss one it shows again until you tick it off.'
+        : 'Off - a missed one is simply skipped. Use this for days off and fixtures.';
+    }
+    kPaint();
+    kBtn.addEventListener('click', function (e) {
+      e.preventDefault();
+      if (kOn()) r.rollOver = false; else delete r.rollOver;  /* on is the default */
+      draw();
+    });
+    kBox.appendChild(kLab);
+    kBox.appendChild(kBtn);
+      dates.appendChild(sBox); dates.appendChild(eBox); dates.appendChild(kBox);
       body.appendChild(dates);
 
       refresh();
@@ -24205,6 +24311,17 @@ if (r.freq === 'yearly') {
        smeared across every day in between, so one missed week is one row and not
        seven. */
     if (!node || !node.repeat || !node.repeat.freq) return false;
+
+    /* 2026-10-07, operator: "the OFF activity routine is my schedule off - I don't
+       want it to repeat each day until it's done."
+
+       THE DESIGN ERROR WAS MINE. The roll-over I built chased EVERY unfinished
+       repeating item with no way to opt out, so a scheduled day off followed them
+       around like an overdue task. They chose a per-item switch, left ON so nothing
+       they already rely on changes, and turned off for items like OFF !!.
+       `rollOver === false` means "this one is a fixture, not a chore". */
+    if (node.repeat.rollOver === false) return false;
+
     if (!window.todayISO || iso !== window.todayISO()) return false;
     var today = ord(iso);
     if (isNaN(today)) return false;
@@ -24226,6 +24343,13 @@ if (r.freq === 'yearly') {
       if (!base.call(this, node, probe)) continue;
       /* this is the most recent occurrence before today - it decides, alone */
       if (done[probe]) return false;            /* it was done - nothing to roll */
+      /* 2026-10-07, operator: "it's showing twice right now" - and they chose
+         "stop when the next one is due".
+         MEASURED: a missed OFF !! drew TWO .tgchip elements on the same day - the
+         roll-over copy AND the occurrence the rule itself matched. An unfinished one
+         is REPLACED by the next, never stacked beside it, so a day can never show
+         the same item twice. */
+      if (base.call(this, node, iso)) return false;   /* today IS an occurrence */
       if (moves[probe]) return false;           /* already moved somewhere explicit */
       node.__rolledFrom = probe;                /* so the row can say so */
       return true;
@@ -25512,22 +25636,36 @@ nesting to 20 levels, so the whole tree is serialised rather than stored as nest
        So rather than guess earlier, this cleans up after: the moment a real planner
        arrives from the cloud, the demo goal is removed. It cannot be fooled by
        timing, because it runs when the evidence actually exists. */
+    /* 2026-10-07: it also scrubs the INCOMING cloud copy. Measured: with the demo
+       already stored in the cloud from an earlier bad sync, cleaning only the local
+       tree left the merge free to fold it straight back in - tree came back as
+       ['Set up my planner', 'My own goal'] on every sign-in, on every device. That
+       is why clearing it by hand never stuck. */
+    function __isDemoNode(n) {
+      return !!(n && (n.__demo === true ||
+                      (n.title === 'Set up my planner' &&
+                       (n.children || []).length === 3)));
+    }
+    function __stripDemo(list) {
+      var kept = [], dropped = 0, i;
+      for (i = 0; i < (list || []).length; i++) {
+        if (__isDemoNode(list[i])) { dropped++; continue; }
+        kept.push(list[i]);
+      }
+      return { kept: kept, dropped: dropped };
+    }
     window.__dropDemoIfReal = function (incoming) {
       try {
         if (!incoming || !Array.isArray(incoming.tree) || !incoming.tree.length) return;
+        /* the cloud copy first - if it still carries the demo, every device that
+           merges it gets the demo back */
+        var inc = __stripDemo(incoming.tree);
+        if (inc.dropped) incoming.tree = inc.kept;
         var mine = (window.Store && window.Store.data && window.Store.data.tree) || [];
         if (!mine.length) return;
-        var kept = [], dropped = 0, i;
-        for (i = 0; i < mine.length; i++) {
-          var n = mine[i];
-          var isDemo = n && (n.__demo === true ||
-                             (n.title === 'Set up my planner' &&
-                              (n.children || []).length === 3));
-          if (isDemo) { dropped++; continue; }
-          kept.push(n);
-        }
-        if (dropped) {
-          window.Store.data.tree = kept;
+        var res = __stripDemo(mine);
+        if (res.dropped) {
+          window.Store.data.tree = res.kept;
           try { window.Store.save(); } catch (e) {}
           if (window.renderAll) window.renderAll();
         }
@@ -25758,9 +25896,16 @@ nesting to 20 levels, so the whole tree is serialised rather than stored as nest
           return false;
         }
         if (!hasReal(remote)) {
-      if (window.__dropDemoIfReal) window.__dropDemoIfReal(remote);
           return push().then(function () { return true; });
         }
+        /* 2026-10-07: THIS CALL WAS DEAD. It sat inside the !hasReal(remote) branch
+           above, but __dropDemoIfReal does nothing unless `incoming` has a non-empty
+           tree - so on that branch it could never fire, and the demo goal survived
+           into the real account every time the cloud DID hold a real planner.
+           Measured: the cleanup removes the goal correctly when called; it simply was
+           never called here. Moved to just before the merge, deliberately mirroring
+           the live-update handler below - do not "de-duplicate" these two. */
+        if (window.__dropDemoIfReal) window.__dropDemoIfReal(remote);
         /* 2026-09-13: ALWAYS merge. This used to replace the local copy wholesale whenever
            hasReal() said it was empty - and hasReal() could not see notes, so a device
            holding the operator's writing and no tasks had it destroyed by the next pull.
@@ -38677,7 +38822,21 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
 })();
 </script>
 <style>
+
+/* The repeat toggle, 2026-10-07. Built to match the planner's own switches - a label
+   with a tick when on, the same #a8c7de tick the gear menu uses - so it reads as one
+   of the app's settings rather than a new kind of control. Off is deliberately quiet:
+   the label dims and the tick is gone, which is how you can tell at a glance. */
+.rep-datebtn.rep-switch {
+  display: inline-flex; align-items: center; gap: 10px;
+  white-space: nowrap;
+}
+.rep-datebtn.rep-switch .rep-check {
+  margin-left: 0; color: #a8c7de; font-weight: 600;
+}
+.rep-datebtn.rep-switch[aria-pressed="false"] { opacity: .62; }
 </style>
+
 <script>
 (function () {
   if (window.__loginGateInstalled) return;
