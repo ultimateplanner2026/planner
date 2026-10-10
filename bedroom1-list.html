@@ -10,4 +10,38 @@ $('nav').replaceChildren();products.forEach((p,i)=>{const b=document.createEleme
 function download(content,name,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([content],{type}));a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);}
 $('export').onclick=()=>download(JSON.stringify({project:'150 Eastbrook Ln',room:'Bedroom 1',exportedAt:new Date().toISOString(),products:products.map(p=>({id:p.id,name:p.name,sku:p.sku,variant:p.variant,shoppingStatus:p.shoppingStatus,status:reviews[p.id]?.status||'Not reviewed',notes:reviews[p.id]?.notes||'',renderCorrection:p.notes,url:p.url}))},null,2),'bedroom1-review-decisions.json','application/json');$('saveHtml').onclick=()=>{const clone=document.documentElement.cloneNode(true);clone.querySelector('#savedReview').textContent=JSON.stringify(reviews).replace(/</g,'\\u003c');download('<!doctype html>\n'+clone.outerHTML,'Bedroom-1-reviewed.html','text/html');};
 $('mainPhoto').onclick=()=>{$('zoomPhoto').src=products[index].images[angle].data;$('zoom').showModal();};$('closeZoom').onclick=()=>$('zoom').close();$('summaryToggle').onclick=()=>{$('summary').hidden=!$('summary').hidden;$('summary').replaceChildren();products.forEach(p=>{const row=document.createElement('p');row.textContent=p.label+': '+(reviews[p.id]?.status||'Not reviewed')+' — '+(reviews[p.id]?.notes||'No notes');$('summary').append(row);});};render();
+
+<hr>
+<h2 id="bedroom2">Bedroom 2 &mdash; LOCKED LAYOUT</h2>
+<p><em>150 Eastbrook Ln &middot; Room Size: <strong>13&prime;9&Prime; (W) &times; 15&prime;4&Prime; (L)</strong> &middot; layout locked, do not change unless instructed</em></p>
+
+<figure style="margin:1rem 0">
+  <!--BEDROOM2_IMAGE-->
+  <div id="b2-img-placeholder" style="border:1px dashed #bbb;padding:2rem;text-align:center;color:#777;background:#fafafa">
+    Bedroom 2 layout image &mdash; pending save to disk
+  </div>
+  <figcaption style="font-size:.9rem;color:#666">Locked Bedroom 2 layout with labelled doors, windows, closet and furniture dimensions.</figcaption>
+</figure>
+
+<h3>Locked architecture</h3>
+<table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse">
+<tr><th align="left">Element</th><th align="left">Dimension / position</th></tr>
+<tr><td>Room size</td><td>13&prime;9&Prime; wide &times; 15&prime;4&Prime; deep</td></tr>
+<tr><td>Door 1</td><td>to hallway &mdash; left wall, front corner</td></tr>
+<tr><td>Door 2</td><td>to bathroom &mdash; left wall, near foreground</td></tr>
+<tr><td>Window 1</td><td>back wall, left of bed</td></tr>
+<tr><td>Window 2</td><td>right wall</td></tr>
+<tr><td>Closet</td><td>2&prime; (D) &times; 10&prime;4&Prime; (W total) &mdash; foreground wall</td></tr>
+</table>
+
+<h3>Locked furniture footprint</h3>
+<table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse">
+<tr><th align="left">Item</th><th align="left">Size</th><th align="left">Placement</th></tr>
+<tr><td>Queen bed</td><td>64&Prime; &times; 85&Prime; overall with frame</td><td>centered on back wall</td></tr>
+<tr><td>Nightstand &times;2</td><td>20&Prime; &times; 18&Prime; each</td><td>flanking the bed</td></tr>
+<tr><td>Dresser</td><td>48&Prime; &times; 16&Prime;</td><td>left wall, under mirror</td></tr>
+<tr><td>Rug</td><td>8&prime; &times; 10&prime;</td><td>under bed, extending to foot</td></tr>
+</table>
+
+<p style="color:#666;font-size:.92rem">Products for Bedroom 2 not yet selected. Layout is locked and stays as shown unless the operator says otherwise.</p>
 </script></body></html>
