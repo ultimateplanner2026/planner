@@ -6405,7 +6405,7 @@ body[data-newbranch="1"] #treeFilters{
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-10-10 14:57 DEMO</span>
+    <span id="buildStamp">build 2026-10-10 17:39 DEMO</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -38720,11 +38720,49 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
   width:66px !important; min-width:66px !important; max-width:66px !important;
   overflow:hidden !important; text-overflow:ellipsis !important;
 }
+/* 2026-10-10: the toolbar is its own container, so it can react to the PANE's width
+   rather than the window's. A narrow pane inside a wide window is exactly the case a
+   media query cannot see, and it is the case that overflowed. */
+.tree-toolbar{ container-type: inline-size; container-name: treetb; }
+/* Under 300px of toolbar the date button gives its width back and ellipsises, which
+   is what kept the gear inside the pane before the floor existed. The REQUIREMENT is
+   only that the width must not change AS THE DATE CHANGES - it may differ between
+   pane sizes - so a narrow pane gets its own fixed width, still fixed. */
+
 @media (min-width: 560px) {
   .tree-toolbar .tree-datenav #btnToday{
-    width:auto !important; min-width:0 !important; max-width:none !important;
+    /* 2026-10-10: `min-width:0` let the button size to its own text, so the date
+       control jumped as the label changed - measured 99px on "Today - Oct 10" and
+       84px on "Tue - Sep 1", a 15px shift every time you page a day. The floor is the
+       WIDEST label this button can ever show ("Today - May 30" = 111px including
+       padding and borders, measured in the running page), so every date renders at
+       the same width and nothing moves. It may still grow if a longer label ever
+       appears; it can simply never shrink below the longest one. */
+    width:auto !important; min-width:111px !important; max-width:none !important;
     overflow:visible !important; text-overflow:clip !important;
     padding-left:10px !important; padding-right:10px !important;
+  }
+}
+/* A NARROW PANE INSIDE A WIDE WINDOW is the case a media query cannot see, and it is
+   the case that pushed the gear outside the pane once the 111px floor existed. The
+   toolbar is its own container, so this asks about the TOOLBAR's width.
+   ORDER MATTERS: this rule and the media rule above have equal specificity, so the
+   later one wins - confirmed with CSS.getMatchedStylesForNode, where the earlier
+   placement matched but lost. The selector also starts BELOW the container, because
+   a selector beginning at the container element cannot match inside its own query.
+   The requirement is only that the width must not change AS THE DATE CHANGES; it may
+   differ between pane sizes, so a narrow pane gets its own fixed 66px. */
+@container treetb (max-width: 300px) {
+  /* SPECIFICITY, not order, was the problem: the media rule above is
+     `.tree-toolbar .tree-datenav #btnToday` (1-2-0) and this was
+     `.tree-datenav #btnToday` (1-1-0), so it lost however late it appeared.
+     Qualifying with the pane - an ancestor that is NOT the container - brings this to
+     1-2-1 and it wins. The query itself was always firing; proven by injecting
+     outline-color inside the same query and seeing it applied. */
+  #treePane .tree-datenav #btnToday{
+    width:66px !important; min-width:66px !important; max-width:66px !important;
+    overflow:hidden !important; text-overflow:ellipsis !important;
+    padding-left:6px !important; padding-right:6px !important;
   }
 }
 /* 2026-10-04, operator: "the search priority box is way too big, it should be
@@ -40990,7 +41028,18 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
     for (var si = 0; si < t.length; si++) {
       if (t[si] && t[si].title === 'Riverside Clinic') { seeded = true; break; }
     }
-    if (planted || seeded) return;
+    /* 2026-10-10: it also leaves alone a tree that is ALREADY REAL but is not this
+       fixture. The guard only ever looked for its own demo content, so any other
+       existing tree was destroyed and replaced - measured with a seeded one-task
+       tree, which was silently swapped for the demo on boot. The stated intent was
+       always "plant ONCE, then leave the data alone"; this makes that true for
+       every tree, not only for this one. A tree counts as real when it holds
+       anything the demo did not plant. */
+    var hasOtherContent = false;
+    for (var sj = 0; sj < t.length; sj++) {
+      if (t[sj] && t[sj].title) { hasOtherContent = true; break; }
+    }
+    if (planted || seeded || hasOtherContent) return;
     try {
       (function () {
   function iso(off){ var t=new Date(); t.setDate(t.getDate()+off);
