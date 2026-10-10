@@ -6405,7 +6405,7 @@ body[data-newbranch="1"] #treeFilters{
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-10-07 20:56 DEMO</span>
+    <span id="buildStamp">build 2026-10-10 14:57 DEMO</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -24320,9 +24320,28 @@ if (r.freq === 'yearly') {
        around like an overdue task. They chose a per-item switch, left ON so nothing
        they already rely on changes, and turned off for items like OFF !!.
        `rollOver === false` means "this one is a fixture, not a chore". */
-    if (node.repeat.rollOver === false) return false;
+    /* 2026-10-10: clear the marker on every path that does NOT roll. It was only ever
+       SET, never cleared, so after a roll stopped - switch turned off, occurrence
+       ticked - the stale value stayed on the node and the row could still claim it had
+       rolled from a date it no longer rolls from. */
+    if (node.repeat.rollOver === false) { delete node.__rolledFrom; return false; }
 
-    if (!window.todayISO || iso !== window.todayISO()) return false;
+    /* 2026-10-10, operator: "the title of this task is weekly on Saturday open up
+       checklist, and when I move the calendar to the next day it's not catching up."
+
+       MEASURED on their case: with the switch ON, a Saturday occurrence missed on
+       3 Oct showed on 10 Oct and NOWHERE else - 11 Oct onwards came back empty.
+       The line removed here read `iso !== todayISO()`, so a missed item only ever
+       appeared on the real current date; moving the calendar one day forward hid it.
+       That also made the switch look dead: today happened to BE a Saturday, so the
+       task was showing for the ordinary weekly reason, and turning the switch off
+       changed nothing visible.
+
+       They chose: with the switch ON it shows EVERY day until ticked, future days
+       included; with it OFF none of this runs (handled by the rollOver===false line
+       above). So the look-back now runs from the day being ASKED about rather than
+       from today, and the three existing exits still stop it - the occurrence was
+       ticked, it was moved, or this day is itself a real occurrence. */
     var today = ord(iso);
     if (isNaN(today)) return false;
     var done = node.repeatDone || {};
@@ -24335,14 +24354,36 @@ if (r.freq === 'yearly') {
        completed item kept rolling over forever. Only the MOST RECENT occurrence can
        roll: if that one is done or was moved, there is nothing outstanding and the
        search stops there rather than reaching further back. */
-    for (back = 1; back <= 60; back++) {
+    /* 2026-10-10: the cap was 60 days, which is fine for a daily or weekly repeat but
+       SILENTLY WRONG for a yearly one - measured: a yearly task whose last occurrence
+       was ~278 days ago never rolled over at all, because the search gave up long
+       before reaching it. The cap has to outlast the repeat's own period, so it is
+       now sized to the rule: 400 days covers a yearly repeat plus slack, and the loop
+       still stops at the FIRST prior occurrence it finds, so the extra range costs
+       nothing in the ordinary weekly case. */
+    var LOOKBACK = (node.repeat.freq === 'yearly') ? 400
+                 : (node.repeat.freq === 'monthly') ? 120
+                 : 60;
+    for (back = 1; back <= LOOKBACK; back++) {
       var d = new Date((today - back) * 86400000);
       probe = d.getUTCFullYear() + '-' +
               ('0' + (d.getUTCMonth() + 1)).slice(-2) + '-' +
               ('0' + d.getUTCDate()).slice(-2);
       if (!base.call(this, node, probe)) continue;
-      /* this is the most recent occurrence before today - it decides, alone */
-      if (done[probe]) return false;            /* it was done - nothing to roll */
+      /* this is the most recent occurrence before `iso` - it decides, alone */
+      /* 2026-10-10, operator: "every day until the next occurrence, which will be the
+         same thing, then the next occurrence will be the new occurrence."
+         A FUTURE occurrence has not been missed - it has not happened yet - so it must
+         never roll forward. Without this, each future Saturday counted as outstanding
+         and rolled into the days after it, and the task appeared on EVERY day forever
+         (measured: 16 of 16 days). Only an occurrence due on or before today can roll;
+         the next one then takes over as the current one, so there is always exactly
+         one. */
+      if (!window.todayISO || ord(probe) > ord(window.todayISO())) {
+        delete node.__rolledFrom;
+        return false;
+      }
+      if (done[probe]) { delete node.__rolledFrom; return false; }  /* done - nothing to roll */
       /* 2026-10-07, operator: "it's showing twice right now" - and they chose
          "stop when the next one is due".
          MEASURED: a missed OFF !! drew TWO .tgchip elements on the same day - the
