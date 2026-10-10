@@ -6405,7 +6405,7 @@ body[data-newbranch="1"] #treeFilters{
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-10-10 17:39 DEMO</span>
+    <span id="buildStamp">build 2026-10-10 18:50 DEMO</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -24342,6 +24342,17 @@ if (r.freq === 'yearly') {
        above). So the look-back now runs from the day being ASKED about rather than
        from today, and the three existing exits still stop it - the occurrence was
        ticked, it was moved, or this day is itself a real occurrence. */
+    /* 2026-10-10, operator: "it shows up every day, but the day didn't pass - it
+       should only show if the day passed and it wasn't completed."
+       A roll-over is a CATCH-UP, so it only ever paints on a day that has actually
+       arrived. Guarding the occurrence alone was not enough: a missed Saturday still
+       rolled onto next Tuesday and Wednesday, because those days asked and the
+       occurrence behind them was in the past. Measured: 7 future days showing it.
+       Future days now show only what is genuinely scheduled. */
+    if (!window.todayISO || ord(iso) > ord(window.todayISO())) {
+      delete node.__rolledFrom;
+      return false;
+    }
     var today = ord(iso);
     if (isNaN(today)) return false;
     var done = node.repeatDone || {};
