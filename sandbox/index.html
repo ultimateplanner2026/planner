@@ -2598,9 +2598,13 @@ aside#treePane { overflow-y: auto; }
   min-width:274px; }
 .datepop-quick { display:flex; gap:8px; margin-bottom:16px; padding-bottom:14px;
   border-bottom:1px solid #3a4049; }
+/* 2026-10-11, operator: "I want the Today and Tomorrow to look like this", pointing
+   at the Repeat list. Those rows are plain sentence case at 12px with a soft corner -
+   these were shouting in UPPERCASE with wide letter-spacing, which is why they read as
+   a different kind of control. Same fill and border as before; only the type changes. */
 .datepop-quick button { flex:1 1 auto; background:#343a43; border:1px solid #3a4049;
-  color:#e9ecf1; border-radius:9px; padding:9px 10px; font-size:11.5px; cursor:pointer;
-  font-family:inherit; letter-spacing:.06em; text-transform:uppercase; }
+  color:#e9ecf1; border-radius:8px; padding:7px 10px; font-size:12px; cursor:pointer;
+  font-family:inherit; letter-spacing:normal; text-transform:none; }
 .datepop-quick button:hover { background:#3f4650; }
 .datepop-head { color:#e9ecf1 !important; font-weight:700 !important; font-size:14px !important;
   margin-bottom:10px !important; }
@@ -3521,10 +3525,11 @@ button.al-add {
   display: flex; gap: 8px; margin-bottom: 2px;
 }
 .al-pop-wide .dp-quick-shared button {
+  /* 2026-10-11: same family as the Today / Tomorrow pills - kept in step with them. */
   flex: 1 1 0; background: #343a43; border: 1px solid #3a4049;
-  color: #e9ecf1; border-radius: 9px; padding: 9px 10px; font-size: 11.5px;
-  cursor: pointer; font-family: inherit; letter-spacing: .06em;
-  text-transform: uppercase;
+  color: #e9ecf1; border-radius: 8px; padding: 7px 10px; font-size: 12px;
+  cursor: pointer; font-family: inherit; letter-spacing: normal;
+  text-transform: none;
 }
 .al-pop-wide .dp-quick-shared button:hover { background: #3f4650; }
 /* 2026-09-26, operator: "this month and next month must be in one layout, no
@@ -5262,12 +5267,14 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
   background: #343a43 !important;
   border: 1px solid #3a4049 !important;
   color: #e9ecf1 !important;
-  border-radius: 9px !important;
-  padding: 9px 10px !important;
-  font-size: 11.5px !important;
+  /* 2026-10-11: copied from `.datepop-quick button`, as the comment above says - so
+     when those pills dropped UPPERCASE and moved to 12px, these moved with them. */
+  border-radius: 8px !important;
+  padding: 7px 10px !important;
+  font-size: 12px !important;
   flex: 1 1 auto;
-  cursor: pointer; font-family: inherit; letter-spacing: .06em;
-  text-transform: uppercase; text-align: center; min-width: 0;
+  cursor: pointer; font-family: inherit; letter-spacing: normal;
+  text-transform: none; text-align: center; min-width: 0;
 }
 .datepop .datepop-timeinput:hover,
 .datepop .datepop-timeclear:hover { background: #3f4650 !important; }
@@ -5304,12 +5311,16 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
    is mine to finish: it was the one control still painted from the older
    var(--surface) palette, which is what made the popup look like two designs. */
 .datepop .datepop-foot { justify-content: center !important; border-top: 1px solid #3a4049; }
+/* 2026-10-11: these three (Time / No time / Clear) are deliberately identical to the
+   Today / Tomorrow pills - a check in the suite asserts it, so the two rows cannot
+   drift apart. When those pills dropped UPPERCASE and moved to 12px, these had to
+   move with them or the row would read as two different kinds of control. */
 .datepop .datepop-foot button {
   flex: 0 0 auto !important; min-width: 128px;
   background: #343a43 !important; border: 1px solid #3a4049 !important;
-  color: #e9ecf1 !important; border-radius: 9px !important;
-  padding: 9px 10px !important; font-size: 11.5px !important;
-  letter-spacing: .06em; text-transform: uppercase; height: auto !important;
+  color: #e9ecf1 !important; border-radius: 8px !important;
+  padding: 7px 10px !important; font-size: 12px !important;
+  letter-spacing: normal; text-transform: none; height: auto !important;
 }
 .datepop .datepop-foot button:hover { background: #3f4650 !important; }
 
@@ -6437,7 +6448,7 @@ body[data-newbranch="1"] #treeFilters{
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-10-11 15:33 DEMO</span>
+    <span id="buildStamp">build 2026-10-11 17:37 DEMO</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -12597,7 +12608,49 @@ function surfaceArrivals() {
     }
 
     draw();
-    close = window.showModal('Reschedule', host, [{ label: 'Cancel' }]);
+    /* 2026-10-11, operator: "as soon as I click reschedule, it makes a Reschedule
+       popup on top of calendar, remove that, it's not supposed to be there."
+       The calendar was being wrapped in a dialog with a title bar and a Cancel
+       button, which sat above the month and had nothing to do. The month is the
+       whole interface: press a day to set it, press anywhere else to dismiss.
+       It now opens as a bare panel, anchored under whatever was pressed. */
+    document.body.appendChild(host);
+    host.style.setProperty('position', 'fixed', 'important');
+    host.style.setProperty('z-index', '2147483647', 'important');
+
+    function placeHost() {
+      var a = window.__lastPressedRect ||
+              (window.__lastPressed && window.__lastPressed.isConnected
+                 ? window.__lastPressed.getBoundingClientRect() : null);
+      var r = host.getBoundingClientRect();
+      if (!r.width) return;
+      var left = a ? a.left : Math.round((window.innerWidth - r.width) / 2);
+      var top  = a ? a.bottom + 6 : 80;
+      if (left + r.width > window.innerWidth - 8) left = window.innerWidth - 8 - r.width;
+      if (left < 8) left = 8;
+      var room = window.innerHeight - 8 - top;
+      if (r.height > room) {
+        host.style.setProperty('max-height', Math.max(200, room) + 'px', 'important');
+        host.style.setProperty('overflow-y', 'auto', 'important');
+      }
+      if (top < 8) top = 8;
+      host.style.setProperty('left', Math.round(left) + 'px', 'important');
+      host.style.setProperty('top', Math.round(top) + 'px', 'important');
+    }
+    placeHost();
+    if (window.requestAnimationFrame) requestAnimationFrame(placeHost);
+
+    close = function () {
+      if (host.parentNode) host.parentNode.removeChild(host);
+      document.removeEventListener('mousedown', onAway, true);
+    };
+    function onAway(e) {
+      if (host.contains(e.target)) return;
+      close();
+    }
+    setTimeout(function () {
+      document.addEventListener('mousedown', onAway, true);
+    }, 0);
   };
 
   window.allUsedTags = function () {
@@ -30616,11 +30669,35 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
     var panelH = realR.height || tpR.height || 0;
     /* it must open UNDER the control. If it will not fit below, cap its height and
        let it scroll rather than jumping above the thing that was pressed. */
-    var room = vpH - 8 - (top - pxY);
+    /* 2026-10-11, operator: "the popup comes out of the box when the Monthly dropbox
+       is at bottom of the edit - it must be within the edit layout."
+       A list opened from inside the Edit window is bounded by that WINDOW, not by the
+       screen. Measured with the dialog scrolled to its end, the list ran past the
+       dialog's own bottom edge and sat on the page behind it. When the control lives
+       in a dialog, the dialog's bottom is the limit; everywhere else the viewport
+       still is. */
+    var bound = vpH;
+    var ownerDlg = (selectEl.closest && selectEl.closest('.modal')) || null;
+    if (ownerDlg) {
+      var dr = ownerDlg.getBoundingClientRect();
+      if (dr.height) bound = Math.min(vpH, dr.bottom);
+    }
+    var room = bound - 8 - (top - pxY);
     if (panelH > room) {
-      tp.style.maxHeight = Math.max(120, room) + 'px';
+      /* 2026-10-11: the floor used to be a flat 120px, so a short dialog still got a
+         120px list hanging past its bottom - measured 71px over. Inside a dialog the
+         list never exceeds the room it has; it scrolls instead. Outside one, the 120px
+         floor stays, because a list clamped to nothing on an open page is useless. */
+      var minH = ownerDlg ? Math.max(48, room) : Math.max(120, room);
+      tp.style.maxHeight = minH + 'px';
       tp.style.overflowY = 'auto';
-      panelH = Math.max(120, room);
+      panelH = minH;
+    }
+    /* and if it STILL reaches past the dialog - a list opened near the very bottom -
+       lift it so its foot rests on the dialog's edge rather than outside it. */
+    if (ownerDlg && (top - pxY) + panelH > bound - 8) {
+      var lifted = bound - 8 - panelH;
+      if (lifted >= 8) top = lifted + pxY;
     }
     var maxLeft = vpW - 8 - panelW + pxX;
     if (left > maxLeft) left = maxLeft;
