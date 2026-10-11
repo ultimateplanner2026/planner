@@ -2791,7 +2791,15 @@ aside#treePane { overflow-y: auto; }
 .tagpick-row input { accent-color: var(--accent); margin: 0; }
 .tagpick-new { text-align: left !important; padding: 8px 12px;
   background: var(--surface-2) !important; border-radius: 8px; }
-.datepop-inline { width: 100%; box-shadow: none; border: none; padding: 0; }
+/* 2026-10-10, operator: "the calendar is showing long and it doesn't work".
+   MEASURED: this picker reported width 2100px - the entire window - with day cells
+   1044px across, because `width:100%` with no constraining parent means the viewport.
+   A ceiling is added so it can never exceed the dialog it belongs to, whatever it is
+   mounted into. `.datepop` already carries min-width:274px, so it stays inside the
+   range the app's other pickers use, and NOTHING about how it looks changes - same
+   header, same day cells, same selected day. Only the width. */
+.datepop-inline { width: 100%; max-width: 420px; margin: 0 auto;
+  box-shadow: none; border: none; padding: 0; }
 
 /* Tree view switcher: Active / Completed / Deleted */
 #treeViews {
@@ -4976,9 +4984,22 @@ input:focus, textarea:focus, select:focus {
   cursor: pointer; font-size: 12px; }
 .rep-start:hover { background: #2b2f38; }
 .rep-n { width: 58px; }
+/* 2026-10-10: `.rep-freq` is pulled OUT of this shared rule below, so the frequency
+   dropdown can lose its browser arrow without touching `Every 2 / weeks`. These three
+   previously shared one declaration, which is how an earlier attempt restyled a row
+   the operator wanted kept. */
 .rep-freq, .rep-unit, .rep-n {
   background: var(--s-elevated, #2f343e); color: var(--t-1, #e8eaed);
   border: 1px solid var(--line, #333844); border-radius: 6px; padding: 5px 8px; font-size: 12px;
+}
+/* the frequency dropdown only: no browser arrow, one quiet grey chevron drawn by the
+   app, so it matches the dark rows above it. .rep-unit and .rep-n are NOT included. */
+.rep-freq {
+  appearance: none !important; -webkit-appearance: none !important;
+  padding-right: 26px !important;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6'><path d='M0 0l5 6 5-6z' fill='%239aa0a8'/></svg>") !important;
+  background-repeat: no-repeat !important;
+  background-position: right 9px center !important;
 }
 .rep-days { display: flex; flex-wrap: wrap; gap: 5px; }
 .rep-day {
@@ -6405,7 +6426,7 @@ body[data-newbranch="1"] #treeFilters{
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-10-10 18:50 DEMO</span>
+    <span id="buildStamp">build 2026-10-10 21:24 DEMO</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -30591,7 +30612,15 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
       }
       n = n.parentNode;
     }
-    if (!hitModal || !hasEa) return;
+    /* 2026-10-10, operator: the Repeat frequency dropdown was the only control in the
+       Edit window that opened a raw browser list, in system blue and yellow, while
+       every row beside it is dark. It sits in the modal but not inside `.ea`, so this
+       gate skipped it. It is named explicitly here rather than loosening the gate for
+       every select in the dialog - and ONLY this one: the `Every 2 / weeks` controls
+       (.rep-n, .rep-unit) are deliberately untouched, because the operator said that
+       row was already good. */
+    var isRepeatFreq = sel.classList && sel.classList.contains('rep-freq');
+    if (!hitModal || (!hasEa && !isRepeatFreq)) return;
 
     e.preventDefault();
     e.stopPropagation();
