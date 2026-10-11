@@ -6426,7 +6426,7 @@ body[data-newbranch="1"] #treeFilters{
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-10-10 22:47 DEMO</span>
+    <span id="buildStamp">build 2026-10-10 23:46 DEMO</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -12518,7 +12518,12 @@ function surfaceArrivals() {
             if (!f2 || !f2.node) return;
             f2.node.date = window.isoOf(dd);
             window.Store.save();
+            /* 2026-10-10: close() removes the backdrop but leaves THIS panel behind -
+               measured after a press: backdrops 0, datepops 1 - so the calendar stayed
+               on screen with nothing behind it and the button looked dead. Take the
+               panel out ourselves as well, whichever way it was mounted. */
             if (close) close();
+            if (host && host.parentNode) host.parentNode.removeChild(host);
             window.renderAll();
           });
           return b;
