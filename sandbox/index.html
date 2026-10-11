@@ -6437,7 +6437,7 @@ body[data-newbranch="1"] #treeFilters{
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-10-11 00:30 DEMO</span>
+    <span id="buildStamp">build 2026-10-11 15:33 DEMO</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -39923,7 +39923,23 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
                       '.tree-datechip, .alc-body, .fb-timerstep, .fb-timerbtn, ' +
                       '.lf-field, .tgevent, .tgchip, .mchip, input[data-dp2], ' +
                       '.ea-row button');
-    if (c) window.__lastPressed = c;
+    if (c) {
+      window.__lastPressed = c;
+      /* 2026-10-11: keep the RECTANGLE too. A menu item is removed from the page
+         before the pop-up it opens appears - closeMenus() runs first - so by the time
+         anchorRect() looks, `isConnected` is false and it returns null, and place()
+         centres the panel instead of hanging it under what was pressed. Measured on
+         Reschedule: the month landed 163px right and 106px below the word. The
+         rectangle is captured here, while the element is still live. */
+      try {
+        var __r = c.getBoundingClientRect();
+        if (__r.width || __r.height) {
+          window.__lastPressedRect = { left: __r.left, top: __r.top,
+                                       right: __r.right, bottom: __r.bottom,
+                                       width: __r.width, height: __r.height };
+        }
+      } catch (e) { window.__lastPressedRect = null; }
+    }
   }
   document.addEventListener('pointerdown', remember, true);
   document.addEventListener('mousedown', remember, true);
@@ -39951,8 +39967,16 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
     /* the control the operator just pressed. Recorded on any real pointer press,
        so it is the thing they actually touched - not a guess from the DOM. */
     var a = window.__lastPressed;
-    if (!a || !a.isConnected) return null;
+    if (!a) return null;
     if (el.contains && el.contains(a)) return null;   /* never anchor to itself */
+    if (!a.isConnected) {
+      /* 2026-10-11: the control has been removed - a menu item that closed its own
+         menu before opening this panel. Its position was recorded on the press, so
+         the panel can still open exactly where it was pressed instead of falling
+         through to being centred. */
+      var kept = window.__lastPressedRect;
+      return (kept && (kept.width || kept.height)) ? kept : null;
+    }
     var r = a.getBoundingClientRect();
     if (!r.width && !r.height) return null;
     return r;
@@ -39964,7 +39988,10 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
        document.body, so the element's own ancestry is not enough. */
     if (el.closest && el.closest('.modal')) return true;
     var a = window.__lastPressed;
-    if (a && a.closest && a.closest('.modal')) return true;
+    /* 2026-10-11: only a control still ON THE PAGE can say which window this belongs
+       to. A removed menu item answers from wherever it used to live, which sent the
+       Reschedule calendar down the centring path. */
+    if (a && a.isConnected && a.closest && a.closest('.modal')) return true;
     return false;
   }
 
