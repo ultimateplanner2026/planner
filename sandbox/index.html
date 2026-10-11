@@ -6099,6 +6099,17 @@ html:root #treeRoot .tree-row:not([data-depth="0"]){ height:32px !important; min
 .tp2-col.tp2-col-wide{ min-width:44px !important; width:44px !important }
 .tp2-cols .tp2-list{ max-height:170px !important; min-width:44px }
 .tp2 .tp2-opt{ font-size:13px }
+/* 2026-10-10, operator: "actually this is okay, bring it back to that colour scheme,
+   but make it smaller". SAME colours - #343a43 rows, #a8c7de for the chosen one, same
+   panel - only the size comes down: 13px to 12px, 34px rows to 26px. Scoped to
+   .tp2-selectlist so the time-picker columns, which share .tp2-opt, keep their size. */
+.tp2-selectlist .tp2-opt{
+  font-size:12px !important; height:26px !important; min-height:26px !important;
+  border-radius:6px !important;
+}
+.tp2-selectlist .tp2-lab{ font-size:11px !important; padding:0 3px 4px !important; }
+.tp2-selectlist{ padding:6px !important; }
+.tp2-selectlist .tp2-list{ gap:3px !important; }
 
 /* --- Reminder: one line, with the + on the right --- */
 .modal .ea .ea-row .al-wrap{
@@ -6426,7 +6437,7 @@ body[data-newbranch="1"] #treeFilters{
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-10-10 23:46 DEMO</span>
+    <span id="buildStamp">build 2026-10-11 00:30 DEMO</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -18912,7 +18923,16 @@ function firstConnect(remote, rAt, lAt) {
     var pw = pop.getBoundingClientRect().width || 200;
     if (left + pw > window.innerWidth - 8) left = Math.max(8, window.innerWidth - pw - 8);
     var ph = pop.getBoundingClientRect().height || 220;
-    if (top + ph > window.innerHeight - 8) top = Math.max(8, r.top - ph - 4);
+    /* 2026-10-10, operator: "double check everything in the edit button that the
+       button clicked its popup is right under it". MEASURED: this flip put the
+       Duration popup 91px ABOVE its own field. It now stays under the control and
+       caps its height instead, so it scrolls rather than jumping somewhere else. */
+    var room = window.innerHeight - 8 - top;
+    if (ph > room) {
+      pop.style.maxHeight = Math.max(140, room) + 'px';
+      pop.style.overflowY = 'auto';
+    }
+    if (top < 8) top = 8;
     pop.style.left = Math.round(left) + 'px';
     pop.style.top = Math.round(top) + 'px';
 
@@ -30506,7 +30526,10 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
     closePicker();
 
     var tp = document.createElement('div');
-    tp.className = 'tp2';
+    /* 2026-10-10: a marker of its own, so this list can be sized without touching the
+       time-picker columns that share `.tp2-opt`. Colours are deliberately unchanged -
+       the operator kept the existing scheme and asked only for a smaller size. */
+    tp.className = 'tp2 tp2-selectlist';
 
     var lab = document.createElement('div');
     lab.className = 'tp2-lab';
@@ -39891,9 +39914,15 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
        of hanging it under the control - measured, the Repeat frequency list opened
        183px right and 515px above its own field. A select is exactly the kind of
        control a list should open beneath. */
-    var c = t.closest('button, [role="button"], select, .actbtn, .tree-datechip, ' +
-                      '.alc-body, .fb-timerstep, .fb-timerbtn, .lf-field, ' +
-                      '.tgevent, .tgchip, .mchip, input[data-dp2], .ea-row button');
+    /* 2026-10-10: `.ea-row input` added alongside `select`. The Duration field is an
+       input, so it was not recorded, and its list fell back to being centred in the
+       dialog - measured 222px left and 221px above its own field, while Priority and
+       Colour/Area (both selects) anchored correctly at +0/+6. Every control in the
+       Edit dialog that opens a list should anchor the same way. */
+    var c = t.closest('button, [role="button"], select, .ea-row input, .actbtn, ' +
+                      '.tree-datechip, .alc-body, .fb-timerstep, .fb-timerbtn, ' +
+                      '.lf-field, .tgevent, .tgchip, .mchip, input[data-dp2], ' +
+                      '.ea-row button');
     if (c) window.__lastPressed = c;
   }
   document.addEventListener('pointerdown', remember, true);
