@@ -6426,7 +6426,7 @@ body[data-newbranch="1"] #treeFilters{
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-10-10 21:24 DEMO</span>
+    <span id="buildStamp">build 2026-10-10 22:47 DEMO</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -30552,33 +30552,52 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
     var pxY = window.pageYOffset;
     /* 2026-09-03: right-align to the field, same as the time and duration panels. Left-aligning
        pushed a 150px panel 9px past the dialog's right edge. */
-    var left = r.right + pxX - (tp.offsetWidth || tpR.width || 150);
+    /* 2026-10-10, operator: "the dropdown needs to be exactly starting where the
+       clicking of the Periodically would be". MEASURED on the Repeat frequency
+       dropdown: right-aligning opened the list 183px to the RIGHT of the control, and
+       the flip-above clamp then threw it 515px UP - so it appeared nowhere near what
+       was pressed. It now starts at the control's LEFT edge, directly under it. The
+       on-screen clamps below are untouched, so a list near an edge still gets pulled
+       back into view. */
+    var left = r.left + pxX;
     var top = r.bottom + pxY + 6;
 
     if (left + tpR.width > vpW - 8 + pxX) {
       left = vpW - 8 - tpR.width + pxX;
       if (left < 8 + pxX) left = 8 + pxX;
     }
-    if (top + tpR.height > vpH - 8 + pxY) {
-      var above = r.top + pxY - tpR.height - 6;
-      if (above >= 8 + pxY) {
-        top = above;
-      } else {
-        top = 8 + pxY;
-      }
-    }
+    /* 2026-10-10: the "flip above" branch is GONE. It moved the list above the control
+       whenever it would not fit below - measured 515px above the field - so it opened
+       nowhere near what was pressed. It now always opens directly under the control;
+       if there is not enough room the block below caps its height and lets it scroll.
+       Operator: "it must be right under the Periodically word." */
     /* 2026-09-26: measured the Text style list opening at bottom 920 in a 917px
        window - 3px off the screen. The clamp above moves it ABOVE the field when
        it would overflow, but if it does not fit above either it fell back to
        top=8 without re-checking the bottom. A panel taller than the window must
        still start on screen AND be clamped at the bottom. Same for the left edge,
        which had no guard at all. */
-    var maxTop = vpH - 8 - tpR.height + pxY;
-    if (top > maxTop) top = maxTop;
-    if (top < 8 + pxY) top = 8 + pxY;
-    var maxLeft = vpW - 8 - tpR.width + pxX;
+    /* 2026-10-10: MEASURE THE PANEL AFTER IT IS IN THE PAGE, not before. `tpR` was
+       taken before the panel was laid out, so these clamps ran on stale numbers and
+       threw a correctly-placed list 183px right and 515px up - the control sat at
+       left 793, this code computed 793, and the panel still rendered at 975/157.
+       Re-reading the box here makes the clamps act on the real size, so the list
+       stays directly under the control it was opened from. */
+    var realR = tp.getBoundingClientRect();
+    var panelW = realR.width || tpR.width || 150;
+    var panelH = realR.height || tpR.height || 0;
+    /* it must open UNDER the control. If it will not fit below, cap its height and
+       let it scroll rather than jumping above the thing that was pressed. */
+    var room = vpH - 8 - (top - pxY);
+    if (panelH > room) {
+      tp.style.maxHeight = Math.max(120, room) + 'px';
+      tp.style.overflowY = 'auto';
+      panelH = Math.max(120, room);
+    }
+    var maxLeft = vpW - 8 - panelW + pxX;
     if (left > maxLeft) left = maxLeft;
     if (left < 8 + pxX) left = 8 + pxX;
+    if (top < 8 + pxY) top = 8 + pxY;
 
     tp.style.left = left + 'px';
     tp.style.top = top + 'px';
@@ -30866,6 +30885,13 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
     /* BOARD 27 CARD 1 - clamp() now only SIZES. It used to place the picker on the
        dialog's right edge while the module above placed it under the field, which
        is the two-owner bug this board fixed. Placing belongs to one function. */
+    /* 2026-10-10: and that two-owner bug was still live for the SELECT list. This
+       centring is for the DATE pickers (.dp2), which are meant to sit in the middle
+       of the dialog. A select list must stay under the control that opened it -
+       measured: openSelectPicker correctly computed left 793 for a control at 793,
+       and this line moved it to 975, eight times over. The select list keeps its own
+       placing; it is still SIZED by the cap above. */
+    if (el.classList && el.classList.contains('tp2')) return;
     if (window.__centreInDialog) window.__centreInDialog(el);
   }
 
@@ -39855,7 +39881,12 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
   function remember(ev) {
     var t = ev.target;
     if (!t || !t.closest) return;
-    var c = t.closest('button, [role="button"], .actbtn, .tree-datechip, ' +
+    /* 2026-10-10: `select` added. Without it, pressing a dropdown recorded no anchor,
+       so anchorRect() returned null and place() centred the list in the dialog instead
+       of hanging it under the control - measured, the Repeat frequency list opened
+       183px right and 515px above its own field. A select is exactly the kind of
+       control a list should open beneath. */
+    var c = t.closest('button, [role="button"], select, .actbtn, .tree-datechip, ' +
                       '.alc-body, .fb-timerstep, .fb-timerbtn, .lf-field, ' +
                       '.tgevent, .tgchip, .mchip, input[data-dp2], .ea-row button');
     if (c) window.__lastPressed = c;
@@ -39920,7 +39951,13 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
 
     var left, top;
 
-    if (!inEditWindow(el)) {
+    /* 2026-10-10: a SELECT LIST always takes the anchored branch, even inside the Edit
+       window. The anchored behaviour below is already what the operator asked for -
+       under the control, flipped or nudged only to stay on screen. The centring path
+       further down is for the DATE pickers in that dialog, and applying it to a select
+       list put the Repeat frequency list 183px right and 515px above its own control
+       (measured: control at left 793, list rendered at 975/157). */
+    if (!inEditWindow(el) || (el.classList && el.classList.contains('tp2'))) {
       /* ======================================================== BOARD 28 CARD 5
          A CALENDAR POP-UP OPENS BESIDE WHAT YOU PRESSED.
          Below the control by preference, above it if there is no room, and
