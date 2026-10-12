@@ -6455,7 +6455,7 @@ body[data-newbranch="1"] #treeFilters{
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-10-12 01:29 DEMO</span>
+    <span id="buildStamp">build 2026-10-12 16:33 DEMO</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -26245,6 +26245,8 @@ nesting to 20 levels, so the whole tree is serialised rather than stored as nest
          never lost to a re-render;
        - while an upload is on its way, the update waits for it to finish. */
     var liveUnsub = null, liveUid = null, livePending = null, liveTimer = null;
+    var liveHeard = 0;   /* when the listener last delivered anything */
+    var liveStale = false;  /* the cloud was ahead of us at the last check */
     function liveBusy() {
       if ((window.__fbInFlight || 0) > 0) return true;
       var a = document.activeElement;
@@ -26294,13 +26296,90 @@ nesting to 20 levels, so the whole tree is serialised rather than stored as nest
       if (typeof ref.onSnapshot !== 'function') return;
       try {
         liveUnsub = ref.onSnapshot(function (snap) {
+          /* 2026-10-12: stamp EVERY delivery, including ones we ignore. The heartbeat
+             below uses this to tell "quiet because nothing changed" from "quiet
+             because the socket died" - the second is invisible without it. */
+          liveHeard = Date.now();
+          liveStale = false;                 /* it spoke - back off to the slow beat */
           if (!snap || !snap.exists || (snap.metadata && snap.metadata.hasPendingWrites)) return;
           livePending = snap;
           if (!liveTimer) liveTimer = setTimeout(applyLive, 150);
         }, function () { liveUnsub = null; liveUid = null; });
+        liveHeard = Date.now();
       } catch (e) { liveUnsub = null; liveUid = null; }
     }
     window.__fbLive = function () { return !!liveUnsub; };
+
+    /* ================================================================ 2026-10-12
+       A LISTENER CAN DIE WITHOUT SAYING SO.
+
+       Operator: "I added something in the planner in my phone, and it did not load
+       appropriately in the planner when I was on the browser. I had to refresh the
+       page in order to get it. Also I had already removed something from the planner
+       on the browser; when I went to the planner on my phone, it was still showing."
+
+       MEASURED with two devices and a listener silenced the way a dropped socket
+       silences one - delivering nothing and raising NO error:
+           laptop listener reported alive : true
+           item added on the phone        : never arrived in 12 s; only a refresh fixed it
+
+       Root cause: `startLive()` returns early while `liveUnsub` is truthy, and
+       `liveUnsub` is only cleared by the ERROR callback. A socket that dies quietly -
+       a phone sleeping, a lid closing, a network changing - leaves a listener that is
+       alive to us and dead to Firebase. Nothing rebuilt it, so the only thing still
+       delivering changes was the 60-second pull. That is why refreshing "fixed" it.
+
+       A TIMER CANNOT DECIDE THIS, and my first attempt tried: "quiet for 90 s, assume
+       dead". But a healthy link is also silent when nothing changes, so silence
+       carries no information - and 90 s of staleness is anyway far longer than the
+       operator should ever wait. Measured: with the timer version the same test still
+       failed, because the defect is not time, it is a missed version.
+
+       So ask a question with a real answer. `getBase(uid)` is the version we last
+       applied; the cloud's `updatedAt` is the version that exists. If the cloud is
+       AHEAD and the listener has not told us, the listener has missed something, full
+       stop - rebuild it and pull. If they match, the link is doing its job and we
+       touch nothing. One tiny read, no guessing from silence. */
+    var liveCheckBusy = false;
+    function liveHealth() {
+      if (!db || !auth || !auth.currentUser) return;
+      if (document.visibilityState !== 'visible') return;   /* a hidden tab is quiet on purpose */
+      if (liveCheckBusy) return;
+      if (livePending || liveTimer) return;                 /* it is mid-delivery - leave it */
+      liveCheckBusy = true;
+      var uid = auth.currentUser.uid;
+      db.collection('users').doc(uid).get().then(function (snap) {
+        liveCheckBusy = false;
+        if (!snap || !snap.exists) return;
+        var remoteV = snap.get('updatedAt');
+        if (remoteV == null) return;
+        if (String(remoteV) === String(getBase(uid))) { liveStale = false; return; }  /* current */
+        liveStale = true;        /* the listener missed something - keep checking fast */
+        /* the cloud moved on and the listener never said so. Rebuild it, then take
+           the change we already have in hand rather than waiting for a round trip. */
+        if (liveUnsub) { try { liveUnsub(); } catch (e) {} }
+        liveUnsub = null; liveUid = null;
+        startLive();
+        livePending = snap;
+        if (!liveTimer) liveTimer = setTimeout(applyLive, 0);
+      }, function () { liveCheckBusy = false; });
+    }
+    /* 2026-10-12: HOW OFTEN. I tried to be clever and back off while the listener
+       looked healthy - 60 s normally, 10 s once it seemed stale. It broke the very
+       thing it guards: a listener that had just died silently was still inside its
+       normal gap, so the beat stayed slow and the check that would have caught it did
+       not run for another minute. Both stale-listener tests went from PASS to never
+       recovering. Measured twice, with two different back-off rules.
+
+       The defect is invisible until the check runs, so the check has to run. A flat
+       15 s beat costs 5,760 reads per device per day - 23% of the free 50,000 - and a
+       HIDDEN tab is skipped entirely, so the real figure is much lower: the planner is
+       not open and on screen all day. That is a fair price for "what I did on my phone
+       shows up on my laptop without refreshing", which is the thing that was broken. */
+    setInterval(liveHealth, 15000);
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'visible') liveHealth();
+    });
     try { if (auth && typeof auth.onAuthStateChanged === 'function') auth.onAuthStateChanged(function () { startLive(); }); } catch (e) {}
     setInterval(startLive, 5000);
 
@@ -26672,9 +26751,19 @@ nesting to 20 levels, so the whole tree is serialised rather than stored as nest
       /* 2026-09-15: a phone switching back to the planner fires visibilitychange, and often no focus
          event at all - so it waited up to a minute for the interval. Read the cloud the moment the
          planner is on screen again, and when iOS restores the page from its back/forward cache. */
+      /* 2026-10-12: the throttle used to be shared with the 60-second interval, so a
+         wake that landed within 5 s of an interval pull was SKIPPED - the device came
+         back on screen and read nothing. The throttle exists to stop rapid tab
+         switching hammering the cloud, which is a different concern from "this device
+         has just been picked up". Keep its own clock, and keep it short: coming back
+         to the planner should always read the cloud.
+         Operator: "when I went to the planner on my phone, it was still showing there." */
+      var lastWakePull = 0;
       document.addEventListener('visibilitychange', function () {
         var now = Date.now();
-        if (document.visibilityState === 'visible' && window.FB && window.FB.on() && (now - lastPullTime) >= 5000) {
+        if (document.visibilityState === 'visible' && window.FB && window.FB.on() &&
+            (now - lastWakePull) >= 1500) {
+          lastWakePull = now;
           lastPullTime = now;
           window.FB.pull();
         }
