@@ -6448,7 +6448,7 @@ body[data-newbranch="1"] #treeFilters{
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-10-11 22:17 DEMO</span>
+    <span id="buildStamp">build 2026-10-11 22:21 DEMO</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -26001,6 +26001,18 @@ nesting to 20 levels, so the whole tree is serialised rather than stored as nest
             if (v[k] === undefined) continue;
             if (depth === 0 && (k === 'updatedAt' || k === 'clock' || k === 'deviceId' || k === 'version' || k === 'build')) continue;
             if (k === 'by' || k === 'clock') continue;
+            /* 2026-10-11: VIEW-ONLY KEYS NEVER COUNT AS A CHANGE. Shipped to the live
+               planner in build 2026-10-11 20:55 and brought back here so the demo and
+               the real planner cannot drift. Measured with the fake cloud: two idle
+               devices each wrote once about 2s after the 60s pull, and the written doc
+               differed ONLY in deviceId and updatedAt - no planner content. The cause
+               was `node.__rolledFrom = probe`, set while RENDERING a missed repeat: it
+               mutates the tree node, so canonSig moved, so the pull's "does this device
+               hold something the cloud does not" test said yes and uploaded. The other
+               device then did the same - a ping-pong on a field that only exists so the
+               row can say "rolled over from Saturday".
+               Proven by bisection: disabling that one assignment took idle writes 1->0. */
+            if (k.indexOf('__') === 0) continue;
             out.push(JSON.stringify(k) + ':' + canon(v[k], depth + 1, k));
           }
           return '{' + out.join(',') + '}';
