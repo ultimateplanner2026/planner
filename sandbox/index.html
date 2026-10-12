@@ -6448,7 +6448,7 @@ body[data-newbranch="1"] #treeFilters{
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-10-11 17:37 DEMO</span>
+    <span id="buildStamp">build 2026-10-11 22:17 DEMO</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -12628,10 +12628,17 @@ function surfaceArrivals() {
       var top  = a ? a.bottom + 6 : 80;
       if (left + r.width > window.innerWidth - 8) left = window.innerWidth - 8 - r.width;
       if (left < 8) left = 8;
+      /* 2026-10-11, operator: "why is the reschedule calendar scrollable, it should be
+         one spot." MEASURED in a 620px window with the word 452px down: only 160px of
+         room below, so the month was capped at 200px and 10 of 31 days were reachable.
+         A month is ONE WHOLE THING. If it will not fit below the word it opens ABOVE
+         at full height; only if it fits in neither does it sit at the top of the
+         screen. It never caps and never scrolls. */
       var room = window.innerHeight - 8 - top;
       if (r.height > room) {
-        host.style.setProperty('max-height', Math.max(200, room) + 'px', 'important');
-        host.style.setProperty('overflow-y', 'auto', 'important');
+        var above = a ? (a.top - 6 - r.height) : -1;
+        if (above >= 8) top = above;
+        else top = Math.max(8, window.innerHeight - 8 - r.height);
       }
       if (top < 8) top = 8;
       host.style.setProperty('left', Math.round(left) + 'px', 'important');
@@ -13146,6 +13153,47 @@ function surfaceArrivals() {
             node.done = want;
           }
           window.Store.save(); window.renderAll(); } },
+      /* 2026-10-11, operator: "add a skip option, it only applies or pops up for
+         routine / habits."
+         It appears ONLY when this node is tracked as a routine or a habit - the
+         planner keeps those in their own lists, each paired with its own day-by-day
+         log, so the menu can tell. An ordinary task's menu is unchanged.
+         They chose: it marks THAT ONE DAY skipped, and a skipped day COUNTS AS MISSED
+         - it breaks the streak, exactly as not doing it would. Skip is the faster way
+         to clear the day without claiming it was done. */
+      (function () {
+        var D = window.Store && window.Store.data;
+        if (!D) return null;
+        var pairs = [['habits', 'habitLog'], ['routines', 'routineLog']];
+        var rec = null, logKey = null, pi, li, list;
+        for (pi = 0; pi < pairs.length && !rec; pi++) {
+          list = D[pairs[pi][0]] || [];
+          for (li = 0; li < list.length; li++) {
+            if (!list[li]) continue;
+            if (list[li].fromTask === node.id || list[li].id === node.id) {
+              rec = list[li]; logKey = pairs[pi][1]; break;
+            }
+          }
+        }
+        if (!rec) return null;                 /* an ordinary task - no Skip */
+        var day = __iso || (window.todayISO ? window.todayISO() : null);
+        if (!day) return null;
+        var skipped = !!(D[logKey] && D[logKey][rec.id] &&
+                         D[logKey][rec.id][day] === 'skip');
+        return {
+          label: skipped ? 'Unskip today' : 'Skip today',
+          run: function () {
+            if (!D[logKey] || typeof D[logKey] !== 'object') D[logKey] = {};
+            if (!D[logKey][rec.id]) D[logKey][rec.id] = {};
+            if (skipped) delete D[logKey][rec.id][day];
+            else D[logKey][rec.id][day] = 'skip';
+            /* a skipped day is NOT done - clear any tick so the two cannot disagree */
+            if (!skipped && node.repeatDone) delete node.repeatDone[day];
+            window.Store.save();
+            if (window.renderAll) window.renderAll();
+          }
+        };
+      })(),
       { sep: true },
       { label: 'Due today', run: function () {
           node.date = window.todayISO(); window.Store.save(); window.renderAll(); } },
@@ -13203,6 +13251,9 @@ function surfaceArrivals() {
     menu.style.left = Math.round(x) + 'px';
     menu.style.top = Math.round(y) + 'px';
     var items = actions(id);
+    /* 2026-10-11: the Skip entry returns null for an ordinary task, so the list can
+       hold a hole. Drop any empty slot before anything reads it. */
+    items = items.filter(function (it) { return !!it; });
 
     /* 2026-09-06. The menu now reads: Edit, the two bare arrows, then everything else.
        'Due today' and 'Due tomorrow' are folded into Reschedule - one line that opens
@@ -25457,8 +25508,14 @@ if (r.freq === 'yearly') {
 (function () {
   /* 2026-09-06: Due today, Due tomorrow and Reschedule... are no longer plain items.
      They are one folding Reschedule row built in openMenu, so they never reach here. */
-  var CAL   = ['Edit', 'Complete', 'Mark not complete', 'Delete'];
+  /* 2026-10-11: these are ALLOW-LISTS - anything not named here is stripped out of
+     the menu. Skip was being built correctly and then removed right here, which is
+     why it never appeared. Both states are listed, because the entry renames itself
+     to Unskip once a day has been skipped. */
+  var CAL   = ['Edit', 'Complete', 'Mark not complete',
+               'Skip today', 'Unskip today', 'Delete'];
   var TREE  = ['Edit', 'Complete', 'Mark not complete',
+               'Skip today', 'Unskip today',
                'Show future tasks', 'Hide future tasks', 'Delete'];
 
   /* The hidden-tasks control used to be ONE item that changed its own label, so you
@@ -30684,20 +30741,26 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
     }
     var room = bound - 8 - (top - pxY);
     if (panelH > room) {
-      /* 2026-10-11: the floor used to be a flat 120px, so a short dialog still got a
-         120px list hanging past its bottom - measured 71px over. Inside a dialog the
-         list never exceeds the room it has; it scrolls instead. Outside one, the 120px
-         floor stays, because a list clamped to nothing on an open page is useless. */
-      var minH = ownerDlg ? Math.max(48, room) : Math.max(120, room);
-      tp.style.maxHeight = minH + 'px';
-      tp.style.overflowY = 'auto';
-      panelH = minH;
-    }
-    /* and if it STILL reaches past the dialog - a list opened near the very bottom -
-       lift it so its foot rests on the dialog's edge rather than outside it. */
-    if (ownerDlg && (top - pxY) + panelH > bound - 8) {
-      var lifted = bound - 8 - panelH;
-      if (lifted >= 8) top = lifted + pxY;
+      /* 2026-10-11, operator: "it's so small, why is it having this happen? It should
+         be the same exact size, just not below." MEASURED with Periodically on the
+         dialog's edge: 45px of room below, 561px above - and the list was squeezed
+         into the 45px, 48px tall, 0 of 6 rows readable, while the space above went
+         unused. A six-row list is ONE WHOLE THING: it keeps its height and opens ABOVE
+         the control. Only when it fits in neither direction does it cap and scroll,
+         which beats running off the screen entirely. */
+      var fullH = panelH;
+      var aboveTop = (r.top + pxY) - fullH - 6;
+      var aboveLimit = ownerDlg
+        ? (ownerDlg.getBoundingClientRect().top + pxY)
+        : (8 + pxY);
+      if (aboveTop >= aboveLimit && aboveTop >= 8 + pxY) {
+        top = aboveTop;                     /* full size, above the control */
+      } else {
+        var minH = Math.max(120, room);
+        tp.style.maxHeight = minH + 'px';
+        tp.style.overflowY = 'auto';
+        panelH = minH;
+      }
     }
     var maxLeft = vpW - 8 - panelW + pxX;
     if (left > maxLeft) left = maxLeft;
