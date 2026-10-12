@@ -2452,9 +2452,13 @@ aside#treePane { overflow-y: auto; }
   min-width:274px; }
 .datepop-quick { display:flex; gap:8px; margin-bottom:16px; padding-bottom:14px;
   border-bottom:1px solid #3a4049; }
+/* 2026-10-11, operator: "I want the Today and Tomorrow to look like this", pointing
+   at the Repeat list. Those rows are plain sentence case at 12px with a soft corner -
+   these were shouting in UPPERCASE with wide letter-spacing, which is why they read as
+   a different kind of control. Same fill and border as before; only the type changes. */
 .datepop-quick button { flex:1 1 auto; background:#343a43; border:1px solid #3a4049;
-  color:#e9ecf1; border-radius:9px; padding:9px 10px; font-size:11.5px; cursor:pointer;
-  font-family:inherit; letter-spacing:.06em; text-transform:uppercase; }
+  color:#e9ecf1; border-radius:8px; padding:7px 10px; font-size:12px; cursor:pointer;
+  font-family:inherit; letter-spacing:normal; text-transform:none; }
 .datepop-quick button:hover { background:#3f4650; }
 .datepop-head { color:#e9ecf1 !important; font-weight:700 !important; font-size:14px !important;
   margin-bottom:10px !important; }
@@ -2645,7 +2649,15 @@ aside#treePane { overflow-y: auto; }
 .tagpick-row input { accent-color: var(--accent); margin: 0; }
 .tagpick-new { text-align: left !important; padding: 8px 12px;
   background: var(--surface-2) !important; border-radius: 8px; }
-.datepop-inline { width: 100%; box-shadow: none; border: none; padding: 0; }
+/* 2026-10-10, operator: "the calendar is showing long and it doesn't work".
+   MEASURED: this picker reported width 2100px - the entire window - with day cells
+   1044px across, because `width:100%` with no constraining parent means the viewport.
+   A ceiling is added so it can never exceed the dialog it belongs to, whatever it is
+   mounted into. `.datepop` already carries min-width:274px, so it stays inside the
+   range the app's other pickers use, and NOTHING about how it looks changes - same
+   header, same day cells, same selected day. Only the width. */
+.datepop-inline { width: 100%; max-width: 420px; margin: 0 auto;
+  box-shadow: none; border: none; padding: 0; }
 
 /* Tree view switcher: Active / Completed / Deleted */
 #treeViews {
@@ -3367,10 +3379,11 @@ button.al-add {
   display: flex; gap: 8px; margin-bottom: 2px;
 }
 .al-pop-wide .dp-quick-shared button {
+  /* 2026-10-11: same family as the Today / Tomorrow pills - kept in step with them. */
   flex: 1 1 0; background: #343a43; border: 1px solid #3a4049;
-  color: #e9ecf1; border-radius: 9px; padding: 9px 10px; font-size: 11.5px;
-  cursor: pointer; font-family: inherit; letter-spacing: .06em;
-  text-transform: uppercase;
+  color: #e9ecf1; border-radius: 8px; padding: 7px 10px; font-size: 12px;
+  cursor: pointer; font-family: inherit; letter-spacing: normal;
+  text-transform: none;
 }
 .al-pop-wide .dp-quick-shared button:hover { background: #3f4650; }
 /* 2026-09-26, operator: "this month and next month must be in one layout, no
@@ -4830,9 +4843,22 @@ input:focus, textarea:focus, select:focus {
   cursor: pointer; font-size: 12px; }
 .rep-start:hover { background: #2b2f38; }
 .rep-n { width: 58px; }
+/* 2026-10-10: `.rep-freq` is pulled OUT of this shared rule below, so the frequency
+   dropdown can lose its browser arrow without touching `Every 2 / weeks`. These three
+   previously shared one declaration, which is how an earlier attempt restyled a row
+   the operator wanted kept. */
 .rep-freq, .rep-unit, .rep-n {
   background: var(--s-elevated, #2f343e); color: var(--t-1, #e8eaed);
   border: 1px solid var(--line, #333844); border-radius: 6px; padding: 5px 8px; font-size: 12px;
+}
+/* the frequency dropdown only: no browser arrow, one quiet grey chevron drawn by the
+   app, so it matches the dark rows above it. .rep-unit and .rep-n are NOT included. */
+.rep-freq {
+  appearance: none !important; -webkit-appearance: none !important;
+  padding-right: 26px !important;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6'><path d='M0 0l5 6 5-6z' fill='%239aa0a8'/></svg>") !important;
+  background-repeat: no-repeat !important;
+  background-position: right 9px center !important;
 }
 .rep-days { display: flex; flex-wrap: wrap; gap: 5px; }
 .rep-day {
@@ -5095,12 +5121,14 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
   background: #343a43 !important;
   border: 1px solid #3a4049 !important;
   color: #e9ecf1 !important;
-  border-radius: 9px !important;
-  padding: 9px 10px !important;
-  font-size: 11.5px !important;
+  /* 2026-10-11: copied from `.datepop-quick button`, as the comment above says - so
+     when those pills dropped UPPERCASE and moved to 12px, these moved with them. */
+  border-radius: 8px !important;
+  padding: 7px 10px !important;
+  font-size: 12px !important;
   flex: 1 1 auto;
-  cursor: pointer; font-family: inherit; letter-spacing: .06em;
-  text-transform: uppercase; text-align: center; min-width: 0;
+  cursor: pointer; font-family: inherit; letter-spacing: normal;
+  text-transform: none; text-align: center; min-width: 0;
 }
 .datepop .datepop-timeinput:hover,
 .datepop .datepop-timeclear:hover { background: #3f4650 !important; }
@@ -5137,12 +5165,16 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
    is mine to finish: it was the one control still painted from the older
    var(--surface) palette, which is what made the popup look like two designs. */
 .datepop .datepop-foot { justify-content: center !important; border-top: 1px solid #3a4049; }
+/* 2026-10-11: these three (Time / No time / Clear) are deliberately identical to the
+   Today / Tomorrow pills - a check in the suite asserts it, so the two rows cannot
+   drift apart. When those pills dropped UPPERCASE and moved to 12px, these had to
+   move with them or the row would read as two different kinds of control. */
 .datepop .datepop-foot button {
   flex: 0 0 auto !important; min-width: 128px;
   background: #343a43 !important; border: 1px solid #3a4049 !important;
-  color: #e9ecf1 !important; border-radius: 9px !important;
-  padding: 9px 10px !important; font-size: 11.5px !important;
-  letter-spacing: .06em; text-transform: uppercase; height: auto !important;
+  color: #e9ecf1 !important; border-radius: 8px !important;
+  padding: 7px 10px !important; font-size: 12px !important;
+  letter-spacing: normal; text-transform: none; height: auto !important;
 }
 .datepop .datepop-foot button:hover { background: #3f4650 !important; }
 
@@ -5932,6 +5964,17 @@ html:root #treeRoot .tree-row:not([data-depth="0"]){ height:32px !important; min
 .tp2-col.tp2-col-wide{ min-width:44px !important; width:44px !important }
 .tp2-cols .tp2-list{ max-height:170px !important; min-width:44px }
 .tp2 .tp2-opt{ font-size:13px }
+/* 2026-10-10, operator: "actually this is okay, bring it back to that colour scheme,
+   but make it smaller". SAME colours - #343a43 rows, #a8c7de for the chosen one, same
+   panel - only the size comes down: 13px to 12px, 34px rows to 26px. Scoped to
+   .tp2-selectlist so the time-picker columns, which share .tp2-opt, keep their size. */
+.tp2-selectlist .tp2-opt{
+  font-size:12px !important; height:26px !important; min-height:26px !important;
+  border-radius:6px !important;
+}
+.tp2-selectlist .tp2-lab{ font-size:11px !important; padding:0 3px 4px !important; }
+.tp2-selectlist{ padding:6px !important; }
+.tp2-selectlist .tp2-list{ gap:3px !important; }
 
 /* --- Reminder: one line, with the + on the right --- */
 .modal .ea .ea-row .al-wrap{
@@ -6259,7 +6302,7 @@ body[data-newbranch="1"] #treeFilters{
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-10-04 19:32</span>
+    <span id="buildStamp">build 2026-10-11 20:55</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -6289,7 +6332,7 @@ body[data-newbranch="1"] #treeFilters{
   <main id="main">
     <aside id="treePane">
       <div class="tree-toolbar">
-        <input id="treeSearch" type="search" placeholder="Search priorities" title="Search the priority tree" autocomplete="off" spellcheck="false">
+        <input id="treeSearch" type="search" placeholder="Search" title="Search the priority tree" autocomplete="off" spellcheck="false">
         <button id="btnAddGoal" type="button" title="New branch">
           <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
           <span>New branch</span>
@@ -9738,7 +9781,20 @@ window.renderHabits = function () {
          planner.deviceId and planner.timemigrated - so those are STARTUP NOISE and
          prove nothing. The only keys that mean "this browser belongs to an account"
          are the two written when the cloud is actually involved. */
-      var traces = ['planner.cloudBase.v1', 'planner.everSignedIn'];
+      /* 2026-10-07, operator: "on the main planner, it's still showing the demo
+       planner set up when I log into my account."
+
+       MEASURED on the live build in a clean browser: the tree came back
+       ['Set up my planner'] with planner.seeded=1, while BOTH sign-in traces were
+       still null. So on a NEW device the seed fires before Firebase has answered,
+       and the starter tasks are then merged into an established account - which is
+       exactly the failure the comment above says was already reported three times.
+
+       The traces below are still right, they are just not available YET. So the seed
+       now WAITS instead of guessing: it holds for a moment, and if an account turns
+       up in that window it stands down for good. A new user sees their starter
+       tasks a heartbeat later; an existing user never sees them at all. */
+    var traces = ['planner.cloudBase.v1', 'planner.everSignedIn'];
       var t;
       for (t = 0; t < traces.length; t++) {
         if (localStorage.getItem(traces[t]) != null) return;   /* used before - never seed */
@@ -9814,9 +9870,53 @@ window.renderHabits = function () {
          Firebase has either restored the session (and the guards see it) or there
          genuinely is no account. A brand-new browser still gets its demo, just a
          moment later; an established account never does. */
-      setTimeout(function () {
-        try { seedFirstRun(); } catch (e) { }
-      }, 2500);
+      /* 2026-10-07 - A FIXED DELAY IS STILL A RACE, and they reported it again:
+         "on the main planner, it's still showing the demo planner set up when I log
+         into my account."
+
+         MEASURED on the live build: a clean browser came back with the tree
+         ['Set up my planner'] while BOTH sign-in traces were still null. 2.5s is
+         enough on this machine and not enough on a cold start or a slow link, and no
+         number is right for every case - which is why this has now been reported a
+         fourth time.
+
+         So it stops guessing a duration and WAITS FOR THE ANSWER: Firebase's
+         onAuthStateChanged fires exactly once it knows, signed in or not. The seed
+         runs only when that has happened and said "nobody". An account appearing at
+         any point cancels it for good, and a long backstop covers Firebase never
+         loading at all. */
+      (function () {
+        var done = false;
+        function sawAccount() {
+          try {
+            if (localStorage.getItem('planner.cloudBase.v1') != null) return true;
+            if (localStorage.getItem('planner.everSignedIn') != null) return true;
+            var k;
+            for (k in window.localStorage) {
+              if (typeof k === 'string' && k.indexOf('firebase:authUser:') === 0) return true;
+            }
+          } catch (e) { }
+          return false;
+        }
+        function seedNow() {
+          if (done) return;
+          done = true;
+          if (sawAccount()) return;          /* re-check at the last moment */
+          try { seedFirstRun(); } catch (e) { }
+        }
+        if (sawAccount()) { done = true; return; }
+        try {
+          if (window.firebase && firebase.auth) {
+            firebase.auth().onAuthStateChanged(function (user) {
+              if (user || sawAccount()) { done = true; return; }
+              seedNow();                      /* auth resolved: genuinely nobody */
+            });
+            setTimeout(seedNow, 12000);       /* Firebase loaded but never answered */
+            return;
+          }
+        } catch (e) { }
+        setTimeout(seedNow, 2500);            /* no Firebase at all - nothing to await */
+      })();
 
       // Render FIRST, synchronously. The cloud must never be able to keep the
       // page blank, and it must never reset the view after the user has begun
@@ -12298,7 +12398,12 @@ function surfaceArrivals() {
             if (!f2 || !f2.node) return;
             f2.node.date = window.isoOf(dd);
             window.Store.save();
+            /* 2026-10-10: close() removes the backdrop but leaves THIS panel behind -
+               measured after a press: backdrops 0, datepops 1 - so the calendar stayed
+               on screen with nothing behind it and the button looked dead. Take the
+               panel out ourselves as well, whichever way it was mounted. */
             if (close) close();
+            if (host && host.parentNode) host.parentNode.removeChild(host);
             window.renderAll();
           });
           return b;
@@ -12361,7 +12466,56 @@ function surfaceArrivals() {
     }
 
     draw();
-    close = window.showModal('Reschedule', host, [{ label: 'Cancel' }]);
+    /* 2026-10-11, operator: "as soon as I click reschedule, it makes a Reschedule
+       popup on top of calendar, remove that, it's not supposed to be there."
+       The calendar was being wrapped in a dialog with a title bar and a Cancel
+       button, which sat above the month and had nothing to do. The month is the
+       whole interface: press a day to set it, press anywhere else to dismiss.
+       It now opens as a bare panel, anchored under whatever was pressed. */
+    document.body.appendChild(host);
+    host.style.setProperty('position', 'fixed', 'important');
+    host.style.setProperty('z-index', '2147483647', 'important');
+
+    function placeHost() {
+      var a = window.__lastPressedRect ||
+              (window.__lastPressed && window.__lastPressed.isConnected
+                 ? window.__lastPressed.getBoundingClientRect() : null);
+      var r = host.getBoundingClientRect();
+      if (!r.width) return;
+      var left = a ? a.left : Math.round((window.innerWidth - r.width) / 2);
+      var top  = a ? a.bottom + 6 : 80;
+      if (left + r.width > window.innerWidth - 8) left = window.innerWidth - 8 - r.width;
+      if (left < 8) left = 8;
+      /* 2026-10-11, operator: "why is the reschedule calendar scrollable, it should be
+         one spot." MEASURED in a 620px window with the word 452px down: only 160px of
+         room below, so the month was capped at 200px and 10 of 31 days were reachable.
+         A month is ONE WHOLE THING. If it will not fit below the word it opens ABOVE
+         at full height; only if it fits in neither does it sit at the top of the
+         screen. It never caps and never scrolls. */
+      var room = window.innerHeight - 8 - top;
+      if (r.height > room) {
+        var above = a ? (a.top - 6 - r.height) : -1;
+        if (above >= 8) top = above;
+        else top = Math.max(8, window.innerHeight - 8 - r.height);
+      }
+      if (top < 8) top = 8;
+      host.style.setProperty('left', Math.round(left) + 'px', 'important');
+      host.style.setProperty('top', Math.round(top) + 'px', 'important');
+    }
+    placeHost();
+    if (window.requestAnimationFrame) requestAnimationFrame(placeHost);
+
+    close = function () {
+      if (host.parentNode) host.parentNode.removeChild(host);
+      document.removeEventListener('mousedown', onAway, true);
+    };
+    function onAway(e) {
+      if (host.contains(e.target)) return;
+      close();
+    }
+    setTimeout(function () {
+      document.addEventListener('mousedown', onAway, true);
+    }, 0);
   };
 
   window.allUsedTags = function () {
@@ -12857,6 +13011,47 @@ function surfaceArrivals() {
             node.done = want;
           }
           window.Store.save(); window.renderAll(); } },
+      /* 2026-10-11, operator: "add a skip option, it only applies or pops up for
+         routine / habits."
+         It appears ONLY when this node is tracked as a routine or a habit - the
+         planner keeps those in their own lists, each paired with its own day-by-day
+         log, so the menu can tell. An ordinary task's menu is unchanged.
+         They chose: it marks THAT ONE DAY skipped, and a skipped day COUNTS AS MISSED
+         - it breaks the streak, exactly as not doing it would. Skip is the faster way
+         to clear the day without claiming it was done. */
+      (function () {
+        var D = window.Store && window.Store.data;
+        if (!D) return null;
+        var pairs = [['habits', 'habitLog'], ['routines', 'routineLog']];
+        var rec = null, logKey = null, pi, li, list;
+        for (pi = 0; pi < pairs.length && !rec; pi++) {
+          list = D[pairs[pi][0]] || [];
+          for (li = 0; li < list.length; li++) {
+            if (!list[li]) continue;
+            if (list[li].fromTask === node.id || list[li].id === node.id) {
+              rec = list[li]; logKey = pairs[pi][1]; break;
+            }
+          }
+        }
+        if (!rec) return null;                 /* an ordinary task - no Skip */
+        var day = __iso || (window.todayISO ? window.todayISO() : null);
+        if (!day) return null;
+        var skipped = !!(D[logKey] && D[logKey][rec.id] &&
+                         D[logKey][rec.id][day] === 'skip');
+        return {
+          label: skipped ? 'Unskip today' : 'Skip today',
+          run: function () {
+            if (!D[logKey] || typeof D[logKey] !== 'object') D[logKey] = {};
+            if (!D[logKey][rec.id]) D[logKey][rec.id] = {};
+            if (skipped) delete D[logKey][rec.id][day];
+            else D[logKey][rec.id][day] = 'skip';
+            /* a skipped day is NOT done - clear any tick so the two cannot disagree */
+            if (!skipped && node.repeatDone) delete node.repeatDone[day];
+            window.Store.save();
+            if (window.renderAll) window.renderAll();
+          }
+        };
+      })(),
       { sep: true },
       { label: 'Due today', run: function () {
           node.date = window.todayISO(); window.Store.save(); window.renderAll(); } },
@@ -12914,6 +13109,9 @@ function surfaceArrivals() {
     menu.style.left = Math.round(x) + 'px';
     menu.style.top = Math.round(y) + 'px';
     var items = actions(id);
+    /* 2026-10-11: the Skip entry returns null for an ordinary task, so the list can
+       hold a hole. Drop any empty slot before anything reads it. */
+    items = items.filter(function (it) { return !!it; });
 
     /* 2026-09-06. The menu now reads: Edit, the two bare arrows, then everything else.
        'Due today' and 'Due tomorrow' are folded into Reschedule - one line that opens
@@ -18687,7 +18885,16 @@ function firstConnect(remote, rAt, lAt) {
     var pw = pop.getBoundingClientRect().width || 200;
     if (left + pw > window.innerWidth - 8) left = Math.max(8, window.innerWidth - pw - 8);
     var ph = pop.getBoundingClientRect().height || 220;
-    if (top + ph > window.innerHeight - 8) top = Math.max(8, r.top - ph - 4);
+    /* 2026-10-10, operator: "double check everything in the edit button that the
+       button clicked its popup is right under it". MEASURED: this flip put the
+       Duration popup 91px ABOVE its own field. It now stays under the control and
+       caps its height instead, so it scrolls rather than jumping somewhere else. */
+    var room = window.innerHeight - 8 - top;
+    if (ph > room) {
+      pop.style.maxHeight = Math.max(140, room) + 'px';
+      pop.style.overflowY = 'auto';
+    }
+    if (top < 8) top = 8;
     pop.style.left = Math.round(left) + 'px';
     pop.style.top = Math.round(top) + 'px';
 
@@ -23203,7 +23410,56 @@ if (r.freq === 'yearly') {
         }
       });
       eBox.appendChild(eLab); eBox.appendChild(eBtn);
-      dates.appendChild(sBox); dates.appendChild(eBox);
+
+    /* 2026-10-07, operator: "maybe put a button where the red button [is], don't
+       keep showing up, maybe work on the button name." Then, on the wording:
+       "instead of keep showing it, toggle, switch on/off called (show next day if
+       missed)."
+
+       They are right that it is a TOGGLE, not a two-state button, and the planner
+       already has that pattern: 'Show routines & habits' and 'Show future branches'
+       are a label with a tick when on. This is built the same way, so it reads as
+       one of the app's switches rather than a new invention.
+
+       On the words: they offered "Show next day if missed" and chose "Show again if
+       missed" when I pointed out the first promises a schedule the behaviour does
+       not keep - a missed one reappears on TODAY whenever the planner is opened, so
+       after three days away you see it once on your return, not three times.
+       "Again" is true in every case; "next day" is only true in one. */
+    var kBox = document.createElement('div');
+    kBox.className = 'rep-date rep-toggle';
+    var kLab = document.createElement('div');
+    kLab.className = 'rep-sub';
+    kLab.textContent = 'If missed:';
+    var kBtn = document.createElement('button');
+    kBtn.type = 'button';
+    kBtn.className = 'rep-datebtn rep-switch';
+    function kOn() { return r.rollOver !== false; }
+    function kPaint() {
+      kBtn.textContent = '';
+      var t = document.createElement('span');
+      t.textContent = 'Show again';
+      kBtn.appendChild(t);
+      if (kOn()) {
+        var ck = document.createElement('span');
+        ck.className = 'gearcheck rep-check';
+        ck.textContent = '\u2713';
+        kBtn.appendChild(ck);
+      }
+      kBtn.setAttribute('aria-pressed', kOn() ? 'true' : 'false');
+      kBtn.title = kOn()
+        ? 'On - if you miss one it shows again until you tick it off.'
+        : 'Off - a missed one is simply skipped. Use this for days off and fixtures.';
+    }
+    kPaint();
+    kBtn.addEventListener('click', function (e) {
+      e.preventDefault();
+      if (kOn()) r.rollOver = false; else delete r.rollOver;  /* on is the default */
+      draw();
+    });
+    kBox.appendChild(kLab);
+    kBox.appendChild(kBtn);
+      dates.appendChild(sBox); dates.appendChild(eBox); dates.appendChild(kBox);
       body.appendChild(dates);
 
       refresh();
@@ -24063,7 +24319,48 @@ if (r.freq === 'yearly') {
        smeared across every day in between, so one missed week is one row and not
        seven. */
     if (!node || !node.repeat || !node.repeat.freq) return false;
-    if (!window.todayISO || iso !== window.todayISO()) return false;
+
+    /* 2026-10-07, operator: "the OFF activity routine is my schedule off - I don't
+       want it to repeat each day until it's done."
+
+       THE DESIGN ERROR WAS MINE. The roll-over I built chased EVERY unfinished
+       repeating item with no way to opt out, so a scheduled day off followed them
+       around like an overdue task. They chose a per-item switch, left ON so nothing
+       they already rely on changes, and turned off for items like OFF !!.
+       `rollOver === false` means "this one is a fixture, not a chore". */
+    /* 2026-10-10: clear the marker on every path that does NOT roll. It was only ever
+       SET, never cleared, so after a roll stopped - switch turned off, occurrence
+       ticked - the stale value stayed on the node and the row could still claim it had
+       rolled from a date it no longer rolls from. */
+    if (node.repeat.rollOver === false) { delete node.__rolledFrom; return false; }
+
+    /* 2026-10-10, operator: "the title of this task is weekly on Saturday open up
+       checklist, and when I move the calendar to the next day it's not catching up."
+
+       MEASURED on their case: with the switch ON, a Saturday occurrence missed on
+       3 Oct showed on 10 Oct and NOWHERE else - 11 Oct onwards came back empty.
+       The line removed here read `iso !== todayISO()`, so a missed item only ever
+       appeared on the real current date; moving the calendar one day forward hid it.
+       That also made the switch look dead: today happened to BE a Saturday, so the
+       task was showing for the ordinary weekly reason, and turning the switch off
+       changed nothing visible.
+
+       They chose: with the switch ON it shows EVERY day until ticked, future days
+       included; with it OFF none of this runs (handled by the rollOver===false line
+       above). So the look-back now runs from the day being ASKED about rather than
+       from today, and the three existing exits still stop it - the occurrence was
+       ticked, it was moved, or this day is itself a real occurrence. */
+    /* 2026-10-10, operator: "it shows up every day, but the day didn't pass - it
+       should only show if the day passed and it wasn't completed."
+       A roll-over is a CATCH-UP, so it only ever paints on a day that has actually
+       arrived. Guarding the occurrence alone was not enough: a missed Saturday still
+       rolled onto next Tuesday and Wednesday, because those days asked and the
+       occurrence behind them was in the past. Measured: 7 future days showing it.
+       Future days now show only what is genuinely scheduled. */
+    if (!window.todayISO || ord(iso) > ord(window.todayISO())) {
+      delete node.__rolledFrom;
+      return false;
+    }
     var today = ord(iso);
     if (isNaN(today)) return false;
     var done = node.repeatDone || {};
@@ -24076,14 +24373,43 @@ if (r.freq === 'yearly') {
        completed item kept rolling over forever. Only the MOST RECENT occurrence can
        roll: if that one is done or was moved, there is nothing outstanding and the
        search stops there rather than reaching further back. */
-    for (back = 1; back <= 60; back++) {
+    /* 2026-10-10: the cap was 60 days, which is fine for a daily or weekly repeat but
+       SILENTLY WRONG for a yearly one - measured: a yearly task whose last occurrence
+       was ~278 days ago never rolled over at all, because the search gave up long
+       before reaching it. The cap has to outlast the repeat's own period, so it is
+       now sized to the rule: 400 days covers a yearly repeat plus slack, and the loop
+       still stops at the FIRST prior occurrence it finds, so the extra range costs
+       nothing in the ordinary weekly case. */
+    var LOOKBACK = (node.repeat.freq === 'yearly') ? 400
+                 : (node.repeat.freq === 'monthly') ? 120
+                 : 60;
+    for (back = 1; back <= LOOKBACK; back++) {
       var d = new Date((today - back) * 86400000);
       probe = d.getUTCFullYear() + '-' +
               ('0' + (d.getUTCMonth() + 1)).slice(-2) + '-' +
               ('0' + d.getUTCDate()).slice(-2);
       if (!base.call(this, node, probe)) continue;
-      /* this is the most recent occurrence before today - it decides, alone */
-      if (done[probe]) return false;            /* it was done - nothing to roll */
+      /* this is the most recent occurrence before `iso` - it decides, alone */
+      /* 2026-10-10, operator: "every day until the next occurrence, which will be the
+         same thing, then the next occurrence will be the new occurrence."
+         A FUTURE occurrence has not been missed - it has not happened yet - so it must
+         never roll forward. Without this, each future Saturday counted as outstanding
+         and rolled into the days after it, and the task appeared on EVERY day forever
+         (measured: 16 of 16 days). Only an occurrence due on or before today can roll;
+         the next one then takes over as the current one, so there is always exactly
+         one. */
+      if (!window.todayISO || ord(probe) > ord(window.todayISO())) {
+        delete node.__rolledFrom;
+        return false;
+      }
+      if (done[probe]) { delete node.__rolledFrom; return false; }  /* done - nothing to roll */
+      /* 2026-10-07, operator: "it's showing twice right now" - and they chose
+         "stop when the next one is due".
+         MEASURED: a missed OFF !! drew TWO .tgchip elements on the same day - the
+         roll-over copy AND the occurrence the rule itself matched. An unfinished one
+         is REPLACED by the next, never stacked beside it, so a day can never show
+         the same item twice. */
+      if (base.call(this, node, iso)) return false;   /* today IS an occurrence */
       if (moves[probe]) return false;           /* already moved somewhere explicit */
       node.__rolledFrom = probe;                /* so the row can say so */
       return true;
@@ -25040,8 +25366,14 @@ if (r.freq === 'yearly') {
 (function () {
   /* 2026-09-06: Due today, Due tomorrow and Reschedule... are no longer plain items.
      They are one folding Reschedule row built in openMenu, so they never reach here. */
-  var CAL   = ['Edit', 'Complete', 'Mark not complete', 'Delete'];
+  /* 2026-10-11: these are ALLOW-LISTS - anything not named here is stripped out of
+     the menu. Skip was being built correctly and then removed right here, which is
+     why it never appeared. Both states are listed, because the entry renames itself
+     to Unskip once a day has been skipped. */
+  var CAL   = ['Edit', 'Complete', 'Mark not complete',
+               'Skip today', 'Unskip today', 'Delete'];
   var TREE  = ['Edit', 'Complete', 'Mark not complete',
+               'Skip today', 'Unskip today',
                'Show future tasks', 'Hide future tasks', 'Delete'];
 
   /* The hidden-tasks control used to be ONE item that changed its own label, so you
@@ -25370,22 +25702,36 @@ nesting to 20 levels, so the whole tree is serialised rather than stored as nest
        So rather than guess earlier, this cleans up after: the moment a real planner
        arrives from the cloud, the demo goal is removed. It cannot be fooled by
        timing, because it runs when the evidence actually exists. */
+    /* 2026-10-07: it also scrubs the INCOMING cloud copy. Measured: with the demo
+       already stored in the cloud from an earlier bad sync, cleaning only the local
+       tree left the merge free to fold it straight back in - tree came back as
+       ['Set up my planner', 'My own goal'] on every sign-in, on every device. That
+       is why clearing it by hand never stuck. */
+    function __isDemoNode(n) {
+      return !!(n && (n.__demo === true ||
+                      (n.title === 'Set up my planner' &&
+                       (n.children || []).length === 3)));
+    }
+    function __stripDemo(list) {
+      var kept = [], dropped = 0, i;
+      for (i = 0; i < (list || []).length; i++) {
+        if (__isDemoNode(list[i])) { dropped++; continue; }
+        kept.push(list[i]);
+      }
+      return { kept: kept, dropped: dropped };
+    }
     window.__dropDemoIfReal = function (incoming) {
       try {
         if (!incoming || !Array.isArray(incoming.tree) || !incoming.tree.length) return;
+        /* the cloud copy first - if it still carries the demo, every device that
+           merges it gets the demo back */
+        var inc = __stripDemo(incoming.tree);
+        if (inc.dropped) incoming.tree = inc.kept;
         var mine = (window.Store && window.Store.data && window.Store.data.tree) || [];
         if (!mine.length) return;
-        var kept = [], dropped = 0, i;
-        for (i = 0; i < mine.length; i++) {
-          var n = mine[i];
-          var isDemo = n && (n.__demo === true ||
-                             (n.title === 'Set up my planner' &&
-                              (n.children || []).length === 3));
-          if (isDemo) { dropped++; continue; }
-          kept.push(n);
-        }
-        if (dropped) {
-          window.Store.data.tree = kept;
+        var res = __stripDemo(mine);
+        if (res.dropped) {
+          window.Store.data.tree = res.kept;
           try { window.Store.save(); } catch (e) {}
           if (window.renderAll) window.renderAll();
         }
@@ -25513,6 +25859,21 @@ nesting to 20 levels, so the whole tree is serialised rather than stored as nest
             if (v[k] === undefined) continue;
             if (depth === 0 && (k === 'updatedAt' || k === 'clock' || k === 'deviceId' || k === 'version' || k === 'build')) continue;
             if (k === 'by' || k === 'clock') continue;
+            /* 2026-10-11: VIEW-ONLY KEYS NEVER COUNT AS A CHANGE. Measured with the
+               fake cloud: two idle devices wrote once each, ~2s after the 60s pull,
+               and the written doc differed ONLY in deviceId and updatedAt - no planner
+               content at all. The cause was `node.__rolledFrom = probe`, set while
+               RENDERING a missed repeat: it mutates the tree node, so canonSig moved,
+               so the pull's "does this device hold something the cloud does not" test
+               said yes and uploaded. The other device then saw a new version and did
+               the same - a ping-pong on a field that is only there to let the row say
+               "rolled over from Saturday".
+               Proven by bisection: disabling that one assignment took idle writes from
+               1 to 0, and the hosted live build (which lacks it) writes 0.
+               `__`-prefixed keys are this codebase's marker for a value the view owns
+               and the cloud must never be told about, so the whole class is excluded
+               rather than this one name - the next such field is then free. */
+            if (k.indexOf('__') === 0) continue;
             out.push(JSON.stringify(k) + ':' + canon(v[k], depth + 1, k));
           }
           return '{' + out.join(',') + '}';
@@ -25616,9 +25977,16 @@ nesting to 20 levels, so the whole tree is serialised rather than stored as nest
           return false;
         }
         if (!hasReal(remote)) {
-      if (window.__dropDemoIfReal) window.__dropDemoIfReal(remote);
           return push().then(function () { return true; });
         }
+        /* 2026-10-07: THIS CALL WAS DEAD. It sat inside the !hasReal(remote) branch
+           above, but __dropDemoIfReal does nothing unless `incoming` has a non-empty
+           tree - so on that branch it could never fire, and the demo goal survived
+           into the real account every time the cloud DID hold a real planner.
+           Measured: the cleanup removes the goal correctly when called; it simply was
+           never called here. Moved to just before the merge, deliberately mirroring
+           the live-update handler below - do not "de-duplicate" these two. */
+        if (window.__dropDemoIfReal) window.__dropDemoIfReal(remote);
         /* 2026-09-13: ALWAYS merge. This used to replace the local copy wholesale whenever
            hasReal() said it was empty - and hasReal() could not see notes, so a device
            holding the operator's writing and no tasks had it destroyed by the next pull.
@@ -30141,7 +30509,10 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
     closePicker();
 
     var tp = document.createElement('div');
-    tp.className = 'tp2';
+    /* 2026-10-10: a marker of its own, so this list can be sized without touching the
+       time-picker columns that share `.tp2-opt`. Colours are deliberately unchanged -
+       the operator kept the existing scheme and asked only for a smaller size. */
+    tp.className = 'tp2 tp2-selectlist';
 
     var lab = document.createElement('div');
     lab.className = 'tp2-lab';
@@ -30192,33 +30563,82 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
     var pxY = window.pageYOffset;
     /* 2026-09-03: right-align to the field, same as the time and duration panels. Left-aligning
        pushed a 150px panel 9px past the dialog's right edge. */
-    var left = r.right + pxX - (tp.offsetWidth || tpR.width || 150);
+    /* 2026-10-10, operator: "the dropdown needs to be exactly starting where the
+       clicking of the Periodically would be". MEASURED on the Repeat frequency
+       dropdown: right-aligning opened the list 183px to the RIGHT of the control, and
+       the flip-above clamp then threw it 515px UP - so it appeared nowhere near what
+       was pressed. It now starts at the control's LEFT edge, directly under it. The
+       on-screen clamps below are untouched, so a list near an edge still gets pulled
+       back into view. */
+    var left = r.left + pxX;
     var top = r.bottom + pxY + 6;
 
     if (left + tpR.width > vpW - 8 + pxX) {
       left = vpW - 8 - tpR.width + pxX;
       if (left < 8 + pxX) left = 8 + pxX;
     }
-    if (top + tpR.height > vpH - 8 + pxY) {
-      var above = r.top + pxY - tpR.height - 6;
-      if (above >= 8 + pxY) {
-        top = above;
-      } else {
-        top = 8 + pxY;
-      }
-    }
+    /* 2026-10-10: the "flip above" branch is GONE. It moved the list above the control
+       whenever it would not fit below - measured 515px above the field - so it opened
+       nowhere near what was pressed. It now always opens directly under the control;
+       if there is not enough room the block below caps its height and lets it scroll.
+       Operator: "it must be right under the Periodically word." */
     /* 2026-09-26: measured the Text style list opening at bottom 920 in a 917px
        window - 3px off the screen. The clamp above moves it ABOVE the field when
        it would overflow, but if it does not fit above either it fell back to
        top=8 without re-checking the bottom. A panel taller than the window must
        still start on screen AND be clamped at the bottom. Same for the left edge,
        which had no guard at all. */
-    var maxTop = vpH - 8 - tpR.height + pxY;
-    if (top > maxTop) top = maxTop;
-    if (top < 8 + pxY) top = 8 + pxY;
-    var maxLeft = vpW - 8 - tpR.width + pxX;
+    /* 2026-10-10: MEASURE THE PANEL AFTER IT IS IN THE PAGE, not before. `tpR` was
+       taken before the panel was laid out, so these clamps ran on stale numbers and
+       threw a correctly-placed list 183px right and 515px up - the control sat at
+       left 793, this code computed 793, and the panel still rendered at 975/157.
+       Re-reading the box here makes the clamps act on the real size, so the list
+       stays directly under the control it was opened from. */
+    var realR = tp.getBoundingClientRect();
+    var panelW = realR.width || tpR.width || 150;
+    var panelH = realR.height || tpR.height || 0;
+    /* it must open UNDER the control. If it will not fit below, cap its height and
+       let it scroll rather than jumping above the thing that was pressed. */
+    /* 2026-10-11, operator: "the popup comes out of the box when the Monthly dropbox
+       is at bottom of the edit - it must be within the edit layout."
+       A list opened from inside the Edit window is bounded by that WINDOW, not by the
+       screen. Measured with the dialog scrolled to its end, the list ran past the
+       dialog's own bottom edge and sat on the page behind it. When the control lives
+       in a dialog, the dialog's bottom is the limit; everywhere else the viewport
+       still is. */
+    var bound = vpH;
+    var ownerDlg = (selectEl.closest && selectEl.closest('.modal')) || null;
+    if (ownerDlg) {
+      var dr = ownerDlg.getBoundingClientRect();
+      if (dr.height) bound = Math.min(vpH, dr.bottom);
+    }
+    var room = bound - 8 - (top - pxY);
+    if (panelH > room) {
+      /* 2026-10-11, operator: "it's so small, why is it having this happen? It should
+         be the same exact size, just not below." MEASURED with Periodically on the
+         dialog's edge: 45px of room below, 561px above - and the list was squeezed
+         into the 45px, 48px tall, 0 of 6 rows readable, while the space above went
+         unused. A six-row list is ONE WHOLE THING: it keeps its height and opens ABOVE
+         the control. Only when it fits in neither direction does it cap and scroll,
+         which beats running off the screen entirely. */
+      var fullH = panelH;
+      var aboveTop = (r.top + pxY) - fullH - 6;
+      var aboveLimit = ownerDlg
+        ? (ownerDlg.getBoundingClientRect().top + pxY)
+        : (8 + pxY);
+      if (aboveTop >= aboveLimit && aboveTop >= 8 + pxY) {
+        top = aboveTop;                     /* full size, above the control */
+      } else {
+        var minH = Math.max(120, room);
+        tp.style.maxHeight = minH + 'px';
+        tp.style.overflowY = 'auto';
+        panelH = minH;
+      }
+    }
+    var maxLeft = vpW - 8 - panelW + pxX;
     if (left > maxLeft) left = maxLeft;
     if (left < 8 + pxX) left = 8 + pxX;
+    if (top < 8 + pxY) top = 8 + pxY;
 
     tp.style.left = left + 'px';
     tp.style.top = top + 'px';
@@ -30252,7 +30672,15 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
       }
       n = n.parentNode;
     }
-    if (!hitModal || !hasEa) return;
+    /* 2026-10-10, operator: the Repeat frequency dropdown was the only control in the
+       Edit window that opened a raw browser list, in system blue and yellow, while
+       every row beside it is dark. It sits in the modal but not inside `.ea`, so this
+       gate skipped it. It is named explicitly here rather than loosening the gate for
+       every select in the dialog - and ONLY this one: the `Every 2 / weeks` controls
+       (.rep-n, .rep-unit) are deliberately untouched, because the operator said that
+       row was already good. */
+    var isRepeatFreq = sel.classList && sel.classList.contains('rep-freq');
+    if (!hitModal || (!hasEa && !isRepeatFreq)) return;
 
     e.preventDefault();
     e.stopPropagation();
@@ -30498,6 +30926,13 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
     /* BOARD 27 CARD 1 - clamp() now only SIZES. It used to place the picker on the
        dialog's right edge while the module above placed it under the field, which
        is the two-owner bug this board fixed. Placing belongs to one function. */
+    /* 2026-10-10: and that two-owner bug was still live for the SELECT list. This
+       centring is for the DATE pickers (.dp2), which are meant to sit in the middle
+       of the dialog. A select list must stay under the control that opened it -
+       measured: openSelectPicker correctly computed left 793 for a control at 793,
+       and this line moved it to 975, eight times over. The select list keeps its own
+       placing; it is still SIZED by the cap above. */
+    if (el.classList && el.classList.contains('tp2')) return;
     if (window.__centreInDialog) window.__centreInDialog(el);
   }
 
@@ -31925,7 +32360,7 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
     }
     wrap.className = picked.length ? 'ps-wrap on' : 'ps-wrap';
     // 44px of stub: any word would be truncated, so let the caret speak
-    input.placeholder = picked.length ? '' : 'Search priorities';
+    input.placeholder = picked.length ? '' : 'Search';
   }
 
   function setCls(el, cls, on) {
@@ -38319,7 +38754,275 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
   color: #cfe0ff; font-weight: 600;
 }
 .fb-alarm button:hover { background: rgba(77,139,255,.34); }
+
+/* ================================================ 2026-10-04 TOOLBAR
+   Operator: "always showing the boxes symmetrically... whenever I condense it the
+   setting sign is barely not showing, also the today and whatever is in it is not
+   showing correctly, and the search priority box is way too big, it should be
+   smaller, and it should stay Search instead of Search priorities."
+
+   MEASURED across seven widths before changing anything:
+     window 1100 -> search 239px      window 900 -> search 678px
+     window 760  -> search 538px      window 430 -> search 208px
+   The search input carried `flex: 1 1 auto; max-width: none`, so it absorbed every
+   spare pixel in the row and pushed the rest to the edge. At 760 the Today button
+   was already truncated to "Today ..." and the gear's right edge sat 8px from the
+   pane edge at EVERY width - which is the "barely not showing".
+
+   The fix gives the row a fixed order and fixed-size controls, and lets the SEARCH
+   box be the only thing that gives way - but with a ceiling, so it can never take
+   the row over again. */
+.tree-toolbar {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  flex-wrap: nowrap !important;
+  padding: 8px 10px !important;
+  box-sizing: border-box !important;
+}
+/* the search box: shrinks first, never grows past a sensible reading width */
+.tree-toolbar #treeSearch {
+  flex: 1 1 auto !important;
+  width: auto !important;
+  min-width: 72px !important;
+  max-width: 220px !important;   /* was none - this is the whole bug */
+  height: 30px !important;
+  box-sizing: border-box !important;
+}
+/* every other control keeps its size, so nothing is squeezed or clipped */
+/* MEASURED: the button's own text is "Today \00B7 Oct 4" but the button was fixed at
+   66px wide with text-overflow:ellipsis, so it always rendered as "Today ...". It
+   now sizes to its content - that is the whole of the "today is not showing
+   correctly" report. */
+.tree-toolbar #btnToday {
+  flex: 0 0 auto !important;
+  width: auto !important;
+  min-width: max-content !important;
+  max-width: none !important;
+  white-space: nowrap !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  padding-left: 10px !important;
+  padding-right: 10px !important;
+}
+/* and the group that holds the arrows must not clip it either */
+.tree-toolbar #treeDateGroup {
+  flex: 0 0 auto !important;
+  width: auto !important;
+  min-width: max-content !important;
+  overflow: visible !important;
+}
+.tree-toolbar #btnAddGoal { flex: 0 0 auto !important; }
+.tree-toolbar #treeGear   { flex: 0 0 auto !important; margin-right: 2px !important; }
+/* the gear sat 8px from the pane edge at every width; the row's own padding now
+   holds it clear, and nothing may overflow the pane */
+.tree-toolbar > * { min-width: 0 !important; }
+
+/* 2026-10-04: 66px was a deliberate squeeze, written when the row overlapped
+   itself in a 293px pane. MEASURED now: the label is "Today \00B7 Oct 4", which needs
+   91px, so at EVERY width it rendered as "Today ..." - including on a 1400px screen
+   with 200px of empty row beside it. The squeeze is kept for genuinely narrow
+   panes, where it earns its place, and released above that. */
+.tree-toolbar .tree-datenav #btnToday{
+  width:66px !important; min-width:66px !important; max-width:66px !important;
+  overflow:hidden !important; text-overflow:ellipsis !important;
+}
+/* 2026-10-10: the toolbar is its own container, so it can react to the PANE's width
+   rather than the window's. A narrow pane inside a wide window is exactly the case a
+   media query cannot see, and it is the case that overflowed. */
+.tree-toolbar{ container-type: inline-size; container-name: treetb; }
+/* Under 300px of toolbar the date button gives its width back and ellipsises, which
+   is what kept the gear inside the pane before the floor existed. The REQUIREMENT is
+   only that the width must not change AS THE DATE CHANGES - it may differ between
+   pane sizes - so a narrow pane gets its own fixed width, still fixed. */
+
+@media (min-width: 560px) {
+  .tree-toolbar .tree-datenav #btnToday{
+    /* 2026-10-10: `min-width:0` let the button size to its own text, so the date
+       control jumped as the label changed - measured 99px on "Today - Oct 10" and
+       84px on "Tue - Sep 1", a 15px shift every time you page a day. The floor is the
+       WIDEST label this button can ever show ("Today - May 30" = 111px including
+       padding and borders, measured in the running page), so every date renders at
+       the same width and nothing moves. It may still grow if a longer label ever
+       appears; it can simply never shrink below the longest one. */
+    width:auto !important; min-width:111px !important; max-width:none !important;
+    overflow:visible !important; text-overflow:clip !important;
+    padding-left:10px !important; padding-right:10px !important;
+  }
+}
+/* A NARROW PANE INSIDE A WIDE WINDOW is the case a media query cannot see, and it is
+   the case that pushed the gear outside the pane once the 111px floor existed. The
+   toolbar is its own container, so this asks about the TOOLBAR's width.
+   ORDER MATTERS: this rule and the media rule above have equal specificity, so the
+   later one wins - confirmed with CSS.getMatchedStylesForNode, where the earlier
+   placement matched but lost. The selector also starts BELOW the container, because
+   a selector beginning at the container element cannot match inside its own query.
+   The requirement is only that the width must not change AS THE DATE CHANGES; it may
+   differ between pane sizes, so a narrow pane gets its own fixed 66px. */
+@container treetb (max-width: 300px) {
+  /* SPECIFICITY, not order, was the problem: the media rule above is
+     `.tree-toolbar .tree-datenav #btnToday` (1-2-0) and this was
+     `.tree-datenav #btnToday` (1-1-0), so it lost however late it appeared.
+     Qualifying with the pane - an ancestor that is NOT the container - brings this to
+     1-2-1 and it wins. The query itself was always firing; proven by injecting
+     outline-color inside the same query and seeing it applied. */
+  #treePane .tree-datenav #btnToday{
+    width:66px !important; min-width:66px !important; max-width:66px !important;
+    overflow:hidden !important; text-overflow:ellipsis !important;
+    padding-left:6px !important; padding-right:6px !important;
+  }
+}
+/* 2026-10-04, operator: "the search priority box is way too big, it should be
+   smaller". MEASURED: `.ps-wrap` had `flex:1 1 40px; max-width:none`, so the search
+   wrapper absorbed every spare pixel - 678px at a 900px window. It now takes only
+   what it needs, up to a readable ceiling, and the spare width simply stays empty
+   so the row keeps its shape as the pane is resized. */
+.tree-toolbar .ps-wrap{
+  flex:0 1 220px !important; min-width:40px !important; max-width:220px !important;
+}
+
+
+/* ============================================================== 2026-10-05
+   THE FOCUS ALERT SITS IN THE MIDDLE OF THE CALENDAR, NOT THE WINDOW.
+
+   Operator: "the current now is the best actually, but can you put in the middle
+   of the calendar."
+
+   MEASURED on their layout before changing anything:
+     window centre   x = 1050
+     calendar centre x = 1398     (the day view starts at x=696)
+   The alert was pinned to `left: 50%` of the WINDOW, so it sat 348px left of the
+   calendar's middle - over the tree pane's edge and on top of the morning rows.
+
+   The look is unchanged, as they asked. Only the anchor moves: it centres on
+   whichever grid is on screen (day or week), and falls back to the window when
+   neither is - so it can never end up off screen. Re-measured on resize, because a
+   position worked out once is wrong the moment the pane is dragged. */
+.fb-alarm, .rem-banner {
+  left: var(--alarm-cx, 50%) !important;
+  /* 2026-10-05, operator: "now it needs to be lower."
+     MEASURED: having fixed the horizontal centring I left the vertical at the old
+     `top: 18%`, so the box sat at y=288 while the calendar's own centre is y=627 -
+     339px too high, still up by the date header. Both axes now come from the same
+     measurement of the calendar. */
+  top: var(--alarm-cy, 18%) !important;
+  transform: translate(-50%, -50%) !important;
+  /* MEASURED at 390px: max-width computed to 370 correctly but `width` was pinned to
+     420px by an earlier !important rule, so the box never shrank and ran 15px off
+     the left edge. Both have to be overridden, not just max-width. */
+  /* MEASURED: `width: min(420px, calc(100vw - 20px))` WON the cascade (confirmed by
+     reading the rule back) yet computed to 420px anyway - the min() was not applied
+     against an element already given an explicit width elsewhere. So state it the
+     plain way instead: auto width with a hard ceiling, which the box-model honours
+     without any function. */
+  /* MEASURED, after three wrong guesses: the box carries `min-width: 420px`. A
+     max-width can never shrink an element below its min-width, which is why both
+     `min(420px, 100vw-20px)` and `width:auto` won the cascade and changed nothing.
+     The min-width is what had to move. */
+  /* The look is unchanged on any normal screen: 420px wide, exactly as now.
+     MEASURED: releasing min-width outright shrank it to 312px on desktop too, which
+     is not what was asked for - they said the current look is the best one. So the
+     420 stays, and only a window too narrow to hold it releases the floor. */
+  width: 420px !important;
+  min-width: 420px !important;
+  max-width: calc(100vw - 20px) !important;
+  box-sizing: border-box !important;
+}
+@media (max-width: 460px) {
+  .fb-alarm, .rem-banner {
+    width: auto !important;
+    min-width: 0 !important;
+}
 </style>
+<script>
+(function () {
+  function hostRect() {
+    var sel = ['#dayView', '#weekGrid', '#monthGrid', '#main'];
+    for (var i = 0; i < sel.length; i++) {
+      var e = document.querySelector(sel[i]);
+      if (!e) continue;
+      var r = e.getBoundingClientRect();
+      if (r.width > 60 && r.height > 60) return r;
+    }
+    return null;
+  }
+  function place() {
+    try {
+      var r = hostRect();
+      var cx = r ? Math.round(r.left + r.width / 2) : null;
+      var cy = r ? Math.round(r.top + r.height / 2) : null;
+      /* Keep the box fully on screen.
+         MEASURED 2026-10-05 at 390px: a fixed 220px half-width pushed the box to
+         left:-48 - the clamp assumed the box always fits, and on a phone it does
+         not. Measure the box itself when it exists, and when it is WIDER than the
+         window just centre it there and let its own max-width handle the rest. */
+      if (cx !== null) {
+        var box = document.querySelector('.fb-alarm, .rem-banner');
+        var w = box ? box.getBoundingClientRect().width : 420;
+        var half = Math.round(w / 2) + 8;
+        if (half * 2 >= window.innerWidth) {
+          cx = Math.round(window.innerWidth / 2);
+        } else {
+          if (cx - half < 0) cx = half;
+          if (cx + half > window.innerWidth) cx = window.innerWidth - half;
+        }
+      }
+      /* keep it fully on screen vertically too - the box is ~176px tall */
+      if (cy !== null) {
+        var box2 = document.querySelector('.fb-alarm, .rem-banner');
+        var hh = box2 ? box2.getBoundingClientRect().height : 176;
+        var halfH = Math.round(hh / 2) + 8;
+        if (halfH * 2 >= window.innerHeight) {
+          cy = Math.round(window.innerHeight / 2);
+        } else {
+          if (cy - halfH < 0) cy = halfH;
+          if (cy + halfH > window.innerHeight) cy = window.innerHeight - halfH;
+        }
+      }
+      document.documentElement.style.setProperty(
+        '--alarm-cx', cx === null ? '50%' : (cx + 'px'));
+      document.documentElement.style.setProperty(
+        '--alarm-cy', cy === null ? '50%' : (cy + 'px'));
+    } catch (e) { }
+  }
+  place();
+  window.addEventListener('resize', place);
+  /* the pane can be dragged without a resize event, and the alert can appear at any
+     moment - so re-measure when one shows up rather than trusting a stale number */
+  try {
+    var mo = new MutationObserver(function (recs) {
+      for (var i = 0; i < recs.length; i++) {
+        var a = recs[i].addedNodes;
+        for (var j = 0; j < a.length; j++) {
+          var n = a[j];
+          if (n && n.classList &&
+              (n.classList.contains('fb-alarm') || n.classList.contains('rem-banner'))) {
+            place(); return;
+          }
+        }
+      }
+    });
+    mo.observe(document.body, { childList: true });
+  } catch (e) { }
+  window.__placeAlarm = place;
+})();
+</script>
+<style>
+
+/* The repeat toggle, 2026-10-07. Built to match the planner's own switches - a label
+   with a tick when on, the same #a8c7de tick the gear menu uses - so it reads as one
+   of the app's settings rather than a new kind of control. Off is deliberately quiet:
+   the label dims and the tick is gone, which is how you can tell at a glance. */
+.rep-datebtn.rep-switch {
+  display: inline-flex; align-items: center; gap: 10px;
+  white-space: nowrap;
+}
+.rep-datebtn.rep-switch .rep-check {
+  margin-left: 0; color: #a8c7de; font-weight: 600;
+}
+.rep-datebtn.rep-switch[aria-pressed="false"] { opacity: .62; }
+</style>
+
 <script>
 (function () {
   if (window.__loginGateInstalled) return;
@@ -39219,10 +39922,37 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
   function remember(ev) {
     var t = ev.target;
     if (!t || !t.closest) return;
-    var c = t.closest('button, [role="button"], .actbtn, .tree-datechip, ' +
-                      '.alc-body, .fb-timerstep, .fb-timerbtn, .lf-field, ' +
-                      '.tgevent, .tgchip, .mchip, input[data-dp2], .ea-row button');
-    if (c) window.__lastPressed = c;
+    /* 2026-10-10: `select` added. Without it, pressing a dropdown recorded no anchor,
+       so anchorRect() returned null and place() centred the list in the dialog instead
+       of hanging it under the control - measured, the Repeat frequency list opened
+       183px right and 515px above its own field. A select is exactly the kind of
+       control a list should open beneath. */
+    /* 2026-10-10: `.ea-row input` added alongside `select`. The Duration field is an
+       input, so it was not recorded, and its list fell back to being centred in the
+       dialog - measured 222px left and 221px above its own field, while Priority and
+       Colour/Area (both selects) anchored correctly at +0/+6. Every control in the
+       Edit dialog that opens a list should anchor the same way. */
+    var c = t.closest('button, [role="button"], select, .ea-row input, .actbtn, ' +
+                      '.tree-datechip, .alc-body, .fb-timerstep, .fb-timerbtn, ' +
+                      '.lf-field, .tgevent, .tgchip, .mchip, input[data-dp2], ' +
+                      '.ea-row button');
+    if (c) {
+      window.__lastPressed = c;
+      /* 2026-10-11: keep the RECTANGLE too. A menu item is removed from the page
+         before the pop-up it opens appears - closeMenus() runs first - so by the time
+         anchorRect() looks, `isConnected` is false and it returns null, and place()
+         centres the panel instead of hanging it under what was pressed. Measured on
+         Reschedule: the month landed 163px right and 106px below the word. The
+         rectangle is captured here, while the element is still live. */
+      try {
+        var __r = c.getBoundingClientRect();
+        if (__r.width || __r.height) {
+          window.__lastPressedRect = { left: __r.left, top: __r.top,
+                                       right: __r.right, bottom: __r.bottom,
+                                       width: __r.width, height: __r.height };
+        }
+      } catch (e) { window.__lastPressedRect = null; }
+    }
   }
   document.addEventListener('pointerdown', remember, true);
   document.addEventListener('mousedown', remember, true);
@@ -39250,8 +39980,16 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
     /* the control the operator just pressed. Recorded on any real pointer press,
        so it is the thing they actually touched - not a guess from the DOM. */
     var a = window.__lastPressed;
-    if (!a || !a.isConnected) return null;
+    if (!a) return null;
     if (el.contains && el.contains(a)) return null;   /* never anchor to itself */
+    if (!a.isConnected) {
+      /* 2026-10-11: the control has been removed - a menu item that closed its own
+         menu before opening this panel. Its position was recorded on the press, so
+         the panel can still open exactly where it was pressed instead of falling
+         through to being centred. */
+      var kept = window.__lastPressedRect;
+      return (kept && (kept.width || kept.height)) ? kept : null;
+    }
     var r = a.getBoundingClientRect();
     if (!r.width && !r.height) return null;
     return r;
@@ -39263,7 +40001,10 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
        document.body, so the element's own ancestry is not enough. */
     if (el.closest && el.closest('.modal')) return true;
     var a = window.__lastPressed;
-    if (a && a.closest && a.closest('.modal')) return true;
+    /* 2026-10-11: only a control still ON THE PAGE can say which window this belongs
+       to. A removed menu item answers from wherever it used to live, which sent the
+       Reschedule calendar down the centring path. */
+    if (a && a.isConnected && a.closest && a.closest('.modal')) return true;
     return false;
   }
 
@@ -39284,7 +40025,13 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
 
     var left, top;
 
-    if (!inEditWindow(el)) {
+    /* 2026-10-10: a SELECT LIST always takes the anchored branch, even inside the Edit
+       window. The anchored behaviour below is already what the operator asked for -
+       under the control, flipped or nudged only to stay on screen. The centring path
+       further down is for the DATE pickers in that dialog, and applying it to a select
+       list put the Repeat frequency list 183px right and 515px above its own control
+       (measured: control at left 793, list rendered at 975/157). */
+    if (!inEditWindow(el) || (el.classList && el.classList.contains('tp2'))) {
       /* ======================================================== BOARD 28 CARD 5
          A CALENDAR POP-UP OPENS BESIDE WHAT YOU PRESSED.
          Below the control by preference, above it if there is no room, and
@@ -40391,9 +41138,9 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
    The app sets its own title, so pin it - one owner, checked on a slow beat
    rather than fought over. */
 (function () {
-  /* 2026-10-04: the same self-reading pin the live build now uses. This copy's
-     <title> says "PRAC Planner" and the live one says "Planner", so one mechanism
-     serves both and neither can drift into the other again. */
+  /* 2026-10-04: the pin reads the title the document already carries, so the
+     same mechanism serves the live build and the practice copy without either
+     drifting into the other. */
   var WANT = (document.title || 'Planner').trim() || 'Planner';
   function pin() { if (document.title !== WANT) document.title = WANT; }
   pin();
