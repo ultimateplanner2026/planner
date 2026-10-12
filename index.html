@@ -1278,6 +1278,13 @@ section#rightPane {
   font-size: 13px;
   font-weight: 800;
 }
+/* 2026-10-11: a skipped day. Deliberately NOT the done colour - skip means
+   "answered, not done", so it reads as quiet rather than achieved. Muted text on
+   the same surface as an untouched cell, with a dash instead of a tick. */
+.habit-cell.skipped {
+  color: var(--muted, #8b93a1);
+  opacity: .62;
+}
 .habit-cell.today {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
@@ -6302,7 +6309,7 @@ body[data-newbranch="1"] #treeFilters{
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-10-11 20:55</span>
+    <span id="buildStamp">build 2026-10-12 00:32</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -9368,16 +9375,24 @@ window.renderTracker = function (kind) {
          look the same: a done day gets a CHECK MARK, no fill. One appearance for both
          tabs, which is also why routines and habits stop looking like two features. */
       var log = Store.data[T.log] ? Store.data[T.log][habit.id] : null;
-      if (log && log[iso]) {
+      /* 2026-10-11: 'skip' is a TRUTHY STRING, so `log[iso]` was true for a skipped
+         day and it drew a tick - measured, a skipped day read as done and the streak
+         counted it. A day you deliberately skipped is not a day you did. */
+      var skipped = !!(log && log[iso] === 'skip');
+      if (log && log[iso] && !skipped) {
         cell.classList.add('done');
       }
+      if (skipped) cell.classList.add('skipped');
       if (iso === todayIso) cell.classList.add('today');
       cell.dataset.iso = iso;
       /* BOARD 30, 2026-09-26: a done day shows a tick INSTEAD of the date. The cell is
          42px wide and a flex box - a tick plus "S 20" does not fit, and the tick was
          being squeezed out entirely (measured: painted, display:block, invisible).
          The date is still on every day you have NOT done, which is what you scan for. */
-      cell.textContent = (log && log[iso]) ? '\u2713' : (weekday + ' ' + dayNum);
+      /* a skipped day shows a dash, not a tick and not the date: it is answered,
+         just not done. The operator can see at a glance which days they chose to skip. */
+      cell.textContent = skipped ? '\u2013'
+                       : ((log && log[iso]) ? '\u2713' : (weekday + ' ' + dayNum));
       cell.addEventListener('click', (function (habitId, iso) {
         return function () {
           if (!Store.data[T.log]) Store.data[T.log] = {};
@@ -9424,11 +9439,14 @@ window.renderTracker = function (kind) {
       var hlog = Store.data[T.log] ? Store.data[T.log][habitId] : null;
       if (!hlog) return 0;
       var d = new Date(todayDate);
-      if (!hlog[isoOf(d)]) d.setDate(d.getDate() - 1);
+      if (!hlog[isoOf(d)] || hlog[isoOf(d)] === 'skip') d.setDate(d.getDate() - 1);
       var count = 0;
       while (true) {
         var iso = isoOf(d);
-        if (hlog[iso]) {
+        /* a skipped day BREAKS the streak - it counts as missed, which is what the
+           operator chose when Skip was designed ("it breaks the streak, exactly as
+           not doing it would"). Without this, 'skip' being truthy extended it. */
+        if (hlog[iso] && hlog[iso] !== 'skip') {
           count++;
           d.setDate(d.getDate() - 1);
         } else break;
@@ -24283,6 +24301,8 @@ if (r.freq === 'yearly') {
   };
 })();
 
+
+
 /* PLACED HERE DELIBERATELY. MEASURED 2026-10-04: this wrapper first sat near
    line 10128, but plannerRepeatMatches is defined at ~22890 and wrapped again at
    ~24067 - so `base` was undefined, the wrapper returned at once, and every move
@@ -24415,6 +24435,74 @@ if (r.freq === 'yearly') {
       return true;
     }
     return false;
+  };
+})();
+
+/* PLACED AFTER THE LAST WRAPPER, DELIBERATELY. 2026-10-11: this block first went in
+   earlier in the file and the gate silently did nothing - a LATER wrapper reassigned
+   plannerRepeatMatches and replaced it. Measured on the shipping build: the skip was
+   written, the gate was present, and chips still read 1 -> 1. It has to wrap whatever
+   is FINALLY in place, which is the same lesson the rollover wrapper records above. */
+/* ---- a SKIPPED day is not on the calendar, and is not done -----------------
+   Operator, 2026-10-11: "the button for skip today for routine / habits, doesn't
+   make the routine or habits disappear from the calender that day."
+
+   They were right, and the hole was mine. Skip WROTE routineLog[id][day] = 'skip'
+   and habitLog likewise - and nothing ever read it. Measured on the shipped build:
+   chips on the day before skip = 1, after skip = 1, and plannerRepeatMatches still
+   answered true, because that function had no idea skip existed.
+
+   Every surface - the day grid, the week grid, the month grid, the tree - asks
+   plannerRepeatMatches(node, iso). So the gate goes HERE, once, after the last
+   wrapper, rather than in each view. Same reasoning as the roll-over wrapper above.
+
+   THE SECOND HALF, which the operator did not report and would have hit next:
+   'skip' is a TRUTHY STRING, and five places test the log truthily (the tick grid,
+   the cell text, the streak, the held count). Measured: a skipped day drew a tick
+   and the badge read "Streak 3" when the honest answer was 2 - so skipping a day
+   silently CREDITED it. A day you deliberately skipped is not a day you did.
+   `plannerDayIsSkipped` is the one place that decides, so the two answers - "is it
+   on the calendar" and "does it count as done" - can never drift apart. */
+(function () {
+  function trackerFor(node) {
+    var D = window.Store && window.Store.data;
+    if (!D || !node) return null;
+    var pairs = [['habits', 'habitLog'], ['routines', 'routineLog']], pi, li, list;
+    for (pi = 0; pi < pairs.length; pi++) {
+      list = D[pairs[pi][0]] || [];
+      for (li = 0; li < list.length; li++) {
+        if (!list[li]) continue;
+        if (list[li].fromTask === node.id || list[li].id === node.id) {
+          return { rec: list[li], logKey: pairs[pi][1] };
+        }
+      }
+    }
+    return null;
+  }
+
+  /* the single source of truth for "this day was skipped" */
+  window.plannerDayIsSkipped = function (node, iso) {
+    var D = window.Store && window.Store.data;
+    if (!D || !node || !iso) return false;
+    var t = trackerFor(node);
+    if (!t) return false;
+    var log = D[t.logKey];
+    return !!(log && log[t.rec.id] && log[t.rec.id][iso] === 'skip');
+  };
+
+  /* and by tracker id, for the Habits / Routines list which has no task node */
+  window.plannerLogIsSkipped = function (logKey, id, iso) {
+    var D = window.Store && window.Store.data;
+    if (!D || !logKey || !id || !iso) return false;
+    var log = D[logKey];
+    return !!(log && log[id] && log[id][iso] === 'skip');
+  };
+
+  var base = window.plannerRepeatMatches;
+  if (typeof base !== 'function') return;
+  window.plannerRepeatMatches = function (node, iso) {
+    if (window.plannerDayIsSkipped(node, iso)) return false;   /* gone for that day */
+    return base.apply(this, arguments);
   };
 })();
 
@@ -30606,11 +30694,28 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
        dialog's own bottom edge and sat on the page behind it. When the control lives
        in a dialog, the dialog's bottom is the limit; everywhere else the viewport
        still is. */
+    /* 2026-10-11, operator: "when I click on the frequency in the repeat section, the
+       pop up is below the edit box... the general rule is, pop up is right under the
+       edit box will be above it, then the pop up must go higher to be within the edit
+       box."
+
+       MEASURED, and the earlier fix bounded the WRONG BOX. `.modal` is the whole frame
+       including its footer - bottom 705. The box you actually scroll is `.modal-body`
+       (overflow-y:auto, max-height:72vh) - bottom 647. That left a 58px strip the list
+       was allowed to hang into, which is exactly the overhang in their screenshot.
+       The scrolling area is the edit box as far as the operator is concerned, so that
+       is the limit - top AND bottom. */
+    var vpTop = 0;
     var bound = vpH;
     var ownerDlg = (selectEl.closest && selectEl.closest('.modal')) || null;
-    if (ownerDlg) {
-      var dr = ownerDlg.getBoundingClientRect();
-      if (dr.height) bound = Math.min(vpH, dr.bottom);
+    var ownerBox = (selectEl.closest &&
+                    (selectEl.closest('.modal-body') || selectEl.closest('.ea-body'))) || ownerDlg;
+    if (ownerBox) {
+      var dr = ownerBox.getBoundingClientRect();
+      if (dr.height) {
+        bound = Math.min(vpH, dr.bottom);
+        vpTop = Math.max(0, dr.top);
+      }
     }
     var room = bound - 8 - (top - pxY);
     if (panelH > room) {
@@ -30623,16 +30728,35 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
          which beats running off the screen entirely. */
       var fullH = panelH;
       var aboveTop = (r.top + pxY) - fullH - 6;
-      var aboveLimit = ownerDlg
-        ? (ownerDlg.getBoundingClientRect().top + pxY)
+      /* the same box bounds the TOP: "the pop up must go higher to be within the
+         edit box" - so above means above INSIDE the scrolling area, never over its
+         header or off the top of it. */
+      var aboveLimit = ownerBox
+        ? (ownerBox.getBoundingClientRect().top + pxY)
         : (8 + pxY);
       if (aboveTop >= aboveLimit && aboveTop >= 8 + pxY) {
         top = aboveTop;                     /* full size, above the control */
       } else {
-        var minH = Math.max(120, room);
-        tp.style.maxHeight = minH + 'px';
+        /* 2026-10-12: it fits NEITHER side at full height, so it must cap - and the
+           cap has to respect the edit box, which a hard floor does not.
+
+           MEASURED at scrollTop 805 in a 620px window: room below 98, room above 148,
+           panel 204. The old line was `Math.max(120, room)` - the 120 FLOOR beat the
+           real 98, so the list rendered 261..381 against a box ending at 367 and hung
+           14px outside it. A floor that can exceed the space available is just a
+           smaller version of the bug this branch exists to prevent.
+
+           The operator's rule is "it must go higher to be within the edit box", so
+           take the SIDE WITH MORE ROOM and cap to exactly that, never more. */
+        var roomAbove = (r.top + pxY) - 6 - aboveLimit;
+        if (roomAbove > room) {
+          panelH = Math.max(60, Math.min(fullH, roomAbove));
+          top = (r.top + pxY) - 6 - panelH;        /* sit against the control */
+        } else {
+          panelH = Math.max(60, room);
+        }
+        tp.style.maxHeight = panelH + 'px';
         tp.style.overflowY = 'auto';
-        panelH = minH;
       }
     }
     var maxLeft = vpW - 8 - panelW + pxX;
@@ -32625,12 +32749,31 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
 }
 .actmenu-chips { display: none; gap: 6px; }
 .actmenu-resched.open .actmenu-chips { display: flex; }
+/* 2026-10-11, operator: "can you make it dispear the outline, just keep it the words
+   there" and then, naming the targets: "so for the today, and reschedule, i don't want
+   the box around it".
+
+   MEASURED on the rendered menu before changing anything:
+     Edit / Complete row : border 0, background transparent   - plain words
+     Reschedule word     : border 0, background transparent   - plain words
+     Today / Tomorrow    : border 1px solid, background #24272e, radius 5px  - BOXED
+   So Reschedule already had no box; the chips were the only boxed thing in that row,
+   and removing their box is what makes the whole row read as one line of words.
+
+   They stay buttons via HOVER, and the hover must match the rest of the app rather
+   than be something I invented: `.actmenu-item:hover` (Edit, Complete, Delete) and
+   `.pastdue-chip:hover` both show a soft surface-2 panel. My first attempt used
+   "no panel, brighter text", which would have made these two words the only control
+   in the menu that highlights differently. Same panel as their neighbours.
+
+   Size and spacing are kept so the row does not reflow - only the border and the
+   resting fill go. */
 .actmenu-chip {
-  font-size: 11px; color: #cdd3dc; background: var(--surface-2, #24272e);
-  border: 1px solid var(--border, #2e323a); border-radius: 5px; padding: 2px 7px;
+  font-size: 11px; color: #cdd3dc; background: none; border: 0;
+  border-radius: 5px; padding: 2px 7px;
   line-height: 15px; cursor: pointer;
 }
-.actmenu-chip:hover { background: #2f343e; color: #fff; }
+.actmenu-chip:hover { background: var(--surface-2, #24272e); color: var(--text, #e6e8ec); }
 /* 2026-10-02: the past-due row's own Today / Tomorrow chips. Same look as the
    menu's chips above - one chip style in the app, not two - sitting to the LEFT
    of the clock, which stays on the right where it has always been. */
@@ -37579,7 +37722,8 @@ function buildCompactTime(initHHMM, onPick, onCancel) {
   }
   function habitsOn(iso) {
     var d = S(), log = (d && d.habitLog) || {}, held = 0, total = 0, k;
-    for (k in log) { total++; if (log[k] && log[k][iso]) held++; }
+    /* a skipped day is not held - same truthy-string trap as the tick grid */
+    for (k in log) { total++; if (log[k] && log[k][iso] && log[k][iso] !== 'skip') held++; }
     return { held: held, total: total };
   }
 
@@ -40031,6 +40175,30 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
        further down is for the DATE pickers in that dialog, and applying it to a select
        list put the Repeat frequency list 183px right and 515px above its own control
        (measured: control at left 793, list rendered at 975/157). */
+    /* 2026-10-11 - TWO OWNERS, ONE ELEMENT. Operator: "when I click on the frequency
+       in the repeat section, the pop up is below the edit box."
+
+       MEASURED with a trace inside openSelectPicker and a MutationObserver on the
+       panel's style attribute. openSelectPicker computed the RIGHT answer and wrote it:
+           room 39 < panel 204  ->  FLIPPED to 354  ->  WRITE top 354.25px
+       and then this module replaced it:
+           position: absolute      ->  position: fixed !important
+           top: 354.25px           ->  top: 600px !important
+       600 is the anchored-below position, and the list rendered 600..804 against an
+       edit box of 83..647 - 157px outside it, exactly the overhang in their screenshot.
+
+       The line below used to route `.tp2` INTO this branch deliberately (2026-10-10),
+       to stop the centring path throwing the list across the dialog. But this branch
+       only ever clamps against `window.innerHeight` - it knows nothing about the box
+       the list has to stay inside, so it cannot honour "it must go higher to be within
+       the edit box".
+
+       openSelectPicker already does that correctly and is the ONE owner of a select
+       list's position. So this module now LEAVES A SELECT LIST ALONE - it neither
+       anchors nor centres it. The date pickers (.dp2) and every other panel are
+       untouched. */
+    if (el.classList && el.classList.contains('tp2-selectlist')) return;
+
     if (!inEditWindow(el) || (el.classList && el.classList.contains('tp2'))) {
       /* ======================================================== BOARD 28 CARD 5
          A CALENDAR POP-UP OPENS BESIDE WHAT YOU PRESSED.
