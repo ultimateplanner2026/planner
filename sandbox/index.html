@@ -6455,7 +6455,7 @@ body[data-newbranch="1"] #treeFilters{
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-10-11 23:21 DEMO</span>
+    <span id="buildStamp">build 2026-10-11 23:32 DEMO</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -32866,12 +32866,31 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
 }
 .actmenu-chips { display: none; gap: 6px; }
 .actmenu-resched.open .actmenu-chips { display: flex; }
+/* 2026-10-11, operator: "can you make it dispear the outline, just keep it the words
+   there" and then, naming the targets: "so for the today, and reschedule, i don't want
+   the box around it".
+
+   MEASURED on the rendered menu before changing anything:
+     Edit / Complete row : border 0, background transparent   - plain words
+     Reschedule word     : border 0, background transparent   - plain words
+     Today / Tomorrow    : border 1px solid, background #24272e, radius 5px  - BOXED
+   So Reschedule already had no box; the chips were the only boxed thing in that row,
+   and removing their box is what makes the whole row read as one line of words.
+
+   They stay buttons via HOVER, and the hover must match the rest of the app rather
+   than be something I invented: `.actmenu-item:hover` (Edit, Complete, Delete) and
+   `.pastdue-chip:hover` both show a soft surface-2 panel. My first attempt used
+   "no panel, brighter text", which would have made these two words the only control
+   in the menu that highlights differently. Same panel as their neighbours.
+
+   Size and spacing are kept so the row does not reflow - only the border and the
+   resting fill go. */
 .actmenu-chip {
-  font-size: 11px; color: #cdd3dc; background: var(--surface-2, #24272e);
-  border: 1px solid var(--border, #2e323a); border-radius: 5px; padding: 2px 7px;
+  font-size: 11px; color: #cdd3dc; background: none; border: 0;
+  border-radius: 5px; padding: 2px 7px;
   line-height: 15px; cursor: pointer;
 }
-.actmenu-chip:hover { background: #2f343e; color: #fff; }
+.actmenu-chip:hover { background: var(--surface-2, #24272e); color: var(--text, #e6e8ec); }
 /* 2026-10-02: the past-due row's own Today / Tomorrow chips. Same look as the
    menu's chips above - one chip style in the app, not two - sitting to the LEFT
    of the clock, which stays on the right where it has always been. */
