@@ -6455,7 +6455,7 @@ body[data-newbranch="1"] #treeFilters{
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-10-12 16:33 DEMO</span>
+    <span id="buildStamp">build 2026-10-15 20:27 DEMO</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -40821,6 +40821,58 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
     if (rec.color && !node.colour) node.colour = rec.color;
   }
   window.__syncTracker = syncTracker;
+
+  /* ============================================================== 2026-10-15
+     ONE NAME, TWO RECORDS - and renaming the task only ever updated one.
+
+     Operator: "I see a problem on a weekly item routine I have, when I clicked
+     complete it didn't have the updated wording i had on the title why?"
+
+     MEASURED on the live build, by renaming a weekly routine's task and then
+     looking at both screens at the same moment:
+         tree / calendar          NEW WORDING I TYPED
+         Habits / Routines tab    OLD WORDING          <- the stale one
+
+     A routine keeps its own `name` on the record in Store.data.routines, and the
+     Habits/Routines tab renders THAT (`nameEl.textContent = habit.name`), while
+     every other surface renders the tree node's `title`. `syncTracker()` already
+     exists to keep the two in step - but all three of its callers sit inside the
+     TRACKER EDITOR, so renaming the task from the tree, the calendar or the Edit
+     dialog never reached it. The record kept the wording it was born with.
+
+     Completing it was not the cause; it was simply when the operator next looked
+     at that tab. Fixing it only on complete would have left every other path
+     wrong, so this runs on SAVE: whatever a tracker's task is called, that is
+     what the tracker is called. Cheap - it touches only nodes that have a record.
+
+     Deliberately one-way: the TASK TITLE WINS. The tab's own rename already
+     writes through syncTracker, so the two cannot fight. */
+  (function () {
+    var base = window.Store && window.Store.save;
+    if (typeof base !== 'function') return;
+    window.Store.save = function () {
+      try {
+        var D = window.Store && window.Store.data;
+        if (D && typeof window.findNode === 'function') {
+          var pairs = [['habits', 'New habit'], ['routines', 'New routine']], pi, li;
+          for (pi = 0; pi < pairs.length; pi++) {
+            var list = D[pairs[pi][0]] || [], placeholder = pairs[pi][1];
+            for (li = 0; li < list.length; li++) {
+              var rec = list[li];
+              if (!rec || !rec.fromTask) continue;
+              var f = window.findNode(rec.fromTask);
+              if (!f || !f.node) continue;
+              var t = String(f.node.title || '').replace(/^\s+|\s+$/g, '');
+              /* an untouched placeholder is not a rename - leave the record alone */
+              if (!t || t === placeholder) continue;
+              if (rec.name !== t) rec.name = t;
+            }
+          }
+        }
+      } catch (e) {}
+      return base.apply(this, arguments);
+    };
+  })();
 
   window.__openTrackerEditor = function (rec, kind) {
     if (!rec) return;
