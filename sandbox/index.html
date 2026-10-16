@@ -2787,6 +2787,34 @@ aside#treePane { overflow-y: auto; }
   font-size: 13px; padding: 6px 12px; background: var(--surface-2);
   border-radius: 6px; color: var(--text);
 }
+/* 2026-10-16: the subtask row carries what a tree row carries - caret, tick, title,
+   and the ⋮ that opens the SAME menu. Colours are taken from the existing tokens the
+   tree already uses, not invented, so the two read as one app. */
+.ea-subrow {
+  display: flex; align-items: center; gap: 8px;
+  cursor: grab; user-select: none;
+}
+.ea-subrow.dragging { opacity: .45; cursor: grabbing; }
+.ea-subrow.dropon  { outline: 2px solid var(--accent, #4c9aff); outline-offset: -2px; }
+.ea-subcaret, .ea-subtick, .ea-subdots {
+  background: none; border: 0; padding: 0; cursor: pointer;
+  color: var(--text-dim, #9aa1ab); font-size: 12px; line-height: 1;
+  flex: 0 0 auto; font-family: inherit;
+}
+.ea-subcaret { width: 12px; text-align: center; }
+.ea-subtick {
+  width: 16px; height: 16px; border: 1px solid var(--border, #2e323a);
+  border-radius: 4px; color: var(--accent, #4c9aff); font-size: 11px;
+}
+.ea-subtick.done { border-color: var(--accent, #4c9aff); }
+.ea-subtitle { flex: 1 1 auto; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ea-subtitle.done { color: var(--text-dim, #9aa1ab); text-decoration: line-through; }
+.ea-subdots { width: 18px; text-align: center; font-size: 14px; }
+.ea-subdots:hover { color: var(--text, #e6e8ec); }
+/* a sub-sub-task, shown when its parent is opened */
+.ea-subdeep { margin-left: 22px; background: transparent;
+  border-left: 1px solid var(--border, #2e323a); border-radius: 0; }
 
 /* Tag picker: choose from what already exists instead of typing */
 .tagpick { display: flex; flex-direction: column; gap: 6px; }
@@ -6455,7 +6483,7 @@ body[data-newbranch="1"] #treeFilters{
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-10-16 19:29 DEMO</span>
+    <span id="buildStamp">build 2026-10-16 19:51 DEMO</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -12966,14 +12994,136 @@ function surfaceArrivals() {
     subWrap.appendChild(subHead);
     var list = document.createElement('div');
     list.className = 'ea-sublist';
-    var children = node.children || [];
-    for (var j = 0; j < children.length; j++) {
-      var child = children[j];
-      var subItem = document.createElement('div');
-      subItem.className = 'ea-subitem';
-      subItem.textContent = child.title || '';
-      list.appendChild(subItem);
+
+    /* ============================================================== 2026-10-16
+       Operator: "for the subtasks... it must show on the priority tree. And I want
+       it to be moveable up or down as I left click and drag. And it should have all
+       the functions as I have it in the priority tree." Then, asked which functions:
+       "actually there should be the 3 dots, and whatever else I have as the set up on
+       the priority tree" and "it must have the full branch whats inside of it when i
+       click it in the edit option".
+
+       MEASURED on their build before building anything:
+         - a subtask IS node.children.push(...), a real child node, and it ALREADY
+           shows in the tree: Business > Parent task > Call the agent. Nothing to do.
+         - but the dialog drew each one as <div class="ea-subitem"> with textContent
+           only: no tick, no menu, no drag, and sub-sub-tasks invisible.
+
+       So the row is rebuilt to carry what a TREE row carries, and the ⋮ opens the
+       SAME menu the tree uses (window.__openActMenu) rather than a second one - one
+       menu, one set of actions, so they can never drift apart. */
+    function drawSubs() {
+      list.textContent = '';
+      var kids = node.children || [];
+      for (var j = 0; j < kids.length; j++) {
+        (function (child, idx) {
+          var rowEl = document.createElement('div');
+          rowEl.className = 'ea-subitem ea-subrow';
+          rowEl.setAttribute('draggable', 'true');
+          rowEl.dataset.subId = child.id;
+
+          /* the caret - a subtask with its own children opens, like a branch */
+          var caret = document.createElement('button');
+          caret.type = 'button';
+          caret.className = 'ea-subcaret';
+          var hasKids = !!(child.children && child.children.length);
+          caret.textContent = hasKids ? (child.__subOpen ? '\u25be' : '\u25b8') : '';
+          if (!hasKids) caret.style.visibility = 'hidden';
+          caret.addEventListener('click', function (e) {
+            e.preventDefault(); e.stopPropagation();
+            child.__subOpen = !child.__subOpen;
+            drawSubs();
+          });
+          rowEl.appendChild(caret);
+
+          /* the tick - the same fact the tree and the calendar read */
+          var tick = document.createElement('button');
+          tick.type = 'button';
+          tick.className = 'ea-subtick' + (child.done ? ' done' : '');
+          tick.textContent = child.done ? '\u2713' : '';
+          tick.addEventListener('click', function (e) {
+            e.preventDefault(); e.stopPropagation();
+            child.done = !child.done;
+            if (window.Store) window.Store.save();
+            if (window.renderAll) window.renderAll();
+            drawSubs();
+          });
+          rowEl.appendChild(tick);
+
+          var ttl = document.createElement('span');
+          ttl.className = 'ea-subtitle' + (child.done ? ' done' : '');
+          ttl.textContent = child.title || '';
+          rowEl.appendChild(ttl);
+
+          /* the ⋮ - the SAME menu the tree row opens, not a copy of it */
+          var dots = document.createElement('button');
+          dots.type = 'button';
+          dots.className = 'ea-subdots';
+          dots.textContent = '\u22ee';
+          dots.title = 'Actions';
+          dots.addEventListener('click', function (e) {
+            e.preventDefault(); e.stopPropagation();
+            if (typeof window.__openActMenu !== 'function') return;
+            var r = dots.getBoundingClientRect();
+            window.__openActMenu(child.id, window.scrollX + r.left - 160,
+                                 window.scrollY + r.bottom + 4);
+          });
+          rowEl.appendChild(dots);
+
+          /* drag to reorder - left press and move, as they asked */
+          rowEl.addEventListener('dragstart', function (e) {
+            e.dataTransfer.effectAllowed = 'move';
+            try { e.dataTransfer.setData('text/plain', child.id); } catch (_) {}
+            rowEl.classList.add('dragging');
+          });
+          rowEl.addEventListener('dragend', function () {
+            rowEl.classList.remove('dragging');
+          });
+          rowEl.addEventListener('dragover', function (e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            rowEl.classList.add('dropon');
+          });
+          rowEl.addEventListener('dragleave', function () {
+            rowEl.classList.remove('dropon');
+          });
+          rowEl.addEventListener('drop', function (e) {
+            e.preventDefault();
+            rowEl.classList.remove('dropon');
+            var movedId = null;
+            try { movedId = e.dataTransfer.getData('text/plain'); } catch (_) {}
+            if (!movedId || movedId === child.id) return;
+            var arr = node.children || [], from = -1, k;
+            for (k = 0; k < arr.length; k++) if (arr[k] && arr[k].id === movedId) from = k;
+            if (from < 0) return;
+            var moved = arr.splice(from, 1)[0];
+            var to = -1;
+            for (k = 0; k < arr.length; k++) if (arr[k] && arr[k].id === child.id) to = k;
+            arr.splice(to < 0 ? arr.length : to, 0, moved);
+            if (window.Store) window.Store.save();
+            if (window.renderAll) window.renderAll();
+            drawSubs();
+          });
+
+          list.appendChild(rowEl);
+
+          /* the full branch, when it is opened - "whats inside of it" */
+          if (hasKids && child.__subOpen) {
+            for (var g = 0; g < child.children.length; g++) {
+              var gk = child.children[g];
+              var sub = document.createElement('div');
+              sub.className = 'ea-subitem ea-subrow ea-subdeep';
+              var st = document.createElement('span');
+              st.className = 'ea-subtitle' + (gk.done ? ' done' : '');
+              st.textContent = gk.title || '';
+              sub.appendChild(st);
+              list.appendChild(sub);
+            }
+          }
+        })(kids[j], j);
+      }
     }
+    drawSubs();
     subWrap.appendChild(list);
     var newSub = document.createElement('input');
     newSub.type = 'text'; newSub.className = 'ea-input';
@@ -13004,12 +13154,15 @@ function surfaceArrivals() {
       if (!node.children) node.children = [];
       node.children.push(newChild);
       if (typeof window.inheritFromAncestors === 'function') window.inheritFromAncestors(newChild, node);
-      var subItem = document.createElement('div');
-      subItem.className = 'ea-subitem';
-      subItem.textContent = v;
-      list.appendChild(subItem);
+      /* redraw through the one function, so a new row gets the tick, the menu and
+         the drag like every other - appending a bare div was how they ended up
+         without any of it. And keep the cursor here: "when I type something it
+         automatically has a next slot open for subtasks". */
       newSub.value = '';
       window.Store.save();
+      if (window.renderAll) window.renderAll();
+      drawSubs();
+      try { newSub.focus(); } catch (_) {}
     });
     subWrap.appendChild(newSub);
     body.appendChild(subWrap);
