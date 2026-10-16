@@ -6455,7 +6455,7 @@ body[data-newbranch="1"] #treeFilters{
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-10-15 20:27 DEMO</span>
+    <span id="buildStamp">build 2026-10-15 21:32 DEMO</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -9616,7 +9616,58 @@ window.renderTracker = function (kind) {
       }
       return count;
     })(habit.id);
-    var target = habit.targetPerWeek || 7;
+    /* ============================================================== 2026-10-15
+       Operator: "routine / habits in the habits section and routine section must be
+       a live process and changes as a routine or habits change."
+
+       `targetPerWeek` is written as a literal 7 at every place a record is created
+       (five of them) and nothing ever updates it. So the tally read "/ 7" whatever
+       the task's schedule said.
+
+       MEASURED on the live build, one routine, three schedules:
+           once a week      0 / 7 this week      <- doing it RIGHT looks like failing
+           every day        0 / 7 this week      <- correct only by coincidence
+           Mon/Wed/Fri      0 / 7 this week
+
+       The schedule already lives on the task, and `plannerOccurrencesBetween` already
+       counts how many times a repeat falls in a range. So the target is DERIVED from
+       the task each time the row is drawn - it cannot go stale, because it is never
+       stored. The record's own number is kept only as a fallback for a tracker with
+       no task behind it. */
+    var target = (function () {
+      try {
+        var fromTask = habit.fromTask;
+        if (!fromTask || typeof window.findNode !== 'function') return null;
+        var f = window.findNode(fromTask);
+        if (!f || !f.node || !f.node.repeat) return null;
+        if (typeof window.plannerOccurrencesBetween !== 'function') return null;
+        /* `start` lives inside the weekCount IIFE above and is NOT in scope here -
+           my first version referenced it, threw, and the try/catch quietly returned
+           the old literal 7. Compute the same Sunday-start week independently. */
+        var wkStart = new Date(todayDate);
+        wkStart.setDate(wkStart.getDate() - wkStart.getDay());   /* back to Sunday */
+        var wkEnd = new Date(wkStart);
+        wkEnd.setDate(wkEnd.getDate() + 6);
+        /* COUNT THE SCHEDULE, NOT THE CATCH-UP. plannerOccurrencesBetween asks
+           plannerRepeatMatches, which is WRAPPED by the roll-over feature - a missed
+           occurrence is reported on every following day so it can chase you. Measured
+           on a Mon/Wed/Fri routine: the raw rule says [1,3,5], the wrapped one says
+           [0,1,2,3,4,5], so the target came out 6 instead of 3.
+           "How often is this scheduled" is a question about the RULE, so use the raw
+           matcher that m172 exposes for exactly this purpose. */
+        var raw = window.__rawRepeatMatches;
+        var n = 0, cur = new Date(wkStart);
+        for (var w = 0; w < 7; w++) {
+          var isoDay = isoOf(cur);
+          var hit = raw ? raw(f.node, isoDay)
+                        : window.plannerRepeatMatches(f.node, isoDay);
+          if (hit) n++;
+          cur.setDate(cur.getDate() + 1);
+        }
+        /* a repeat that produces nothing this week is not a "0 target" - fall through */
+        return n || null;
+      } catch (e) { return null; }
+    })() || habit.targetPerWeek || 7;
     var progressLabel = document.createElement('span');
     progressLabel.className = 'habit-progress';
     progressLabel.textContent = weekCount + ' / ' + target + ' this week';
