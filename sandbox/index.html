@@ -6455,7 +6455,7 @@ body[data-newbranch="1"] #treeFilters{
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-10-16 19:20 DEMO</span>
+    <span id="buildStamp">build 2026-10-16 19:29 DEMO</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -23902,6 +23902,50 @@ if (r.freq === 'yearly') {
         if (rec && (rec.fromTask === node.id || rec.id === node.id)) return '';
       }
     }
+
+    /* 2026-10-16 - THE GATE ASKED THE WRONG QUESTION, and the operator hit it at once:
+       "i did make it a routine and the pop up is not letting me save", with Location
+       reading "Harborview LLC > Habits".
+
+       MEASURED on exactly that shape - a user branch holding a child branch called
+       Habits, with a daily task inside it:
+           habitRecords 0, routineRecords 0, gate: BLOCKS
+
+       A record is only created when the task is filed through the SPECIAL `__habits` /
+       `__routines` targets. Filing it into a branch that IS a habits host - which is
+       what the Location list shows and what the operator did - creates no record, so a
+       record check could never be satisfied and the save was unreachable. A rule the
+       operator cannot satisfy is worse than no rule.
+
+       So ask where the task LIVES, using the app's own host test (m196 isHost): a
+       branch whose title is habits/routines AND whose id marks it as a host. Living in
+       one IS being a habit or a routine, whether or not a tracker record exists yet. */
+    try {
+      if (typeof window.walkTree === 'function') {
+        /* MEASURED, second attempt: my first copy of this test also demanded the id
+           end in ~habits / ~routines. NOTHING in the app ever writes such an id - the
+           suffix is only ever read - so a per-branch Habits could never qualify and the
+           operator was still blocked. The rule the app really uses when it files a new
+           habit (`hostInside`) is TITLE ALONE: "a REAL branch's own Habits/Routines
+           child". Use that, plus the two global hosts and the explicit __hr marker. */
+        var hostIds = { '__habits': 1, '__routines': 1 };
+        function isHost(n) {
+          if (!n) return false;
+          if (hostIds[n.id]) return true;
+          if (n.__hr) return true;
+          var t = String(n.title || '').toLowerCase();
+          return t === 'habits' || t === 'routines';
+        }
+        var inside = {};
+        window.walkTree(function (n, d, parent) {
+          if (!n || n.id == null) return;
+          if (isHost(n)) { inside[n.id] = 1; return; }
+          if (parent && (inside[parent.id] || isHost(parent))) inside[n.id] = 1;
+        });
+        if (inside[node.id]) return '';
+      }
+    } catch (e) {}
+
     return 'A repeating item must be a routine or a habit. ' +
            'Change Location to Habits / Routines.';
   };
