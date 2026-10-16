@@ -6455,7 +6455,7 @@ body[data-newbranch="1"] #treeFilters{
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-10-15 23:19 DEMO</span>
+    <span id="buildStamp">build 2026-10-16 18:04 DEMO</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -23182,7 +23182,9 @@ function firstConnect(remote, rAt, lAt) {
   window.plannerWeekday = weekdayOf;
 
   function anchorOf(node, r) {
-    var start = parse(r.start);
+    /* an unpicked start IS today - resolve it here so every reader agrees with the
+       field the operator sees, rather than each one guessing. */
+    var start = parse(r.start || (window.todayISO ? window.todayISO() : ''));
     if (start) return start;
     if (node && node.date) {
       var nodeDate = parse(node.date);
@@ -23881,14 +23883,46 @@ if (r.freq === 'yearly') {
 /* ===== m166 notes styling back + the warning says the real reason ===== */
 (function () {
 
+  /* 2026-10-16, operator: "it looks like this became an activity. I never put it as a
+     routine. However, whenever there is like a routine where it's like daily, any type
+     of frequency, that should automatically pop up in the bottom that says, and don't
+     save, saying it must be a routine or a habit."
+     MEASURED on their build: a task in the Activities branch, given a weekly repeat,
+     saved with routines:0 habits:0 and NOTHING said a word. */
+  window.plannerRepeatNeedsTracker = function (node) {
+    if (!node || !node.repeat) return '';
+    var r = node.repeat;
+    if (!r.freq) return '';
+    var D = window.Store && window.Store.data;
+    if (!D) return '';
+    var lists = [D.habits || [], D.routines || []], li, k;
+    for (li = 0; li < lists.length; li++) {
+      for (k = 0; k < lists[li].length; k++) {
+        var rec = lists[li][k];
+        if (rec && (rec.fromTask === node.id || rec.id === node.id)) return '';
+      }
+    }
+    return 'A repeating item must be a routine or a habit. ' +
+           'Change Location to Habits / Routines.';
+  };
+
   window.plannerRepeatProblem = function (node) {
     if (!node || !node.repeat) return '';
     var r = node.repeat;
+    var needs = window.plannerRepeatNeedsTracker(node);
+    if (needs) return needs;
     if (r.freq === 'specific') {
       if (!r.dates || !r.dates.length) return 'Pick the dates this should land on - none are chosen yet.';
       return '';
     }
-    if (!r.start) return 'Choose a date for it to start from.';
+    /* 2026-10-16, operator: "the start date should not be always as a pop-up... if it's
+       not picked, it's always starting today. And then if it needs to be picked for a
+       future date, then it is a future date, but it should not have a pop-up there."
+       MEASURED: the Starts BUTTON already printed today's date as a fallback while
+       `r.start` stayed undefined - so the field looked filled and the warning demanded
+       a date anyway. An unpicked start now MEANS today, so there is nothing to warn
+       about; picking a future date still works exactly as before. */
+    if (!r.start) return '';
     if (!r.days || !r.days.length) return '';
     if (!window.plannerOccurrencesBetween) return '';
     var p = r.start.split('-');
@@ -30959,10 +30993,26 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
       if (aboveTop >= aboveLimit && aboveTop >= 8 + pxY) {
         top = aboveTop;                     /* full size, above the control */
       } else {
-        var minH = Math.max(120, room);
-        tp.style.maxHeight = minH + 'px';
+        /* 2026-10-12: it fits NEITHER side at full height, so it must cap - and the
+           cap has to respect the edit box, which a hard floor does not.
+
+           MEASURED at scrollTop 805 in a 620px window: room below 98, room above 148,
+           panel 204. The old line was `Math.max(120, room)` - the 120 FLOOR beat the
+           real 98, so the list rendered 261..381 against a box ending at 367 and hung
+           14px outside it. A floor that can exceed the space available is just a
+           smaller version of the bug this branch exists to prevent.
+
+           The operator's rule is "it must go higher to be within the edit box", so
+           take the SIDE WITH MORE ROOM and cap to exactly that, never more. */
+        var roomAbove = (r.top + pxY) - 6 - aboveLimit;
+        if (roomAbove > room) {
+          panelH = Math.max(60, Math.min(fullH, roomAbove));
+          top = (r.top + pxY) - 6 - panelH;        /* sit against the control */
+        } else {
+          panelH = Math.max(60, room);
+        }
+        tp.style.maxHeight = panelH + 'px';
         tp.style.overflowY = 'auto';
-        panelH = minH;
       }
     }
     var maxLeft = vpW - 8 - panelW + pxX;
@@ -31429,8 +31479,52 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
     } catch (_) {}
   }
 
+  /* 2026-10-16: the SAME gate, for the repeat rule. Operator: "whenever there is like
+     a routine where it's like daily, any type of frequency, that should automatically
+     pop up in the bottom that says, and don't save, saying it must be a routine or a
+     habit."
+
+     Deliberately built like the branch gate above and NOT by disabling Save - the
+     comment at the Location field records why: a Save that is silently disabled tells
+     the operator nothing and cost rounds. This refuses the click and SAYS the reason,
+     points at the Location field, and leaves everything they typed in place. */
+  function onRepeatSaveClick(e) {
+    var id = window.__editingId;
+    if (!id) return;
+    var f = window.findNode && window.findNode(id);
+    if (!f || !f.node) return;
+    if (!f.node.repeat || !f.node.repeat.freq) return;
+    if (!window.plannerRepeatNeedsTracker) return;
+    var msg = window.plannerRepeatNeedsTracker(f.node);
+    if (!msg) return;
+    if (e && typeof e.preventDefault === 'function') e.preventDefault();
+    if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
+    if (e && typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
+    if (window.toast) window.toast(msg, 'err');
+    try {
+      var field = document.querySelector('.modal .ea .lf-field');
+      if (field) {
+        try { field.scrollIntoView({ block: 'nearest' }); } catch (_) {}
+        field.style.outline = '2px solid #e5484d';
+        field.style.outlineOffset = '2px';
+        setTimeout(function () {
+          field.style.outline = '';
+          field.style.outlineOffset = '';
+        }, 2500);
+      }
+    } catch (_) {}
+  }
+
   function attach() {
     var btns = document.querySelectorAll('.modal button');
+    for (var r = 0; r < btns.length; r++) {
+      var rb = btns[r];
+      if (rb.getAttribute('data-repeatgate') === '1') continue;
+      if ((rb.textContent || '').replace(/^\s+|\s+$/g, '') === 'Save') {
+        rb.setAttribute('data-repeatgate', '1');
+        rb.addEventListener('click', onRepeatSaveClick, true);
+      }
+    }
     for (var i = 0; i < btns.length; i++) {
       var btn = btns[i];
       if (btn.getAttribute('data-branchgate') === '1') continue;
