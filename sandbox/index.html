@@ -2854,6 +2854,13 @@ aside#treePane { overflow-y: auto; }
   .ea-subrow:focus-within .ea-subtitle { padding-right: 116px; }
 }
 .ea-subrow:not(:hover) .ea-subdate:not(.hasdate) { visibility: hidden; }
+.ea-subtitle[contenteditable] { outline: none; cursor: text; border-radius: 3px; }
+.ea-subtitle[contenteditable]:hover { background: var(--surface-2, #22262e); }
+.ea-subtitle[contenteditable]:focus {
+  background: var(--surface-2, #22262e);
+  box-shadow: inset 0 0 0 1px var(--accent, #4c9aff);
+}
+.ea-subrow.high .ea-subtitle { color: var(--warn, #f5c451); font-weight: 600; }
 .ea-subdots { width: 18px; text-align: center; font-size: 14px; }
 .ea-subdots:hover { color: var(--text, #e6e8ec); }
 /* a sub-sub-task, shown when its parent is opened */
@@ -6527,7 +6534,7 @@ body[data-newbranch="1"] #treeFilters{
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-10-16 23:29 DEMO</span>
+    <span id="buildStamp">build 2026-10-16 23:54 DEMO</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -13078,7 +13085,9 @@ function surfaceArrivals() {
         if (typeof window.__isHRNode === 'function' && window.__isHRNode(kids[j])) continue;
         (function (child, idx) {
           var rowEl = document.createElement('div');
-          rowEl.className = 'ea-subitem ea-subrow' + (depth ? ' ea-subdeep' : '');
+          rowEl.className = 'ea-subitem ea-subrow'
+                          + (depth ? ' ea-subdeep' : '')
+                          + (child.priority === 'high' ? ' high' : '');
           if (depth) rowEl.style.marginLeft = (depth * 22) + 'px';
           rowEl.dataset.subDepth = String(depth);
           rowEl.setAttribute('draggable', 'true');
@@ -13112,9 +13121,40 @@ function surfaceArrivals() {
           });
           rowEl.appendChild(tick);
 
+          /* ===================================================== 2026-10-16
+             Operator: "it must have the same exact functions as in the priorty tree".
+             I compared the two rows capability by capability on their own data rather
+             than from memory. Exactly ONE control was missing: a tree row's title is
+             contentEditable, so you click it and type; this was a plain span.
+             (Worth recording: the tree row has NO checkbox - "Complete" lives in its
+             menu - so the tick here is an EXTRA, not a gap.)
+             The commit logic is copied from the tree's own title editor (~7704),
+             including its hard-won rule: a blur caused by a RE-RENDER is not the
+             person finishing, so a teardown must leave the text alone. */
           var ttl = document.createElement('span');
           ttl.className = 'ea-subtitle' + (child.done ? ' done' : '');
+          ttl.contentEditable = 'plaintext-only';
+          ttl.spellcheck = false;
           ttl.textContent = child.title || '';
+          var prevTitle = child.title || '';
+          ttl.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') { e.preventDefault(); ttl.blur(); }
+            else if (e.key === 'Escape') {
+              e.preventDefault(); ttl.textContent = prevTitle; ttl.blur();
+            }
+            e.stopPropagation();
+          });
+          ttl.addEventListener('click', function (e) { e.stopPropagation(); });
+          ttl.addEventListener('blur', function () {
+            if (!ttl.isConnected) return;          /* a teardown, not the person */
+            var v = String(ttl.textContent || '').replace(/^\s+|\s+$/g, '');
+            if (!v) { ttl.textContent = prevTitle; return; }
+            if (v === child.title) return;
+            child.title = v;
+            prevTitle = v;
+            if (window.Store) window.Store.save();
+            if (window.renderAll) window.renderAll();
+          });
           rowEl.appendChild(ttl);
 
           /* ===================================================== 2026-10-16, round 2
