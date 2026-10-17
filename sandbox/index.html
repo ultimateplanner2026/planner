@@ -6527,7 +6527,7 @@ body[data-newbranch="1"] #treeFilters{
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-10-16 22:17 DEMO</span>
+    <span id="buildStamp">build 2026-10-16 23:29 DEMO</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -13205,8 +13205,16 @@ function surfaceArrivals() {
             e.preventDefault(); e.stopPropagation();
             if (typeof window.__openActMenu !== 'function') return;
             var r = dots.getBoundingClientRect();
-            window.__openActMenu(child.id, window.scrollX + r.left - 160,
+            /* MEASURED on the demo: the menu opened 335px LEFT and 410px ABOVE this
+               button. The -160 was mine, and the builder repositioned it anyway. */
+            if (typeof window.__menuSetFromTree === 'function')
+              window.__menuSetFromTree(true);
+            window.__menuForceTree = true;
+            setTimeout(function () { window.__menuForceTree = false; }, 400);
+            window.__openActMenu(child.id, window.scrollX + r.left,
                                  window.scrollY + r.bottom + 4);
+            if (typeof window.__menuPlaceUnder === 'function')
+              window.__menuPlaceUnder(dots);
           });
           rowEl.appendChild(dots);
 
@@ -26101,6 +26109,15 @@ if (r.freq === 'yearly') {
      calendar kept the old menu entirely. An observer catches every path - the wrapper,
      the calendar's internal call, right-click, anything added later. */
   function contextFor(menu, id) {
+    /* 2026-10-16 - operator: "the three buttons in the edit must show the same thing
+       for priorty tree". MEASURED: this decided tree-vs-calendar by the menu's
+       POSITION - is it left of #treeRoot's right edge? The subtask menu opens over the
+       Edit dialog, far right, so it read "not from tree" and got the short calendar
+       list. Position is a proxy for context and breaks the moment a tree node's menu
+       opens somewhere else. An explicit flag wins; everything else is unchanged.
+       Checked, not assumed: __menuSetFromTree(true) alone did nothing, because the
+       observer never reads lastFromTree - it calls this. */
+    if (window.__menuForceTree === true) return true;
     var tr = document.getElementById('treeRoot');
     var mr = menu.getBoundingClientRect();
     if (tr) {
@@ -26146,6 +26163,52 @@ if (r.freq === 'yearly') {
       return r;
     };
   }
+  /* THE STANDING RULE, 2026-10-16 - operator: "the rule for any pop up it must be
+     right under whatever is clicked, this applies for any future edits unless stated
+     otherwise." One placer, so every caller behaves the same instead of each doing its
+     own arithmetic. Left edge to left edge, top at the control's bottom; slide or flip
+     only when it would otherwise leave the window. */
+  window.__menuPlaceUnder = function (anchorEl, menuEl) {
+    if (!anchorEl || !anchorEl.getBoundingClientRect) return;
+    function place() {
+      var m = menuEl, i;
+      if (!m) {
+        var ms = document.querySelectorAll('.actmenu');
+        for (i = ms.length - 1; i >= 0; i--) {
+          var b0 = ms[i].getBoundingClientRect();
+          if (b0.width && b0.height) { m = ms[i]; break; }
+        }
+      }
+      if (!m) return;
+      var a = anchorEl.getBoundingClientRect();
+      var mb = m.getBoundingClientRect();
+      var pad = 6, left = a.left, top = a.bottom + 4;
+      if (left + mb.width > window.innerWidth - pad)
+        left = Math.max(pad, window.innerWidth - pad - mb.width);
+      if (left < pad) left = pad;
+      if (top + mb.height > window.innerHeight - pad) {
+        var above = a.top - 4 - mb.height;
+        top = (above >= pad) ? above
+            : Math.max(pad, window.innerHeight - pad - mb.height);
+      }
+      m.style.position = 'fixed';
+      m.style.left = Math.round(left) + 'px';
+      m.style.top = Math.round(top) + 'px';
+      m.style.right = 'auto';
+      m.style.bottom = 'auto';
+      m.style.margin = '0';
+    }
+    place();
+    /* the builder finishes asynchronously and an observer repositions it - measured:
+       a single call was overwritten */
+    if (window.requestAnimationFrame)
+      window.requestAnimationFrame(function () {
+        place(); window.requestAnimationFrame(place);
+      });
+    setTimeout(place, 40);
+    setTimeout(place, 120);
+  };
+
   window.__menuSetFromTree = function (v) { lastFromTree = !!v; };
   window.__menuAllowed = function (fromTree) { return fromTree ? TREE.slice() : CAL.slice(); };
 })();
