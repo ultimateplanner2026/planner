@@ -6527,7 +6527,7 @@ body[data-newbranch="1"] #treeFilters{
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-10-16 21:17 DEMO</span>
+    <span id="buildStamp">build 2026-10-16 22:17 DEMO</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -13070,6 +13070,12 @@ function surfaceArrivals() {
        one function, so a control can never exist at one depth and not another. */
     function drawLevel(kids, depth) {
       for (var j = 0; j < kids.length; j++) {
+        /* Habits and Routines hosts live in their own tab and the tree hides them, so
+           the Edit window must not list them either - ONE rule, window.__isHRNode,
+           published by the tree. Falling back to drawing it is deliberate: if that
+           global ever disappears, the operator sees an extra row rather than losing
+           a real subtask. */
+        if (typeof window.__isHRNode === 'function' && window.__isHRNode(kids[j])) continue;
         (function (child, idx) {
           var rowEl = document.createElement('div');
           rowEl.className = 'ea-subitem ea-subrow' + (depth ? ' ea-subdeep' : '');
@@ -32731,6 +32737,17 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
          Measured: with the switch off, "Routines / Open-up checklist / Habits" were
          still showing under Riverside Clinic, because this only knew the two global
          hosts. A per-branch host is recognised by its title or its id suffix. */
+      /* 2026-10-16 - operator, with a picture of Maple Street house: "notice maple
+         street branch, the subtasks in the edit is not matching the tree, they have to
+         match." The tree hid Routines and Habits; the Edit window listed them, because
+         drawSubs had no copy of this rule.
+         This WAS a private function - the THIRD near-copy of "is this a Habits/Routines
+         host" in the file, and the second to cause a bug (card 18's copy blocked a save
+         by keying on the id suffix alone). So it is published ONCE here and every other
+         caller asks it, rather than carrying a fourth copy that can drift.
+         MEASURED on their data before writing this: __hr is null on these nodes and
+         window.__habitRoutineTaskIds() names the individual habits, not the hosts - so
+         neither of the existing markers could have been used. */
       var hrIds = { '__habits': 1, '__routines': 1 };
       function isHost(n) {
         if (!n) return false;
@@ -32738,8 +32755,11 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
         if (n.__hr) return true;
         var t = String(n.title || '').toLowerCase();
         if (t !== 'habits' && t !== 'routines') return false;
+        /* the title alone is NOT enough: a task the operator names "Habits" is theirs
+           and must keep showing. A real host also carries the id suffix or is global. */
         return /~(habits|routines)$/.test(String(n.id || '')) || hrIds[n.id] === 1;
       }
+      window.__isHRNode = isHost;
       var inside = {};
       if (typeof window.walkTree === 'function') {
         window.walkTree(function (n, d, parent) {
