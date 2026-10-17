@@ -2810,6 +2810,50 @@ aside#treePane { overflow-y: auto; }
 .ea-subtitle { flex: 1 1 auto; min-width: 0;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ea-subtitle.done { color: var(--text-dim, #9aa1ab); text-decoration: line-through; }
+.ea-subquick {
+  background: none; border: 0; padding: 0 2px; cursor: pointer;
+  color: var(--text-dim, #9aa1ab); font-size: 12px; line-height: 1;
+  flex: 0 0 auto; font-family: inherit;
+  opacity: 0; transition: opacity 120ms;
+}
+/* the tree reveals these on hover; a row at rest stays one clean line */
+.ea-subrow:hover .ea-subquick,
+.ea-subrow:focus-within .ea-subquick { opacity: .85; }
+.ea-subquick:hover { opacity: 1 !important; color: var(--accent, #4c9aff); }
+.ea-subdate { flex: 0 0 auto; margin-left: auto; cursor: pointer; }
+/* The title must stay readable. MEASURED at 360px: the dialog narrows to 280px
+   (the .modal:has(.ea) rule above), and with four more fixed-width controls in the
+   row the title - the only flexible item - was crushed to 33px, about three
+   characters. A row that "fits" by making the name unreadable is not a pass.
+   So on a narrow screen the hover controls take NO space at rest: the row is the
+   positioning context and they sit over its right end only while it is hovered,
+   which is the same bargain the tree makes with .rowquick. */
+.ea-subrow { position: relative; }
+@media (max-width: 560px) {
+  /* At rest they are not in the row at all, so the name owns it. MEASURED: this took
+     the title from 33px back to 152px at 360px wide. */
+  .ea-subrow:not(:hover):not(:focus-within) .ea-subquick,
+  .ea-subrow:not(:hover):not(:focus-within) .ea-subdate:not(.hasdate) { display: none; }
+  /* Hovered, they sit in a strip over the row's right end. The first attempt hand-picked
+     right: 86/68/50/22px and the + ended up UNDER the date chip's "+ date" span - a click
+     meant for + would have set a date. Caught by elementFromPoint, not by looking. So the
+     strip is a flex row that lays them out with real gaps instead of guessed offsets, and
+     the title reserves exactly the strip's width. */
+  .ea-subrow:hover > .ea-subquick,
+  .ea-subrow:focus-within > .ea-subquick,
+  .ea-subrow:hover > .ea-subdate:not(.hasdate),
+  .ea-subrow:focus-within > .ea-subdate:not(.hasdate) {
+    position: absolute; top: 50%; transform: translateY(-50%);
+    margin-left: 0; background: var(--surface, #1c1f26); z-index: 2;
+  }
+  .ea-subrow > .q-out { right: 112px; }
+  .ea-subrow > .q-in  { right:  94px; }
+  .ea-subrow > .q-add { right:  76px; }
+  .ea-subrow > .ea-subdate:not(.hasdate) { right: 22px; }
+  .ea-subrow:hover .ea-subtitle,
+  .ea-subrow:focus-within .ea-subtitle { padding-right: 116px; }
+}
+.ea-subrow:not(:hover) .ea-subdate:not(.hasdate) { visibility: hidden; }
 .ea-subdots { width: 18px; text-align: center; font-size: 14px; }
 .ea-subdots:hover { color: var(--text, #e6e8ec); }
 /* a sub-sub-task, shown when its parent is opened */
@@ -6483,7 +6527,7 @@ body[data-newbranch="1"] #treeFilters{
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-10-16 19:51 DEMO</span>
+    <span id="buildStamp">build 2026-10-16 20:33 DEMO</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -13014,11 +13058,23 @@ function surfaceArrivals() {
        menu, one set of actions, so they can never drift apart. */
     function drawSubs() {
       list.textContent = '';
-      var kids = node.children || [];
+      drawLevel(node.children || [], 0);
+    }
+
+    /* 2026-10-16, round 2 - every depth gets the SAME row.
+       Round 1 drew a nested subtask as a bare <span> with its title and nothing else
+       ("read-only for now"), which is the same shortcut the operator rejected on the
+       top level: "it should have all the functions as I have it in the priorty tree".
+       Proven by the suite, not by reading: the <- check reported "no .q-out on that
+       row" the moment it clicked a row one level down. So the builder is recursive -
+       one function, so a control can never exist at one depth and not another. */
+    function drawLevel(kids, depth) {
       for (var j = 0; j < kids.length; j++) {
         (function (child, idx) {
           var rowEl = document.createElement('div');
-          rowEl.className = 'ea-subitem ea-subrow';
+          rowEl.className = 'ea-subitem ea-subrow' + (depth ? ' ea-subdeep' : '');
+          if (depth) rowEl.style.marginLeft = (depth * 22) + 'px';
+          rowEl.dataset.subDepth = String(depth);
           rowEl.setAttribute('draggable', 'true');
           rowEl.dataset.subId = child.id;
 
@@ -13054,6 +13110,84 @@ function surfaceArrivals() {
           ttl.className = 'ea-subtitle' + (child.done ? ' done' : '');
           ttl.textContent = child.title || '';
           rowEl.appendChild(ttl);
+
+          /* ===================================================== 2026-10-16, round 2
+             Operator: "its missing the same features I have in the priority tree, it
+             only had the 3 dots, review what I have on the priority tree and replicate
+             it in the subtask in the edit."
+
+             They were right - I shipped 3 of 8. MEASURED by hovering a real tree row
+             and listing every child element:
+                 tree-caret      open/close      I had it
+                 tree-check      the tick        I had it
+                 tree-title      the name        I had it
+                 rowquick q-out  <- out a level  MISSING
+                 rowquick q-in   -> in a level   MISSING
+                 rowquick q-add  +  add subtask  MISSING
+                 tree-datechip   the date chip   MISSING
+                 rowmenu         the 3 dots      I had it
+
+             Each one calls the SAME global the tree row calls, so there is one
+             behaviour and not a copy of it that can drift:
+                 window.__outdentNode / __indentNode / addNodeAt
+                 window.openDatePopover + fmtDate   (what buildDateChip does at 7445 -
+                   that function is module-local, so the CHIP is rebuilt here with the
+                   same class, the same "+ date" span and the same popover, NOT a
+                   second date control. pickDateFor would have been a different picker.)
+             They appear on hover, exactly as the tree's do, so a row at rest is one
+             clean line. */
+          function quick(cls, glyph, tip, run) {
+            var q = document.createElement('button');
+            q.type = 'button';
+            q.className = 'ea-subquick ' + cls;
+            q.textContent = glyph;
+            q.title = tip;
+            q.addEventListener('click', function (e) {
+              e.preventDefault(); e.stopPropagation();
+              try { run(); } catch (_) {}
+              if (window.Store) window.Store.save();
+              if (window.renderAll) window.renderAll();
+              drawSubs();
+            });
+            return q;
+          }
+          rowEl.appendChild(quick('q-out', '\u2190', 'Move out one level', function () {
+            if (window.__outdentNode) window.__outdentNode(child.id);
+          }));
+          rowEl.appendChild(quick('q-in', '\u2192', 'Make a subtask of the one above', function () {
+            if (window.__indentNode) window.__indentNode(child.id);
+          }));
+          rowEl.appendChild(quick('q-add', '+', 'Add subtask', function () {
+            if (window.addNodeAt) window.addNodeAt(child.id);
+          }));
+
+          /* the date chip - same class and same picker as the tree row's */
+          var chip = document.createElement('button');
+          chip.type = 'button';
+          chip.className = 'tree-datechip ea-subdate';
+          if (child.date) {
+            chip.textContent = (window.fmtDate ? window.fmtDate(child.date, 'short') : child.date);
+            chip.className += ' hasdate';
+          } else {
+            var plus = document.createElement('span');
+            plus.className = 'datechip-plus';
+            plus.textContent = '+ date';
+            chip.appendChild(plus);
+          }
+          chip.addEventListener('click', function (e) {
+            e.preventDefault(); e.stopPropagation();
+            var kid = child;
+            if (typeof window.openDatePopover === 'function' && typeof window.buildDateGrid === 'function') {
+              window.openDatePopover(chip, kid.date || '', function (iso) {
+                kid.date = iso || null;
+                if (!kid.date) kid.block = null;
+                if (window.Store) window.Store.save();
+                if (window.renderAll) window.renderAll();
+                drawSubs();
+              });
+            }
+          });
+          rowEl.appendChild(chip);
 
           /* the ⋮ - the SAME menu the tree row opens, not a copy of it */
           var dots = document.createElement('button');
@@ -13093,7 +13227,11 @@ function surfaceArrivals() {
             var movedId = null;
             try { movedId = e.dataTransfer.getData('text/plain'); } catch (_) {}
             if (!movedId || movedId === child.id) return;
-            var arr = node.children || [], from = -1, k;
+            /* the dropped row's OWN siblings, not the dialog's top level. Hardcoding
+               node.children here would have silently moved the wrong array the moment
+               a nested row became draggable, which it now is. A drag only reorders
+               within one level - the arrows are what change depth. */
+            var arr = kids, from = -1, k;
             for (k = 0; k < arr.length; k++) if (arr[k] && arr[k].id === movedId) from = k;
             if (from < 0) return;
             var moved = arr.splice(from, 1)[0];
@@ -13107,19 +13245,9 @@ function surfaceArrivals() {
 
           list.appendChild(rowEl);
 
-          /* the full branch, when it is opened - "whats inside of it" */
-          if (hasKids && child.__subOpen) {
-            for (var g = 0; g < child.children.length; g++) {
-              var gk = child.children[g];
-              var sub = document.createElement('div');
-              sub.className = 'ea-subitem ea-subrow ea-subdeep';
-              var st = document.createElement('span');
-              st.className = 'ea-subtitle' + (gk.done ? ' done' : '');
-              st.textContent = gk.title || '';
-              sub.appendChild(st);
-              list.appendChild(sub);
-            }
-          }
+          /* the full branch, when it is opened - "whats inside of it", drawn by the
+             same builder so it carries the same eight controls */
+          if (hasKids && child.__subOpen) drawLevel(child.children, depth + 1);
         })(kids[j], j);
       }
     }
