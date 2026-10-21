@@ -6534,7 +6534,7 @@ body[data-newbranch="1"] #treeFilters{
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-10-16 23:54 DEMO</span>
+    <span id="buildStamp">build 2026-10-21 17:53 DEMO</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -8293,6 +8293,10 @@ document.addEventListener("DOMContentLoaded", function() {
 
   function focusNode(id) {
     setTimeout(function () {
+      /* 2026-10-21 - the third of three callers that were pulling the caret onto a
+         tree row while the Edit dialog owned it. Named by trapping focus() with a
+         stack rather than guessed at. */
+      if (window.__addFromDialog) return;
       var row = document.querySelector('.tree-row[data-id="' + id + '"]');
       if (!row) return;
       var title = row.querySelector(".tree-title");
@@ -11288,6 +11292,13 @@ renderAll();
   window.addNodeAt = function (parentId) {
     var r = baseAdd ? baseAdd(parentId) : undefined;
     setTimeout(function () {
+      /* 2026-10-21 - when the add comes from the Edit dialog the new row lives in the
+         DIALOG, not the tree. Focusing a '#treeRoot .tree-title' here put the cursor
+         on a row BEHIND the dialog - measured as focus landing outside #modalHost -
+         so everything typed was lost. The caller says when that is the case. */
+      window.__wrapperRan = (window.__wrapperRan||0)+1;
+      window.__flagAtWrapper = !!window.__addFromDialog;
+      if (window.__addFromDialog) return;
       var root = document.getElementById('treeRoot');
       if (!root) return;
       var titles = root.querySelectorAll('.tree-title');
@@ -13182,7 +13193,10 @@ function surfaceArrivals() {
                    second date control. pickDateFor would have been a different picker.)
              They appear on hover, exactly as the tree's do, so a row at rest is one
              clean line. */
-          function quick(cls, glyph, tip, run) {
+          /* `own` = the handler saves and redraws itself. Without it this wrapper's
+             drawSubs() ran AFTER the handler and destroyed the element it had just
+             focused. */
+          function quick(cls, glyph, tip, run, own) {
             var q = document.createElement('button');
             q.type = 'button';
             q.className = 'ea-subquick ' + cls;
@@ -13191,6 +13205,7 @@ function surfaceArrivals() {
             q.addEventListener('click', function (e) {
               e.preventDefault(); e.stopPropagation();
               try { run(); } catch (_) {}
+              if (own) return;
               if (window.Store) window.Store.save();
               if (window.renderAll) window.renderAll();
               drawSubs();
@@ -13204,21 +13219,69 @@ function surfaceArrivals() {
             if (window.__indentNode) window.__indentNode(child.id);
           }));
           rowEl.appendChild(quick('q-add', '+', 'Add subtask', function () {
-            if (window.addNodeAt) window.addNodeAt(child.id);
-          }));
+            /* 2026-10-21 - operator: "the plus sign doesn't add a subtask under it."
+               MEASURED: the DATA was already right - the child lands under the row,
+               nested correctly. What is wrong is that you cannot SEE it:
+                   rows drawn in the dialog : ['something @depth0']  <- the new one missing
+                   focus after the click    : 'tree-title', NOT in the dialog
+               The tree's addNodeAt wrapper (~11139) redraws the tree and focuses
+               '#treeRoot .tree-title' - from this dialog that is a row BEHIND it, so
+               the typing went nowhere. Tell the wrapper to stand down, open the row,
+               redraw this list, and focus the new title here. */
+            if (!window.addNodeAt) return;
+            child.__subOpen = true;
+            /* The tree's wrapper does its focusing inside a setTimeout, so clearing
+               this flag in a `finally` cleared it BEFORE the wrapper ever read it -
+               measured: "wrapper ran: 1, flag was set at that moment: False". Clear it
+               on a later tick instead, after that timer has been and gone. */
+            window.__addFromDialog = true;
+            try { window.addNodeAt(child.id); }
+            /* armFocus keeps re-grabbing for 2500ms, so the flag must outlast it */
+            finally { setTimeout(function () { window.__addFromDialog = false; }, 2800); }
+            var made = child.children || [];
+            var newId = made.length ? made[made.length - 1].id : null;
+            drawSubs();
+            if (!newId) return;
+            /* synchronous: drawSubs() above has drawn the row, so it exists now. A
+               timer here either ran too early or lost a race with the tree's focus. */
+            var nrow = list.querySelector('.ea-subrow[data-sub-id="' + newId + '"]');
+            if (!nrow) return;
+            var nt = nrow.querySelector('.ea-subtitle');
+            if (!nt) return;
+            nt.focus();
+            var rng = document.createRange();
+            rng.selectNodeContents(nt);
+            rng.collapse(false);
+            var sel = window.getSelection();
+            sel.removeAllRanges();
+            sel.addRange(rng);
+          }, true));
 
-          /* the date chip - same class and same picker as the tree row's */
+          /* ===================================================== 2026-10-21
+             Operator, with a picture of a tree row: "in the priorty tree it dosn't
+             have the date, it has the clock, set up the right way."
+             They are right and I built the wrong thing. MEASURED, both rows hovered:
+                 tree row     class 'tree-datechip chipclock hasdate'
+                              text ''  ·  an <svg> clock  ·  title 'Oct 21'
+                 subtask row  class 'tree-datechip ea-subdate hasdate'
+                              text 'Oct 21'  ·  no svg  ·  no title
+             So the tree shows a CLOCK and keeps the date in the tooltip; mine printed
+             the date as text. The markup below is the tree's own (relocate(), ~15918)
+             so the two cannot look different again. */
           var chip = document.createElement('button');
           chip.type = 'button';
-          chip.className = 'tree-datechip ea-subdate';
+          chip.className = 'tree-datechip chipclock ea-subdate';
+          chip.innerHTML = '<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true">'
+            + '<circle cx="8" cy="8" r="6.2" fill="none" stroke="currentColor" stroke-width="1.6"></circle>'
+            + '<path d="M8 4.6V8l2.6 1.6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path>'
+            + '</svg>';
           if (child.date) {
-            chip.textContent = (window.fmtDate ? window.fmtDate(child.date, 'short') : child.date);
             chip.className += ' hasdate';
+            var ttl2 = (window.fmtDate ? window.fmtDate(child.date, 'short') : child.date);
+            if (child.time) ttl2 += ' at ' + child.time;
+            chip.title = ttl2;
           } else {
-            var plus = document.createElement('span');
-            plus.className = 'datechip-plus';
-            plus.textContent = '+ date';
-            chip.appendChild(plus);
+            chip.title = 'Set date and time';
           }
           chip.addEventListener('click', function (e) {
             e.preventDefault(); e.stopPropagation();
@@ -16082,6 +16145,14 @@ function surfaceArrivals() {
 /* ===== m96 ===== */
 (function () {
   function focusNewest() {
+    /* 2026-10-21 - this re-grabs focus every 80ms for 2.5s (see armFocus below),
+       by design: "keep re-applying: later renders steal focus back". When the new
+       task was added from the Edit DIALOG its row is not in the tree at all, so this
+       kept yanking the cursor onto a tree row BEHIND the dialog and everything typed
+       was lost. Found by trapping every focus() call with a stack - three separate
+       callers were taking it, and no synchronous focus could ever have won that race.
+       It stands down while the dialog owns the caret. */
+    if (window.__addFromDialog) return true;
     var root = document.getElementById('treeRoot');
     if (!root) return false;
     var titles = root.querySelectorAll('.tree-title');
