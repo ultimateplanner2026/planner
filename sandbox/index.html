@@ -6534,7 +6534,7 @@ body[data-newbranch="1"] #treeFilters{
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-10-21 17:53 DEMO</span>
+    <span id="buildStamp">build 2026-10-21 19:13 DEMO</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -13229,6 +13229,10 @@ function surfaceArrivals() {
                the typing went nowhere. Tell the wrapper to stand down, open the row,
                redraw this list, and focus the new title here. */
             if (!window.addNodeAt) return;
+            /* same reason as above: the row being added to must be open in the TREE,
+               or the new child has nowhere to be drawn there */
+            child.collapsed = false;
+            openAncestorsOf(child.id, true);
             child.__subOpen = true;
             /* The tree's wrapper does its focusing inside a setTimeout, so clearing
                this flag in a `finally` cleared it BEFORE the wrapper ever read it -
@@ -13368,7 +13372,74 @@ function surfaceArrivals() {
         })(kids[j], j);
       }
     }
+    /* 2026-10-21 - setting node.collapsed = false DOES NOT STICK, and I only found
+       that by putting a setter on the field and reading the stack: my handler set it
+       false, then TWO separate walks (apply ~22672 and applyState ~23376) set it back
+       to true on the very next render. Collapse is not stored on the node - it is a
+       list of ids in localStorage 'planner.collapsed.v1', and those walks restore the
+       node from that list every time.
+       So open the row by taking its id OUT OF THAT LIST, which both readers honour,
+       and open every ancestor too: a row is only drawn when the whole chain above it
+       is open. */
+    function openAncestorsOf(id, includeSelf) {
+      var KEY = 'planner.collapsed.v1';
+      var ids;
+      try { ids = JSON.parse(localStorage.getItem(KEY) || '[]'); }
+      catch (e) { ids = []; }
+      var drop = {};
+      if (includeSelf) drop[id] = 1;
+      if (typeof window.walkTree === 'function') {
+        var parentOf = {}, byId = {};
+        window.walkTree(function (n, d, parent) {
+          if (!n || n.id == null) return;
+          byId[n.id] = n;
+          if (parent) parentOf[n.id] = parent.id;
+        });
+        var cur = parentOf[id], guard = 0;
+        while (cur != null && guard++ < 200) {
+          drop[cur] = 1;
+          if (byId[cur]) byId[cur].collapsed = false;
+          cur = parentOf[cur];
+        }
+        if (includeSelf && byId[id]) byId[id].collapsed = false;
+      }
+      var keep = [], i;
+      for (i = 0; i < ids.length; i++) if (!drop[ids[i]]) keep.push(ids[i]);
+      try { localStorage.setItem(KEY, JSON.stringify(keep)); } catch (e) {}
+    }
+
     drawSubs();
+
+    /* 2026-10-21 - operator: "and vice versa". MEASURED: with the dialog open, a
+       subtask added from the tree landed in the data and the dialog went on listing
+       the old set - renderAll() redraws the TREE, and drawSubs() only runs from in
+       here, so nothing told this list to catch up.
+       So the list re-reads after any renderAll, and stops when the dialog is gone.
+       It redraws only when the set of children actually changed, so it can never
+       interrupt someone typing in a row. */
+    (function () {
+      var baseRender = window.renderAll;
+      if (typeof baseRender !== 'function') return;
+      function sig() {
+        var kids = node.children || [], i, out = [];
+        for (i = 0; i < kids.length; i++) out.push(kids[i] && kids[i].id);
+        return out.join('|');
+      }
+      var last = sig();
+      window.renderAll = function () {
+        var r = baseRender.apply(this, arguments);
+        try {
+          if (!list.isConnected) {            /* dialog closed - put it back */
+            window.renderAll = baseRender;
+            return r;
+          }
+          var now = sig();
+          if (now !== last) { last = now; drawSubs(); }
+        } catch (e) {}
+        return r;
+      };
+    })();
+
     subWrap.appendChild(list);
     var newSub = document.createElement('input');
     newSub.type = 'text'; newSub.className = 'ea-input';
@@ -13398,6 +13469,15 @@ function surfaceArrivals() {
       };
       if (!node.children) node.children = [];
       node.children.push(newChild);
+      /* 2026-10-21 - operator: "when I add something from inside the edit, it doesn't
+         show on priorty tree? it must reflect that".
+         MEASURED on their demo: the child WAS saved, and the tree had no row for it
+         at all - parentCollapsed: true, kidRowInDOM: false. A collapsed parent never
+         builds rows for its children, so the new one was invisible. The tree's own +
+         does not hit this because addNodeAt sets pf.node.collapsed = false (~8218).
+         Do the same here: adding something is a reason to show it. */
+      node.collapsed = false;
+      openAncestorsOf(node.id, true);
       if (typeof window.inheritFromAncestors === 'function') window.inheritFromAncestors(newChild, node);
       /* redraw through the one function, so a new row gets the tick, the menu and
          the drag like every other - appending a bare div was how they ended up
