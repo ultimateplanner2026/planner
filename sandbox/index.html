@@ -6534,7 +6534,7 @@ body[data-newbranch="1"] #treeFilters{
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-10-25 19:14 DEMO</span>
+    <span id="buildStamp">build 2026-10-25 19:36 DEMO</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -18980,7 +18980,35 @@ function firstConnect(remote, rAt, lAt) {
       if (pdTimer) { clearTimeout(pdTimer); pdTimer = null; }
       var row = clock.closest ? clock.closest('[data-id]') : null;
       var id = row ? row.getAttribute('data-id') : null;
-      if (id && typeof window.editActivity === 'function') window.editActivity(id);
+      if (!id) return;
+      /* ===================================================== 2026-10-25
+         Operator: "in the past due section, I want the clock if I double click it
+         it would pop up the calender to change date right under where I click, the
+         fature for today and tomorrow for once click is still thre don't change
+         taht."
+         It used to open the whole Edit Activity window. Now it opens the planner's
+         OWN date picker, anchored to the clock they pressed - their standing rule,
+         "any pop up must be right under whatever is clicked". Single click is
+         untouched: pdChips() above still shows Today / Tomorrow. */
+      var f = window.findNode ? window.findNode(id) : null;
+      if (!f || !f.node) return;
+      var n = f.node;
+      if (typeof window.openDatePopover === 'function'
+          && typeof window.buildDateGrid === 'function') {
+        window.openDatePopover(clock, n.date || '', function (iso) {
+          if (!iso) return;
+          n.date = iso;
+          try { if (window.stampClocks) window.stampClocks(n); } catch (e) {}
+          if (window.Store) window.Store.save();
+          if (window.renderAll) window.renderAll();
+        });
+        if (typeof window.__menuPlaceUnder === 'function') {
+          window.__menuPlaceUnder(clock, document.querySelector('.datepop'));
+        }
+        return;
+      }
+      /* only if the picker is somehow unavailable */
+      if (typeof window.editActivity === 'function') window.editActivity(id);
     }, true);
   }
 
