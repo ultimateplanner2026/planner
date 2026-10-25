@@ -6534,7 +6534,7 @@ body[data-newbranch="1"] #treeFilters{
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-10-25 19:36 DEMO</span>
+    <span id="buildStamp">build 2026-10-25 19:44 DEMO</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -14718,6 +14718,110 @@ function surfaceArrivals() {
        commitment, and an overdue one belongs in Past due whatever its shape. */
     return true;
   };
+
+  /* ===================================================== 2026-10-25
+     Operator: "in the demo morning stretech is dated yesterday and it didnt' show up
+     on the past due, why? i thought you fixed that already?" and then, correcting me:
+     "not a habit check again, i changed its classificatino from habit to regular
+     family subbranch".
+
+     They were right and I was wrong - I had read the demo's seed, not what they had
+     done. REPRODUCED by moving it out of Habits into Family and asking Past due:
+         moved out of Habits .............. the move itself works
+         still in the habit map ........... TRUE   <- leftover
+         habit record still in data.habits  TRUE   <- leftover
+         still carries a daily repeat ..... TRUE   <- leftover
+         in Past due ...................... NO
+     Isolated one at a time: dropping the habit RECORD alone was not enough (the
+     repeat still excludes it); dropping the repeat too put it in Past due.
+
+     So reclassifying moved WHERE it sits without changing WHAT it is.
+
+     19 different places splice/push children, so patching each move path would miss
+     one. This sweeps on save instead: anything that is no longer inside a Habits or
+     Routines host stops being a habit or routine. They chose "stop repeating - it
+     becomes a one-off", so the repeat goes with the record. */
+  window.__dropStaleTrackers = function () {
+    try {
+      var D = window.Store && window.Store.data;
+      if (!D || typeof window.walkTree !== 'function') return 0;
+
+      /* which ids are still INSIDE a Habits/Routines host - the app's own rule */
+      var inside = {};
+      window.walkTree(function (n, d, parent) {
+        if (!n || n.id == null) return;
+        var host = (typeof window.__isHRNode === 'function') ? window.__isHRNode(n) : false;
+        if (host) { inside[n.id] = 1; return; }
+        if (parent && inside[parent.id]) inside[n.id] = 1;
+      });
+
+      var byId = {};
+      window.walkTree(function (n) { if (n && n.id != null) byId[n.id] = n; });
+
+      /* Mark anything that IS inside a host right now. That mark is what makes
+         "it was taken out" provable later - without it the sweep has to guess from
+         the id, which wrongly spared the operator's own case (id 'stretch', no
+         ~habits suffix) and wrongly deleted habits that never sat in a container. */
+      var mid;
+      for (mid in inside) {
+        if (inside.hasOwnProperty(mid) && byId[mid]) byId[mid].__cameFromHost = true;
+      }
+
+      var freed = 0, lists = [['habits', 'habit'], ['routines', 'routine']], li;
+      for (li = 0; li < lists.length; li++) {
+        var key = lists[li][0];
+        var arr = D[key] || [];
+        var keep = [], i;
+        for (i = 0; i < arr.length; i++) {
+          var rec = arr[i];
+          if (!rec) continue;
+          var tid = rec.fromTask || rec.id;
+          var node = byId[tid];
+          /* no task behind it at all, or the task is still in a host - leave alone */
+          if (!node || inside[tid]) { keep.push(rec); continue; }
+
+          /* 2026-10-25 - CAUGHT BY RE-RUNNING THE OLDER SUITE, and it would have cost
+             them real habits. My first version decided "is this still a habit?" by
+             POSITION alone, so a habit whose task is NOT inside a Habits container -
+             which is how pastdue-excludes.md seeds one, and may be how some of their
+             own are stored - looked like it had been moved out, and the sweep deleted
+             the record and the repeat.
+
+             A record is only stale when the task was taken OUT of a host it used to be
+             in. So it must have been in one: we only clear when the node still carries
+             the marks of having lived there (a repeat, or an id tied to a host). A
+             habit that never sat in a container is left exactly alone. */
+          /* Only clear when we can PROVE it used to live in a host: either its id
+             carries the host suffix, or we marked it on a previous pass while it was
+             still inside one. A habit that has never been in a container is left
+             completely alone - that is the case the older suite caught, and it would
+             have cost them real habits. */
+          var wasInHost = /~(habits|routines)$/.test(String(tid))
+                       || node.__cameFromHost === true;
+          if (!wasInHost) { keep.push(rec); continue; }
+
+          /* it has been moved OUT: drop the record and the repeat with it */
+          node.repeat = null;
+          delete node.__cameFromHost;
+          freed++;
+        }
+        if (keep.length !== arr.length) D[key] = keep;
+      }
+      return freed;
+    } catch (e) { return 0; }
+  };
+
+  /* run it whenever the planner saves, so any of the 19 move paths is covered */
+  (function () {
+    if (!window.Store || typeof window.Store.save !== 'function') return;
+    if (window.__staleTrackerSweepOn) return;
+    window.__staleTrackerSweepOn = true;
+    var base = window.Store.save;
+    window.Store.save = function () {
+      try { window.__dropStaleTrackers(); } catch (e) {}
+      return base.apply(this, arguments);
+    };
+  })();
 
   window.__pastDue = function () {
     var out = [], today = window.todayISO ? window.todayISO() : null;
