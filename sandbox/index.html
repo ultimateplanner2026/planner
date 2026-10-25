@@ -6534,7 +6534,7 @@ body[data-newbranch="1"] #treeFilters{
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-10-21 19:13 DEMO</span>
+    <span id="buildStamp">build 2026-10-25 19:14 DEMO</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -14696,11 +14696,26 @@ function surfaceArrivals() {
        THE TRADE-OFF, stated because it is real: a one-off task parked at the top
        level with a past date will no longer appear in Past due either. It is still
        in the tree, where it cannot be missed. */
-    var topLevel = !parent;
-    if (topLevel) return false;
-    /* deeper down, anything that HOLDS other tasks is a sub-branch and is visible
-       through its own parent chain */
-    if (node.children && node.children.length) return false;
+    /* ===================================================== 2026-10-25
+       Operator: "there is a remind aziz 24th task from yesterday for some reason
+       its not showing up in the past due", then: "past due for top level only
+       applies if it has a date and on the calender. if its only priorty without a
+       date, it must not show on the past due. also, remind aziz was not a branch
+       actually." And finally, the rule in their words:
+           "if anything has a date, it must show on past due, unless it a routine
+            or habit"
+
+       WHY THE OLD RULE WAS WRONG. On 4 Oct I excluded everything top-level, to stop
+       an empty branch ("Family") cluttering Past due. MEASURED now: nothing in the
+       data marks a branch - there is no kind:'branch', and a branch is only ever
+       inferred from "top-level AND holds something". So an empty dated branch and a
+       dated top-level TASK are identical records, and that rule could not tell
+       Remind Aziz from Family. It threw out the task along with the branch.
+
+       The rule above already returns false when there is no date, so the
+       "priority-only, no date" half they asked for is covered by line 2. Habits and
+       routines are filtered out above. Nothing else is excluded now: a date is a
+       commitment, and an overdue one belongs in Past due whatever its shape. */
     return true;
   };
 
@@ -32826,6 +32841,13 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
         return Promise.resolve(false);
       }
       return window.FB.push().then(function() {
+        /* remember what the cloud now holds, so "unsaved" can mean something */
+        try {
+          if (window.__noteSavedSig) window.__noteSavedSig();
+          if (window.Store && window.Store.data) {
+            window.__savedSnapshot = JSON.parse(JSON.stringify(window.Store.data));
+          }
+        } catch (e) {}
         return true;
       }, function() {
         return false;
@@ -32835,16 +32857,152 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
     }
   };
 
+  /* ===================================================== 2026-10-25
+     Operator: "yesterday there was an issue with synching it wasn't green all the
+     time it was on and off, i had notes in journal titled newst willingboro it save
+     some items in the notes but not all and logged out without saving... I want this
+     problem not to happen again, and in a way prevent me from logging out if
+     something is not saved."
+
+     THE BUG, read from this very function: it ran the SAME line on success and on
+     failure - sign out either way. Worse, __flushCloud RESOLVES with false when the
+     push fails rather than rejecting, so the failure branch never even ran; it was
+     the success branch, with a lost save. Nothing warned, nothing blocked.
+
+     They chose: refuse, and say what is unsaved, with Retry / Stay / Sign out anyway.
+     So sign-out now only proceeds when the flush actually reports true. */
   function wrap(original, thisArg, target, name) {
     target[name] = function() {
       var args = arguments;
-      return window.__flushCloud().then(function() {
-        return original.apply(thisArg, args);
-      }, function() {
-        return original.apply(thisArg, args);
+      var go = function () { return original.apply(thisArg, args); };
+      return window.__flushCloud().then(function (ok) {
+        if (ok === true) return go();
+        return window.__confirmUnsaved(go);
+      }, function () {
+        return window.__confirmUnsaved(go);
       });
     };
   }
+
+  /* What is still waiting to reach the cloud, in words the operator can act on. */
+  /* What is still waiting to reach the cloud.
+
+     FIRST VERSION WAS WRONG and the picture caught it: it counted every task in the
+     planner and said "83 tasks", which reads as "all your work is about to be lost".
+     It also referenced window.__lastSyncedSig, which does not exist - I had assumed
+     a name instead of reading one.
+
+     Now: __fbCanonSig (26598) is the planner's own signature of the saved data. We
+     record it on every successful push, and compare. Same signature means nothing is
+     pending and the dialog never appears. Different means SOMETHING changed since
+     the last save - and rather than invent a count we cannot stand behind, we say so
+     plainly and name the areas that differ. */
+  window.__noteSavedSig = function () {
+    try {
+      if (window.__fbCanonSig && window.Store && window.Store.data) {
+        window.__savedSig = window.__fbCanonSig(window.Store.data);
+      }
+    } catch (e) {}
+  };
+
+  window.__unsavedSummary = function () {
+    var out = [];
+    try {
+      var D = window.Store && window.Store.data;
+      if (!D) return out;
+      var sig = window.__fbCanonSig ? window.__fbCanonSig(D) : null;
+      if (sig && window.__savedSig && sig === window.__savedSig) return out;
+
+      /* Name the AREAS that differ from the last saved copy, not totals. If we have
+         no saved copy to compare against we say that, rather than guessing. */
+      var last = window.__savedSnapshot;
+      if (!last) { out.push('changes made since the last successful save'); return out; }
+      function count(o) { var n = 0, k; for (k in o) if (o.hasOwnProperty(k)) n++; return n; }
+      var areas = [['notes', 'Notes'], ['journal', 'Journal']], i;
+      for (i = 0; i < areas.length; i++) {
+        var key = areas[i][0], label = areas[i][1];
+        var now = D[key] || {}, was = last[key] || {};
+        var changed = [], k2;
+        for (k2 in now) {
+          if (!now.hasOwnProperty(k2)) continue;
+          if (JSON.stringify(now[k2]) !== JSON.stringify(was[k2])) changed.push(k2);
+        }
+        if (changed.length === 1) out.push(label + ' \u2014 "' + changed[0] + '"');
+        else if (changed.length) out.push(changed.length + ' ' + label.toLowerCase() + ' entries');
+      }
+      var nowT = 0, wasT = 0;
+      if (window.walkTree) window.walkTree(function () { nowT++; });
+      (function w(list) {
+        if (!list) return;
+        for (var j = 0; j < list.length; j++) { wasT++; w(list[j] && list[j].children); }
+      })(last.tree);
+      var diff = Math.abs(nowT - wasT);
+      if (diff) out.push(diff + (diff === 1 ? ' task' : ' tasks'));
+      if (!out.length) out.push('changes made since the last successful save');
+    } catch (e) {}
+    return out;
+  };
+
+  /* The dialog. Built with the planner's own modal classes so it looks like every
+     other one, and it REFUSES by default - the dangerous button is last and is
+     worded so it cannot be pressed by accident. */
+  window.__confirmUnsaved = function (proceed) {
+    return new Promise(function (resolve) {
+      var host = document.getElementById('modalHost') || document.body;
+      var back = document.createElement('div');
+      back.className = 'modal-backdrop';
+      back.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);'
+        + 'z-index:99999;display:flex;align-items:center;justify-content:center;';
+      var box = document.createElement('div');
+      box.className = 'modal';
+      box.style.cssText = 'max-width:460px;width:92%;background:var(--surface,#1c1f26);'
+        + 'border:1px solid var(--border,#2e323a);border-radius:12px;padding:18px;'
+        + 'color:var(--text,#e6e8ec);';
+      var items = window.__unsavedSummary();
+      var list = items.length
+        ? ('<ul style="margin:8px 0 0 18px;padding:0">'
+            + items.map(function (x) { return '<li>' + x + '</li>'; }).join('')
+            + '</ul>')
+        : '';
+      box.innerHTML =
+        '<h3 style="margin:0 0 8px;font-size:16px;color:var(--warn,#f5c451)">'
+        + '\u26a0 Not saved yet</h3>'
+        + '<p style="margin:0;font-size:14px;line-height:1.5">Your changes have not '
+        + 'reached the cloud. If you sign out now they stay only on this device, and '
+        + 'you will not see them anywhere else.</p>' + list
+        + '<div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap">'
+        + '<button class="modal-btn" data-act="retry" style="flex:1 1 auto">Retry</button>'
+        + '<button class="modal-btn" data-act="stay" style="flex:1 1 auto">Stay signed in</button>'
+        + '</div>'
+        + '<button class="modal-btn" data-act="force" style="width:100%;margin-top:8px;'
+        + 'background:transparent;border:1px solid var(--danger,#f87171);'
+        + 'color:var(--danger,#f87171)">Sign out anyway \u2014 I accept losing this</button>';
+      back.appendChild(box);
+      host.appendChild(back);
+      function close() { if (back.parentNode) back.parentNode.removeChild(back); }
+      box.addEventListener('click', function (e) {
+        var b = e.target.closest ? e.target.closest('[data-act]') : null;
+        if (!b) return;
+        var act = b.getAttribute('data-act');
+        if (act === 'stay') { close(); resolve(false); return; }
+        if (act === 'force') { close(); resolve(proceed()); return; }
+        if (act === 'retry') {
+          b.disabled = true; b.textContent = 'Retrying\u2026';
+          window.__flushCloud().then(function (ok) {
+            if (ok === true) { close(); resolve(proceed()); return; }
+            b.disabled = false; b.textContent = 'Retry';
+            b.style.borderColor = 'var(--danger,#f87171)';
+          }, function () {
+            b.disabled = false; b.textContent = 'Retry';
+          });
+        }
+      });
+      /* clicking the backdrop is the SAFE choice - it stays signed in */
+      back.addEventListener('click', function (e) {
+        if (e.target === back) { close(); resolve(false); }
+      });
+    });
+  };
 
   if (window.FB && typeof window.FB.signOut === 'function') {
     wrap(window.FB.signOut, window.FB, window.FB, 'signOut');
