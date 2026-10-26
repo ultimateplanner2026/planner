@@ -2641,6 +2641,103 @@ aside#treePane { overflow-y: auto; }
   font-size: 13px; padding: 6px 12px; background: var(--surface-2);
   border-radius: 6px; color: var(--text);
 }
+/* 2026-10-16: the subtask row carries what a tree row carries - caret, tick, title,
+   and the ⋮ that opens the SAME menu. Colours are taken from the existing tokens the
+   tree already uses, not invented, so the two read as one app. */
+.ea-subrow {
+  display: flex; align-items: center; gap: 8px;
+  cursor: grab; user-select: none;
+}
+.ea-subrow.dragging { opacity: .45; cursor: grabbing; }
+.ea-subrow.dropon  { outline: 2px solid var(--accent, #4c9aff); outline-offset: -2px; }
+.ea-subcaret, .ea-subtick, .ea-subdots {
+  background: none; border: 0; padding: 0; cursor: pointer;
+  color: var(--text-dim, #9aa1ab); font-size: 12px; line-height: 1;
+  flex: 0 0 auto; font-family: inherit;
+}
+.ea-subcaret { width: 12px; text-align: center; }
+.ea-subtick {
+  width: 16px; height: 16px; border: 1px solid var(--border, #2e323a);
+  border-radius: 4px; color: var(--accent, #4c9aff); font-size: 11px;
+}
+.ea-subtick.done { border-color: var(--accent, #4c9aff); }
+.ea-subtitle { flex: 1 1 auto; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ea-subtitle.done { color: var(--text-dim, #9aa1ab); text-decoration: line-through; }
+.ea-subquick {
+  background: none; border: 0; padding: 0 2px; cursor: pointer;
+  color: var(--text-dim, #9aa1ab); font-size: 12px; line-height: 1;
+  flex: 0 0 auto; font-family: inherit;
+  opacity: 0; transition: opacity 120ms;
+}
+/* the tree reveals these on hover; a row at rest stays one clean line */
+.ea-subrow:hover .ea-subquick,
+.ea-subrow:focus-within .ea-subquick { opacity: .85; }
+.ea-subquick:hover { opacity: 1 !important; color: var(--accent, #4c9aff); }
+.ea-subdate { flex: 0 0 auto; margin-left: auto; cursor: pointer; }
+/* The title must stay readable. MEASURED at 360px: the dialog narrows to 280px
+   (the .modal:has(.ea) rule above), and with four more fixed-width controls in the
+   row the title - the only flexible item - was crushed to 33px, about three
+   characters. A row that "fits" by making the name unreadable is not a pass.
+   So on a narrow screen the hover controls take NO space at rest: the row is the
+   positioning context and they sit over its right end only while it is hovered,
+   which is the same bargain the tree makes with .rowquick. */
+.ea-subrow { position: relative; }
+@media (max-width: 560px) {
+  /* At rest they are not in the row at all, so the name owns it. MEASURED: this took
+     the title from 33px back to 152px at 360px wide. */
+  .ea-subrow:not(:hover):not(:focus-within) .ea-subquick,
+  .ea-subrow:not(:hover):not(:focus-within) .ea-subdate:not(.hasdate) { display: none; }
+  /* Hovered, they sit in a strip over the row's right end. The first attempt hand-picked
+     right: 86/68/50/22px and the + ended up UNDER the date chip's "+ date" span - a click
+     meant for + would have set a date. Caught by elementFromPoint, not by looking. So the
+     strip is a flex row that lays them out with real gaps instead of guessed offsets, and
+     the title reserves exactly the strip's width. */
+  .ea-subrow:hover > .ea-subquick,
+  .ea-subrow:focus-within > .ea-subquick,
+  .ea-subrow:hover > .ea-subdate:not(.hasdate),
+  .ea-subrow:focus-within > .ea-subdate:not(.hasdate) {
+    position: absolute; top: 50%; transform: translateY(-50%);
+    margin-left: 0; background: var(--surface, #1c1f26); z-index: 2;
+  }
+  .ea-subrow > .q-out { right: 112px; }
+  .ea-subrow > .q-in  { right:  94px; }
+  .ea-subrow > .q-add { right:  76px; }
+  .ea-subrow > .ea-subdate:not(.hasdate) { right: 22px; }
+  .ea-subrow:hover .ea-subtitle,
+  .ea-subrow:focus-within .ea-subtitle { padding-right: 116px; }
+}
+.ea-subrow:not(:hover) .ea-subdate:not(.hasdate) { visibility: hidden; }
+.ea-subtitle[contenteditable] { outline: none; cursor: text; border-radius: 3px; }
+.ea-subtitle[contenteditable]:hover { background: var(--surface-2, #22262e); }
+.ea-subtitle[contenteditable]:focus {
+  background: var(--surface-2, #22262e);
+  box-shadow: inset 0 0 0 1px var(--accent, #4c9aff);
+}
+.ea-subrow.high .ea-subtitle { color: var(--warn, #f5c451); font-weight: 600; }
+.ea-subhead { display: flex; align-items: center; justify-content: space-between; }
+.ea-futchip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 3px 9px; border-radius: 999px;
+  background: var(--surface-2, #22262e); border: 1px solid var(--border, #2e323a);
+  color: var(--text-dim, #9aa1ab); font: inherit; font-size: 11px;
+  cursor: pointer; white-space: nowrap;
+}
+.ea-futchip:hover { color: var(--text, #e6e8ec); }
+.ea-futchip.on { border-color: var(--accent, #4c9aff); color: var(--accent, #4c9aff); }
+.ea-futbox {
+  width: 12px; height: 12px; border: 1.5px solid currentColor; border-radius: 3px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 9px; line-height: 1;
+}
+.ea-futchip.on .ea-futbox { background: var(--accent, #4c9aff); color: #fff;
+  border-color: var(--accent, #4c9aff); }
+.ea-futn { background: #2b313a; border-radius: 8px; padding: 0 5px; font-size: 10px; }
+.ea-subdots { width: 18px; text-align: center; font-size: 14px; }
+.ea-subdots:hover { color: var(--text, #e6e8ec); }
+/* a sub-sub-task, shown when its parent is opened */
+.ea-subdeep { margin-left: 22px; background: transparent;
+  border-left: 1px solid var(--border, #2e323a); border-radius: 0; }
 
 /* Tag picker: choose from what already exists instead of typing */
 .tagpick { display: flex; flex-direction: column; gap: 6px; }
@@ -6248,7 +6345,7 @@ body[data-newbranch="1"] #treeFilters{
 }
 </style>
 </head>
-<body>
+<body><style>/* the banner is fixed, so the page must be pushed down by exactly its height or    it sits on top of the toolbar - the operator: "the red marking is covering some    of the setting and stuff up there". */html{padding-top:26px !important;box-sizing:border-box}#practiceBanner{top:0 !important}</style>
 <!-- ===== Internet Explorer notice - operator 2026-09-20 =====
      "It is Internet Explorer. Not sure if that makes any difference."
      It makes all the difference. The planner uses CSS variables in 1,074 places
@@ -6309,7 +6406,7 @@ body[data-newbranch="1"] #treeFilters{
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-10-12 00:32</span>
+    <span id="buildStamp">build 2026-10-26 13:27</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -8072,6 +8169,10 @@ document.addEventListener("DOMContentLoaded", function() {
 
   function focusNode(id) {
     setTimeout(function () {
+      /* 2026-10-21 - the third of three callers that were pulling the caret onto a
+         tree row while the Edit dialog owned it. Named by trapping focus() with a
+         stack rather than guessed at. */
+      if (window.__addFromDialog) return;
       var row = document.querySelector('.tree-row[data-id="' + id + '"]');
       if (!row) return;
       var title = row.querySelector(".tree-title");
@@ -9974,7 +10075,7 @@ window.renderHabits = function () {
 })();
 
 /* ===== f12a1 ===== */
-(function(){var baseRenderTree=window.renderTree;window.renderTree=function(){baseRenderTree();window.__applyTimeFilter();};if(window.__revealAhead===undefined)window.__revealAhead=false;if(window.__draggingNodeId===undefined)window.__draggingNodeId=null;window.__applyTimeFilter=function(){var today=(window.selectedDate||todayISO());var realToday=todayISO();var selfFuture={},visible={},overdue={};var walk=function(node){var childVisible=false;if(node.children){node.children.forEach(function(child){walk(child);if(visible[child.id])childVisible=true;});}var date=node.date;var isFuture=!!(date&&date>today);var isOverdue=!!(date&&date<realToday&&!node.done);selfFuture[node.id]=isFuture;overdue[node.id]=isOverdue;visible[node.id]=!isFuture||childVisible;};Store.data.tree.forEach(function(root){walk(root);});var bypass=(document.getElementById('treeSearch').value.trim()!=='')||window.__revealAhead;var rows=document.querySelectorAll('#treeRoot .tree-row');rows.forEach(function(row){var id=row.dataset.id;row.classList.remove('ancestor-muted','overdue');var controls=row.querySelectorAll('input,button');controls.forEach(function(el){el.disabled=false;});if(bypass||id===window.__draggingNodeId){row.style.display='';}else if(!visible[id]){row.style.display='none';}else{row.style.display='';if(selfFuture[id]){row.classList.add('ancestor-muted');controls.forEach(function(el){/* CARD 14, 2026-09-21 - operator: "A branch task, i future dated it. but when I click show future branches and click on the clock button its doesn't work". MEASURED: the clock IS the date chip, it is a <button>, and this blanket sweep over 'input,button' set disabled=true on it - so it collapsed to 0x0 and the click landed on the toolbar behind. Rescheduling is the ONE thing you need on a future-dated branch, so the date chip stays live. */if(el.classList&&el.classList.contains('tree-datechip'))return;el.disabled=true;});}}if(overdue[id])row.classList.add('overdue');});var aheadCount=0,overdueCount=0,k;for(k in selfFuture){if(selfFuture[k])aheadCount++;}for(k in overdue){if(overdue[k])overdueCount++;}window.__aheadCount=aheadCount;window.__overdueCount=overdueCount;if(typeof window.__renderTreeFooter==='function')window.__renderTreeFooter();};})();
+(function(){var baseRenderTree=window.renderTree;window.renderTree=function(){baseRenderTree();window.__applyTimeFilter();};if(window.__revealAhead===undefined)window.__revealAhead=false;if(window.__draggingNodeId===undefined)window.__draggingNodeId=null;window.__applyTimeFilter=function(){var today=(window.selectedDate||todayISO());var realToday=todayISO();var selfFuture={},visible={},overdue={};var walk=function(node){var childVisible=false;if(node.children){node.children.forEach(function(child){walk(child);if(visible[child.id])childVisible=true;});}var date=node.date;var isFuture=!!(date&&date>today);var isOverdue=!!(date&&date<realToday&&!node.done);selfFuture[node.id]=isFuture;overdue[node.id]=isOverdue;visible[node.id]=!isFuture||childVisible;};Store.data.tree.forEach(function(root){walk(root);});/* 2026-10-26 - CARD 20 REMOVED. It forced every future-dated CHILD visible in the tree, which overrode the operator's own 'Show future branches' button: MEASURED, a plain dated subtask showed whether that button was on or off, so both menu items stopped doing anything. They said: "That feature should not be changed." The real answer is card 30 - a chip inside the Edit window that reveals a branch's future subtasks on request, leaving the tree alone. */var bypass=(document.getElementById('treeSearch').value.trim()!=='')||window.__revealAhead;var rows=document.querySelectorAll('#treeRoot .tree-row');rows.forEach(function(row){var id=row.dataset.id;row.classList.remove('ancestor-muted','overdue');var controls=row.querySelectorAll('input,button');controls.forEach(function(el){el.disabled=false;});if(bypass||id===window.__draggingNodeId){row.style.display='';}else if(!visible[id]){row.style.display='none';}else{row.style.display='';if(selfFuture[id]){row.classList.add('ancestor-muted');controls.forEach(function(el){/* CARD 14, 2026-09-21 - operator: "A branch task, i future dated it. but when I click show future branches and click on the clock button its doesn't work". MEASURED: the clock IS the date chip, it is a <button>, and this blanket sweep over 'input,button' set disabled=true on it - so it collapsed to 0x0 and the click landed on the toolbar behind. Rescheduling is the ONE thing you need on a future-dated branch, so the date chip stays live. */if(el.classList&&el.classList.contains('tree-datechip'))return;el.disabled=true;});}}if(overdue[id])row.classList.add('overdue');});var aheadCount=0,overdueCount=0,k;for(k in selfFuture){if(selfFuture[k])aheadCount++;}for(k in overdue){if(overdue[k])overdueCount++;}window.__aheadCount=aheadCount;window.__overdueCount=overdueCount;if(typeof window.__renderTreeFooter==='function')window.__renderTreeFooter();};})();
 
 /* ===== f12a2 ===== */
 (function(){window.__renderTreeFooter=function(){var root=document.getElementById('treeRoot');if(!root)return;root.querySelectorAll('#treeFooter').forEach(function(el){el.remove();});root.querySelectorAll('.tree-empty').forEach(function(el){el.remove();});var ahead=window.__aheadCount||0,over=window.__overdueCount||0,visibleRows=0;root.querySelectorAll('.tree-row').forEach(function(el){if(el.style.display!=='none')visibleRows++;});if(visibleRows===0){var empty=document.createElement('div');empty.className='tree-empty';var nothing=document.createElement('div');nothing.textContent='Nothing for today.';empty.appendChild(nothing);if(ahead>0){var action=document.createElement('div');action.className='tree-empty-action';action.textContent=ahead+(ahead===1?' item scheduled ahead':' items scheduled ahead');action.style.cursor='pointer';action.addEventListener('click',function(){window.__revealAhead=true;window.renderTree();});empty.appendChild(action);}root.appendChild(empty);}if(ahead>0||over>0){var footer=document.createElement('div');footer.id='treeFooter';if(ahead>0){var btn=document.createElement('button');btn.id='btnRevealAhead';btn.textContent=(window.__revealAhead?'Hide ':'')+ahead+(ahead===1?' scheduled ahead':' scheduled ahead');btn.addEventListener('click',function(){window.__revealAhead=!window.__revealAhead;window.renderTree();});footer.appendChild(btn);}if(over>0){var span=document.createElement('span');span.className='overdue-count';span.textContent=over+' overdue';footer.appendChild(span);}root.appendChild(footer);}};})();
@@ -11067,6 +11168,11 @@ renderAll();
   window.addNodeAt = function (parentId) {
     var r = baseAdd ? baseAdd(parentId) : undefined;
     setTimeout(function () {
+      /* 2026-10-21 - when the add comes from the Edit dialog the new row lives in the
+         DIALOG, not the tree. Focusing a '#treeRoot .tree-title' here put the cursor
+         on a row BEHIND the dialog - measured as focus landing outside #modalHost -
+         so everything typed was lost. The caller says when that is the case. */
+      if (window.__addFromDialog) return;
       var root = document.getElementById('treeRoot');
       if (!root) return;
       var titles = root.querySelectorAll('.tree-title');
@@ -12819,19 +12925,484 @@ function surfaceArrivals() {
     var subWrap = document.createElement('div');
     subWrap.className = 'ea-subs';
     var subHead = document.createElement('div');
-    subHead.className = 'ea-sectionhead';
-    subHead.textContent = 'Subtasks';
+    subHead.className = 'ea-sectionhead ea-subhead';
+    var subHeadText = document.createElement('span');
+    subHeadText.textContent = 'Subtasks';
+    subHead.appendChild(subHeadText);
+
+    /* ===================================================== 2026-10-26
+       Operator, with a circle drawn beside the SUBTASKS heading: "Inside the tasks
+       edit window, I just want one button there... to check off and check on for
+       show future items or tasks within that branch."
+       MEASURED first: a future-dated subtask is absent from this list and NOTHING
+       brings it back - the tree's "Show future branches" only counts rows that HAVE
+       children, so a plain dated subtask is never counted and never revealed.
+       Per-branch, and OFF every time the window opens, so Edit shows what is due
+       unless they ask otherwise. The tree and its own button are untouched. */
+    var showFuture = false;
+    var futChip = document.createElement('button');
+    futChip.type = 'button';
+    futChip.className = 'ea-futchip';
+    subHead.appendChild(futChip);
+
+    function futureKids() {
+      var t = window.todayISO ? window.todayISO() : null;
+      var kids = node.children || [], out = [], i;
+      if (!t) return out;
+      for (i = 0; i < kids.length; i++) {
+        var k = kids[i];
+        if (!k) continue;
+        if (typeof window.__isHRNode === 'function' && window.__isHRNode(k)) continue;
+        if (k.date && String(k.date) > t) out.push(k);
+      }
+      return out;
+    }
+
+    function paintChip() {
+      var n = futureKids().length;
+      if (!n) { futChip.style.display = 'none'; return; }
+      futChip.style.display = '';
+      futChip.className = 'ea-futchip' + (showFuture ? ' on' : '');
+      futChip.innerHTML = '';
+      var box = document.createElement('span');
+      box.className = 'ea-futbox';
+      box.textContent = showFuture ? '\u2713' : '';
+      futChip.appendChild(box);
+      futChip.appendChild(document.createTextNode('Show future'));
+      var cnt = document.createElement('span');
+      cnt.className = 'ea-futn';
+      cnt.textContent = String(n);
+      futChip.appendChild(cnt);
+      futChip.title = showFuture
+        ? 'Hide the ' + n + ' subtask' + (n === 1 ? '' : 's') + ' dated ahead'
+        : 'Show ' + n + ' subtask' + (n === 1 ? '' : 's') + ' dated ahead';
+    }
+    futChip.addEventListener('click', function (e) {
+      e.preventDefault(); e.stopPropagation();
+      showFuture = !showFuture;
+      drawSubs();
+    });
+
     subWrap.appendChild(subHead);
     var list = document.createElement('div');
     list.className = 'ea-sublist';
-    var children = node.children || [];
-    for (var j = 0; j < children.length; j++) {
-      var child = children[j];
-      var subItem = document.createElement('div');
-      subItem.className = 'ea-subitem';
-      subItem.textContent = child.title || '';
-      list.appendChild(subItem);
+
+    /* ============================================================== 2026-10-16
+       Operator: "for the subtasks... it must show on the priority tree. And I want
+       it to be moveable up or down as I left click and drag. And it should have all
+       the functions as I have it in the priority tree." Then, asked which functions:
+       "actually there should be the 3 dots, and whatever else I have as the set up on
+       the priority tree" and "it must have the full branch whats inside of it when i
+       click it in the edit option".
+
+       MEASURED on their build before building anything:
+         - a subtask IS node.children.push(...), a real child node, and it ALREADY
+           shows in the tree: Business > Parent task > Call the agent. Nothing to do.
+         - but the dialog drew each one as <div class="ea-subitem"> with textContent
+           only: no tick, no menu, no drag, and sub-sub-tasks invisible.
+
+       So the row is rebuilt to carry what a TREE row carries, and the ⋮ opens the
+       SAME menu the tree uses (window.__openActMenu) rather than a second one - one
+       menu, one set of actions, so they can never drift apart. */
+    /* 2026-10-26, operator: "can you make sure that whatever tasks there are in
+       chronological order?" They chose: dated ones in date order, undated ones keep
+       the order they dragged them into, below. The sort never moves an undated row
+       relative to another undated one - card 19's drag still means something. */
+    function ordered(kids) {
+      var dated = [], plain = [], i;
+      for (i = 0; i < kids.length; i++) {
+        var k = kids[i];
+        if (!k) continue;
+        (k.date ? dated : plain).push(k);
+      }
+      dated.sort(function (a, b) {
+        var d = String(a.date).localeCompare(String(b.date));
+        if (d) return d;
+        return String(a.time || '').localeCompare(String(b.time || ''));
+      });
+      return dated.concat(plain);
     }
+
+    function drawSubs() {
+      list.textContent = '';
+      paintChip();
+      drawLevel(ordered(node.children || []), 0);
+    }
+
+    /* 2026-10-16, round 2 - every depth gets the SAME row.
+       Round 1 drew a nested subtask as a bare <span> with its title and nothing else
+       ("read-only for now"), which is the same shortcut the operator rejected on the
+       top level: "it should have all the functions as I have it in the priorty tree".
+       Proven by the suite, not by reading: the <- check reported "no .q-out on that
+       row" the moment it clicked a row one level down. So the builder is recursive -
+       one function, so a control can never exist at one depth and not another. */
+    function drawLevel(kids, depth) {
+      for (var j = 0; j < kids.length; j++) {
+        /* Habits and Routines hosts live in their own tab and the tree hides them, so
+           the Edit window must not list them either - ONE rule, window.__isHRNode,
+           published by the tree. Falling back to drawing it is deliberate: if that
+           global ever disappears, the operator sees an extra row rather than losing
+           a real subtask. */
+        if (typeof window.__isHRNode === 'function' && window.__isHRNode(kids[j])) continue;
+        /* hidden unless they ask - the chip beside the SUBTASKS heading */
+        if (depth === 0 && !showFuture && kids[j] && kids[j].date
+            && window.todayISO && String(kids[j].date) > window.todayISO()) continue;
+        (function (child, idx) {
+          var rowEl = document.createElement('div');
+          rowEl.className = 'ea-subitem ea-subrow'
+                          + (depth ? ' ea-subdeep' : '')
+                          + (child.priority === 'high' ? ' high' : '');
+          if (depth) rowEl.style.marginLeft = (depth * 22) + 'px';
+          rowEl.dataset.subDepth = String(depth);
+          rowEl.setAttribute('draggable', 'true');
+          rowEl.dataset.subId = child.id;
+
+          /* the caret - a subtask with its own children opens, like a branch */
+          var caret = document.createElement('button');
+          caret.type = 'button';
+          caret.className = 'ea-subcaret';
+          var hasKids = !!(child.children && child.children.length);
+          caret.textContent = hasKids ? (child.__subOpen ? '\u25be' : '\u25b8') : '';
+          if (!hasKids) caret.style.visibility = 'hidden';
+          caret.addEventListener('click', function (e) {
+            e.preventDefault(); e.stopPropagation();
+            child.__subOpen = !child.__subOpen;
+            drawSubs();
+          });
+          rowEl.appendChild(caret);
+
+          /* the tick - the same fact the tree and the calendar read */
+          var tick = document.createElement('button');
+          tick.type = 'button';
+          tick.className = 'ea-subtick' + (child.done ? ' done' : '');
+          tick.textContent = child.done ? '\u2713' : '';
+          tick.addEventListener('click', function (e) {
+            e.preventDefault(); e.stopPropagation();
+            child.done = !child.done;
+            if (window.Store) window.Store.save();
+            if (window.renderAll) window.renderAll();
+            drawSubs();
+          });
+          rowEl.appendChild(tick);
+
+          /* ===================================================== 2026-10-16
+             Operator: "it must have the same exact functions as in the priorty tree".
+             I compared the two rows capability by capability on their own data rather
+             than from memory. Exactly ONE control was missing: a tree row's title is
+             contentEditable, so you click it and type; this was a plain span.
+             (Worth recording: the tree row has NO checkbox - "Complete" lives in its
+             menu - so the tick here is an EXTRA, not a gap.)
+             The commit logic is copied from the tree's own title editor (~7704),
+             including its hard-won rule: a blur caused by a RE-RENDER is not the
+             person finishing, so a teardown must leave the text alone. */
+          var ttl = document.createElement('span');
+          ttl.className = 'ea-subtitle' + (child.done ? ' done' : '');
+          ttl.contentEditable = 'plaintext-only';
+          ttl.spellcheck = false;
+          ttl.textContent = child.title || '';
+          var prevTitle = child.title || '';
+          ttl.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') { e.preventDefault(); ttl.blur(); }
+            else if (e.key === 'Escape') {
+              e.preventDefault(); ttl.textContent = prevTitle; ttl.blur();
+            }
+            e.stopPropagation();
+          });
+          ttl.addEventListener('click', function (e) { e.stopPropagation(); });
+          ttl.addEventListener('blur', function () {
+            if (!ttl.isConnected) return;          /* a teardown, not the person */
+            var v = String(ttl.textContent || '').replace(/^\s+|\s+$/g, '');
+            if (!v) { ttl.textContent = prevTitle; return; }
+            if (v === child.title) return;
+            child.title = v;
+            prevTitle = v;
+            if (window.Store) window.Store.save();
+            if (window.renderAll) window.renderAll();
+          });
+          rowEl.appendChild(ttl);
+
+          /* ===================================================== 2026-10-16, round 2
+             Operator: "its missing the same features I have in the priority tree, it
+             only had the 3 dots, review what I have on the priority tree and replicate
+             it in the subtask in the edit."
+
+             They were right - I shipped 3 of 8. MEASURED by hovering a real tree row
+             and listing every child element:
+                 tree-caret      open/close      I had it
+                 tree-check      the tick        I had it
+                 tree-title      the name        I had it
+                 rowquick q-out  <- out a level  MISSING
+                 rowquick q-in   -> in a level   MISSING
+                 rowquick q-add  +  add subtask  MISSING
+                 tree-datechip   the date chip   MISSING
+                 rowmenu         the 3 dots      I had it
+
+             Each one calls the SAME global the tree row calls, so there is one
+             behaviour and not a copy of it that can drift:
+                 window.__outdentNode / __indentNode / addNodeAt
+                 window.openDatePopover + fmtDate   (what buildDateChip does at 7445 -
+                   that function is module-local, so the CHIP is rebuilt here with the
+                   same class, the same "+ date" span and the same popover, NOT a
+                   second date control. pickDateFor would have been a different picker.)
+             They appear on hover, exactly as the tree's do, so a row at rest is one
+             clean line. */
+          /* `own` = the handler saves and redraws itself. Without it this wrapper's
+             drawSubs() ran AFTER the handler and destroyed the element it had just
+             focused. */
+          function quick(cls, glyph, tip, run, own) {
+            var q = document.createElement('button');
+            q.type = 'button';
+            q.className = 'ea-subquick ' + cls;
+            q.textContent = glyph;
+            q.title = tip;
+            q.addEventListener('click', function (e) {
+              e.preventDefault(); e.stopPropagation();
+              try { run(); } catch (_) {}
+              if (own) return;
+              if (window.Store) window.Store.save();
+              if (window.renderAll) window.renderAll();
+              drawSubs();
+            });
+            return q;
+          }
+          rowEl.appendChild(quick('q-out', '\u2190', 'Move out one level', function () {
+            if (window.__outdentNode) window.__outdentNode(child.id);
+          }));
+          rowEl.appendChild(quick('q-in', '\u2192', 'Make a subtask of the one above', function () {
+            if (window.__indentNode) window.__indentNode(child.id);
+          }));
+          rowEl.appendChild(quick('q-add', '+', 'Add subtask', function () {
+            /* 2026-10-21 - operator: "the plus sign doesn't add a subtask under it."
+               MEASURED: the DATA was already right - the child lands under the row,
+               nested correctly. What is wrong is that you cannot SEE it:
+                   rows drawn in the dialog : ['something @depth0']  <- the new one missing
+                   focus after the click    : 'tree-title', NOT in the dialog
+               The tree's addNodeAt wrapper (~11139) redraws the tree and focuses
+               '#treeRoot .tree-title' - from this dialog that is a row BEHIND it, so
+               the typing went nowhere. Tell the wrapper to stand down, open the row,
+               redraw this list, and focus the new title here. */
+            if (!window.addNodeAt) return;
+            /* same reason as above: the row being added to must be open in the TREE,
+               or the new child has nowhere to be drawn there */
+            child.collapsed = false;
+            openAncestorsOf(child.id, true);
+            child.__subOpen = true;
+            /* The tree's wrapper does its focusing inside a setTimeout, so clearing
+               this flag in a `finally` cleared it BEFORE the wrapper ever read it -
+               measured: "wrapper ran: 1, flag was set at that moment: False". Clear it
+               on a later tick instead, after that timer has been and gone. */
+            window.__addFromDialog = true;
+            try { window.addNodeAt(child.id); }
+            /* armFocus keeps re-grabbing for 2500ms, so the flag must outlast it */
+            finally { setTimeout(function () { window.__addFromDialog = false; }, 2800); }
+            var made = child.children || [];
+            var newId = made.length ? made[made.length - 1].id : null;
+            drawSubs();
+            if (!newId) return;
+            /* synchronous: drawSubs() above has drawn the row, so it exists now. A
+               timer here either ran too early or lost a race with the tree's focus. */
+            var nrow = list.querySelector('.ea-subrow[data-sub-id="' + newId + '"]');
+            if (!nrow) return;
+            var nt = nrow.querySelector('.ea-subtitle');
+            if (!nt) return;
+            nt.focus();
+            var rng = document.createRange();
+            rng.selectNodeContents(nt);
+            rng.collapse(false);
+            var sel = window.getSelection();
+            sel.removeAllRanges();
+            sel.addRange(rng);
+          }, true));
+
+          /* ===================================================== 2026-10-21
+             Operator, with a picture of a tree row: "in the priorty tree it dosn't
+             have the date, it has the clock, set up the right way."
+             They are right and I built the wrong thing. MEASURED, both rows hovered:
+                 tree row     class 'tree-datechip chipclock hasdate'
+                              text ''  ·  an <svg> clock  ·  title 'Oct 21'
+                 subtask row  class 'tree-datechip ea-subdate hasdate'
+                              text 'Oct 21'  ·  no svg  ·  no title
+             So the tree shows a CLOCK and keeps the date in the tooltip; mine printed
+             the date as text. The markup below is the tree's own (relocate(), ~15918)
+             so the two cannot look different again. */
+          var chip = document.createElement('button');
+          chip.type = 'button';
+          chip.className = 'tree-datechip chipclock ea-subdate';
+          chip.innerHTML = '<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true">'
+            + '<circle cx="8" cy="8" r="6.2" fill="none" stroke="currentColor" stroke-width="1.6"></circle>'
+            + '<path d="M8 4.6V8l2.6 1.6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path>'
+            + '</svg>';
+          if (child.date) {
+            chip.className += ' hasdate';
+            var ttl2 = (window.fmtDate ? window.fmtDate(child.date, 'short') : child.date);
+            if (child.time) ttl2 += ' at ' + child.time;
+            chip.title = ttl2;
+          } else {
+            chip.title = 'Set date and time';
+          }
+          chip.addEventListener('click', function (e) {
+            e.preventDefault(); e.stopPropagation();
+            var kid = child;
+            if (typeof window.openDatePopover === 'function' && typeof window.buildDateGrid === 'function') {
+              window.openDatePopover(chip, kid.date || '', function (iso) {
+                kid.date = iso || null;
+                if (!kid.date) kid.block = null;
+                if (window.Store) window.Store.save();
+                if (window.renderAll) window.renderAll();
+                drawSubs();
+              });
+            }
+          });
+          rowEl.appendChild(chip);
+
+          /* the ⋮ - the SAME menu the tree row opens, not a copy of it */
+          var dots = document.createElement('button');
+          dots.type = 'button';
+          dots.className = 'ea-subdots';
+          dots.textContent = '\u22ee';
+          dots.title = 'Actions';
+          dots.addEventListener('click', function (e) {
+            e.preventDefault(); e.stopPropagation();
+            if (typeof window.__openActMenu !== 'function') return;
+            var r = dots.getBoundingClientRect();
+            /* MEASURED on the demo: the menu opened 335px LEFT and 410px ABOVE this
+               button. The -160 was mine, and the builder repositioned it anyway. */
+            if (typeof window.__menuSetFromTree === 'function')
+              window.__menuSetFromTree(true);
+            window.__menuForceTree = true;
+            setTimeout(function () { window.__menuForceTree = false; }, 400);
+            window.__openActMenu(child.id, window.scrollX + r.left,
+                                 window.scrollY + r.bottom + 4);
+            if (typeof window.__menuPlaceUnder === 'function')
+              window.__menuPlaceUnder(dots);
+          });
+          rowEl.appendChild(dots);
+
+          /* drag to reorder - left press and move, as they asked */
+          rowEl.addEventListener('dragstart', function (e) {
+            e.dataTransfer.effectAllowed = 'move';
+            try { e.dataTransfer.setData('text/plain', child.id); } catch (_) {}
+            rowEl.classList.add('dragging');
+          });
+          rowEl.addEventListener('dragend', function () {
+            rowEl.classList.remove('dragging');
+          });
+          rowEl.addEventListener('dragover', function (e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            rowEl.classList.add('dropon');
+          });
+          rowEl.addEventListener('dragleave', function () {
+            rowEl.classList.remove('dropon');
+          });
+          rowEl.addEventListener('drop', function (e) {
+            e.preventDefault();
+            rowEl.classList.remove('dropon');
+            var movedId = null;
+            try { movedId = e.dataTransfer.getData('text/plain'); } catch (_) {}
+            if (!movedId || movedId === child.id) return;
+            /* the dropped row's OWN siblings, not the dialog's top level. Hardcoding
+               node.children here would have silently moved the wrong array the moment
+               a nested row became draggable, which it now is. A drag only reorders
+               within one level - the arrows are what change depth.
+
+               2026-10-26: `kids` is now the SORTED COPY that ordered() returns, so
+               splicing it moved nothing - card 19's drag silently stopped working and
+               its own suite caught it. Find the real stored array and reorder THAT.
+               Measured before the fix: before and after were identical lists. */
+            var owner = (function () {
+              var f = window.findNode ? window.findNode(child.id) : null;
+              if (f && f.parent && f.parent.children) return f.parent.children;
+              return node.children || kids;
+            })();
+            var arr = owner, from = -1, k;
+            for (k = 0; k < arr.length; k++) if (arr[k] && arr[k].id === movedId) from = k;
+            if (from < 0) return;
+            var moved = arr.splice(from, 1)[0];
+            var to = -1;
+            for (k = 0; k < arr.length; k++) if (arr[k] && arr[k].id === child.id) to = k;
+            arr.splice(to < 0 ? arr.length : to, 0, moved);
+            if (window.Store) window.Store.save();
+            if (window.renderAll) window.renderAll();
+            drawSubs();
+          });
+
+          list.appendChild(rowEl);
+
+          /* the full branch, when it is opened - "whats inside of it", drawn by the
+             same builder so it carries the same eight controls */
+          if (hasKids && child.__subOpen) drawLevel(ordered(child.children), depth + 1);
+        })(kids[j], j);
+      }
+    }
+    /* 2026-10-21 - setting node.collapsed = false DOES NOT STICK, and I only found
+       that by putting a setter on the field and reading the stack: my handler set it
+       false, then TWO separate walks (apply ~22672 and applyState ~23376) set it back
+       to true on the very next render. Collapse is not stored on the node - it is a
+       list of ids in localStorage 'planner.collapsed.v1', and those walks restore the
+       node from that list every time.
+       So open the row by taking its id OUT OF THAT LIST, which both readers honour,
+       and open every ancestor too: a row is only drawn when the whole chain above it
+       is open. */
+    function openAncestorsOf(id, includeSelf) {
+      var KEY = 'planner.collapsed.v1';
+      var ids;
+      try { ids = JSON.parse(localStorage.getItem(KEY) || '[]'); }
+      catch (e) { ids = []; }
+      var drop = {};
+      if (includeSelf) drop[id] = 1;
+      if (typeof window.walkTree === 'function') {
+        var parentOf = {}, byId = {};
+        window.walkTree(function (n, d, parent) {
+          if (!n || n.id == null) return;
+          byId[n.id] = n;
+          if (parent) parentOf[n.id] = parent.id;
+        });
+        var cur = parentOf[id], guard = 0;
+        while (cur != null && guard++ < 200) {
+          drop[cur] = 1;
+          if (byId[cur]) byId[cur].collapsed = false;
+          cur = parentOf[cur];
+        }
+        if (includeSelf && byId[id]) byId[id].collapsed = false;
+      }
+      var keep = [], i;
+      for (i = 0; i < ids.length; i++) if (!drop[ids[i]]) keep.push(ids[i]);
+      try { localStorage.setItem(KEY, JSON.stringify(keep)); } catch (e) {}
+    }
+
+    drawSubs();
+
+    /* 2026-10-21 - operator: "and vice versa". MEASURED: with the dialog open, a
+       subtask added from the tree landed in the data and the dialog went on listing
+       the old set - renderAll() redraws the TREE, and drawSubs() only runs from in
+       here, so nothing told this list to catch up.
+       So the list re-reads after any renderAll, and stops when the dialog is gone.
+       It redraws only when the set of children actually changed, so it can never
+       interrupt someone typing in a row. */
+    (function () {
+      var baseRender = window.renderAll;
+      if (typeof baseRender !== 'function') return;
+      function sig() {
+        var kids = node.children || [], i, out = [];
+        for (i = 0; i < kids.length; i++) out.push(kids[i] && kids[i].id);
+        return out.join('|');
+      }
+      var last = sig();
+      window.renderAll = function () {
+        var r = baseRender.apply(this, arguments);
+        try {
+          if (!list.isConnected) {            /* dialog closed - put it back */
+            window.renderAll = baseRender;
+            return r;
+          }
+          var now = sig();
+          if (now !== last) { last = now; drawSubs(); }
+        } catch (e) {}
+        return r;
+      };
+    })();
+
     subWrap.appendChild(list);
     var newSub = document.createElement('input');
     newSub.type = 'text'; newSub.className = 'ea-input';
@@ -12861,13 +13432,25 @@ function surfaceArrivals() {
       };
       if (!node.children) node.children = [];
       node.children.push(newChild);
+      /* 2026-10-21 - operator: "when I add something from inside the edit, it doesn't
+         show on priorty tree? it must reflect that".
+         MEASURED on their demo: the child WAS saved, and the tree had no row for it
+         at all - parentCollapsed: true, kidRowInDOM: false. A collapsed parent never
+         builds rows for its children, so the new one was invisible. The tree's own +
+         does not hit this because addNodeAt sets pf.node.collapsed = false (~8218).
+         Do the same here: adding something is a reason to show it. */
+      node.collapsed = false;
+      openAncestorsOf(node.id, true);
       if (typeof window.inheritFromAncestors === 'function') window.inheritFromAncestors(newChild, node);
-      var subItem = document.createElement('div');
-      subItem.className = 'ea-subitem';
-      subItem.textContent = v;
-      list.appendChild(subItem);
+      /* redraw through the one function, so a new row gets the tick, the menu and
+         the drag like every other - appending a bare div was how they ended up
+         without any of it. And keep the cursor here: "when I type something it
+         automatically has a next slot open for subtasks". */
       newSub.value = '';
       window.Store.save();
+      if (window.renderAll) window.renderAll();
+      drawSubs();
+      try { newSub.focus(); } catch (_) {}
     });
     subWrap.appendChild(newSub);
     body.appendChild(subWrap);
@@ -14076,13 +14659,132 @@ function surfaceArrivals() {
        THE TRADE-OFF, stated because it is real: a one-off task parked at the top
        level with a past date will no longer appear in Past due either. It is still
        in the tree, where it cannot be missed. */
-    var topLevel = !parent;
-    if (topLevel) return false;
-    /* deeper down, anything that HOLDS other tasks is a sub-branch and is visible
-       through its own parent chain */
-    if (node.children && node.children.length) return false;
+    /* ===================================================== 2026-10-25
+       Operator: "there is a remind aziz 24th task from yesterday for some reason
+       its not showing up in the past due", then: "past due for top level only
+       applies if it has a date and on the calender. if its only priorty without a
+       date, it must not show on the past due. also, remind aziz was not a branch
+       actually." And finally, the rule in their words:
+           "if anything has a date, it must show on past due, unless it a routine
+            or habit"
+
+       WHY THE OLD RULE WAS WRONG. On 4 Oct I excluded everything top-level, to stop
+       an empty branch ("Family") cluttering Past due. MEASURED now: nothing in the
+       data marks a branch - there is no kind:'branch', and a branch is only ever
+       inferred from "top-level AND holds something". So an empty dated branch and a
+       dated top-level TASK are identical records, and that rule could not tell
+       Remind Aziz from Family. It threw out the task along with the branch.
+
+       The rule above already returns false when there is no date, so the
+       "priority-only, no date" half they asked for is covered by line 2. Habits and
+       routines are filtered out above. Nothing else is excluded now: a date is a
+       commitment, and an overdue one belongs in Past due whatever its shape. */
     return true;
   };
+
+  /* ===================================================== 2026-10-25
+     Operator: "in the demo morning stretech is dated yesterday and it didnt' show up
+     on the past due, why? i thought you fixed that already?" and then, correcting me:
+     "not a habit check again, i changed its classificatino from habit to regular
+     family subbranch".
+
+     They were right and I was wrong - I had read the demo's seed, not what they had
+     done. REPRODUCED by moving it out of Habits into Family and asking Past due:
+         moved out of Habits .............. the move itself works
+         still in the habit map ........... TRUE   <- leftover
+         habit record still in data.habits  TRUE   <- leftover
+         still carries a daily repeat ..... TRUE   <- leftover
+         in Past due ...................... NO
+     Isolated one at a time: dropping the habit RECORD alone was not enough (the
+     repeat still excludes it); dropping the repeat too put it in Past due.
+
+     So reclassifying moved WHERE it sits without changing WHAT it is.
+
+     19 different places splice/push children, so patching each move path would miss
+     one. This sweeps on save instead: anything that is no longer inside a Habits or
+     Routines host stops being a habit or routine. They chose "stop repeating - it
+     becomes a one-off", so the repeat goes with the record. */
+  window.__dropStaleTrackers = function () {
+    try {
+      var D = window.Store && window.Store.data;
+      if (!D || typeof window.walkTree !== 'function') return 0;
+
+      /* which ids are still INSIDE a Habits/Routines host - the app's own rule */
+      var inside = {};
+      window.walkTree(function (n, d, parent) {
+        if (!n || n.id == null) return;
+        var host = (typeof window.__isHRNode === 'function') ? window.__isHRNode(n) : false;
+        if (host) { inside[n.id] = 1; return; }
+        if (parent && inside[parent.id]) inside[n.id] = 1;
+      });
+
+      var byId = {};
+      window.walkTree(function (n) { if (n && n.id != null) byId[n.id] = n; });
+
+      /* Mark anything that IS inside a host right now. That mark is what makes
+         "it was taken out" provable later - without it the sweep has to guess from
+         the id, which wrongly spared the operator's own case (id 'stretch', no
+         ~habits suffix) and wrongly deleted habits that never sat in a container. */
+      var mid;
+      for (mid in inside) {
+        if (inside.hasOwnProperty(mid) && byId[mid]) byId[mid].__cameFromHost = true;
+      }
+
+      var freed = 0, lists = [['habits', 'habit'], ['routines', 'routine']], li;
+      for (li = 0; li < lists.length; li++) {
+        var key = lists[li][0];
+        var arr = D[key] || [];
+        var keep = [], i;
+        for (i = 0; i < arr.length; i++) {
+          var rec = arr[i];
+          if (!rec) continue;
+          var tid = rec.fromTask || rec.id;
+          var node = byId[tid];
+          /* no task behind it at all, or the task is still in a host - leave alone */
+          if (!node || inside[tid]) { keep.push(rec); continue; }
+
+          /* 2026-10-25 - CAUGHT BY RE-RUNNING THE OLDER SUITE, and it would have cost
+             them real habits. My first version decided "is this still a habit?" by
+             POSITION alone, so a habit whose task is NOT inside a Habits container -
+             which is how pastdue-excludes.md seeds one, and may be how some of their
+             own are stored - looked like it had been moved out, and the sweep deleted
+             the record and the repeat.
+
+             A record is only stale when the task was taken OUT of a host it used to be
+             in. So it must have been in one: we only clear when the node still carries
+             the marks of having lived there (a repeat, or an id tied to a host). A
+             habit that never sat in a container is left exactly alone. */
+          /* Only clear when we can PROVE it used to live in a host: either its id
+             carries the host suffix, or we marked it on a previous pass while it was
+             still inside one. A habit that has never been in a container is left
+             completely alone - that is the case the older suite caught, and it would
+             have cost them real habits. */
+          var wasInHost = /~(habits|routines)$/.test(String(tid))
+                       || node.__cameFromHost === true;
+          if (!wasInHost) { keep.push(rec); continue; }
+
+          /* it has been moved OUT: drop the record and the repeat with it */
+          node.repeat = null;
+          delete node.__cameFromHost;
+          freed++;
+        }
+        if (keep.length !== arr.length) D[key] = keep;
+      }
+      return freed;
+    } catch (e) { return 0; }
+  };
+
+  /* run it whenever the planner saves, so any of the 19 move paths is covered */
+  (function () {
+    if (!window.Store || typeof window.Store.save !== 'function') return;
+    if (window.__staleTrackerSweepOn) return;
+    window.__staleTrackerSweepOn = true;
+    var base = window.Store.save;
+    window.Store.save = function () {
+      try { window.__dropStaleTrackers(); } catch (e) {}
+      return base.apply(this, arguments);
+    };
+  })();
 
   window.__pastDue = function () {
     var out = [], today = window.todayISO ? window.todayISO() : null;
@@ -15605,6 +16307,14 @@ function surfaceArrivals() {
 /* ===== m96 ===== */
 (function () {
   function focusNewest() {
+    /* 2026-10-21 - this re-grabs focus every 80ms for 2.5s (see armFocus below),
+       by design: "keep re-applying: later renders steal focus back". When the new
+       task was added from the Edit DIALOG its row is not in the tree at all, so this
+       kept yanking the cursor onto a tree row BEHIND the dialog and everything typed
+       was lost. Found by trapping every focus() call with a stack - three separate
+       callers were taking it, and no synchronous focus could ever have won that race.
+       It stands down while the dialog owns the caret. */
+    if (window.__addFromDialog) return true;
     var root = document.getElementById('treeRoot');
     if (!root) return false;
     var titles = root.querySelectorAll('.tree-title');
@@ -18337,7 +19047,35 @@ function firstConnect(remote, rAt, lAt) {
       if (pdTimer) { clearTimeout(pdTimer); pdTimer = null; }
       var row = clock.closest ? clock.closest('[data-id]') : null;
       var id = row ? row.getAttribute('data-id') : null;
-      if (id && typeof window.editActivity === 'function') window.editActivity(id);
+      if (!id) return;
+      /* ===================================================== 2026-10-25
+         Operator: "in the past due section, I want the clock if I double click it
+         it would pop up the calender to change date right under where I click, the
+         fature for today and tomorrow for once click is still thre don't change
+         taht."
+         It used to open the whole Edit Activity window. Now it opens the planner's
+         OWN date picker, anchored to the clock they pressed - their standing rule,
+         "any pop up must be right under whatever is clicked". Single click is
+         untouched: pdChips() above still shows Today / Tomorrow. */
+      var f = window.findNode ? window.findNode(id) : null;
+      if (!f || !f.node) return;
+      var n = f.node;
+      if (typeof window.openDatePopover === 'function'
+          && typeof window.buildDateGrid === 'function') {
+        window.openDatePopover(clock, n.date || '', function (iso) {
+          if (!iso) return;
+          n.date = iso;
+          try { if (window.stampClocks) window.stampClocks(n); } catch (e) {}
+          if (window.Store) window.Store.save();
+          if (window.renderAll) window.renderAll();
+        });
+        if (typeof window.__menuPlaceUnder === 'function') {
+          window.__menuPlaceUnder(clock, document.querySelector('.datepop'));
+        }
+        return;
+      }
+      /* only if the picker is somehow unavailable */
+      if (typeof window.editActivity === 'function') window.editActivity(id);
     }, true);
   }
 
@@ -23040,7 +23778,9 @@ function firstConnect(remote, rAt, lAt) {
   window.plannerWeekday = weekdayOf;
 
   function anchorOf(node, r) {
-    var start = parse(r.start);
+    /* an unpicked start IS today - resolve it here so every reader agrees with the
+       field the operator sees, rather than each one guessing. */
+    var start = parse(r.start || (window.todayISO ? window.todayISO() : ''));
     if (start) return start;
     if (node && node.date) {
       var nodeDate = parse(node.date);
@@ -23739,14 +24479,90 @@ if (r.freq === 'yearly') {
 /* ===== m166 notes styling back + the warning says the real reason ===== */
 (function () {
 
+  /* 2026-10-16, operator: "it looks like this became an activity. I never put it as a
+     routine. However, whenever there is like a routine where it's like daily, any type
+     of frequency, that should automatically pop up in the bottom that says, and don't
+     save, saying it must be a routine or a habit."
+     MEASURED on their build: a task in the Activities branch, given a weekly repeat,
+     saved with routines:0 habits:0 and NOTHING said a word. */
+  window.plannerRepeatNeedsTracker = function (node) {
+    if (!node || !node.repeat) return '';
+    var r = node.repeat;
+    if (!r.freq) return '';
+    var D = window.Store && window.Store.data;
+    if (!D) return '';
+    var lists = [D.habits || [], D.routines || []], li, k;
+    for (li = 0; li < lists.length; li++) {
+      for (k = 0; k < lists[li].length; k++) {
+        var rec = lists[li][k];
+        if (rec && (rec.fromTask === node.id || rec.id === node.id)) return '';
+      }
+    }
+
+    /* 2026-10-16 - THE GATE ASKED THE WRONG QUESTION, and the operator hit it at once:
+       "i did make it a routine and the pop up is not letting me save", with Location
+       reading "Harborview LLC > Habits".
+
+       MEASURED on exactly that shape - a user branch holding a child branch called
+       Habits, with a daily task inside it:
+           habitRecords 0, routineRecords 0, gate: BLOCKS
+
+       A record is only created when the task is filed through the SPECIAL `__habits` /
+       `__routines` targets. Filing it into a branch that IS a habits host - which is
+       what the Location list shows and what the operator did - creates no record, so a
+       record check could never be satisfied and the save was unreachable. A rule the
+       operator cannot satisfy is worse than no rule.
+
+       So ask where the task LIVES, using the app's own host test (m196 isHost): a
+       branch whose title is habits/routines AND whose id marks it as a host. Living in
+       one IS being a habit or a routine, whether or not a tracker record exists yet. */
+    try {
+      if (typeof window.walkTree === 'function') {
+        /* MEASURED, second attempt: my first copy of this test also demanded the id
+           end in ~habits / ~routines. NOTHING in the app ever writes such an id - the
+           suffix is only ever read - so a per-branch Habits could never qualify and the
+           operator was still blocked. The rule the app really uses when it files a new
+           habit (`hostInside`) is TITLE ALONE: "a REAL branch's own Habits/Routines
+           child". Use that, plus the two global hosts and the explicit __hr marker. */
+        var hostIds = { '__habits': 1, '__routines': 1 };
+        function isHost(n) {
+          if (!n) return false;
+          if (hostIds[n.id]) return true;
+          if (n.__hr) return true;
+          var t = String(n.title || '').toLowerCase();
+          return t === 'habits' || t === 'routines';
+        }
+        var inside = {};
+        window.walkTree(function (n, d, parent) {
+          if (!n || n.id == null) return;
+          if (isHost(n)) { inside[n.id] = 1; return; }
+          if (parent && (inside[parent.id] || isHost(parent))) inside[n.id] = 1;
+        });
+        if (inside[node.id]) return '';
+      }
+    } catch (e) {}
+
+    return 'A repeating item must be a routine or a habit. ' +
+           'Change Location to Habits / Routines.';
+  };
+
   window.plannerRepeatProblem = function (node) {
     if (!node || !node.repeat) return '';
     var r = node.repeat;
+    var needs = window.plannerRepeatNeedsTracker(node);
+    if (needs) return needs;
     if (r.freq === 'specific') {
       if (!r.dates || !r.dates.length) return 'Pick the dates this should land on - none are chosen yet.';
       return '';
     }
-    if (!r.start) return 'Choose a date for it to start from.';
+    /* 2026-10-16, operator: "the start date should not be always as a pop-up... if it's
+       not picked, it's always starting today. And then if it needs to be picked for a
+       future date, then it is a future date, but it should not have a pop-up there."
+       MEASURED: the Starts BUTTON already printed today's date as a fallback while
+       `r.start` stayed undefined - so the field looked filled and the warning demanded
+       a date anyway. An unpicked start now MEANS today, so there is nothing to warn
+       about; picking a future date still works exactly as before. */
+    if (!r.start) return '';
     if (!r.days || !r.days.length) return '';
     if (!window.plannerOccurrencesBetween) return '';
     var p = r.start.split('-');
@@ -24301,8 +25117,6 @@ if (r.freq === 'yearly') {
   };
 })();
 
-
-
 /* PLACED HERE DELIBERATELY. MEASURED 2026-10-04: this wrapper first sat near
    line 10128, but plannerRepeatMatches is defined at ~22890 and wrapped again at
    ~24067 - so `base` was undefined, the wrapper returned at once, and every move
@@ -24438,11 +25252,6 @@ if (r.freq === 'yearly') {
   };
 })();
 
-/* PLACED AFTER THE LAST WRAPPER, DELIBERATELY. 2026-10-11: this block first went in
-   earlier in the file and the gate silently did nothing - a LATER wrapper reassigned
-   plannerRepeatMatches and replaced it. Measured on the shipping build: the skip was
-   written, the gate was present, and chips still read 1 -> 1. It has to wrap whatever
-   is FINALLY in place, which is the same lesson the rollover wrapper records above. */
 /* ---- a SKIPPED day is not on the calendar, and is not done -----------------
    Operator, 2026-10-11: "the button for skip today for routine / habits, doesn't
    make the routine or habits disappear from the calender that day."
@@ -24505,6 +25314,7 @@ if (r.freq === 'yearly') {
     return base.apply(this, arguments);
   };
 })();
+
 
 
 
@@ -25600,6 +26410,15 @@ if (r.freq === 'yearly') {
      calendar kept the old menu entirely. An observer catches every path - the wrapper,
      the calendar's internal call, right-click, anything added later. */
   function contextFor(menu, id) {
+    /* 2026-10-16 - operator: "the three buttons in the edit must show the same thing
+       for priorty tree". MEASURED: this decided tree-vs-calendar by the menu's
+       POSITION - is it left of #treeRoot's right edge? The subtask menu opens over the
+       Edit dialog, far right, so it read "not from tree" and got the short calendar
+       list. Position is a proxy for context and breaks the moment a tree node's menu
+       opens somewhere else. An explicit flag wins; everything else is unchanged.
+       Checked, not assumed: __menuSetFromTree(true) alone did nothing, because the
+       observer never reads lastFromTree - it calls this. */
+    if (window.__menuForceTree === true) return true;
     var tr = document.getElementById('treeRoot');
     var mr = menu.getBoundingClientRect();
     if (tr) {
@@ -25645,6 +26464,52 @@ if (r.freq === 'yearly') {
       return r;
     };
   }
+  /* THE STANDING RULE, 2026-10-16 - operator: "the rule for any pop up it must be
+     right under whatever is clicked, this applies for any future edits unless stated
+     otherwise." One placer, so every caller behaves the same instead of each doing its
+     own arithmetic. Left edge to left edge, top at the control's bottom; slide or flip
+     only when it would otherwise leave the window. */
+  window.__menuPlaceUnder = function (anchorEl, menuEl) {
+    if (!anchorEl || !anchorEl.getBoundingClientRect) return;
+    function place() {
+      var m = menuEl, i;
+      if (!m) {
+        var ms = document.querySelectorAll('.actmenu');
+        for (i = ms.length - 1; i >= 0; i--) {
+          var b0 = ms[i].getBoundingClientRect();
+          if (b0.width && b0.height) { m = ms[i]; break; }
+        }
+      }
+      if (!m) return;
+      var a = anchorEl.getBoundingClientRect();
+      var mb = m.getBoundingClientRect();
+      var pad = 6, left = a.left, top = a.bottom + 4;
+      if (left + mb.width > window.innerWidth - pad)
+        left = Math.max(pad, window.innerWidth - pad - mb.width);
+      if (left < pad) left = pad;
+      if (top + mb.height > window.innerHeight - pad) {
+        var above = a.top - 4 - mb.height;
+        top = (above >= pad) ? above
+            : Math.max(pad, window.innerHeight - pad - mb.height);
+      }
+      m.style.position = 'fixed';
+      m.style.left = Math.round(left) + 'px';
+      m.style.top = Math.round(top) + 'px';
+      m.style.right = 'auto';
+      m.style.bottom = 'auto';
+      m.style.margin = '0';
+    }
+    place();
+    /* the builder finishes asynchronously and an observer repositions it - measured:
+       a single call was overwritten */
+    if (window.requestAnimationFrame)
+      window.requestAnimationFrame(function () {
+        place(); window.requestAnimationFrame(place);
+      });
+    setTimeout(place, 40);
+    setTimeout(place, 120);
+  };
+
   window.__menuSetFromTree = function (v) { lastFromTree = !!v; };
   window.__menuAllowed = function (fromTree) { return fromTree ? TREE.slice() : CAL.slice(); };
 })();
@@ -25947,20 +26812,17 @@ nesting to 20 levels, so the whole tree is serialised rather than stored as nest
             if (v[k] === undefined) continue;
             if (depth === 0 && (k === 'updatedAt' || k === 'clock' || k === 'deviceId' || k === 'version' || k === 'build')) continue;
             if (k === 'by' || k === 'clock') continue;
-            /* 2026-10-11: VIEW-ONLY KEYS NEVER COUNT AS A CHANGE. Measured with the
-               fake cloud: two idle devices wrote once each, ~2s after the 60s pull,
-               and the written doc differed ONLY in deviceId and updatedAt - no planner
-               content at all. The cause was `node.__rolledFrom = probe`, set while
-               RENDERING a missed repeat: it mutates the tree node, so canonSig moved,
-               so the pull's "does this device hold something the cloud does not" test
-               said yes and uploaded. The other device then saw a new version and did
-               the same - a ping-pong on a field that is only there to let the row say
-               "rolled over from Saturday".
-               Proven by bisection: disabling that one assignment took idle writes from
-               1 to 0, and the hosted live build (which lacks it) writes 0.
-               `__`-prefixed keys are this codebase's marker for a value the view owns
-               and the cloud must never be told about, so the whole class is excluded
-               rather than this one name - the next such field is then free. */
+            /* 2026-10-11: VIEW-ONLY KEYS NEVER COUNT AS A CHANGE. Shipped to the live
+               planner in build 2026-10-11 20:55 and brought back here so the demo and
+               the real planner cannot drift. Measured with the fake cloud: two idle
+               devices each wrote once about 2s after the 60s pull, and the written doc
+               differed ONLY in deviceId and updatedAt - no planner content. The cause
+               was `node.__rolledFrom = probe`, set while RENDERING a missed repeat: it
+               mutates the tree node, so canonSig moved, so the pull's "does this device
+               hold something the cloud does not" test said yes and uploaded. The other
+               device then did the same - a ping-pong on a field that only exists so the
+               row can say "rolled over from Saturday".
+               Proven by bisection: disabling that one assignment took idle writes 1->0. */
             if (k.indexOf('__') === 0) continue;
             out.push(JSON.stringify(k) + ':' + canon(v[k], depth + 1, k));
           }
@@ -26112,6 +26974,8 @@ nesting to 20 levels, so the whole tree is serialised rather than stored as nest
          never lost to a re-render;
        - while an upload is on its way, the update waits for it to finish. */
     var liveUnsub = null, liveUid = null, livePending = null, liveTimer = null;
+    var liveHeard = 0;   /* when the listener last delivered anything */
+    var liveStale = false;  /* the cloud was ahead of us at the last check */
     function liveBusy() {
       if ((window.__fbInFlight || 0) > 0) return true;
       var a = document.activeElement;
@@ -26161,13 +27025,90 @@ nesting to 20 levels, so the whole tree is serialised rather than stored as nest
       if (typeof ref.onSnapshot !== 'function') return;
       try {
         liveUnsub = ref.onSnapshot(function (snap) {
+          /* 2026-10-12: stamp EVERY delivery, including ones we ignore. The heartbeat
+             below uses this to tell "quiet because nothing changed" from "quiet
+             because the socket died" - the second is invisible without it. */
+          liveHeard = Date.now();
+          liveStale = false;                 /* it spoke - back off to the slow beat */
           if (!snap || !snap.exists || (snap.metadata && snap.metadata.hasPendingWrites)) return;
           livePending = snap;
           if (!liveTimer) liveTimer = setTimeout(applyLive, 150);
         }, function () { liveUnsub = null; liveUid = null; });
+        liveHeard = Date.now();
       } catch (e) { liveUnsub = null; liveUid = null; }
     }
     window.__fbLive = function () { return !!liveUnsub; };
+
+    /* ================================================================ 2026-10-12
+       A LISTENER CAN DIE WITHOUT SAYING SO.
+
+       Operator: "I added something in the planner in my phone, and it did not load
+       appropriately in the planner when I was on the browser. I had to refresh the
+       page in order to get it. Also I had already removed something from the planner
+       on the browser; when I went to the planner on my phone, it was still showing."
+
+       MEASURED with two devices and a listener silenced the way a dropped socket
+       silences one - delivering nothing and raising NO error:
+           laptop listener reported alive : true
+           item added on the phone        : never arrived in 12 s; only a refresh fixed it
+
+       Root cause: `startLive()` returns early while `liveUnsub` is truthy, and
+       `liveUnsub` is only cleared by the ERROR callback. A socket that dies quietly -
+       a phone sleeping, a lid closing, a network changing - leaves a listener that is
+       alive to us and dead to Firebase. Nothing rebuilt it, so the only thing still
+       delivering changes was the 60-second pull. That is why refreshing "fixed" it.
+
+       A TIMER CANNOT DECIDE THIS, and my first attempt tried: "quiet for 90 s, assume
+       dead". But a healthy link is also silent when nothing changes, so silence
+       carries no information - and 90 s of staleness is anyway far longer than the
+       operator should ever wait. Measured: with the timer version the same test still
+       failed, because the defect is not time, it is a missed version.
+
+       So ask a question with a real answer. `getBase(uid)` is the version we last
+       applied; the cloud's `updatedAt` is the version that exists. If the cloud is
+       AHEAD and the listener has not told us, the listener has missed something, full
+       stop - rebuild it and pull. If they match, the link is doing its job and we
+       touch nothing. One tiny read, no guessing from silence. */
+    var liveCheckBusy = false;
+    function liveHealth() {
+      if (!db || !auth || !auth.currentUser) return;
+      if (document.visibilityState !== 'visible') return;   /* a hidden tab is quiet on purpose */
+      if (liveCheckBusy) return;
+      if (livePending || liveTimer) return;                 /* it is mid-delivery - leave it */
+      liveCheckBusy = true;
+      var uid = auth.currentUser.uid;
+      db.collection('users').doc(uid).get().then(function (snap) {
+        liveCheckBusy = false;
+        if (!snap || !snap.exists) return;
+        var remoteV = snap.get('updatedAt');
+        if (remoteV == null) return;
+        if (String(remoteV) === String(getBase(uid))) { liveStale = false; return; }  /* current */
+        liveStale = true;        /* the listener missed something - keep checking fast */
+        /* the cloud moved on and the listener never said so. Rebuild it, then take
+           the change we already have in hand rather than waiting for a round trip. */
+        if (liveUnsub) { try { liveUnsub(); } catch (e) {} }
+        liveUnsub = null; liveUid = null;
+        startLive();
+        livePending = snap;
+        if (!liveTimer) liveTimer = setTimeout(applyLive, 0);
+      }, function () { liveCheckBusy = false; });
+    }
+    /* 2026-10-12: HOW OFTEN. I tried to be clever and back off while the listener
+       looked healthy - 60 s normally, 10 s once it seemed stale. It broke the very
+       thing it guards: a listener that had just died silently was still inside its
+       normal gap, so the beat stayed slow and the check that would have caught it did
+       not run for another minute. Both stale-listener tests went from PASS to never
+       recovering. Measured twice, with two different back-off rules.
+
+       The defect is invisible until the check runs, so the check has to run. A flat
+       15 s beat costs 5,760 reads per device per day - 23% of the free 50,000 - and a
+       HIDDEN tab is skipped entirely, so the real figure is much lower: the planner is
+       not open and on screen all day. That is a fair price for "what I did on my phone
+       shows up on my laptop without refreshing", which is the thing that was broken. */
+    setInterval(liveHealth, 15000);
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'visible') liveHealth();
+    });
     try { if (auth && typeof auth.onAuthStateChanged === 'function') auth.onAuthStateChanged(function () { startLive(); }); } catch (e) {}
     setInterval(startLive, 5000);
 
@@ -26539,9 +27480,19 @@ nesting to 20 levels, so the whole tree is serialised rather than stored as nest
       /* 2026-09-15: a phone switching back to the planner fires visibilitychange, and often no focus
          event at all - so it waited up to a minute for the interval. Read the cloud the moment the
          planner is on screen again, and when iOS restores the page from its back/forward cache. */
+      /* 2026-10-12: the throttle used to be shared with the 60-second interval, so a
+         wake that landed within 5 s of an interval pull was SKIPPED - the device came
+         back on screen and read nothing. The throttle exists to stop rapid tab
+         switching hammering the cloud, which is a different concern from "this device
+         has just been picked up". Keep its own clock, and keep it short: coming back
+         to the planner should always read the cloud.
+         Operator: "when I went to the planner on my phone, it was still showing there." */
+      var lastWakePull = 0;
       document.addEventListener('visibilitychange', function () {
         var now = Date.now();
-        if (document.visibilityState === 'visible' && window.FB && window.FB.on() && (now - lastPullTime) >= 5000) {
+        if (document.visibilityState === 'visible' && window.FB && window.FB.on() &&
+            (now - lastWakePull) >= 1500) {
+          lastWakePull = now;
           lastPullTime = now;
           window.FB.pull();
         }
@@ -31223,8 +32174,52 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
     } catch (_) {}
   }
 
+  /* 2026-10-16: the SAME gate, for the repeat rule. Operator: "whenever there is like
+     a routine where it's like daily, any type of frequency, that should automatically
+     pop up in the bottom that says, and don't save, saying it must be a routine or a
+     habit."
+
+     Deliberately built like the branch gate above and NOT by disabling Save - the
+     comment at the Location field records why: a Save that is silently disabled tells
+     the operator nothing and cost rounds. This refuses the click and SAYS the reason,
+     points at the Location field, and leaves everything they typed in place. */
+  function onRepeatSaveClick(e) {
+    var id = window.__editingId;
+    if (!id) return;
+    var f = window.findNode && window.findNode(id);
+    if (!f || !f.node) return;
+    if (!f.node.repeat || !f.node.repeat.freq) return;
+    if (!window.plannerRepeatNeedsTracker) return;
+    var msg = window.plannerRepeatNeedsTracker(f.node);
+    if (!msg) return;
+    if (e && typeof e.preventDefault === 'function') e.preventDefault();
+    if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
+    if (e && typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
+    if (window.toast) window.toast(msg, 'err');
+    try {
+      var field = document.querySelector('.modal .ea .lf-field');
+      if (field) {
+        try { field.scrollIntoView({ block: 'nearest' }); } catch (_) {}
+        field.style.outline = '2px solid #e5484d';
+        field.style.outlineOffset = '2px';
+        setTimeout(function () {
+          field.style.outline = '';
+          field.style.outlineOffset = '';
+        }, 2500);
+      }
+    } catch (_) {}
+  }
+
   function attach() {
     var btns = document.querySelectorAll('.modal button');
+    for (var r = 0; r < btns.length; r++) {
+      var rb = btns[r];
+      if (rb.getAttribute('data-repeatgate') === '1') continue;
+      if ((rb.textContent || '').replace(/^\s+|\s+$/g, '') === 'Save') {
+        rb.setAttribute('data-repeatgate', '1');
+        rb.addEventListener('click', onRepeatSaveClick, true);
+      }
+    }
     for (var i = 0; i < btns.length; i++) {
       var btn = btns[i];
       if (btn.getAttribute('data-branchgate') === '1') continue;
@@ -31941,6 +32936,13 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
         return Promise.resolve(false);
       }
       return window.FB.push().then(function() {
+        /* remember what the cloud now holds, so "unsaved" can mean something */
+        try {
+          if (window.__noteSavedSig) window.__noteSavedSig();
+          if (window.Store && window.Store.data) {
+            window.__savedSnapshot = JSON.parse(JSON.stringify(window.Store.data));
+          }
+        } catch (e) {}
         return true;
       }, function() {
         return false;
@@ -31950,16 +32952,152 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
     }
   };
 
+  /* ===================================================== 2026-10-25
+     Operator: "yesterday there was an issue with synching it wasn't green all the
+     time it was on and off, i had notes in journal titled newst willingboro it save
+     some items in the notes but not all and logged out without saving... I want this
+     problem not to happen again, and in a way prevent me from logging out if
+     something is not saved."
+
+     THE BUG, read from this very function: it ran the SAME line on success and on
+     failure - sign out either way. Worse, __flushCloud RESOLVES with false when the
+     push fails rather than rejecting, so the failure branch never even ran; it was
+     the success branch, with a lost save. Nothing warned, nothing blocked.
+
+     They chose: refuse, and say what is unsaved, with Retry / Stay / Sign out anyway.
+     So sign-out now only proceeds when the flush actually reports true. */
   function wrap(original, thisArg, target, name) {
     target[name] = function() {
       var args = arguments;
-      return window.__flushCloud().then(function() {
-        return original.apply(thisArg, args);
-      }, function() {
-        return original.apply(thisArg, args);
+      var go = function () { return original.apply(thisArg, args); };
+      return window.__flushCloud().then(function (ok) {
+        if (ok === true) return go();
+        return window.__confirmUnsaved(go);
+      }, function () {
+        return window.__confirmUnsaved(go);
       });
     };
   }
+
+  /* What is still waiting to reach the cloud, in words the operator can act on. */
+  /* What is still waiting to reach the cloud.
+
+     FIRST VERSION WAS WRONG and the picture caught it: it counted every task in the
+     planner and said "83 tasks", which reads as "all your work is about to be lost".
+     It also referenced window.__lastSyncedSig, which does not exist - I had assumed
+     a name instead of reading one.
+
+     Now: __fbCanonSig (26598) is the planner's own signature of the saved data. We
+     record it on every successful push, and compare. Same signature means nothing is
+     pending and the dialog never appears. Different means SOMETHING changed since
+     the last save - and rather than invent a count we cannot stand behind, we say so
+     plainly and name the areas that differ. */
+  window.__noteSavedSig = function () {
+    try {
+      if (window.__fbCanonSig && window.Store && window.Store.data) {
+        window.__savedSig = window.__fbCanonSig(window.Store.data);
+      }
+    } catch (e) {}
+  };
+
+  window.__unsavedSummary = function () {
+    var out = [];
+    try {
+      var D = window.Store && window.Store.data;
+      if (!D) return out;
+      var sig = window.__fbCanonSig ? window.__fbCanonSig(D) : null;
+      if (sig && window.__savedSig && sig === window.__savedSig) return out;
+
+      /* Name the AREAS that differ from the last saved copy, not totals. If we have
+         no saved copy to compare against we say that, rather than guessing. */
+      var last = window.__savedSnapshot;
+      if (!last) { out.push('changes made since the last successful save'); return out; }
+      function count(o) { var n = 0, k; for (k in o) if (o.hasOwnProperty(k)) n++; return n; }
+      var areas = [['notes', 'Notes'], ['journal', 'Journal']], i;
+      for (i = 0; i < areas.length; i++) {
+        var key = areas[i][0], label = areas[i][1];
+        var now = D[key] || {}, was = last[key] || {};
+        var changed = [], k2;
+        for (k2 in now) {
+          if (!now.hasOwnProperty(k2)) continue;
+          if (JSON.stringify(now[k2]) !== JSON.stringify(was[k2])) changed.push(k2);
+        }
+        if (changed.length === 1) out.push(label + ' \u2014 "' + changed[0] + '"');
+        else if (changed.length) out.push(changed.length + ' ' + label.toLowerCase() + ' entries');
+      }
+      var nowT = 0, wasT = 0;
+      if (window.walkTree) window.walkTree(function () { nowT++; });
+      (function w(list) {
+        if (!list) return;
+        for (var j = 0; j < list.length; j++) { wasT++; w(list[j] && list[j].children); }
+      })(last.tree);
+      var diff = Math.abs(nowT - wasT);
+      if (diff) out.push(diff + (diff === 1 ? ' task' : ' tasks'));
+      if (!out.length) out.push('changes made since the last successful save');
+    } catch (e) {}
+    return out;
+  };
+
+  /* The dialog. Built with the planner's own modal classes so it looks like every
+     other one, and it REFUSES by default - the dangerous button is last and is
+     worded so it cannot be pressed by accident. */
+  window.__confirmUnsaved = function (proceed) {
+    return new Promise(function (resolve) {
+      var host = document.getElementById('modalHost') || document.body;
+      var back = document.createElement('div');
+      back.className = 'modal-backdrop';
+      back.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);'
+        + 'z-index:99999;display:flex;align-items:center;justify-content:center;';
+      var box = document.createElement('div');
+      box.className = 'modal';
+      box.style.cssText = 'max-width:460px;width:92%;background:var(--surface,#1c1f26);'
+        + 'border:1px solid var(--border,#2e323a);border-radius:12px;padding:18px;'
+        + 'color:var(--text,#e6e8ec);';
+      var items = window.__unsavedSummary();
+      var list = items.length
+        ? ('<ul style="margin:8px 0 0 18px;padding:0">'
+            + items.map(function (x) { return '<li>' + x + '</li>'; }).join('')
+            + '</ul>')
+        : '';
+      box.innerHTML =
+        '<h3 style="margin:0 0 8px;font-size:16px;color:var(--warn,#f5c451)">'
+        + '\u26a0 Not saved yet</h3>'
+        + '<p style="margin:0;font-size:14px;line-height:1.5">Your changes have not '
+        + 'reached the cloud. If you sign out now they stay only on this device, and '
+        + 'you will not see them anywhere else.</p>' + list
+        + '<div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap">'
+        + '<button class="modal-btn" data-act="retry" style="flex:1 1 auto">Retry</button>'
+        + '<button class="modal-btn" data-act="stay" style="flex:1 1 auto">Stay signed in</button>'
+        + '</div>'
+        + '<button class="modal-btn" data-act="force" style="width:100%;margin-top:8px;'
+        + 'background:transparent;border:1px solid var(--danger,#f87171);'
+        + 'color:var(--danger,#f87171)">Sign out anyway \u2014 I accept losing this</button>';
+      back.appendChild(box);
+      host.appendChild(back);
+      function close() { if (back.parentNode) back.parentNode.removeChild(back); }
+      box.addEventListener('click', function (e) {
+        var b = e.target.closest ? e.target.closest('[data-act]') : null;
+        if (!b) return;
+        var act = b.getAttribute('data-act');
+        if (act === 'stay') { close(); resolve(false); return; }
+        if (act === 'force') { close(); resolve(proceed()); return; }
+        if (act === 'retry') {
+          b.disabled = true; b.textContent = 'Retrying\u2026';
+          window.__flushCloud().then(function (ok) {
+            if (ok === true) { close(); resolve(proceed()); return; }
+            b.disabled = false; b.textContent = 'Retry';
+            b.style.borderColor = 'var(--danger,#f87171)';
+          }, function () {
+            b.disabled = false; b.textContent = 'Retry';
+          });
+        }
+      });
+      /* clicking the backdrop is the SAFE choice - it stays signed in */
+      back.addEventListener('click', function (e) {
+        if (e.target === back) { close(); resolve(false); }
+      });
+    });
+  };
 
   if (window.FB && typeof window.FB.signOut === 'function') {
     wrap(window.FB.signOut, window.FB, window.FB, 'signOut');
@@ -32106,6 +33244,17 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
          Measured: with the switch off, "Routines / Open-up checklist / Habits" were
          still showing under Riverside Clinic, because this only knew the two global
          hosts. A per-branch host is recognised by its title or its id suffix. */
+      /* 2026-10-16 - operator, with a picture of Maple Street house: "notice maple
+         street branch, the subtasks in the edit is not matching the tree, they have to
+         match." The tree hid Routines and Habits; the Edit window listed them, because
+         drawSubs had no copy of this rule.
+         This WAS a private function - the THIRD near-copy of "is this a Habits/Routines
+         host" in the file, and the second to cause a bug (card 18's copy blocked a save
+         by keying on the id suffix alone). So it is published ONCE here and every other
+         caller asks it, rather than carrying a fourth copy that can drift.
+         MEASURED on their data before writing this: __hr is null on these nodes and
+         window.__habitRoutineTaskIds() names the individual habits, not the hosts - so
+         neither of the existing markers could have been used. */
       var hrIds = { '__habits': 1, '__routines': 1 };
       function isHost(n) {
         if (!n) return false;
@@ -32113,8 +33262,11 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
         if (n.__hr) return true;
         var t = String(n.title || '').toLowerCase();
         if (t !== 'habits' && t !== 'routines') return false;
+        /* the title alone is NOT enough: a task the operator names "Habits" is theirs
+           and must keep showing. A real host also carries the id suffix or is global. */
         return /~(habits|routines)$/.test(String(n.id || '')) || hrIds[n.id] === 1;
       }
+      window.__isHRNode = isHost;
       var inside = {};
       if (typeof window.walkTree === 'function') {
         window.walkTree(function (n, d, parent) {
@@ -40616,6 +41768,58 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
   }
   window.__syncTracker = syncTracker;
 
+  /* ============================================================== 2026-10-15
+     ONE NAME, TWO RECORDS - and renaming the task only ever updated one.
+
+     Operator: "I see a problem on a weekly item routine I have, when I clicked
+     complete it didn't have the updated wording i had on the title why?"
+
+     MEASURED on the live build, by renaming a weekly routine's task and then
+     looking at both screens at the same moment:
+         tree / calendar          NEW WORDING I TYPED
+         Habits / Routines tab    OLD WORDING          <- the stale one
+
+     A routine keeps its own `name` on the record in Store.data.routines, and the
+     Habits/Routines tab renders THAT (`nameEl.textContent = habit.name`), while
+     every other surface renders the tree node's `title`. `syncTracker()` already
+     exists to keep the two in step - but all three of its callers sit inside the
+     TRACKER EDITOR, so renaming the task from the tree, the calendar or the Edit
+     dialog never reached it. The record kept the wording it was born with.
+
+     Completing it was not the cause; it was simply when the operator next looked
+     at that tab. Fixing it only on complete would have left every other path
+     wrong, so this runs on SAVE: whatever a tracker's task is called, that is
+     what the tracker is called. Cheap - it touches only nodes that have a record.
+
+     Deliberately one-way: the TASK TITLE WINS. The tab's own rename already
+     writes through syncTracker, so the two cannot fight. */
+  (function () {
+    var base = window.Store && window.Store.save;
+    if (typeof base !== 'function') return;
+    window.Store.save = function () {
+      try {
+        var D = window.Store && window.Store.data;
+        if (D && typeof window.findNode === 'function') {
+          var pairs = [['habits', 'New habit'], ['routines', 'New routine']], pi, li;
+          for (pi = 0; pi < pairs.length; pi++) {
+            var list = D[pairs[pi][0]] || [], placeholder = pairs[pi][1];
+            for (li = 0; li < list.length; li++) {
+              var rec = list[li];
+              if (!rec || !rec.fromTask) continue;
+              var f = window.findNode(rec.fromTask);
+              if (!f || !f.node) continue;
+              var t = String(f.node.title || '').replace(/^\s+|\s+$/g, '');
+              /* an untouched placeholder is not a rename - leave the record alone */
+              if (!t || t === placeholder) continue;
+              if (rec.name !== t) rec.name = t;
+            }
+          }
+        }
+      } catch (e) {}
+      return base.apply(this, arguments);
+    };
+  })();
+
   window.__openTrackerEditor = function (rec, kind) {
     if (!rec) return;
     var node = locate(rec, kind);
@@ -41306,9 +42510,9 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
    The app sets its own title, so pin it - one owner, checked on a slow beat
    rather than fought over. */
 (function () {
-  /* 2026-10-04: the pin reads the title the document already carries, so the
-     same mechanism serves the live build and the practice copy without either
-     drifting into the other. */
+  /* 2026-10-04: the same self-reading pin the live build now uses. This copy's
+     <title> says "PRAC Planner" and the live one says "Planner", so one mechanism
+     serves both and neither can drift into the other again. */
   var WANT = (document.title || 'Planner').trim() || 'Planner';
   function pin() { if (document.title !== WANT) document.title = WANT; }
   pin();
