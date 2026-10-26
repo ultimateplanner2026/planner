@@ -2861,6 +2861,24 @@ aside#treePane { overflow-y: auto; }
   box-shadow: inset 0 0 0 1px var(--accent, #4c9aff);
 }
 .ea-subrow.high .ea-subtitle { color: var(--warn, #f5c451); font-weight: 600; }
+.ea-subhead { display: flex; align-items: center; justify-content: space-between; }
+.ea-futchip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 3px 9px; border-radius: 999px;
+  background: var(--surface-2, #22262e); border: 1px solid var(--border, #2e323a);
+  color: var(--text-dim, #9aa1ab); font: inherit; font-size: 11px;
+  cursor: pointer; white-space: nowrap;
+}
+.ea-futchip:hover { color: var(--text, #e6e8ec); }
+.ea-futchip.on { border-color: var(--accent, #4c9aff); color: var(--accent, #4c9aff); }
+.ea-futbox {
+  width: 12px; height: 12px; border: 1.5px solid currentColor; border-radius: 3px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 9px; line-height: 1;
+}
+.ea-futchip.on .ea-futbox { background: var(--accent, #4c9aff); color: #fff;
+  border-color: var(--accent, #4c9aff); }
+.ea-futn { background: #2b313a; border-radius: 8px; padding: 0 5px; font-size: 10px; }
 .ea-subdots { width: 18px; text-align: center; font-size: 14px; }
 .ea-subdots:hover { color: var(--text, #e6e8ec); }
 /* a sub-sub-task, shown when its parent is opened */
@@ -6534,7 +6552,7 @@ body[data-newbranch="1"] #treeFilters{
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-10-25 19:44 DEMO</span>
+    <span id="buildStamp">build 2026-10-26 12:48 DEMO</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -11296,8 +11314,6 @@ renderAll();
          DIALOG, not the tree. Focusing a '#treeRoot .tree-title' here put the cursor
          on a row BEHIND the dialog - measured as focus landing outside #modalHost -
          so everything typed was lost. The caller says when that is the case. */
-      window.__wrapperRan = (window.__wrapperRan||0)+1;
-      window.__flagAtWrapper = !!window.__addFromDialog;
       if (window.__addFromDialog) return;
       var root = document.getElementById('treeRoot');
       if (!root) return;
@@ -13051,8 +13067,64 @@ function surfaceArrivals() {
     var subWrap = document.createElement('div');
     subWrap.className = 'ea-subs';
     var subHead = document.createElement('div');
-    subHead.className = 'ea-sectionhead';
-    subHead.textContent = 'Subtasks';
+    subHead.className = 'ea-sectionhead ea-subhead';
+    var subHeadText = document.createElement('span');
+    subHeadText.textContent = 'Subtasks';
+    subHead.appendChild(subHeadText);
+
+    /* ===================================================== 2026-10-26
+       Operator, with a circle drawn beside the SUBTASKS heading: "Inside the tasks
+       edit window, I just want one button there... to check off and check on for
+       show future items or tasks within that branch."
+       MEASURED first: a future-dated subtask is absent from this list and NOTHING
+       brings it back - the tree's "Show future branches" only counts rows that HAVE
+       children, so a plain dated subtask is never counted and never revealed.
+       Per-branch, and OFF every time the window opens, so Edit shows what is due
+       unless they ask otherwise. The tree and its own button are untouched. */
+    var showFuture = false;
+    var futChip = document.createElement('button');
+    futChip.type = 'button';
+    futChip.className = 'ea-futchip';
+    subHead.appendChild(futChip);
+
+    function futureKids() {
+      var t = window.todayISO ? window.todayISO() : null;
+      var kids = node.children || [], out = [], i;
+      if (!t) return out;
+      for (i = 0; i < kids.length; i++) {
+        var k = kids[i];
+        if (!k) continue;
+        if (typeof window.__isHRNode === 'function' && window.__isHRNode(k)) continue;
+        if (k.date && String(k.date) > t) out.push(k);
+      }
+      return out;
+    }
+
+    function paintChip() {
+      var n = futureKids().length;
+      if (!n) { futChip.style.display = 'none'; return; }
+      futChip.style.display = '';
+      futChip.className = 'ea-futchip' + (showFuture ? ' on' : '');
+      futChip.innerHTML = '';
+      var box = document.createElement('span');
+      box.className = 'ea-futbox';
+      box.textContent = showFuture ? '\u2713' : '';
+      futChip.appendChild(box);
+      futChip.appendChild(document.createTextNode('Show future'));
+      var cnt = document.createElement('span');
+      cnt.className = 'ea-futn';
+      cnt.textContent = String(n);
+      futChip.appendChild(cnt);
+      futChip.title = showFuture
+        ? 'Hide the ' + n + ' subtask' + (n === 1 ? '' : 's') + ' dated ahead'
+        : 'Show ' + n + ' subtask' + (n === 1 ? '' : 's') + ' dated ahead';
+    }
+    futChip.addEventListener('click', function (e) {
+      e.preventDefault(); e.stopPropagation();
+      showFuture = !showFuture;
+      drawSubs();
+    });
+
     subWrap.appendChild(subHead);
     var list = document.createElement('div');
     list.className = 'ea-sublist';
@@ -13074,9 +13146,29 @@ function surfaceArrivals() {
        So the row is rebuilt to carry what a TREE row carries, and the ⋮ opens the
        SAME menu the tree uses (window.__openActMenu) rather than a second one - one
        menu, one set of actions, so they can never drift apart. */
+    /* 2026-10-26, operator: "can you make sure that whatever tasks there are in
+       chronological order?" They chose: dated ones in date order, undated ones keep
+       the order they dragged them into, below. The sort never moves an undated row
+       relative to another undated one - card 19's drag still means something. */
+    function ordered(kids) {
+      var dated = [], plain = [], i;
+      for (i = 0; i < kids.length; i++) {
+        var k = kids[i];
+        if (!k) continue;
+        (k.date ? dated : plain).push(k);
+      }
+      dated.sort(function (a, b) {
+        var d = String(a.date).localeCompare(String(b.date));
+        if (d) return d;
+        return String(a.time || '').localeCompare(String(b.time || ''));
+      });
+      return dated.concat(plain);
+    }
+
     function drawSubs() {
       list.textContent = '';
-      drawLevel(node.children || [], 0);
+      paintChip();
+      drawLevel(ordered(node.children || []), 0);
     }
 
     /* 2026-10-16, round 2 - every depth gets the SAME row.
@@ -13094,6 +13186,9 @@ function surfaceArrivals() {
            global ever disappears, the operator sees an extra row rather than losing
            a real subtask. */
         if (typeof window.__isHRNode === 'function' && window.__isHRNode(kids[j])) continue;
+        /* hidden unless they ask - the chip beside the SUBTASKS heading */
+        if (depth === 0 && !showFuture && kids[j] && kids[j].date
+            && window.todayISO && String(kids[j].date) > window.todayISO()) continue;
         (function (child, idx) {
           var rowEl = document.createElement('div');
           rowEl.className = 'ea-subitem ea-subrow'
@@ -13351,8 +13446,18 @@ function surfaceArrivals() {
             /* the dropped row's OWN siblings, not the dialog's top level. Hardcoding
                node.children here would have silently moved the wrong array the moment
                a nested row became draggable, which it now is. A drag only reorders
-               within one level - the arrows are what change depth. */
-            var arr = kids, from = -1, k;
+               within one level - the arrows are what change depth.
+
+               2026-10-26: `kids` is now the SORTED COPY that ordered() returns, so
+               splicing it moved nothing - card 19's drag silently stopped working and
+               its own suite caught it. Find the real stored array and reorder THAT.
+               Measured before the fix: before and after were identical lists. */
+            var owner = (function () {
+              var f = window.findNode ? window.findNode(child.id) : null;
+              if (f && f.parent && f.parent.children) return f.parent.children;
+              return node.children || kids;
+            })();
+            var arr = owner, from = -1, k;
             for (k = 0; k < arr.length; k++) if (arr[k] && arr[k].id === movedId) from = k;
             if (from < 0) return;
             var moved = arr.splice(from, 1)[0];
@@ -13368,7 +13473,7 @@ function surfaceArrivals() {
 
           /* the full branch, when it is opened - "whats inside of it", drawn by the
              same builder so it carries the same eight controls */
-          if (hasKids && child.__subOpen) drawLevel(child.children, depth + 1);
+          if (hasKids && child.__subOpen) drawLevel(ordered(child.children), depth + 1);
         })(kids[j], j);
       }
     }
