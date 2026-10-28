@@ -6552,7 +6552,7 @@ body[data-newbranch="1"] #treeFilters{
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-10-26 14:55 DEMO</span>
+    <span id="buildStamp">build 2026-10-28 19:39 DEMO</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -13186,6 +13186,14 @@ function surfaceArrivals() {
            global ever disappears, the operator sees an extra row rather than losing
            a real subtask. */
         if (typeof window.__isHRNode === 'function' && window.__isHRNode(kids[j])) continue;
+      /* CARD 31, 2026-10-28 - "fix inside the edit option the tree, it should not
+         show completed items in there."
+         The tree hides a finished row when window.treeView === 'active'. The Edit
+         window drew its list straight from the data and never asked that view, so a
+         completed subtask stayed here after it had gone from the tree. Read the
+         tree's own view rather than copying the test - copies are how cards 21 and
+         25 drifted apart in the first place. */
+      if (window.treeView === 'active' && kids[j] && kids[j].done) continue;
         /* hidden unless they ask - the chip beside the SUBTASKS heading */
         if (depth === 0 && !showFuture && kids[j] && kids[j].date
             && window.todayISO && String(kids[j].date) > window.todayISO()) continue;
@@ -13395,6 +13403,29 @@ function surfaceArrivals() {
               });
             }
           });
+          /* CARD 35, 2026-10-28 - "its only future dates only show in priorty tree
+             in the priorty tree or edit section hidden and only show then."
+             MEASURED on the demo with Show future pressed: both revealed subtasks
+             showed a 25px clock and NOTHING else - the date lived only in the
+             hover tooltip, so you had to hover each row one at a time to find out
+             when anything was due.
+             The tree already writes this label (span.future-date, pale amber,
+             after the name) and the rule it uses is the one they confirmed on card
+             34: FUTURE dates only. Past and undated rows are untouched, because
+             "past dates already show in regular view".
+             The date is read from the node, never parsed back out of the tooltip -
+             my prototype did that and it would have broken the moment fmtDate's
+             wording changed. */
+          if (child.date && window.todayISO &&
+              String(child.date) > window.todayISO()) {
+            var fdate = document.createElement('span');
+            fdate.className = 'future-date ea-subfut';
+            fdate.setAttribute('contenteditable', 'false');
+            fdate.textContent = (window.fmtDate
+              ? window.fmtDate(child.date, 'short') : child.date);
+            rowEl.appendChild(fdate);
+          }
+
           rowEl.appendChild(chip);
 
           /* the ⋮ - the SAME menu the tree row opens, not a copy of it */
@@ -13806,8 +13837,16 @@ function surfaceArrivals() {
         } },
       
       { sep: true },
-      { label: 'Edit', run: function () {
-          if (typeof window.editActivity === 'function') window.editActivity(id); } },
+      /* CARD 32, 2026-10-28 - "remove the edit button its already inside the edit."
+         Dropped at the SOURCE, the one place the item is built. I first removed it
+         in the reorder step and then behind a one-shot flag; neither worked, and
+         the instrumented run showed why - ONE click builds TEN menus, so a flag is
+         already cleared by the time the surviving menu is assembled, and reorder is
+         not always the path. Reading the open dialog from the DOM is a fact that
+         cannot go stale between rebuilds. */
+      (document.querySelector('.modal .ea-subs') ? null :
+        { label: 'Edit', run: function () {
+            if (typeof window.editActivity === 'function') window.editActivity(id); } }),
       { label: 'Duplicate', run: function () {
           var clone = JSON.parse(JSON.stringify(node));
           (function assignIds(n) {
@@ -13845,6 +13884,13 @@ function surfaceArrivals() {
      under) and the operator asked for them to go. The tree keeps them; the calendar
      does not. One menu, one code path, told where it was opened from. */
   function openMenu(id, x, y, fromTree) {
+    /* CARD 32, 2026-10-28 - "remove the edit button its already inside the edit."
+       Ask the SCREEN, not a flag. MEASURED: one click on a subtask's three dots
+       builds TEN menus, and the one that ends up carrying Edit is built after a
+       one-shot flag has already been read and cleared - so the flag was false
+       exactly when it mattered. An open Edit dialog is a fact anyone can read at
+       any moment, so it cannot go stale between rebuilds. */
+    var __inEditDialog = !!document.querySelector('.modal .ea-subs');
     closeMenus();
     var menu = document.createElement('div');
     menu.className = 'actmenu';
@@ -13868,9 +13914,13 @@ function surfaceArrivals() {
       var today = byLabel['Due today'];
       var tom = byLabel['Due tomorrow'];
       var resch = byLabel['Reschedule...'];
-      if (!edit || !resch) return;                   /* leave the menu alone if it moved */
+      /* CARD 32, 2026-10-28 - this used to bail when Edit was missing, and once the
+         Edit item was dropped inside the dialog that bail took the ARROWS and
+         RESCHEDULE with it: the menu fell from 7 items to 4. Only Reschedule is
+         actually required to rebuild the list; Edit is optional now. */
+      if (!resch) return;                            /* leave the menu alone if it moved */
 
-      out.push(edit);
+      if (edit) out.push(edit);   /* absent inside the Edit dialog */
       if (fromTree) out.push({ arrows: true });
       out.push({ sep: true });
       for (i = 0; i < items.length; i++) {
@@ -26626,12 +26676,39 @@ if (r.freq === 'yearly') {
       var a = anchorEl.getBoundingClientRect();
       var mb = m.getBoundingClientRect();
       var pad = 6, left = a.left, top = a.bottom + 4;
-      if (left + mb.width > window.innerWidth - pad)
-        left = Math.max(pad, window.innerWidth - pad - mb.width);
-      if (left < pad) left = pad;
-      if (top + mb.height > window.innerHeight - pad) {
+      /* CARD 32, 2026-10-28 - "make the pop up within the border of the edit
+         session." This clamped to the WINDOW, so a menu opened inside the Edit
+         dialog ran past the dialog's edge - measured: menu right 1181px against a
+         dialog ending at 1037px, 145px outside, over the calendar behind.
+         When the anchor lives inside a dialog, the DIALOG is the boundary.
+         Done HERE, in the one function that owns this position: my first attempt
+         added a second helper that re-placed the menu a tick later, the two fought,
+         and the spill stayed at 161px until the check caught it. */
+      var bnd = null, hostEl = anchorEl;
+      while (hostEl && hostEl !== document.body) {
+        if (hostEl.classList && (hostEl.classList.contains('ea-wrap') ||
+            hostEl.classList.contains('modal') || hostEl.tagName === 'DIALOG')) {
+          bnd = hostEl.getBoundingClientRect(); break;
+        }
+        hostEl = hostEl.parentNode;
+      }
+      /* MEASURED 2026-10-28 - the real chain above a subtask row is
+         .ea-subs -> .ea -> .modal-body -> .modal. The dialog is .modal (463..1038);
+         .ea ends at 1021, so clamping to the wrong ancestor left a 12px spill.
+         The loop above already matches .modal via its class list; this is the
+         fallback for a row whose own chain is detached. */
+      if (!bnd && anchorEl.closest) {
+        var hh = anchorEl.closest('.modal') || anchorEl.closest('.modal-body');
+        if (hh) bnd = hh.getBoundingClientRect();
+      }
+      var BL = bnd ? bnd.left : 0, BR = bnd ? bnd.right : window.innerWidth;
+      var BT = bnd ? bnd.top : 0, BB = bnd ? bnd.bottom : window.innerHeight;
+      if (left + mb.width > BR - pad)
+        left = Math.max(BL + pad, BR - pad - mb.width);
+      if (left < BL + pad) left = BL + pad;
+      if (top + mb.height > BB - pad) {
         var above = a.top - 4 - mb.height;
-        top = (above >= pad) ? above
+        top = (above >= BT + pad) ? above
             : Math.max(pad, window.innerHeight - pad - mb.height);
       }
       m.style.position = 'fixed';
@@ -42962,5 +43039,129 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', ready);
   else ready();
 })();
-</script></body>
+</script>
+<style id="card35">
+/* CARD 35, 2026-10-28 - the tree's .future-date rule is scoped to #treeRoot, so the
+   Edit window's copy inherits nothing. Same size, same amber, same uppercase, so the
+   two surfaces read identically. margin-left:auto pushes it to sit just before the
+   clock, keeping the subtask names in a straight line. */
+.ea-sublist .ea-subfut, .ea-subs .ea-subfut {
+  margin-left: auto;
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: rgba(245, 158, 11, .55);
+  pointer-events: none;
+  flex: 0 0 auto;
+}
+/* the clock then sits after it, so it must not also claim the free space */
+.ea-sublist .ea-subfut + .ea-subdate { margin-left: 6px; }
+</style>
+
+<style id="card33">
+/* CARD 33, 2026-10-28 - confirm before the left arrow turns a subtask into a main
+   branch. Drawn in the planner's own colours; NOT styled as a danger dialog,
+   because nothing is lost - the move is reversible with the right arrow, and a red
+   "are you sure?" for a reversible action teaches you to click through every
+   dialog, including the ones that matter. */
+.c33-veil{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:99998}
+.c33-box{position:fixed;z-index:99999;left:50%;top:50%;transform:translate(-50%,-50%);
+ width:min(420px,calc(100vw - 32px));background:var(--surface,#1c1f26);
+ border:1px solid var(--line,#2e323a);border-radius:12px;padding:18px 20px 16px;
+ color:var(--text,#e6e8ec);font:14px -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;
+ box-shadow:0 18px 50px rgba(0,0,0,.55);box-sizing:border-box}
+.c33-box h3{margin:0 0 10px;font-size:15.5px;font-weight:650}
+.c33-box p{margin:0 0 7px;line-height:1.48;color:var(--text-dim,#c6cad2)}
+.c33-move{margin:10px 0 4px;padding:9px 11px;background:var(--bg,#15181d);
+ border:1px solid var(--line,#2a2e36);border-radius:8px;font-size:13px;line-height:1.7}
+.c33-move .f{color:var(--text-dim,#8b93a1)}
+.c33-move .t{color:var(--text,#e6e8ec);font-weight:600}
+.c33-note{font-size:12.5px;color:var(--text-dim,#8b93a1);margin:8px 0 0}
+.c33-row{display:flex;gap:9px;justify-content:flex-end;margin-top:15px}
+.c33-row button{font:inherit;font-size:13.5px;padding:7px 15px;border-radius:7px;cursor:pointer}
+.c33-cancel{background:transparent;border:1px solid var(--line,#3a4049);color:var(--text-dim,#c6cad2)}
+.c33-ok{background:var(--accent,#2f6fed);border:1px solid var(--accent,#2f6fed);color:#fff;font-weight:600}
+</style>
+<script id="card33js">
+/* CARD 33 - one confirmation, covering ALL FOUR ways to outdent.
+   MEASURED: the tree row arrow, the tree row menu's arrow pair, the Edit window's
+   subtask arrow and Shift+Tab ALL reach window.__outdentNode, so wrapping that one
+   function covers every instance - rather than four copies that can drift apart. */
+(function () {
+  if (window.__c33Installed) return;
+  function install() {
+    if (typeof window.__outdentNode !== 'function') { setTimeout(install, 150); return; }
+    if (window.__outdentNode.__c33) return;
+    window.__c33Installed = true;
+    var base = window.__outdentNode;
+
+    function ask(id, go) {
+      var f = window.findNode && window.findNode(id);
+      if (!f || !f.node) { go(); return; }
+      /* already at the top level - there is nothing to move out of */
+      if (!f.parent) { go(); return; }
+      var name = f.node.title || 'this task';
+      var parent = f.parent.title || 'its branch';
+      var kids = (f.node.children && f.node.children.length) || 0;
+
+      var veil = document.createElement('div');
+      veil.className = 'c33-veil';
+      var box = document.createElement('div');
+      box.className = 'c33-box';
+      box.setAttribute('role', 'dialog');
+      box.setAttribute('aria-modal', 'true');
+      function esc(t) {
+        return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      }
+      box.innerHTML =
+        '<h3>Move this out to its own branch?</h3>' +
+        '<p><b>' + esc(name) + '</b> is a subtask of <b>' + esc(parent) + '</b>. ' +
+        'Moving it out makes it a main branch of its own.</p>' +
+        '<div class="c33-move">' +
+          '<div><span class="f">now</span> &nbsp; ' + esc(parent) +
+            ' &rsaquo; ' + esc(name) + '</div>' +
+          '<div><span class="f">after</span> &nbsp; <span class="t">' + esc(name) +
+            '</span> &nbsp;<span class="f">(top level)</span></div>' +
+        '</div>' +
+        '<p class="c33-note">' +
+          (kids ? 'Its ' + kids + ' subtask' + (kids > 1 ? 's move' : ' moves') +
+                  ' with it. ' : 'Anything inside it moves with it. ') +
+          'Nothing is deleted &mdash; the right arrow <b>&rarr;</b> puts it back.</p>' +
+        '<div class="c33-row">' +
+          '<button type="button" class="c33-cancel">Cancel</button>' +
+          '<button type="button" class="c33-ok">Move it out</button>' +
+        '</div>';
+
+      function shut() {
+        document.removeEventListener('keydown', onKey, true);
+        if (veil.parentNode) veil.parentNode.removeChild(veil);
+        if (box.parentNode) box.parentNode.removeChild(box);
+      }
+      function onKey(e) {
+        if (e.key === 'Escape') { e.preventDefault(); shut(); }
+        else if (e.key === 'Enter') { e.preventDefault(); shut(); go(); }
+      }
+      box.querySelector('.c33-cancel').addEventListener('click', shut);
+      veil.addEventListener('click', shut);
+      box.querySelector('.c33-ok').addEventListener('click', function () { shut(); go(); });
+      document.addEventListener('keydown', onKey, true);
+      document.body.appendChild(veil);
+      document.body.appendChild(box);
+      try { box.querySelector('.c33-ok').focus(); } catch (e) {}
+    }
+
+    var w = function (id) {
+      var self = this, args = arguments;
+      ask(id, function () { base.apply(self, args); });
+    };
+    w.__c33 = true;
+    window.__outdentNode = w;
+  }
+  install();
+})();
+</script>
+</body>
 </html>
