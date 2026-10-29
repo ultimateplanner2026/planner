@@ -1,152 +1,6 @@
 <!doctype html>
 <html lang="en">
 <head>
-<script>
-/* the demo copy keeps its own storage - same origin as the real
-   planner, so without this it would share their data. */
-(function(){
-  // Same origin, different path: localStorage is shared with the real app.
-  // We replace localStorage with a wrapper that namespaces every key with PRE
-  // so this copy cannot read or overwrite the real app's data.
-
-  var PRE = 'copy~';
-  var REAL = null;
-
-  // Capture real localStorage once; reading may throw in private browsing.
-  try { REAL = window.localStorage; } catch(e) { REAL = null; }
-
-  /* 2026-10-05: expose the genuine object. The purge that runs after this one needs
-     it, and MEASURED: `localStorage` is an OWN property of `window` in Chrome, not an
-     accessor on Window.prototype - so reading the descriptor from the prototype
-     returned undefined and the purge silently did nothing. Handing it over directly
-     removes the guesswork. */
-  try { window.__realLocalStorage = REAL; } catch(e) { }
-
-  // Every real-storage call is wrapped: private mode throws on some ops.
-  function safeCall(fn, args){
-    if (!REAL) return null;
-    try { return fn.apply(REAL, args); } catch(e) { return null; }
-  }
-
-  // Returns the array of real keys that start with PRE.
-  function getPrefixedKeys(){
-    var out = [];
-    if (!REAL) return out;
-    try {
-      var n = REAL.length;
-      for (var i = 0; i < n; i++){
-        var k = REAL.key(i);
-        if (k && k.indexOf(PRE) === 0) out.push(k);
-      }
-    } catch(e) {}
-    return out;
-  }
-
-  var shim = {};
-
-  // length counts only keys that belong to this copy (PRE-prefixed).
-  Object.defineProperty(shim, 'length', {
-    get: function(){ return getPrefixedKeys().length; },
-    configurable: true,
-    enumerable: true
-  });
-
-  // getItem/setItem/removeItem transparently add PRE to the key so callers
-  // never see the namespace and the real app's keys are untouched.
-  shim.getItem = function(k){ return safeCall(REAL.getItem, [PRE + k]); };
-  shim.setItem = function(k, v){ safeCall(REAL.setItem, [PRE + k, v]); };
-  shim.removeItem = function(k){ safeCall(REAL.removeItem, [PRE + k]); };
-
-  // key(i) returns the i-th PRE key with the prefix STRIPPED, so callers
-  // see the name they originally used.
-  shim.key = function(i){
-    var keys = getPrefixedKeys();
-    var k = keys[i];
-    if (k == null) return null;
-    return k.substring(PRE.length);
-  };
-
-  // clear() removes ONLY keys that start with PRE - never anything else,
-  // so we cannot accidentally wipe the real app's data.
-  shim.clear = function(){
-    var keys = getPrefixedKeys();
-    for (var i = 0; i < keys.length; i++){
-      safeCall(REAL.removeItem, [keys[i]]);
-    }
-  };
-
-  // Direct property access (shim.foo = 'bar') is not interceptable in ES5
-  // without Proxy; callers must use getItem/setItem/etc. Methods are plain
-  // properties so harmless enumeration/lookup still works.
-
-  // Install: prefer defineProperty; if it throws, fall back to assignment;
-  // if that also throws (frozen window, security policy), leave the original
-  // localStorage alone and signal failure.
-  try {
-    Object.defineProperty(window, 'localStorage', {
-      value: shim,
-      writable: true,
-      configurable: true,
-      enumerable: true
-    });
-  } catch(e1) {
-    try {
-      window.localStorage = shim;
-    } catch(e2) {
-      window.__storageShimFailed = true;
-      return;
-    }
-  }
-
-  // Marker so a check can verify the shim is active and what prefix it uses.
-  window.__storagePrefix = PRE;
-})();
-</script>
-<script>
-/* clear anything the pre-shim version of this page left behind */
-(function () {
-  // WHY wipe instead of detect: on a demo copy we cannot tell apart
-  // "user's real data" from "stale flag" — both must go, so we clear
-  // unconditionally on load. This IIFE is gated by __storagePrefix so
-  // it can never run on the real planner's own page.
-  try {
-    var PRE = window.__storagePrefix;
-    if (!PRE) { return; } // guard: real planner never sets the prefix
-
-    var raw = window.__realLocalStorage;
-    if (!raw) {
-      // Shim missing — recover the genuine storage via its accessor.
-      var desc = Object.getOwnPropertyDescriptor(window, 'localStorage');
-      if (desc && typeof desc.get === 'function') { raw = desc.get.call(window); }
-      if (!raw) {
-        desc = Object.getOwnPropertyDescriptor(Window.prototype, 'localStorage');
-        if (desc && typeof desc.get === 'function') { raw = desc.get.call(window); }
-      }
-      if (!raw) { return; }
-    }
-
-    // Snapshot every key first; deleting during an index loop would skip entries
-    // because the indices shift down as items are removed.
-    var keys = [];
-    for (var i = 0; i < raw.length; i++) { keys.push(raw.key(i)); }
-
-    var removed = 0;
-    for (var j = 0; j < keys.length; j++) {
-      var k = keys[j];
-      if (k && (k.indexOf(PRE) === 0 || k.indexOf('planner.') === 0)) {
-        raw.removeItem(k);
-        removed++;
-      }
-    }
-
-    window.__demoReset = removed;
-    console.log('demo copy: cleared ' + removed + ' key(s), starting fresh');
-  } catch (e) {
-    // Must never throw into the demo page.
-  }
-})();
-</script>
-
 <!-- prepaint: the tree pane's saved width must be right on frame one.
      initSplitter only applies settings.treeWidth after Store loads, so the pane
      painted at its 33% default (474px) and snapped to 293px ~850ms later. -->
@@ -294,7 +148,7 @@ window.__settleThenIdle = function (fn, idleMs) {
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <title>DEMO Planner</title>
+  <title>PRAC Planner</title>
 
   <!-- Home-screen install, iPhone. These four tags are what actually make
        "Add to Home Screen" open fullscreen instead of inside Safari. -->
@@ -2731,6 +2585,16 @@ aside#treePane { overflow-y: auto; }
    which is exactly why it hid for so long. */
 .tgchip, .mchip { position: relative; }
 .tgevent:hover .actbtn, .tgchip:hover .actbtn, .mchip:hover .actbtn { opacity: 1; }
+.c36grid { margin: 2px 0 10px; }
+.c36months { grid-template-columns: repeat(6, 1fr) !important; }
+.c36day { padding: 7px 0 !important; font-size: 12.5px !important; }
+.c36foot { display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin: 0 0 4px; }
+.c36sameBtn { background: #343a43; color: #e9ecf1; border: none; border-radius: 9px;
+  padding: 7px 12px; font-size: 12.5px; cursor: pointer; font-family: inherit; }
+.c36sameBtn:hover { background: #3f4650; }
+.c36sameBtn.sel { background: #bcd2f8; color: #1b1f26; font-weight: 700; }
+.c36says { color: var(--t-2, #9aa0a8); font-size: 12px; }
 .actmenu {
   z-index: 300; background: var(--surface); border: 1px solid var(--border);
   border-radius: 10px; box-shadow: 0 16px 40px rgba(0,0,0,0.35);
@@ -6491,7 +6355,7 @@ body[data-newbranch="1"] #treeFilters{
 }
 </style>
 </head>
-<body><div id="practiceBanner" style="position:fixed;top:0;left:0;right:0;height:26px;z-index:2147483647;background:repeating-linear-gradient(45deg,#c00,#c00 12px,#a00 12px,#a00 24px);color:#fff;font:700 11px/26px -apple-system,system-ui;text-align:center;letter-spacing:.04em;pointer-events:none">DEMO COPY &mdash; made-up data, never syncs, not your planner</div><style>/* the banner is fixed, so the page must be pushed down by exactly its height or    it sits on top of the toolbar - the operator: "the red marking is covering some    of the setting and stuff up there". */html{padding-top:26px !important;box-sizing:border-box}#practiceBanner{top:0 !important}</style>
+<body><div id="practiceBanner" style="position:fixed;top:0;left:0;right:0;height:26px;z-index:2147483647;background:repeating-linear-gradient(45deg,#c00,#c00 12px,#a00 12px,#a00 24px);color:#fff;font:700 11px/26px -apple-system,system-ui;text-align:center;letter-spacing:.04em;pointer-events:none">PRACTICE COPY &mdash; NOT YOUR PLANNER</div><style>/* the banner is fixed, so the page must be pushed down by exactly its height or    it sits on top of the toolbar - the operator: "the red marking is covering some    of the setting and stuff up there". */html{padding-top:26px !important;box-sizing:border-box}#practiceBanner{top:0 !important}</style>
 <!-- ===== Internet Explorer notice - operator 2026-09-20 =====
      "It is Internet Explorer. Not sure if that makes any difference."
      It makes all the difference. The planner uses CSS variables in 1,074 places
@@ -6552,7 +6416,7 @@ body[data-newbranch="1"] #treeFilters{
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-10-28 19:39 DEMO</span>
+    <span id="buildStamp">build 2026-10-29 19:02 PRAC</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -6624,6 +6488,10 @@ body[data-newbranch="1"] #treeFilters{
   <div id="modalHost"></div>
 <!-- Firebase compat SDK: loaded before the app script so `firebase` is defined when the
      sync modules run. Compat (not modular/ESM) because this app is one ES5 file with no build step. -->
+<script src="https://www.gstatic.com/firebasejs/11.6.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/11.6.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/11.6.0/firebase-firestore-compat.js"></script>
+
 <script>
 /* ===== m117 sign-in link ===== */
 /* Sign-in link. The token travels in the URL FRAGMENT, which browsers never
@@ -10217,7 +10085,12 @@ window.renderHabits = function () {
 })();
 
 /* ===== f12a1 ===== */
-(function(){var baseRenderTree=window.renderTree;window.renderTree=function(){baseRenderTree();window.__applyTimeFilter();};if(window.__revealAhead===undefined)window.__revealAhead=false;if(window.__draggingNodeId===undefined)window.__draggingNodeId=null;window.__applyTimeFilter=function(){var today=(window.selectedDate||todayISO());var realToday=todayISO();var selfFuture={},visible={},overdue={};var walk=function(node){var childVisible=false;if(node.children){node.children.forEach(function(child){walk(child);if(visible[child.id])childVisible=true;});}var date=node.date;var isFuture=!!(date&&date>today);var isOverdue=!!(date&&date<realToday&&!node.done);selfFuture[node.id]=isFuture;overdue[node.id]=isOverdue;visible[node.id]=!isFuture||childVisible;};Store.data.tree.forEach(function(root){walk(root);});/* 2026-10-26 - CARD 20 REMOVED. It forced every future-dated CHILD visible in the tree, which overrode the operator's own 'Show future branches' button: MEASURED, a plain dated subtask showed whether that button was on or off, so both menu items stopped doing anything. They said: "That feature should not be changed." The real answer is card 30 - a chip inside the Edit window that reveals a branch's future subtasks on request, leaving the tree alone. */var bypass=(document.getElementById('treeSearch').value.trim()!=='')||window.__revealAhead;var rows=document.querySelectorAll('#treeRoot .tree-row');rows.forEach(function(row){var id=row.dataset.id;row.classList.remove('ancestor-muted','overdue');var controls=row.querySelectorAll('input,button');controls.forEach(function(el){el.disabled=false;});if(bypass||id===window.__draggingNodeId){row.style.display='';}else if(!visible[id]){row.style.display='none';}else{row.style.display='';if(selfFuture[id]){row.classList.add('ancestor-muted');controls.forEach(function(el){/* CARD 14, 2026-09-21 - operator: "A branch task, i future dated it. but when I click show future branches and click on the clock button its doesn't work". MEASURED: the clock IS the date chip, it is a <button>, and this blanket sweep over 'input,button' set disabled=true on it - so it collapsed to 0x0 and the click landed on the toolbar behind. Rescheduling is the ONE thing you need on a future-dated branch, so the date chip stays live. */if(el.classList&&el.classList.contains('tree-datechip'))return;el.disabled=true;});}}if(overdue[id])row.classList.add('overdue');});var aheadCount=0,overdueCount=0,k;for(k in selfFuture){if(selfFuture[k])aheadCount++;}for(k in overdue){if(overdue[k])overdueCount++;}window.__aheadCount=aheadCount;window.__overdueCount=overdueCount;if(typeof window.__renderTreeFooter==='function')window.__renderTreeFooter();};})();
+(function(){var baseRenderTree=window.renderTree;window.renderTree=function(){baseRenderTree();window.__applyTimeFilter();};if(window.__revealAhead===undefined)window.__revealAhead=false;if(window.__draggingNodeId===undefined)window.__draggingNodeId=null;window.__applyTimeFilter=function(){var today=(window.selectedDate||todayISO());var realToday=todayISO();var selfFuture={},visible={},overdue={};var walk=function(node){var childVisible=false;if(node.children){node.children.forEach(function(child){walk(child);if(visible[child.id])childVisible=true;});}var date=node.date;var isFuture=!!(date&&date>today);var isOverdue=!!(date&&date<realToday&&!node.done&&!(function(n){
+/* CARD 43: a routine whose "If missed: Show again" is UNTICKED is explicitly not
+   meant to chase you - so it must not be red in the tree, nor counted as overdue.
+   rollOver===false is that switch (kOn() reads r.rollOver!==false). With Show again
+   ON nothing changes. */
+return !!(n&&n.repeat&&n.repeat.freq&&n.repeat.rollOver===false);})(node));selfFuture[node.id]=isFuture;overdue[node.id]=isOverdue;visible[node.id]=!isFuture||childVisible;};Store.data.tree.forEach(function(root){walk(root);});/* 2026-10-26 - CARD 20 REMOVED. It forced every future-dated CHILD visible in the tree, which overrode the operator's own 'Show future branches' button: MEASURED, a plain dated subtask showed whether that button was on or off, so both menu items stopped doing anything. They said: "That feature should not be changed." The real answer is card 30 - a chip inside the Edit window that reveals a branch's future subtasks on request, leaving the tree alone. */var bypass=(document.getElementById('treeSearch').value.trim()!=='')||window.__revealAhead;var rows=document.querySelectorAll('#treeRoot .tree-row');rows.forEach(function(row){var id=row.dataset.id;row.classList.remove('ancestor-muted','overdue');var controls=row.querySelectorAll('input,button');controls.forEach(function(el){el.disabled=false;});if(bypass||id===window.__draggingNodeId){row.style.display='';}else if(!visible[id]){row.style.display='none';}else{row.style.display='';if(selfFuture[id]){row.classList.add('ancestor-muted');controls.forEach(function(el){/* CARD 14, 2026-09-21 - operator: "A branch task, i future dated it. but when I click show future branches and click on the clock button its doesn't work". MEASURED: the clock IS the date chip, it is a <button>, and this blanket sweep over 'input,button' set disabled=true on it - so it collapsed to 0x0 and the click landed on the toolbar behind. Rescheduling is the ONE thing you need on a future-dated branch, so the date chip stays live. */if(el.classList&&el.classList.contains('tree-datechip'))return;el.disabled=true;});}}if(overdue[id])row.classList.add('overdue');});var aheadCount=0,overdueCount=0,k;for(k in selfFuture){if(selfFuture[k])aheadCount++;}for(k in overdue){if(overdue[k])overdueCount++;}window.__aheadCount=aheadCount;window.__overdueCount=overdueCount;if(typeof window.__renderTreeFooter==='function')window.__renderTreeFooter();};})();
 
 /* ===== f12a2 ===== */
 (function(){window.__renderTreeFooter=function(){var root=document.getElementById('treeRoot');if(!root)return;root.querySelectorAll('#treeFooter').forEach(function(el){el.remove();});root.querySelectorAll('.tree-empty').forEach(function(el){el.remove();});var ahead=window.__aheadCount||0,over=window.__overdueCount||0,visibleRows=0;root.querySelectorAll('.tree-row').forEach(function(el){if(el.style.display!=='none')visibleRows++;});if(visibleRows===0){var empty=document.createElement('div');empty.className='tree-empty';var nothing=document.createElement('div');nothing.textContent='Nothing for today.';empty.appendChild(nothing);if(ahead>0){var action=document.createElement('div');action.className='tree-empty-action';action.textContent=ahead+(ahead===1?' item scheduled ahead':' items scheduled ahead');action.style.cursor='pointer';action.addEventListener('click',function(){window.__revealAhead=true;window.renderTree();});empty.appendChild(action);}root.appendChild(empty);}if(ahead>0||over>0){var footer=document.createElement('div');footer.id='treeFooter';if(ahead>0){var btn=document.createElement('button');btn.id='btnRevealAhead';btn.textContent=(window.__revealAhead?'Hide ':'')+ahead+(ahead===1?' scheduled ahead':' scheduled ahead');btn.addEventListener('click',function(){window.__revealAhead=!window.__revealAhead;window.renderTree();});footer.appendChild(btn);}if(over>0){var span=document.createElement('span');span.className='overdue-count';span.textContent=over+' overdue';footer.appendChild(span);}root.appendChild(footer);}};})();
@@ -10807,8 +10680,16 @@ renderAll();
     var newTime = window.tgFromY(e.clientY - rect.top - d.grabOffset);
     var found = window.findNode(d.id);
     if (!found || !found.node) return;
-    found.node.date = col.dataset.iso;
-    found.node.time = newTime;
+    /* CARD 45: a real mouse drag reaches HERE, not the HTML5 drop handler. Writing
+       node.date re-anchors the whole repeat and the rule then pins the item back to
+       its own weekday - the "it snaps straight back to today" the operator saw.
+       __moveOccurrence records the move BESIDE the rule: one occurrence moves, the
+       series is untouched. */
+    if (!(window.__moveOccurrence &&
+          window.__moveOccurrence(found.node, col.dataset.iso, newTime))) {
+      found.node.date = col.dataset.iso;
+      found.node.time = newTime;
+    }
     window.Store.save();
     window.__suppressClick = true;
     setTimeout(function () { window.__suppressClick = false; }, 400);
@@ -10893,16 +10774,25 @@ renderAll();
     var found = window.findNode(d.id);
     if (!found || !found.node) return;
 
+    /* CARD 45, the all-day half of the same defect. */
     var ad = allDayAt(e.clientX, e.clientY);
     if (ad) {
-      found.node.date = ad.dataset.iso;
-      found.node.time = null;
+      if (!(window.__moveOccurrence &&
+            window.__moveOccurrence(found.node, ad.dataset.iso, null))) {
+        found.node.date = ad.dataset.iso;
+        found.node.time = null;
+      }
     } else {
       var col = colAt(e.clientX, e.clientY);
       if (!col) return;
-      found.node.date = col.dataset.iso;
+      /* CARD 45, the grid half of the same defect. */
       var rect = col.getBoundingClientRect();
-      found.node.time = window.tgFromY(e.clientY - rect.top);
+      var t51 = window.tgFromY(e.clientY - rect.top);
+      if (!(window.__moveOccurrence &&
+            window.__moveOccurrence(found.node, col.dataset.iso, t51))) {
+        found.node.date = col.dataset.iso;
+        found.node.time = t51;
+      }
     }
     window.Store.save();
     window.__suppressClick = true;
@@ -10949,8 +10839,13 @@ renderAll();
     if (!found || !found.node) return;
     
     // Make it an all-day item on that day: set date to hit.dataset.iso and time to null
-    found.node.date = hit.dataset.iso;
-    found.node.time = null;
+    /* CARD 45: a FOURTH drop path with the same defect - found by grepping every
+       writer of found.node.date rather than fixing the ones that were reported. */
+    if (!(window.__moveOccurrence &&
+          window.__moveOccurrence(found.node, hit.dataset.iso, null))) {
+      found.node.date = hit.dataset.iso;
+      found.node.time = null;
+    }
     
     // Persist changes and re-render
     Store.save();
@@ -13186,14 +13081,6 @@ function surfaceArrivals() {
            global ever disappears, the operator sees an extra row rather than losing
            a real subtask. */
         if (typeof window.__isHRNode === 'function' && window.__isHRNode(kids[j])) continue;
-      /* CARD 31, 2026-10-28 - "fix inside the edit option the tree, it should not
-         show completed items in there."
-         The tree hides a finished row when window.treeView === 'active'. The Edit
-         window drew its list straight from the data and never asked that view, so a
-         completed subtask stayed here after it had gone from the tree. Read the
-         tree's own view rather than copying the test - copies are how cards 21 and
-         25 drifted apart in the first place. */
-      if (window.treeView === 'active' && kids[j] && kids[j].done) continue;
         /* hidden unless they ask - the chip beside the SUBTASKS heading */
         if (depth === 0 && !showFuture && kids[j] && kids[j].date
             && window.todayISO && String(kids[j].date) > window.todayISO()) continue;
@@ -13403,29 +13290,6 @@ function surfaceArrivals() {
               });
             }
           });
-          /* CARD 35, 2026-10-28 - "its only future dates only show in priorty tree
-             in the priorty tree or edit section hidden and only show then."
-             MEASURED on the demo with Show future pressed: both revealed subtasks
-             showed a 25px clock and NOTHING else - the date lived only in the
-             hover tooltip, so you had to hover each row one at a time to find out
-             when anything was due.
-             The tree already writes this label (span.future-date, pale amber,
-             after the name) and the rule it uses is the one they confirmed on card
-             34: FUTURE dates only. Past and undated rows are untouched, because
-             "past dates already show in regular view".
-             The date is read from the node, never parsed back out of the tooltip -
-             my prototype did that and it would have broken the moment fmtDate's
-             wording changed. */
-          if (child.date && window.todayISO &&
-              String(child.date) > window.todayISO()) {
-            var fdate = document.createElement('span');
-            fdate.className = 'future-date ea-subfut';
-            fdate.setAttribute('contenteditable', 'false');
-            fdate.textContent = (window.fmtDate
-              ? window.fmtDate(child.date, 'short') : child.date);
-            rowEl.appendChild(fdate);
-          }
-
           rowEl.appendChild(chip);
 
           /* the ⋮ - the SAME menu the tree row opens, not a copy of it */
@@ -13837,16 +13701,8 @@ function surfaceArrivals() {
         } },
       
       { sep: true },
-      /* CARD 32, 2026-10-28 - "remove the edit button its already inside the edit."
-         Dropped at the SOURCE, the one place the item is built. I first removed it
-         in the reorder step and then behind a one-shot flag; neither worked, and
-         the instrumented run showed why - ONE click builds TEN menus, so a flag is
-         already cleared by the time the surviving menu is assembled, and reorder is
-         not always the path. Reading the open dialog from the DOM is a fact that
-         cannot go stale between rebuilds. */
-      (document.querySelector('.modal .ea-subs') ? null :
-        { label: 'Edit', run: function () {
-            if (typeof window.editActivity === 'function') window.editActivity(id); } }),
+      { label: 'Edit', run: function () {
+          if (typeof window.editActivity === 'function') window.editActivity(id); } },
       { label: 'Duplicate', run: function () {
           var clone = JSON.parse(JSON.stringify(node));
           (function assignIds(n) {
@@ -13884,13 +13740,6 @@ function surfaceArrivals() {
      under) and the operator asked for them to go. The tree keeps them; the calendar
      does not. One menu, one code path, told where it was opened from. */
   function openMenu(id, x, y, fromTree) {
-    /* CARD 32, 2026-10-28 - "remove the edit button its already inside the edit."
-       Ask the SCREEN, not a flag. MEASURED: one click on a subtask's three dots
-       builds TEN menus, and the one that ends up carrying Edit is built after a
-       one-shot flag has already been read and cleared - so the flag was false
-       exactly when it mattered. An open Edit dialog is a fact anyone can read at
-       any moment, so it cannot go stale between rebuilds. */
-    var __inEditDialog = !!document.querySelector('.modal .ea-subs');
     closeMenus();
     var menu = document.createElement('div');
     menu.className = 'actmenu';
@@ -13914,13 +13763,9 @@ function surfaceArrivals() {
       var today = byLabel['Due today'];
       var tom = byLabel['Due tomorrow'];
       var resch = byLabel['Reschedule...'];
-      /* CARD 32, 2026-10-28 - this used to bail when Edit was missing, and once the
-         Edit item was dropped inside the dialog that bail took the ARROWS and
-         RESCHEDULE with it: the menu fell from 7 items to 4. Only Reschedule is
-         actually required to rebuild the list; Edit is optional now. */
-      if (!resch) return;                            /* leave the menu alone if it moved */
+      if (!edit || !resch) return;                   /* leave the menu alone if it moved */
 
-      if (edit) out.push(edit);   /* absent inside the Edit dialog */
+      out.push(edit);
       if (fromTree) out.push({ arrows: true });
       out.push({ sep: true });
       for (i = 0; i < items.length; i++) {
@@ -18142,6 +17987,20 @@ function firstConnect(remote, rAt, lAt) {
        only for nodes written before real times existed, where recency cannot be told. */
     var wAt = Number(win.node.at) || 0, lAt = (lose && lose.node) ? (Number(lose.node.at) || 0) : 0;
     if (wAt && lAt && wAt !== lAt) {
+      /* CARD 46: the newer save wins the ITEM, but it may never wipe a note by
+         holding nothing. Only real text, or a note cleared ON PURPOSE (which stamps
+         its own notesAt), may replace written text. Guarded in BOTH directions - the
+         test matrix proved the loss happened whichever side was newer. */
+      var blank46 = function (x) {
+        return String(x == null ? '' : x).replace(/\s|&nbsp;/g, '') === '';
+      };
+      var wNA = Number(win.node.notesAt) || 0;
+      var lNA = (lose && lose.node) ? (Number(lose.node.notesAt) || 0) : 0;
+      if (blank46(copy.notes) && !blank46(ln) && !(wNA && wNA > lNA)) {
+        copy.notes = ln;
+        if (lose.node.notesHtml) copy.notesHtml = lose.node.notesHtml;
+        else delete copy.notesHtml;
+      }
       return { node: copy, parentId: win.parentId, index: win.index, tomb: win.tomb };
     }
     /* 2026-09-10: keeping BOTH copies is right when the two machines genuinely hold
@@ -24038,7 +23897,11 @@ function firstConnect(remote, rAt, lAt) {
       var months = (a.y - s.y) * 12 + (a.m - s.m);
       if (months < 0) return false;
       if (months % n !== 0) return false;
-      var clampM = Math.min(s.d, lastDayOf(a.y, a.m));
+      /* CARD 36: the picked day of the month wins over the Starting date's day.
+         Without this the calendar would be a control that writes a setting nothing
+         reads. 31 clamps to the last day of a shorter month. */
+      var wantM = parseInt(r.dayOfMonth, 10) || 0;
+      var clampM = Math.min(wantM || s.d, lastDayOf(a.y, a.m));
       return a.d === clampM;
     }
     if (f === 'yearly') {
@@ -24047,8 +23910,12 @@ function firstConnect(remote, rAt, lAt) {
       var years = a.y - s.y;
       if (years < 0) return false;
       if (years % n !== 0) return false;
-      if (a.m !== s.m) return false;
-      var clampY = Math.min(s.d, lastDayOf(a.y, a.m));
+      /* CARD 36 (yearly): same idea, plus the month. monthOfYear is 1-12 and
+         dayOfMonth is 1-31; either may be unset, in which case Starting decides. */
+      var wantMo = parseInt(r.monthOfYear, 10) || 0;
+      if (a.m !== (wantMo || s.m)) return false;
+      var wantD = parseInt(r.dayOfMonth, 10) || 0;
+      var clampY = Math.min(wantD || s.d, lastDayOf(a.y, a.m));
       return a.d === clampY;
     }
     if (f === 'periodic') {
@@ -24215,8 +24082,13 @@ if (r.freq === 'yearly') {
 
     head.addEventListener('click', function (e) {
       e.preventDefault();
-      if (!node.repeat) node.repeat = blank(node);
-      else if (body.style.display === 'block') { node.repeat = null; }
+      /* CARD 44: this read body.style.display to decide, so the bar depended on a
+         CSS value rather than on the state it is meant to toggle. Once that display
+         was anything but the literal 'block' - which is what happens when another
+         module shows the panel, or after a rebuild - the "turn it off" branch could
+         not be reached and the bar became one-way: off stayed off.
+         The state IS node.repeat. Toggle that, and nothing else. */
+      node.repeat = node.repeat ? null : blank(node);
       draw();
     });
 
@@ -24322,10 +24194,119 @@ if (r.freq === 'yearly') {
       }
       body.appendChild(dwrap);
 
+      /* ===== CARD 36 - DAY OF THE MONTH, AS A CALENDAR =====
+         Monthly had no way to pick a date: the day came from Starting, so "start on
+         the 28th" meant the 28th for ever.
+         The operator saw the first build as a dropdown and asked for a calendar inside
+         the Edit box instead - the list hung outside the dialog and covered the
+         controls under it. So this is an INLINE 7-column grid, no popup, nothing to
+         overflow. It reuses the planner's own date-grid classes so it looks like the
+         date picker already in the app. 31 falls to the last day of a short month. */
+      (function () {
+        if (r.freq !== 'monthly' && r.freq !== 'yearly') return;
+        var MON = ['Jan','Feb','Mar','Apr','May','Jun',
+                   'Jul','Aug','Sep','Oct','Nov','Dec'];
+
+        /* YEARLY also needs a month. Same grid pattern, 12 cells. */
+        if (r.freq === 'yearly') {
+          var moLab = document.createElement('div');
+          moLab.className = 'rep-sub';
+          moLab.setAttribute('data-c36', 'monthlabel');
+          moLab.textContent = 'Month:';
+          body.appendChild(moLab);
+          var mg = document.createElement('div');
+          mg.className = 'datepop-grid c36grid c36months';
+          mg.setAttribute('data-c36', 'monthgrid');
+          for (var mi = 1; mi <= 12; mi++) {
+            (function (v) {
+              var b = document.createElement('button');
+              b.type = 'button';
+              b.className = 'datepop-day c36day'
+                + (((r.monthOfYear || 0) === v) ? ' sel' : '');
+              b.textContent = MON[v - 1];
+              b.addEventListener('click', function (e) {
+                e.preventDefault(); r.monthOfYear = v; draw();
+              });
+              mg.appendChild(b);
+            })(mi);
+          }
+          body.appendChild(mg);
+        }
+
+        var domLab = document.createElement('div');
+        domLab.className = 'rep-sub';
+        domLab.setAttribute('data-c36', 'label');
+        domLab.textContent = 'Day of the month:';
+        body.appendChild(domLab);
+
+        var cal = document.createElement('div');
+        cal.className = 'datepop-grid c36grid';
+        cal.setAttribute('data-c36', 'grid');
+        for (var d = 1; d <= 31; d++) {
+          (function (v) {
+            var b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'datepop-day c36day'
+              + (((r.dayOfMonth || 0) === v) ? ' sel' : '');
+            b.textContent = String(v);
+            b.addEventListener('click', function (e) {
+              e.preventDefault(); r.dayOfMonth = v; draw();
+            });
+            cal.appendChild(b);
+          })(d);
+        }
+        body.appendChild(cal);
+
+        var foot = document.createElement('div');
+        foot.className = 'c36foot';
+        foot.setAttribute('data-c36', 'foot');
+        var same = document.createElement('button');
+        same.type = 'button';
+        same.className = 'c36sameBtn'
+          + ((!r.dayOfMonth && !r.monthOfYear) ? ' sel' : '');
+        same.textContent = 'Same day as Starting';
+        same.addEventListener('click', function (e) {
+          e.preventDefault();
+          r.dayOfMonth = null;
+          r.monthOfYear = null;
+          draw();
+        });
+        foot.appendChild(same);
+
+        var says = document.createElement('span');
+        says.className = 'c36says';
+        says.setAttribute('data-c36', 'says');
+        function ord(n) {
+          var t = ['th','st','nd','rd'], v = n % 100;
+          return n + (t[(v - 20) % 10] || t[v] || t[0]);
+        }
+        var dd = parseInt(r.dayOfMonth, 10) || 0;
+        var mm = parseInt(r.monthOfYear, 10) || 0;
+        if (r.freq === 'yearly') {
+          says.textContent = (dd || mm)
+            ? ('Repeats every year on ' + (mm ? MON[mm - 1] : 'the Starting month')
+               + ' ' + (dd ? ord(dd) : 'the Starting day')
+               + (dd === 31 ? ' (or the last day)' : ''))
+            : 'Repeats every year on the same date as Starting';
+        } else {
+          says.textContent = dd
+            ? ('Repeats on ' + ord(dd) + ' of every month'
+               + (dd === 31 ? ', or the last day of shorter months' : ''))
+            : 'Repeats on the same day of the month as Starting';
+        }
+        foot.appendChild(says);
+        body.appendChild(foot);
+      })();
+
       var dates = document.createElement('div');
       dates.className = 'rep-dates';
+      /* CARDS 38/40/41/42: "Starts" already sits at slot 1 on every frequency, with
+         its own date picker. This lower "Starting:" box was a SECOND control for the
+         same field - the operator: "the starting date is duplicate, it should be
+         specific day instead since starting already has a button for pick a date."
+         Built, but not appended: the Ending / If missed row keeps its shape. */
       var sBox = document.createElement('div');
-      sBox.className = 'rep-date';
+      sBox.className = 'rep-date c36-dupe-start';
       var sLab = document.createElement('div');
       sLab.className = 'rep-sub'; sLab.textContent = 'Starting:';
       var sBtn = document.createElement('button');
@@ -24409,7 +24390,7 @@ if (r.freq === 'yearly') {
     });
     kBox.appendChild(kLab);
     kBox.appendChild(kBtn);
-      dates.appendChild(sBox); dates.appendChild(eBox); dates.appendChild(kBox);
+      /* CARD 38: the duplicate Starting box is no longer added. */ dates.appendChild(eBox); dates.appendChild(kBox);
       body.appendChild(dates);
 
       refresh();
@@ -24788,12 +24769,17 @@ if (r.freq === 'yearly') {
         old.parentNode.removeChild(old);
       }
       // weekday boxes make no sense for "On specific dates"
-      var isSpecific = node && node.repeat && node.repeat.freq === 'specific';
+      /* CARD 36: this tested ONLY 'specific', so on monthly it wrote display='' every
+         tick and undid tidyDays, which hides the boxes for monthly/yearly/specific
+         alike. Two owners of one element, fighting - found by trapping writes to that
+         row, not by reading. Same test as tidyDays so the two agree. */
+      var fq = node && node.repeat ? node.repeat.freq : '';
+      var hideDays = (fq === 'specific' || fq === 'monthly' || fq === 'yearly');
       var dayWrap = panels[i].querySelector('.rep-days');
       var dayLab = panels[i].querySelector('.rep-sub');
-      if (dayWrap) dayWrap.style.display = isSpecific ? 'none' : '';
+      if (dayWrap) dayWrap.style.display = hideDays ? 'none' : '';
       if (dayLab && dayLab.textContent.indexOf('following days') >= 0) {
-        dayLab.style.display = isSpecific ? 'none' : '';
+        dayLab.style.display = hideDays ? 'none' : '';
       }
     }
     return true;
@@ -25268,6 +25254,20 @@ if (r.freq === 'yearly') {
     }
     var hosts = document.querySelectorAll('.rep-body'), i;
     var want = node && node.repeat && node.repeat.freq === 'specific';
+    /* CARD 39: measured on the live build - the calendar ends up a DIRECT CHILD OF
+       <body>, 555px above the panel it belongs to, and with no width to lay out in
+       its day buttons came out 16px wide and unusable. Mounting once is not enough:
+       adopt any calendar that has drifted out of a .rep-body, every pass. */
+    var escaped = document.querySelectorAll('.sd-cal');
+    for (i = 0; i < escaped.length; i++) {
+      var cal = escaped[i];
+      if (cal.closest && cal.closest('.rep-body')) continue;
+      if (!want || !hosts.length) {
+        if (cal.parentNode) cal.parentNode.removeChild(cal);
+      } else {
+        hosts[0].appendChild(cal);
+      }
+    }
     for (i = 0; i < hosts.length; i++) {
       var old = hosts[i].querySelector('.sd-cal');
       if (!want) {
@@ -26676,39 +26676,12 @@ if (r.freq === 'yearly') {
       var a = anchorEl.getBoundingClientRect();
       var mb = m.getBoundingClientRect();
       var pad = 6, left = a.left, top = a.bottom + 4;
-      /* CARD 32, 2026-10-28 - "make the pop up within the border of the edit
-         session." This clamped to the WINDOW, so a menu opened inside the Edit
-         dialog ran past the dialog's edge - measured: menu right 1181px against a
-         dialog ending at 1037px, 145px outside, over the calendar behind.
-         When the anchor lives inside a dialog, the DIALOG is the boundary.
-         Done HERE, in the one function that owns this position: my first attempt
-         added a second helper that re-placed the menu a tick later, the two fought,
-         and the spill stayed at 161px until the check caught it. */
-      var bnd = null, hostEl = anchorEl;
-      while (hostEl && hostEl !== document.body) {
-        if (hostEl.classList && (hostEl.classList.contains('ea-wrap') ||
-            hostEl.classList.contains('modal') || hostEl.tagName === 'DIALOG')) {
-          bnd = hostEl.getBoundingClientRect(); break;
-        }
-        hostEl = hostEl.parentNode;
-      }
-      /* MEASURED 2026-10-28 - the real chain above a subtask row is
-         .ea-subs -> .ea -> .modal-body -> .modal. The dialog is .modal (463..1038);
-         .ea ends at 1021, so clamping to the wrong ancestor left a 12px spill.
-         The loop above already matches .modal via its class list; this is the
-         fallback for a row whose own chain is detached. */
-      if (!bnd && anchorEl.closest) {
-        var hh = anchorEl.closest('.modal') || anchorEl.closest('.modal-body');
-        if (hh) bnd = hh.getBoundingClientRect();
-      }
-      var BL = bnd ? bnd.left : 0, BR = bnd ? bnd.right : window.innerWidth;
-      var BT = bnd ? bnd.top : 0, BB = bnd ? bnd.bottom : window.innerHeight;
-      if (left + mb.width > BR - pad)
-        left = Math.max(BL + pad, BR - pad - mb.width);
-      if (left < BL + pad) left = BL + pad;
-      if (top + mb.height > BB - pad) {
+      if (left + mb.width > window.innerWidth - pad)
+        left = Math.max(pad, window.innerWidth - pad - mb.width);
+      if (left < pad) left = pad;
+      if (top + mb.height > window.innerHeight - pad) {
         var above = a.top - 4 - mb.height;
-        top = (above >= BT + pad) ? above
+        top = (above >= pad) ? above
             : Math.max(pad, window.innerHeight - pad - mb.height);
       }
       m.style.position = 'fixed';
@@ -40703,7 +40676,7 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
   /* 2026-09-11: back on. It was switched off because I misread "I can still get in" as
      "I can't get in" and rolled it back on a misreading. The operator confirmed the link
      takes them straight to their planner and the sign-in works. */
-  var GATE_ENABLED = false;  /* demo copy: no real data, no cloud, no gate */
+  var GATE_ENABLED = true;
   var host = String(location.hostname || '');
   var isLocal = !GATE_ENABLED || (location.protocol !== 'https:') ||
                 host === 'localhost' || host === '127.0.0.1' || host === '';
@@ -41569,6 +41542,15 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
        anchors nor centres it. The date pickers (.dp2) and every other panel are
        untouched. */
     if (el.classList && el.classList.contains('tp2-selectlist')) return;
+
+    /* CARD 39, same class of defect as the select list above. The "On specific
+       dates" calendar is INLINE - it belongs inside .rep-body, not floating. This
+       module moved it to <body> to position it, which left it 555px above its own
+       panel with 138px of width, so its day buttons came out 16px wide and the
+       dates could not be read. Measured by trapping appendChild of .sd-cal: the
+       module mounts it correctly into .rep-body, then place() moves it out.
+       It is not a popover, so leave it where it was built. */
+    if (el.classList && el.classList.contains('sd-cal')) return;
 
     if (!inEditWindow(el) || (el.classList && el.classList.contains('tp2'))) {
       /* ======================================================== BOARD 28 CARD 5
@@ -43039,129 +43021,5 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', ready);
   else ready();
 })();
-</script>
-<style id="card35">
-/* CARD 35, 2026-10-28 - the tree's .future-date rule is scoped to #treeRoot, so the
-   Edit window's copy inherits nothing. Same size, same amber, same uppercase, so the
-   two surfaces read identically. margin-left:auto pushes it to sit just before the
-   clock, keeping the subtask names in a straight line. */
-.ea-sublist .ea-subfut, .ea-subs .ea-subfut {
-  margin-left: auto;
-  font-size: 9px;
-  font-weight: 500;
-  letter-spacing: .07em;
-  text-transform: uppercase;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-  color: rgba(245, 158, 11, .55);
-  pointer-events: none;
-  flex: 0 0 auto;
-}
-/* the clock then sits after it, so it must not also claim the free space */
-.ea-sublist .ea-subfut + .ea-subdate { margin-left: 6px; }
-</style>
-
-<style id="card33">
-/* CARD 33, 2026-10-28 - confirm before the left arrow turns a subtask into a main
-   branch. Drawn in the planner's own colours; NOT styled as a danger dialog,
-   because nothing is lost - the move is reversible with the right arrow, and a red
-   "are you sure?" for a reversible action teaches you to click through every
-   dialog, including the ones that matter. */
-.c33-veil{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:99998}
-.c33-box{position:fixed;z-index:99999;left:50%;top:50%;transform:translate(-50%,-50%);
- width:min(420px,calc(100vw - 32px));background:var(--surface,#1c1f26);
- border:1px solid var(--line,#2e323a);border-radius:12px;padding:18px 20px 16px;
- color:var(--text,#e6e8ec);font:14px -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;
- box-shadow:0 18px 50px rgba(0,0,0,.55);box-sizing:border-box}
-.c33-box h3{margin:0 0 10px;font-size:15.5px;font-weight:650}
-.c33-box p{margin:0 0 7px;line-height:1.48;color:var(--text-dim,#c6cad2)}
-.c33-move{margin:10px 0 4px;padding:9px 11px;background:var(--bg,#15181d);
- border:1px solid var(--line,#2a2e36);border-radius:8px;font-size:13px;line-height:1.7}
-.c33-move .f{color:var(--text-dim,#8b93a1)}
-.c33-move .t{color:var(--text,#e6e8ec);font-weight:600}
-.c33-note{font-size:12.5px;color:var(--text-dim,#8b93a1);margin:8px 0 0}
-.c33-row{display:flex;gap:9px;justify-content:flex-end;margin-top:15px}
-.c33-row button{font:inherit;font-size:13.5px;padding:7px 15px;border-radius:7px;cursor:pointer}
-.c33-cancel{background:transparent;border:1px solid var(--line,#3a4049);color:var(--text-dim,#c6cad2)}
-.c33-ok{background:var(--accent,#2f6fed);border:1px solid var(--accent,#2f6fed);color:#fff;font-weight:600}
-</style>
-<script id="card33js">
-/* CARD 33 - one confirmation, covering ALL FOUR ways to outdent.
-   MEASURED: the tree row arrow, the tree row menu's arrow pair, the Edit window's
-   subtask arrow and Shift+Tab ALL reach window.__outdentNode, so wrapping that one
-   function covers every instance - rather than four copies that can drift apart. */
-(function () {
-  if (window.__c33Installed) return;
-  function install() {
-    if (typeof window.__outdentNode !== 'function') { setTimeout(install, 150); return; }
-    if (window.__outdentNode.__c33) return;
-    window.__c33Installed = true;
-    var base = window.__outdentNode;
-
-    function ask(id, go) {
-      var f = window.findNode && window.findNode(id);
-      if (!f || !f.node) { go(); return; }
-      /* already at the top level - there is nothing to move out of */
-      if (!f.parent) { go(); return; }
-      var name = f.node.title || 'this task';
-      var parent = f.parent.title || 'its branch';
-      var kids = (f.node.children && f.node.children.length) || 0;
-
-      var veil = document.createElement('div');
-      veil.className = 'c33-veil';
-      var box = document.createElement('div');
-      box.className = 'c33-box';
-      box.setAttribute('role', 'dialog');
-      box.setAttribute('aria-modal', 'true');
-      function esc(t) {
-        return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-      }
-      box.innerHTML =
-        '<h3>Move this out to its own branch?</h3>' +
-        '<p><b>' + esc(name) + '</b> is a subtask of <b>' + esc(parent) + '</b>. ' +
-        'Moving it out makes it a main branch of its own.</p>' +
-        '<div class="c33-move">' +
-          '<div><span class="f">now</span> &nbsp; ' + esc(parent) +
-            ' &rsaquo; ' + esc(name) + '</div>' +
-          '<div><span class="f">after</span> &nbsp; <span class="t">' + esc(name) +
-            '</span> &nbsp;<span class="f">(top level)</span></div>' +
-        '</div>' +
-        '<p class="c33-note">' +
-          (kids ? 'Its ' + kids + ' subtask' + (kids > 1 ? 's move' : ' moves') +
-                  ' with it. ' : 'Anything inside it moves with it. ') +
-          'Nothing is deleted &mdash; the right arrow <b>&rarr;</b> puts it back.</p>' +
-        '<div class="c33-row">' +
-          '<button type="button" class="c33-cancel">Cancel</button>' +
-          '<button type="button" class="c33-ok">Move it out</button>' +
-        '</div>';
-
-      function shut() {
-        document.removeEventListener('keydown', onKey, true);
-        if (veil.parentNode) veil.parentNode.removeChild(veil);
-        if (box.parentNode) box.parentNode.removeChild(box);
-      }
-      function onKey(e) {
-        if (e.key === 'Escape') { e.preventDefault(); shut(); }
-        else if (e.key === 'Enter') { e.preventDefault(); shut(); go(); }
-      }
-      box.querySelector('.c33-cancel').addEventListener('click', shut);
-      veil.addEventListener('click', shut);
-      box.querySelector('.c33-ok').addEventListener('click', function () { shut(); go(); });
-      document.addEventListener('keydown', onKey, true);
-      document.body.appendChild(veil);
-      document.body.appendChild(box);
-      try { box.querySelector('.c33-ok').focus(); } catch (e) {}
-    }
-
-    var w = function (id) {
-      var self = this, args = arguments;
-      ask(id, function () { base.apply(self, args); });
-    };
-    w.__c33 = true;
-    window.__outdentNode = w;
-  }
-  install();
-})();
-</script>
-</body>
+</script></body>
 </html>
