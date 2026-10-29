@@ -1,6 +1,54 @@
 <!doctype html>
 <html lang="en">
-<head>
+<head><script>
+/* ===== THE DEMO IS SEALED OFF FROM THE REAL PLANNER =====
+   Storage is per ORIGIN, so /planner/ and /planner/sandbox/ shared one localStorage
+   and the demo showed the operator's real data. Every key this page reads or writes
+   is prefixed, so the demo has its own world. Runs first, before any app code. */
+(function () {
+  var P = 'demo.';
+  function wrap(store) {
+    try {
+      var real = store;
+      return {
+        getItem:    function (k) { return real.getItem(P + k); },
+        setItem:    function (k, v) { return real.setItem(P + k, v); },
+        removeItem: function (k) { return real.removeItem(P + k); },
+        clear:      function () {
+          var kill = [], i, k;
+          for (i = 0; i < real.length; i++) {
+            k = real.key(i);
+            if (k && k.indexOf(P) === 0) kill.push(k);
+          }
+          for (i = 0; i < kill.length; i++) real.removeItem(kill[i]);
+        },
+        key: function (i) {
+          var mine = [], j, k;
+          for (j = 0; j < real.length; j++) {
+            k = real.key(j);
+            if (k && k.indexOf(P) === 0) mine.push(k.slice(P.length));
+          }
+          return (i >= 0 && i < mine.length) ? mine[i] : null;
+        },
+        get length() {
+          var n = 0, j, k;
+          for (j = 0; j < real.length; j++) {
+            k = real.key(j);
+            if (k && k.indexOf(P) === 0) n++;
+          }
+          return n;
+        }
+      };
+    } catch (e) { return store; }
+  }
+  try {
+    var ls = wrap(window.localStorage), ss = wrap(window.sessionStorage);
+    Object.defineProperty(window, 'localStorage',   { get: function () { return ls; }, configurable: true });
+    Object.defineProperty(window, 'sessionStorage', { get: function () { return ss; }, configurable: true });
+  } catch (e) { /* a browser that refuses this still gets the banner */ }
+  window.__DEMO_ISOLATED = true;
+})();
+</script>
 <!-- prepaint: the tree pane's saved width must be right on frame one.
      initSplitter only applies settings.treeWidth after Store loads, so the pane
      painted at its 33% default (474px) and snapped to 293px ~850ms later. -->
@@ -6416,7 +6464,7 @@ body[data-newbranch="1"] #treeFilters{
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-10-29 19:02 PRAC</span>
+    <span id="buildStamp">build 2026-10-29 19:54 PRAC</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -6488,10 +6536,6 @@ body[data-newbranch="1"] #treeFilters{
   <div id="modalHost"></div>
 <!-- Firebase compat SDK: loaded before the app script so `firebase` is defined when the
      sync modules run. Compat (not modular/ESM) because this app is one ES5 file with no build step. -->
-<script src="https://www.gstatic.com/firebasejs/11.6.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/11.6.0/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/11.6.0/firebase-firestore-compat.js"></script>
-
 <script>
 /* ===== m117 sign-in link ===== */
 /* Sign-in link. The token travels in the URL FRAGMENT, which browsers never
@@ -24225,7 +24269,9 @@ if (r.freq === 'yearly') {
                 + (((r.monthOfYear || 0) === v) ? ' sel' : '');
               b.textContent = MON[v - 1];
               b.addEventListener('click', function (e) {
-                e.preventDefault(); r.monthOfYear = v; draw();
+                e.preventDefault();
+                r.monthOfYear = ((r.monthOfYear || 0) === v) ? null : v;
+                draw();
               });
               mg.appendChild(b);
             })(mi);
@@ -24250,7 +24296,12 @@ if (r.freq === 'yearly') {
               + (((r.dayOfMonth || 0) === v) ? ' sel' : '');
             b.textContent = String(v);
             b.addEventListener('click', function (e) {
-              e.preventDefault(); r.dayOfMonth = v; draw();
+              /* clicking the day already chosen clears it, so "same day as Starting"
+                 is still reachable without a button sitting highlighted under the
+                 grid - operator: "not necessary for daily is highlighted". */
+              e.preventDefault();
+              r.dayOfMonth = ((r.dayOfMonth || 0) === v) ? null : v;
+              draw();
             });
             cal.appendChild(b);
           })(d);
@@ -24260,19 +24311,6 @@ if (r.freq === 'yearly') {
         var foot = document.createElement('div');
         foot.className = 'c36foot';
         foot.setAttribute('data-c36', 'foot');
-        var same = document.createElement('button');
-        same.type = 'button';
-        same.className = 'c36sameBtn'
-          + ((!r.dayOfMonth && !r.monthOfYear) ? ' sel' : '');
-        same.textContent = 'Same day as Starting';
-        same.addEventListener('click', function (e) {
-          e.preventDefault();
-          r.dayOfMonth = null;
-          r.monthOfYear = null;
-          draw();
-        });
-        foot.appendChild(same);
-
         var says = document.createElement('span');
         says.className = 'c36says';
         says.setAttribute('data-c36', 'says');
