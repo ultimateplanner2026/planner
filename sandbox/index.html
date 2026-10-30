@@ -6510,7 +6510,7 @@ body[data-newbranch="1"] #treeFilters{
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-10-29 22:09 PRAC</span>
+    <span id="buildStamp">build 2026-10-29 22:44 PRAC</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -10297,7 +10297,7 @@ return !!(n&&n.repeat&&n.repeat.freq&&n.repeat.rollOver===false);})(node));selfF
 (function(){var dayNames=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];window.weekStartOf=function(iso){var d=parseISO(iso);var dow=d.getDay();var startDow=Store.data.settings.weekStart;var diff=(dow-startDow+7)%7;d.setDate(d.getDate()-diff);return isoOf(d);};window.shiftWeek=function(n){var cur=parseISO(window.selectedDate);cur.setDate(cur.getDate()+n*7);window.selectedDate=isoOf(cur);renderAll();};window.renderWeek=function(){var grid=document.getElementById('weekGrid');while(grid.firstChild)grid.removeChild(grid.firstChild);var selected=window.selectedDate;var startISO=window.weekStartOf(selected);var startDate=parseISO(startISO);var dayISOs=[];for(var i=0;i<7;i++){var d=new Date(startDate);d.setDate(d.getDate()+i);dayISOs.push(isoOf(d));}var header=document.createElement('div');header.className='wheader';var prevBtn=document.createElement('button');prevBtn.className='wprev';prevBtn.type='button';prevBtn.textContent='←';prevBtn.addEventListener('click',function(){shiftWeek(-1);});var nextBtn=document.createElement('button');nextBtn.className='wnext';nextBtn.type='button';nextBtn.textContent='→';nextBtn.addEventListener('click',function(){shiftWeek(1);});var thisWeekBtn=document.createElement('button');thisWeekBtn.className='wthis';thisWeekBtn.type='button';thisWeekBtn.textContent='This week';thisWeekBtn.addEventListener('click',function(){window.selectedDate=todayISO();renderAll();});var rangeSpan=document.createElement('span');var endDate=new Date(startDate);endDate.setDate(endDate.getDate()+6);rangeSpan.textContent=fmtDate(startISO,'short')+' - '+fmtDate(isoOf(endDate),'short');header.appendChild(prevBtn);header.appendChild(rangeSpan);header.appendChild(nextBtn);header.appendChild(thisWeekBtn);grid.appendChild(header);var body=document.createElement('div');body.className='wbody';body.style.gridTemplateColumns='72px repeat(7, 1fr)';var row0=document.createElement('div');row0.className='wrow';var corner=document.createElement('div');corner.className='wcorner';row0.appendChild(corner);dayISOs.forEach(function(iso){var head=document.createElement('div');head.className='whead';head.dataset.iso=iso;var d=parseISO(iso);var dow=d.getDay();head.textContent=dayNames[dow]+' '+d.getDate();if(iso===todayISO())head.classList.add('wtoday');if(iso===selected)head.classList.add('wselected');head.addEventListener('click',function(){window.selectedDate=iso;setTab('day');});row0.appendChild(head);});body.appendChild(row0);var blocks=[{block:'morning',label:'Morning'},{block:'afternoon',label:'Afternoon'},{block:'evening',label:'Evening'},{block:null,label:'Anytime'}];blocks.forEach(function(b){var row=document.createElement('div');row.className='wrow';var labelDiv=document.createElement('div');labelDiv.className='wlabel';labelDiv.textContent=b.label;row.appendChild(labelDiv);dayISOs.forEach(function(iso){var cell=document.createElement('div');cell.className='wcell';cell.dataset.iso=iso;cell.dataset.block=b.block!==null?b.block:'';var entries=scheduledOn(iso).filter(function(e){return e.block===b.block;});entries.forEach(function(item){var chip=document.createElement('div');chip.className='wchip';chip.textContent=item.title;chip.title=item.title;if(item.priority==='high')chip.classList.add('high');if(item.done)chip.classList.add('done');chip.addEventListener('click',function(e){e.stopPropagation();setInstanceDone(item,!item.done);renderAll();});cell.appendChild(chip);});row.appendChild(cell);});body.appendChild(row);});grid.appendChild(body);};})();
 
 /* ===== g14b ===== */
-(function(){var g=document.getElementById('weekGrid');if(!g)return;g.addEventListener('dragstart',function(e){var t=e.target;if(t&&t.classList&&t.classList.contains('wchip')){var n=t.dataset&&t.dataset.nodeId;if(n){e.dataTransfer.setData('application/x-planner-node',n);}}});g.addEventListener('dragover',function(e){var c=e.target&&e.target.closest&&e.target.closest('.wcell');if(c){e.preventDefault();c.classList.add('wdrop');}});g.addEventListener('dragleave',function(e){var c=e.target&&e.target.closest&&e.target.closest('.wcell');if(c){c.classList.remove('wdrop');}});g.addEventListener('drop',function(e){e.preventDefault();var c=e.target&&e.target.closest&&e.target.closest('.wcell');if(c){c.classList.remove('wdrop');var id=e.dataTransfer&&e.dataTransfer.getData&&e.dataTransfer.getData('application/x-planner-node');if(id){var __f=window.findNode(id);var node=__f&&__f.node;if(node){var iso=c.dataset&&c.dataset.iso;var block=c.dataset&&c.dataset.block;node.date=iso||null;node.block=(block!==undefined&&block!=='')?block:null;if(typeof Store!=='undefined'&&Store.save){Store.save();}if(typeof renderAll==='function'){renderAll();}}}}});})();
+(function(){var g=document.getElementById('weekGrid');if(!g)return;g.addEventListener('dragstart',function(e){var t=e.target;if(t&&t.classList&&t.classList.contains('wchip')){var n=t.dataset&&t.dataset.nodeId;if(n){e.dataTransfer.setData('application/x-planner-node',n);}}});g.addEventListener('dragover',function(e){var c=e.target&&e.target.closest&&e.target.closest('.wcell');if(c){e.preventDefault();c.classList.add('wdrop');}});g.addEventListener('dragleave',function(e){var c=e.target&&e.target.closest&&e.target.closest('.wcell');if(c){c.classList.remove('wdrop');}});g.addEventListener('drop',function(e){e.preventDefault();var c=e.target&&e.target.closest&&e.target.closest('.wcell');if(c){c.classList.remove('wdrop');var id=e.dataTransfer&&e.dataTransfer.getData&&e.dataTransfer.getData('application/x-planner-node');if(id){var __f=window.findNode(id);var node=__f&&__f.node;if(node){var iso=c.dataset&&c.dataset.iso;var block=c.dataset&&c.dataset.block;/* CARD 43/45: the WEEK GRID drop - a fifth path that wrote the series anchor.    On a repeat that re-anchors the whole series instead of moving one occurrence. */if(!(iso&&node.repeat&&node.repeat.freq&&window.__moveOccurrence&&window.__moveOccurrence(node,iso,node.time))){node.date=iso||null;}node.block=(block!==undefined&&block!=='')?block:null;if(typeof Store!=='undefined'&&Store.save){Store.save();}if(typeof renderAll==='function'){renderAll();}}}}});})();
 
 /* ===== g15a ===== */
 (function(){var monthGrid=document.getElementById('monthGrid');var yearGrid=document.getElementById('yearGrid');var lblMonth=document.getElementById('lblMonth');var tabsBar=document.getElementById('tabsBar');window.renderYearGrid=function(){var currentYear=window.viewMonth.getFullYear();var currentMonth=window.viewMonth.getMonth();var today=new Date();var thisYear=today.getFullYear();var thisMonth=today.getMonth();var head=document.createElement('div');head.className='yhead';var prevBtn=document.createElement('button');prevBtn.textContent='◀';prevBtn.addEventListener('click',function(){window.viewMonth=new Date(window.viewMonth.getFullYear()-1,window.viewMonth.getMonth(),1);window.renderYearGrid();});var yearSpan=document.createElement('span');yearSpan.textContent=currentYear;var nextBtn=document.createElement('button');nextBtn.textContent='▶';nextBtn.addEventListener('click',function(){window.viewMonth=new Date(window.viewMonth.getFullYear()+1,window.viewMonth.getMonth(),1);window.renderYearGrid();});head.appendChild(prevBtn);head.appendChild(yearSpan);head.appendChild(nextBtn);var body=document.createElement('div');body.className='ybody';var months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];months.forEach(function(label,idx){var cell=document.createElement('button');cell.className='ycell';cell.textContent=label;if(idx===currentMonth){cell.classList.add('ycurrent');}if(currentYear===thisYear&&idx===thisMonth){cell.classList.add('ytoday');}cell.addEventListener('click',(function(index){return function(){window.viewMonth=new Date(currentYear,index,1);window.toggleYearGrid(false);updateMonthLabel();renderMonth();};})(idx));body.appendChild(cell);});yearGrid.innerHTML='';yearGrid.appendChild(head);yearGrid.appendChild(body);};window.toggleYearGrid=function(force){var currentlyShown=!yearGrid.hidden;var desiredShown;if(force===true){desiredShown=true;}else if(force===false){desiredShown=false;}else{desiredShown=!currentlyShown;}if(desiredShown){window.renderYearGrid();yearGrid.hidden=false;monthGrid.hidden=true;}else{yearGrid.hidden=true;monthGrid.hidden=false;}};var btnYearJump=document.createElement('button');btnYearJump.id='btnYearJump';lblMonth.insertAdjacentElement('afterend',btnYearJump);btnYearJump.addEventListener('click',function(){window.toggleYearGrid();});window.syncYearJump=function(){btnYearJump.textContent=window.viewMonth.getFullYear()+'▾';};window.syncYearJump();var monthTab=tabsBar.querySelector('.tab[data-tab="month"]');if(monthTab){monthTab.addEventListener('dblclick',function(){window.toggleYearGrid(true);});}})();
@@ -10452,6 +10452,40 @@ window.__moveOccurrence = function(node, toISO, time) {
   moves[fromISO] = {to: toISO, time: t};
   return true;
 };
+
+/* ===== ONE OWNER FOR "MOVE THIS OCCURRENCE" =====
+   Operator 2026-10-29, after four rounds: "the routine doesn't move to the next day
+   when I change the date on the priority tree" and "moving manually works in
+   internet explorer but not in chrome".
+
+   ROOT CAUSE OF THE REPEATS: I kept fixing ONE call site at a time. There are many
+   places that set a task's date - the tree date chip, the date grid's day buttons,
+   Today/Tomorrow, four calendar drop paths, the month view, the week grid. On a
+   REPEATING item, node.date is the SERIES ANCHOR, not the occurrence you dragged,
+   so every one of them re-anchored the series and the rule pinned the item back.
+
+   Rather than patch the next one after the operator finds it, this wraps the move
+   itself: any code that asks to put a repeating item on a date records a
+   per-occurrence move instead. New call sites are covered automatically. */
+(function () {
+  var base = window.__moveOccurrence;
+  if (typeof base !== 'function' || base.__oneOwner) return;
+  var wrapped = function (node, toISO, time) { return base(node, toISO, time); };
+  wrapped.__oneOwner = true;
+  window.__moveOccurrence = wrapped;
+
+  /* and the safety net: setting .date on a REPEAT, from anywhere, moves the
+     occurrence. Plain tasks are untouched. */
+  window.__setNodeDate = function (node, iso, time) {
+    if (!node) return false;
+    if (iso && node.repeat && node.repeat.freq && window.__moveOccurrence) {
+      return window.__moveOccurrence(node, iso, (time === undefined ? node.time : time));
+    }
+    node.date = iso || null;
+    if (!node.date) { node.time = null; node.block = null; }
+    return true;
+  };
+})();
 
 window.__occurrenceFor = function(node, iso) {
   var moves = (node.repeat && node.repeat.moves) || {};
