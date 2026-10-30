@@ -68,6 +68,30 @@
       }
     } catch (e) {}
   });
+
+  /* 2026-10-29, operator: "I am talking about the demo, I don't need the password
+     there... it doesn't have any of my personal stuff anyways and it shouldn't."
+     They are right. The login gate (#loginGate) exists to stop the REAL planner being
+     readable before Firebase answers - a real security property for real data. The
+     demo has no account and no private data, and with firebase stripped the gate can
+     never resolve, so it sat on "Cannot reach sign-in" and blocked the whole page.
+     MEASURED: a screenshot of the served demo showed that wall over the planner.
+     So the gate is removed here, and kept exactly as it is in the real planner. */
+  try {
+    var gs = document.createElement('style');
+    gs.textContent = '#loginGate{display:none !important}' +
+                     'body.gated{overflow:auto !important}' +
+                     'body.gated>*:not(#loginGate){visibility:visible !important}';
+    (document.head || document.documentElement).appendChild(gs);
+  } catch (e) {}
+  (function killGate() {
+    try {
+      var g = document.getElementById('loginGate');
+      if (g && g.parentNode) g.parentNode.removeChild(g);
+      if (document.body) document.body.classList.remove('gated');
+    } catch (e) {}
+    setTimeout(killGate, 150);
+  })();
 })();
 </script>
 <!-- prepaint: the tree pane's saved width must be right on frame one.
@@ -6485,7 +6509,7 @@ body[data-newbranch="1"] #treeFilters{
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-10-29 20:03 PRAC</span>
+    <span id="buildStamp">build 2026-10-29 20:11 PRAC</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
