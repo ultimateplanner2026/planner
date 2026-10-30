@@ -6594,6 +6594,19 @@ body[data-newbranch="1"] #treeFilters{
   background: #3f4650 !important; border-color: #4a5160 !important;
 }
 </style>
+<script>
+/* CARD 48, 2026-10-30 - ONE OWNER for "what day is the planner being read as".
+   Two separate rules need it (the catch-up in plannerRepeatMatches' rollover wrapper,
+   and the missed-routine filter on scheduledOn). When only one of them followed the
+   tree date the item was DUPLICATED - drawn on both the day it was missed on and the
+   day it rolled to. Both read this. */
+window.__rollHorizon = function () {
+  var t = (typeof window.todayISO === 'function') ? window.todayISO() : null;
+  var s = window.selectedDate || t;
+  if (!t) return s;
+  return (s > t) ? s : t;
+};
+</script>
 </head>
 <body><div id="practiceBanner" style="position:fixed;top:0;left:0;right:0;height:26px;z-index:2147483647;background:repeating-linear-gradient(45deg,#c00,#c00 12px,#a00 12px,#a00 24px);color:#fff;font:700 11px/26px -apple-system,system-ui;text-align:center;letter-spacing:.04em;pointer-events:none">DEMO COPY &mdash; made-up data, never syncs, not your planner</div><style>/* the banner is fixed, so the page must be pushed down by exactly its height or    it sits on top of the toolbar - the operator: "the red marking is covering some    of the setting and stuff up there". */html{padding-top:26px !important;box-sizing:border-box}#practiceBanner{top:0 !important}</style>
 <!-- ===== Internet Explorer notice - operator 2026-09-20 =====
@@ -6656,7 +6669,7 @@ body[data-newbranch="1"] #treeFilters{
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-10-30 12:35 DEMO</span>
+    <span id="buildStamp">build 2026-10-30 14:11 DEMO</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -25765,7 +25778,21 @@ if (r.freq === 'yearly') {
        rolled onto next Tuesday and Wednesday, because those days asked and the
        occurrence behind them was in the past. Measured: 7 future days showing it.
        Future days now show only what is genuinely scheduled. */
-    if (!window.todayISO || ord(iso) > ord(window.todayISO())) {
+    /* CARD 48, 2026-10-30, operator: "it's already established that whenever a weekly
+       task is not completed today, [once] the next day actually occurred it would be
+       moved from yesterday to the next day... I want the same thing to apply when I
+       change the priority tree date."
+
+       This line used to compare against the REAL CLOCK, so with the clock on Oct 30 it
+       treated Oct 31 as "the future" and refused to carry anything there - moving the
+       tree date to Oct 31 left Morning stretch sitting on Oct 30. MEASURED: Oct 31
+       column empty, Oct 30 still showing it.
+
+       The horizon is now the day the planner is being READ as: the later of the real
+       clock and the priority tree date. Verified to produce exactly what the clock
+       already produces when it reaches Oct 31 (Oct 30 clear, Oct 31 shows it), and
+       Nov 1 stays empty - the catch-up lands on the day you moved to and stops. */
+    if (!window.todayISO || ord(iso) > ord(window.__rollHorizon())) {
       delete node.__rolledFrom;
       return false;
     }
@@ -35429,8 +35456,19 @@ body[data-habits-left="1"] #habitsLeft {
       if (onDay) {
         viewToday = (sel > realToday) ? sel : realToday;
       } else if (onWeek && typeof window.weekStartOf === 'function') {
+        /* CARD 48. A WEEK YOU HAVE PAGED FORWARD TO stays whole: its own first day is
+           the floor, so nothing inside it reads as missed (measured: otherwise a daily
+           routine drew on 2 of 7 days instead of 7).
+           THE WEEK CONTAINING TODAY is different - there the tree date is a day you
+           deliberately stepped to, and days before it count as missed. That is what
+           lets a rolled item move OFF the day it was missed on instead of being drawn
+           on both days. */
         var wkStart = window.weekStartOf(sel) || realToday;
-        viewToday = (wkStart > realToday) ? wkStart : realToday;
+        if (wkStart > realToday) {
+          viewToday = wkStart;
+        } else {
+          viewToday = (sel > realToday) ? sel : realToday;
+        }
       } else {
         viewToday = realToday;
       }
