@@ -6669,7 +6669,7 @@ window.__rollHorizon = function () {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-10-30 14:11 DEMO</span>
+    <span id="buildStamp">build 2026-10-30 17:40 DEMO</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -43490,5 +43490,101 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', ready);
   else ready();
 })();
-</script></body>
+</script><script id="card1note">
+/* CARD 1 (was 33), restored 2026-10-30.
+   Operator: "this one doesn't work on the live planner, and same thing in the priorty
+   tree section."
+
+   THREE things were measured before putting it back:
+   1. The code was in NO live build. It existed in one practice copy on 29 Oct 19:02 and
+      was gone by 19:54 - a practice rebuild pulls from the LIVE build, and this had
+      never reached live, so it was overwritten. The card said "LIVE - check it".
+   2. The control the old card NAMED does not exist for a person. The row's own
+      .tree-outdent / .tree-indent are `display:none !important` at every width - the
+      app's own CSS comment says "the indent / outdent arrows leave the row entirely
+      for the row menu". The only reachable outdent is the <- inside the row's
+      three-dots menu.
+   3. That menu IS rebuilt on every open, so it reads window.__outdentNode fresh and
+      the wrapper below is picked up. Verified by driving the real menu with a real
+      pointer: the confirm appears and the item does not move until you confirm. */
+</script>
+<script id="card33js">
+/* CARD 33 - one confirmation, covering ALL FOUR ways to outdent.
+   MEASURED: the tree row arrow, the tree row menu's arrow pair, the Edit window's
+   subtask arrow and Shift+Tab ALL reach window.__outdentNode, so wrapping that one
+   function covers every instance - rather than four copies that can drift apart. */
+(function () {
+  if (window.__c33Installed) return;
+  function install() {
+    if (typeof window.__outdentNode !== 'function') { setTimeout(install, 150); return; }
+    if (window.__outdentNode.__c33) return;
+    window.__c33Installed = true;
+    var base = window.__outdentNode;
+
+    function ask(id, go) {
+      var f = window.findNode && window.findNode(id);
+      if (!f || !f.node) { go(); return; }
+      /* already at the top level - there is nothing to move out of */
+      if (!f.parent) { go(); return; }
+      var name = f.node.title || 'this task';
+      var parent = f.parent.title || 'its branch';
+      var kids = (f.node.children && f.node.children.length) || 0;
+
+      var veil = document.createElement('div');
+      veil.className = 'c33-veil';
+      var box = document.createElement('div');
+      box.className = 'c33-box';
+      box.setAttribute('role', 'dialog');
+      box.setAttribute('aria-modal', 'true');
+      function esc(t) {
+        return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      }
+      box.innerHTML =
+        '<h3>Move this out to its own branch?</h3>' +
+        '<p><b>' + esc(name) + '</b> is a subtask of <b>' + esc(parent) + '</b>. ' +
+        'Moving it out makes it a main branch of its own.</p>' +
+        '<div class="c33-move">' +
+          '<div><span class="f">now</span> &nbsp; ' + esc(parent) +
+            ' &rsaquo; ' + esc(name) + '</div>' +
+          '<div><span class="f">after</span> &nbsp; <span class="t">' + esc(name) +
+            '</span> &nbsp;<span class="f">(top level)</span></div>' +
+        '</div>' +
+        '<p class="c33-note">' +
+          (kids ? 'Its ' + kids + ' subtask' + (kids > 1 ? 's move' : ' moves') +
+                  ' with it. ' : 'Anything inside it moves with it. ') +
+          'Nothing is deleted &mdash; the right arrow <b>&rarr;</b> puts it back.</p>' +
+        '<div class="c33-row">' +
+          '<button type="button" class="c33-cancel">Cancel</button>' +
+          '<button type="button" class="c33-ok">Move it out</button>' +
+        '</div>';
+
+      function shut() {
+        document.removeEventListener('keydown', onKey, true);
+        if (veil.parentNode) veil.parentNode.removeChild(veil);
+        if (box.parentNode) box.parentNode.removeChild(box);
+      }
+      function onKey(e) {
+        if (e.key === 'Escape') { e.preventDefault(); shut(); }
+        else if (e.key === 'Enter') { e.preventDefault(); shut(); go(); }
+      }
+      box.querySelector('.c33-cancel').addEventListener('click', shut);
+      veil.addEventListener('click', shut);
+      box.querySelector('.c33-ok').addEventListener('click', function () { shut(); go(); });
+      document.addEventListener('keydown', onKey, true);
+      document.body.appendChild(veil);
+      document.body.appendChild(box);
+      try { box.querySelector('.c33-ok').focus(); } catch (e) {}
+    }
+
+    var w = function (id) {
+      var self = this, args = arguments;
+      ask(id, function () { base.apply(self, args); });
+    };
+    w.__c33 = true;
+    window.__outdentNode = w;
+  }
+  install();
+})();
+</script>
+</body>
 </html>
