@@ -6510,7 +6510,7 @@ body[data-newbranch="1"] #treeFilters{
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-10-29 21:39 PRAC</span>
+    <span id="buildStamp">build 2026-10-29 22:09 PRAC</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -8939,7 +8939,12 @@ function showSchedulePanel(dateISO) {
       item.onmouseenter = function() { item.style.background = 'var(--hover)'; };
       item.onmouseleave = function() { item.style.background = ''; };
       item.onclick = function() {
-        node.date = dateISO;
+        /* CARD 43: move the occurrence, not the series anchor. */
+        if (node.repeat && node.repeat.freq && window.__moveOccurrence) {
+          window.__moveOccurrence(node, dateISO, node.time);
+        } else {
+          node.date = dateISO;
+        }
         window.Store.save();
         window.renderAll();
         panel.remove();
@@ -9017,7 +9022,11 @@ function buildDayColumn(blockKey, blockLabel, entries, dateISO) {
     if (!nodeId) return;
     var found = window.findNode(nodeId);
     if (!found || !found.node) return;
-    found.node.date = dateISO;
+    /* CARD 43: move the occurrence, not the series anchor. */
+    if (!(found.node.repeat && found.node.repeat.freq && window.__moveOccurrence &&
+          window.__moveOccurrence(found.node, dateISO, found.node.time))) {
+      found.node.date = dateISO;
+    }
     found.node.block = blockKey;
     window.Store.save();
     window.renderAll();
@@ -11686,7 +11695,11 @@ renderAll();
     var isoDate = cell.dataset.iso;
     var node = found.node;
     // dates are 'YYYY-MM-DD' strings in this app; time lives separately in .time
-    node.date = isoDate;
+    /* CARD 43: a repeat moves ONE occurrence, never its anchor. */
+    if (!(node.repeat && node.repeat.freq && window.__moveOccurrence &&
+          window.__moveOccurrence(node, isoDate, node.time))) {
+      node.date = isoDate;
+    }
 
     window.Store.save();
     window.__suppressClick = true;
@@ -11730,6 +11743,22 @@ renderAll();
       window.openDatePopover(chip, node.date || '', function (iso) {
         var f = window.findNode(id);
         if (f && f.node) {
+          /* CARD 43, SECOND TIME. The operator: "the routine doesn't move to the next
+             day when I change the date on the priority tree."
+             I fixed buildDateChip's own click handler - but THIS handler owns the
+             chip (see the note above: a capture-phase listener calls it and stops
+             everything else), so my fix never ran. Measured through the real UI:
+             anchor became 2026-10-30 and moves stayed {}, so the weekly rule still
+             pinned it to today.
+             On a REPEAT, node.date is the series anchor, not the occurrence. Record a
+             per-occurrence move instead, exactly as the calendar drag does. */
+          if (iso && f.node.repeat && f.node.repeat.freq &&
+              window.__moveOccurrence &&
+              window.__moveOccurrence(f.node, iso, f.node.time)) {
+            window.Store.save();
+            window.renderAll();
+            return;
+          }
           f.node.date = iso || null;
           if (!f.node.date) { f.node.time = null; f.node.block = null; }
           window.Store.save();
@@ -12305,6 +12334,19 @@ renderAll();
             e.stopPropagation();
             var f = window.findNode(nodeId);
             if (f && f.node) {
+              /* CARD 43, THE HANDLER THAT ACTUALLY RUNS. Trapped a setter on
+                 node.date and clicked the real chip: the write came from HERE
+                 (the date grid's own day button), not from the two handlers I
+                 had already fixed. On a repeat, node.date is the series anchor,
+                 so writing it left moves:{} and the weekly rule kept the item on
+                 today - "the routine doesn't move to the next day". */
+              if (f.node.repeat && f.node.repeat.freq && window.__moveOccurrence &&
+                  window.__moveOccurrence(f.node, iso, f.node.time)) {
+                window.Store.save();
+                close();
+                window.renderAll();
+                return;
+              }
               f.node.date = iso;
               window.Store.save();
             }
