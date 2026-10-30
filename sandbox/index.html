@@ -6693,7 +6693,7 @@ window.__rollHorizon = function () {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-10-30 18:31 DEMO</span>
+    <span id="buildStamp">build 2026-10-30 18:43 DEMO</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -43617,6 +43617,49 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
     window.__outdentNode = w;
   }
   install();
+})();
+</script>
+<script id="c2gearsync">
+/* CARD 2, third fault, 2026-10-30.
+   Operator: "you are missing the picture for todays date plus show future branch is
+   checked on". Taking that picture found TWO more things, not one.
+
+   MEASURED by pressing the real gear item with a real pointer, then reading the tree:
+   the gear's "Show future branches" calls window.__futToggle, which writes
+   localStorage 'planner.showFutureBranches' and adds a CSS class. But the rows are
+   hidden by __applyTimeFilter, which reads window.__revealAhead - a DIFFERENT switch,
+   owned by toggleHideFuture. So pressing the button flipped a flag nothing was
+   watching: gearSwitch null -> "1" while 0 extra rows appeared, even for a branch the
+   menu itself was counting ("Show future branches 1").
+
+   Two switches for one control is the bug. The button keeps its own state - it is the
+   one the tick and the count read - and now carries the other along with it, so one
+   press means one thing. Verified: press it once and both a future TASK and a future
+   BRANCH appear; press again and both go. */
+(function () {
+  function sync() {
+    var want = !!(window.__futShowing && window.__futShowing());
+    var have = !!window.__revealAhead;
+    if (want !== have && typeof window.toggleHideFuture === 'function') {
+      window.toggleHideFuture();
+    }
+  }
+  function install() {
+    var base = window.__futToggle;
+    if (typeof base !== 'function' || base.__c2wrapped) return false;
+    var w = function () { var r = base.apply(this, arguments); sync(); return r; };
+    w.__c2wrapped = true;
+    window.__futToggle = w;
+    sync();              /* agree with whatever the button already says */
+    return true;
+  }
+  if (!install()) {
+    /* the gear's module may load after this one */
+    var tries = 0;
+    var t = setInterval(function () {
+      if (install() || ++tries > 40) clearInterval(t);
+    }, 150);
+  }
 })();
 </script>
 </body>
