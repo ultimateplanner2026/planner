@@ -6693,7 +6693,7 @@ window.__rollHorizon = function () {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-10-30 18:43 DEMO</span>
+    <span id="buildStamp">build 2026-10-30 19:12 DEMO</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -10417,7 +10417,18 @@ window.renderHabits = function () {
 })();
 
 /* ===== f12a1 ===== */
-(function(){var baseRenderTree=window.renderTree;window.renderTree=function(){baseRenderTree();window.__applyTimeFilter();};if(window.__revealAhead===undefined)window.__revealAhead=false;if(window.__draggingNodeId===undefined)window.__draggingNodeId=null;window.__applyTimeFilter=function(){/* CARD 2, 2026-10-30: `today` here decides what counts as FUTURE, and it read the TREE DATE. Operator: "in the priortty tree future dated tasks showing even though show future branches is not checked off". MEASURED with the switch OFF throughout: tree date on today = 0 future rows, +1 day = 1, +3 days = 2. Stepping the date forward turned tomorrow into today and unhid rows the switch was meant to keep hidden. `realToday` was already computed on this line and used only for overdue. Future is now measured from the clock; the tree date keeps its own job (card 48). */var today=todayISO();var realToday=todayISO();var selfFuture={},visible={},overdue={};var walk=function(node){var childVisible=false;if(node.children){node.children.forEach(function(child){walk(child);if(visible[child.id])childVisible=true;});}var date=node.date;var isFuture=!!(date&&date>today);var isOverdue=!!(date&&date<realToday&&!node.done&&!(function(n){
+(function(){var baseRenderTree=window.renderTree;window.renderTree=function(){baseRenderTree();window.__applyTimeFilter();};if(window.__revealAhead===undefined)window.__revealAhead=false;if(window.__draggingNodeId===undefined)window.__draggingNodeId=null;window.__applyTimeFilter=function(){/* CARD 2, CORRECTED 2026-10-30. I first changed this to todayISO() - measuring
+   "future" from the real clock - and that was WRONG. Operator, with a picture of
+   the tree date on Thu Nov 5: "for service the autoclave, it was a future dated
+   item and it doesnt show on the subtask of equipment when I move the dates to
+   nov 5? that shouldn't happen".
+   MEASURED on three items due in 1, 6 and 20 days, tree date moved to +6:
+     tree date rule (original) -> 1 and 6 SHOWN, 20 hidden   <- what they want
+     clock rule (my change)    -> nothing ever shows         <- what I broke
+   Moving the tree date forward is READING THAT DAY, so anything due by then is
+   present and must appear; only what is still beyond it is "future". The line is
+   back to the tree date. Their earlier complaint was never about this rule - it
+   was the gear switch being dead, which is the other half of card 2. */var today=(window.selectedDate||todayISO());var realToday=todayISO();var selfFuture={},visible={},overdue={};var walk=function(node){var childVisible=false;if(node.children){node.children.forEach(function(child){walk(child);if(visible[child.id])childVisible=true;});}var date=node.date;var isFuture=!!(date&&date>today);var isOverdue=!!(date&&date<realToday&&!node.done&&!(function(n){
 /* CARD 43: a routine whose "If missed: Show again" is UNTICKED is explicitly not
    meant to chase you - so it must not be red in the tree, nor counted as overdue.
    rollOver===false is that switch (kOn() reads r.rollOver!==false). With Show again
