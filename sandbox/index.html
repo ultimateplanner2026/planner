@@ -2074,6 +2074,7 @@ aside#treePane { overflow-y: auto; }
   background: var(--grid-canvas);
   position: relative;
 }
+
 .tgbody {
   position: relative;
   width: 100%;
@@ -6509,7 +6510,7 @@ body[data-newbranch="1"] #treeFilters{
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-10-29 20:57 PRAC</span>
+    <span id="buildStamp">build 2026-10-29 21:39 PRAC</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -21870,6 +21871,32 @@ function firstConnect(remote, rAt, lAt) {
     var range = host.scrollHeight - host.clientHeight;
     if (range <= 0) return 0;
     var t = y - (host.clientHeight / 3);
+
+    /* OPERATOR 2026-10-29: "Invoice March - chase ... is still not allowing me to
+       manually move it up, it reverts back to its actual timing."
+       MEASURED on the served demo: this opens the grid at NOW (~21:00, scrollTop
+       606). A 09:00 item sits at y=540, so it was 66px ABOVE the window - and
+       overflow:auto clips it out of hit-testing completely: elementsFromPoint at
+       the chip returned only [tgalldaycell, tgallday, ...]. The chip could not be
+       clicked or dragged at all, so the drag never began and nothing moved.
+       Opening at "now" is right when the day's work is ahead of you; it must not
+       hide work that is behind you. So scroll back far enough to include the
+       EARLIEST item drawn on this grid. */
+    try {
+      var chips = host.querySelectorAll('.tgevent');
+      if (chips.length) {
+        var bodyTop = host.querySelector('.tgbody').getBoundingClientRect().top;
+        var earliest = Infinity, k;
+        for (k = 0; k < chips.length; k++) {
+          var top = chips[k].getBoundingClientRect().top - bodyTop;
+          if (top < earliest) earliest = top;
+        }
+        if (earliest !== Infinity && earliest < t) {
+          t = Math.max(0, earliest - 12);
+        }
+      }
+    } catch (err) {}
+
     if (t < 0) t = 0;
     if (t > range) t = range;
     return t;
