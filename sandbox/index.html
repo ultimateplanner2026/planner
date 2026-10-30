@@ -6509,7 +6509,7 @@ body[data-newbranch="1"] #treeFilters{
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-10-29 20:11 PRAC</span>
+    <span id="buildStamp">build 2026-10-29 20:30 PRAC</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -7661,6 +7661,17 @@ document.addEventListener("DOMContentLoaded", function() {
          One picker, four places, per the reuse rule. */
       if (typeof window.openDatePopover === 'function' && typeof window.buildDateGrid === 'function') {
         window.openDatePopover(btn, node.date || '', function (iso) {
+          /* CARD 43: on a REPEATING item node.date is the series ANCHOR, not the
+             occurrence showing today. Writing it moved the anchor while the rule
+             kept pinning the item to its own weekday - so it stayed on today and
+             never appeared on the day that was picked. Record a per-occurrence
+             move instead, the same way dragging it on the calendar does. */
+          if (iso && node.repeat && node.repeat.freq &&
+              window.__moveOccurrence && window.__moveOccurrence(node, iso, node.time)) {
+            Store.save();
+            window.renderAll();
+            return;
+          }
           node.date = iso || null;
           if (!node.date) node.block = null;
           Store.save();
