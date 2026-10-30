@@ -1981,6 +1981,7 @@ aside#treePane { overflow-y: auto; }
   background: var(--grid-canvas);
   position: relative;
 }
+
 .tgbody {
   position: relative;
   width: 100%;
@@ -2585,6 +2586,16 @@ aside#treePane { overflow-y: auto; }
    which is exactly why it hid for so long. */
 .tgchip, .mchip { position: relative; }
 .tgevent:hover .actbtn, .tgchip:hover .actbtn, .mchip:hover .actbtn { opacity: 1; }
+.c36grid { margin: 2px 0 10px; }
+.c36months { grid-template-columns: repeat(6, 1fr) !important; }
+.c36day { padding: 7px 0 !important; font-size: 12.5px !important; }
+.c36foot { display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin: 0 0 4px; }
+.c36sameBtn { background: #343a43; color: #e9ecf1; border: none; border-radius: 9px;
+  padding: 7px 12px; font-size: 12.5px; cursor: pointer; font-family: inherit; }
+.c36sameBtn:hover { background: #3f4650; }
+.c36sameBtn.sel { background: #bcd2f8; color: #1b1f26; font-weight: 700; }
+.c36says { color: var(--t-2, #9aa0a8); font-size: 12px; }
 .actmenu {
   z-index: 300; background: var(--surface); border: 1px solid var(--border);
   border-radius: 10px; box-shadow: 0 16px 40px rgba(0,0,0,0.35);
@@ -6344,6 +6355,19 @@ body[data-newbranch="1"] #treeFilters{
   background: #3f4650 !important; border-color: #4a5160 !important;
 }
 </style>
+<script>
+/* CARD 48, 2026-10-30 - ONE OWNER for "what day is the planner being read as".
+   Two separate rules need it (the catch-up in plannerRepeatMatches' rollover wrapper,
+   and the missed-routine filter on scheduledOn). When only one of them followed the
+   tree date the item was DUPLICATED - drawn on both the day it was missed on and the
+   day it rolled to. Both read this. */
+window.__rollHorizon = function () {
+  var t = (typeof window.todayISO === 'function') ? window.todayISO() : null;
+  var s = window.selectedDate || t;
+  if (!t) return s;
+  return (s > t) ? s : t;
+};
+</script>
 </head>
 <body><style>/* the banner is fixed, so the page must be pushed down by exactly its height or    it sits on top of the toolbar - the operator: "the red marking is covering some    of the setting and stuff up there". */html{padding-top:26px !important;box-sizing:border-box}#practiceBanner{top:0 !important}</style>
 <!-- ===== Internet Explorer notice - operator 2026-09-20 =====
@@ -6406,7 +6430,7 @@ body[data-newbranch="1"] #treeFilters{
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-10-26 13:27</span>
+    <span id="buildStamp">build 2026-10-30 15:12</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -6481,7 +6505,6 @@ body[data-newbranch="1"] #treeFilters{
 <script src="https://www.gstatic.com/firebasejs/11.6.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/11.6.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/11.6.0/firebase-firestore-compat.js"></script>
-
 <script>
 /* ===== m117 sign-in link ===== */
 /* Sign-in link. The token travels in the URL FRAGMENT, which browsers never
@@ -7562,6 +7585,17 @@ document.addEventListener("DOMContentLoaded", function() {
          One picker, four places, per the reuse rule. */
       if (typeof window.openDatePopover === 'function' && typeof window.buildDateGrid === 'function') {
         window.openDatePopover(btn, node.date || '', function (iso) {
+          /* CARD 43: on a REPEATING item node.date is the series ANCHOR, not the
+             occurrence showing today. Writing it moved the anchor while the rule
+             kept pinning the item to its own weekday - so it stayed on today and
+             never appeared on the day that was picked. Record a per-occurrence
+             move instead, the same way dragging it on the calendar does. */
+          if (iso && node.repeat && node.repeat.freq &&
+              window.__moveOccurrence && window.__moveOccurrence(node, iso, node.time)) {
+            Store.save();
+            window.renderAll();
+            return;
+          }
           node.date = iso || null;
           if (!node.date) node.block = null;
           Store.save();
@@ -8349,12 +8383,50 @@ document.addEventListener("DOMContentLoaded", function() {
           source: "tree",
           node: node,
           event: null,
+          /* CARD 45/time: every entry carries the day it was built for, so a moved
+             occurrence's own time can be looked up. The tree branch left this null,
+             so tgTimeOf had no date and fell back to the anchor time - the dragged
+             time was stored and never drawn. */
+          onDate: dateISO,
           instanceDate: null
         });
       }
 
       if (node.repeat) {
         var rule = node.repeat;
+        /* ===== THE CALENDAR HAD ITS OWN COPY OF THE REPEAT RULE =====
+           Operator 2026-10-29, after many rounds: "Invoice March - chase still
+           doesn't drag" and "the routine doesn't move to the next day".
+           ROOT CAUSE, finally. This block is a SECOND implementation of the repeat
+           rule - it reads rule.days/freq itself and knows nothing about
+           repeat.moves. So every per-occurrence move I recorded was invisible here:
+           the calendar kept drawing the item on its rule days and never on the day
+           it had been moved to. MEASURED on the shipped demo: making the item a
+           routine removed it from its own day entirely (scheduledOn 1 -> 0) while
+           plannerRepeatMatches said true for both days.
+           plannerRepeatMatches IS the rule - it already handles moves, rollover and
+           "specific dates". Use it, and keep the old arithmetic only as a fallback
+           for a build where it is somehow missing. */
+        if (typeof window.plannerRepeatMatches === 'function') {
+          if (window.plannerRepeatMatches(node, dateISO)) {
+            var repeatDone0 = node.repeatDone || {};
+            result.push({
+              id: node.id + "@" + dateISO,
+              title: node.title,
+              kind: node.kind,
+              priority: node.priority,
+              done: !!repeatDone0[dateISO],
+              block: node.block,
+              duration: node.duration,
+              source: "repeat",
+              onDate: dateISO,
+              node: node,
+              event: null,
+              instanceDate: dateISO
+            });
+          }
+          return;   /* this node is handled - do not run the old copy as well */
+        }
         var baseDate = node.date ? parseISO(node.date) : null;
         var until = rule.until ? parseISO(rule.until) : null;
 
@@ -8396,6 +8468,7 @@ document.addEventListener("DOMContentLoaded", function() {
               block: node.block,
               duration: node.duration,
               source: "repeat",
+              onDate: dateISO,
               node: node,
               event: null,
               instanceDate: dateISO
@@ -8822,7 +8895,12 @@ function showSchedulePanel(dateISO) {
       item.onmouseenter = function() { item.style.background = 'var(--hover)'; };
       item.onmouseleave = function() { item.style.background = ''; };
       item.onclick = function() {
-        node.date = dateISO;
+        /* CARD 43: move the occurrence, not the series anchor. */
+        if (node.repeat && node.repeat.freq && window.__moveOccurrence) {
+          window.__moveOccurrence(node, dateISO, node.time);
+        } else {
+          node.date = dateISO;
+        }
         window.Store.save();
         window.renderAll();
         panel.remove();
@@ -8900,7 +8978,11 @@ function buildDayColumn(blockKey, blockLabel, entries, dateISO) {
     if (!nodeId) return;
     var found = window.findNode(nodeId);
     if (!found || !found.node) return;
-    found.node.date = dateISO;
+    /* CARD 43: move the occurrence, not the series anchor. */
+    if (!(found.node.repeat && found.node.repeat.freq && window.__moveOccurrence &&
+          window.__moveOccurrence(found.node, dateISO, found.node.time))) {
+      found.node.date = dateISO;
+    }
     found.node.block = blockKey;
     window.Store.save();
     window.renderAll();
@@ -10075,7 +10157,12 @@ window.renderHabits = function () {
 })();
 
 /* ===== f12a1 ===== */
-(function(){var baseRenderTree=window.renderTree;window.renderTree=function(){baseRenderTree();window.__applyTimeFilter();};if(window.__revealAhead===undefined)window.__revealAhead=false;if(window.__draggingNodeId===undefined)window.__draggingNodeId=null;window.__applyTimeFilter=function(){var today=(window.selectedDate||todayISO());var realToday=todayISO();var selfFuture={},visible={},overdue={};var walk=function(node){var childVisible=false;if(node.children){node.children.forEach(function(child){walk(child);if(visible[child.id])childVisible=true;});}var date=node.date;var isFuture=!!(date&&date>today);var isOverdue=!!(date&&date<realToday&&!node.done);selfFuture[node.id]=isFuture;overdue[node.id]=isOverdue;visible[node.id]=!isFuture||childVisible;};Store.data.tree.forEach(function(root){walk(root);});/* 2026-10-26 - CARD 20 REMOVED. It forced every future-dated CHILD visible in the tree, which overrode the operator's own 'Show future branches' button: MEASURED, a plain dated subtask showed whether that button was on or off, so both menu items stopped doing anything. They said: "That feature should not be changed." The real answer is card 30 - a chip inside the Edit window that reveals a branch's future subtasks on request, leaving the tree alone. */var bypass=(document.getElementById('treeSearch').value.trim()!=='')||window.__revealAhead;var rows=document.querySelectorAll('#treeRoot .tree-row');rows.forEach(function(row){var id=row.dataset.id;row.classList.remove('ancestor-muted','overdue');var controls=row.querySelectorAll('input,button');controls.forEach(function(el){el.disabled=false;});if(bypass||id===window.__draggingNodeId){row.style.display='';}else if(!visible[id]){row.style.display='none';}else{row.style.display='';if(selfFuture[id]){row.classList.add('ancestor-muted');controls.forEach(function(el){/* CARD 14, 2026-09-21 - operator: "A branch task, i future dated it. but when I click show future branches and click on the clock button its doesn't work". MEASURED: the clock IS the date chip, it is a <button>, and this blanket sweep over 'input,button' set disabled=true on it - so it collapsed to 0x0 and the click landed on the toolbar behind. Rescheduling is the ONE thing you need on a future-dated branch, so the date chip stays live. */if(el.classList&&el.classList.contains('tree-datechip'))return;el.disabled=true;});}}if(overdue[id])row.classList.add('overdue');});var aheadCount=0,overdueCount=0,k;for(k in selfFuture){if(selfFuture[k])aheadCount++;}for(k in overdue){if(overdue[k])overdueCount++;}window.__aheadCount=aheadCount;window.__overdueCount=overdueCount;if(typeof window.__renderTreeFooter==='function')window.__renderTreeFooter();};})();
+(function(){var baseRenderTree=window.renderTree;window.renderTree=function(){baseRenderTree();window.__applyTimeFilter();};if(window.__revealAhead===undefined)window.__revealAhead=false;if(window.__draggingNodeId===undefined)window.__draggingNodeId=null;window.__applyTimeFilter=function(){var today=(window.selectedDate||todayISO());var realToday=todayISO();var selfFuture={},visible={},overdue={};var walk=function(node){var childVisible=false;if(node.children){node.children.forEach(function(child){walk(child);if(visible[child.id])childVisible=true;});}var date=node.date;var isFuture=!!(date&&date>today);var isOverdue=!!(date&&date<realToday&&!node.done&&!(function(n){
+/* CARD 43: a routine whose "If missed: Show again" is UNTICKED is explicitly not
+   meant to chase you - so it must not be red in the tree, nor counted as overdue.
+   rollOver===false is that switch (kOn() reads r.rollOver!==false). With Show again
+   ON nothing changes. */
+return !!(n&&n.repeat&&n.repeat.freq&&n.repeat.rollOver===false);})(node));selfFuture[node.id]=isFuture;overdue[node.id]=isOverdue;visible[node.id]=!isFuture||childVisible;};Store.data.tree.forEach(function(root){walk(root);});/* 2026-10-26 - CARD 20 REMOVED. It forced every future-dated CHILD visible in the tree, which overrode the operator's own 'Show future branches' button: MEASURED, a plain dated subtask showed whether that button was on or off, so both menu items stopped doing anything. They said: "That feature should not be changed." The real answer is card 30 - a chip inside the Edit window that reveals a branch's future subtasks on request, leaving the tree alone. */var bypass=(document.getElementById('treeSearch').value.trim()!=='')||window.__revealAhead;var rows=document.querySelectorAll('#treeRoot .tree-row');rows.forEach(function(row){var id=row.dataset.id;row.classList.remove('ancestor-muted','overdue');var controls=row.querySelectorAll('input,button');controls.forEach(function(el){el.disabled=false;});if(bypass||id===window.__draggingNodeId){row.style.display='';}else if(!visible[id]){row.style.display='none';}else{row.style.display='';if(selfFuture[id]){row.classList.add('ancestor-muted');controls.forEach(function(el){/* CARD 14, 2026-09-21 - operator: "A branch task, i future dated it. but when I click show future branches and click on the clock button its doesn't work". MEASURED: the clock IS the date chip, it is a <button>, and this blanket sweep over 'input,button' set disabled=true on it - so it collapsed to 0x0 and the click landed on the toolbar behind. Rescheduling is the ONE thing you need on a future-dated branch, so the date chip stays live. */if(el.classList&&el.classList.contains('tree-datechip'))return;el.disabled=true;});}}if(overdue[id])row.classList.add('overdue');});var aheadCount=0,overdueCount=0,k;for(k in selfFuture){if(selfFuture[k])aheadCount++;}for(k in overdue){if(overdue[k])overdueCount++;}window.__aheadCount=aheadCount;window.__overdueCount=overdueCount;if(typeof window.__renderTreeFooter==='function')window.__renderTreeFooter();};})();
 
 /* ===== f12a2 ===== */
 (function(){window.__renderTreeFooter=function(){var root=document.getElementById('treeRoot');if(!root)return;root.querySelectorAll('#treeFooter').forEach(function(el){el.remove();});root.querySelectorAll('.tree-empty').forEach(function(el){el.remove();});var ahead=window.__aheadCount||0,over=window.__overdueCount||0,visibleRows=0;root.querySelectorAll('.tree-row').forEach(function(el){if(el.style.display!=='none')visibleRows++;});if(visibleRows===0){var empty=document.createElement('div');empty.className='tree-empty';var nothing=document.createElement('div');nothing.textContent='Nothing for today.';empty.appendChild(nothing);if(ahead>0){var action=document.createElement('div');action.className='tree-empty-action';action.textContent=ahead+(ahead===1?' item scheduled ahead':' items scheduled ahead');action.style.cursor='pointer';action.addEventListener('click',function(){window.__revealAhead=true;window.renderTree();});empty.appendChild(action);}root.appendChild(empty);}if(ahead>0||over>0){var footer=document.createElement('div');footer.id='treeFooter';if(ahead>0){var btn=document.createElement('button');btn.id='btnRevealAhead';btn.textContent=(window.__revealAhead?'Hide ':'')+ahead+(ahead===1?' scheduled ahead':' scheduled ahead');btn.addEventListener('click',function(){window.__revealAhead=!window.__revealAhead;window.renderTree();});footer.appendChild(btn);}if(over>0){var span=document.createElement('span');span.className='overdue-count';span.textContent=over+' overdue';footer.appendChild(span);}root.appendChild(footer);}};})();
@@ -10166,7 +10253,7 @@ window.renderHabits = function () {
 (function(){var dayNames=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];window.weekStartOf=function(iso){var d=parseISO(iso);var dow=d.getDay();var startDow=Store.data.settings.weekStart;var diff=(dow-startDow+7)%7;d.setDate(d.getDate()-diff);return isoOf(d);};window.shiftWeek=function(n){var cur=parseISO(window.selectedDate);cur.setDate(cur.getDate()+n*7);window.selectedDate=isoOf(cur);renderAll();};window.renderWeek=function(){var grid=document.getElementById('weekGrid');while(grid.firstChild)grid.removeChild(grid.firstChild);var selected=window.selectedDate;var startISO=window.weekStartOf(selected);var startDate=parseISO(startISO);var dayISOs=[];for(var i=0;i<7;i++){var d=new Date(startDate);d.setDate(d.getDate()+i);dayISOs.push(isoOf(d));}var header=document.createElement('div');header.className='wheader';var prevBtn=document.createElement('button');prevBtn.className='wprev';prevBtn.type='button';prevBtn.textContent='←';prevBtn.addEventListener('click',function(){shiftWeek(-1);});var nextBtn=document.createElement('button');nextBtn.className='wnext';nextBtn.type='button';nextBtn.textContent='→';nextBtn.addEventListener('click',function(){shiftWeek(1);});var thisWeekBtn=document.createElement('button');thisWeekBtn.className='wthis';thisWeekBtn.type='button';thisWeekBtn.textContent='This week';thisWeekBtn.addEventListener('click',function(){window.selectedDate=todayISO();renderAll();});var rangeSpan=document.createElement('span');var endDate=new Date(startDate);endDate.setDate(endDate.getDate()+6);rangeSpan.textContent=fmtDate(startISO,'short')+' - '+fmtDate(isoOf(endDate),'short');header.appendChild(prevBtn);header.appendChild(rangeSpan);header.appendChild(nextBtn);header.appendChild(thisWeekBtn);grid.appendChild(header);var body=document.createElement('div');body.className='wbody';body.style.gridTemplateColumns='72px repeat(7, 1fr)';var row0=document.createElement('div');row0.className='wrow';var corner=document.createElement('div');corner.className='wcorner';row0.appendChild(corner);dayISOs.forEach(function(iso){var head=document.createElement('div');head.className='whead';head.dataset.iso=iso;var d=parseISO(iso);var dow=d.getDay();head.textContent=dayNames[dow]+' '+d.getDate();if(iso===todayISO())head.classList.add('wtoday');if(iso===selected)head.classList.add('wselected');head.addEventListener('click',function(){window.selectedDate=iso;setTab('day');});row0.appendChild(head);});body.appendChild(row0);var blocks=[{block:'morning',label:'Morning'},{block:'afternoon',label:'Afternoon'},{block:'evening',label:'Evening'},{block:null,label:'Anytime'}];blocks.forEach(function(b){var row=document.createElement('div');row.className='wrow';var labelDiv=document.createElement('div');labelDiv.className='wlabel';labelDiv.textContent=b.label;row.appendChild(labelDiv);dayISOs.forEach(function(iso){var cell=document.createElement('div');cell.className='wcell';cell.dataset.iso=iso;cell.dataset.block=b.block!==null?b.block:'';var entries=scheduledOn(iso).filter(function(e){return e.block===b.block;});entries.forEach(function(item){var chip=document.createElement('div');chip.className='wchip';chip.textContent=item.title;chip.title=item.title;if(item.priority==='high')chip.classList.add('high');if(item.done)chip.classList.add('done');chip.addEventListener('click',function(e){e.stopPropagation();setInstanceDone(item,!item.done);renderAll();});cell.appendChild(chip);});row.appendChild(cell);});body.appendChild(row);});grid.appendChild(body);};})();
 
 /* ===== g14b ===== */
-(function(){var g=document.getElementById('weekGrid');if(!g)return;g.addEventListener('dragstart',function(e){var t=e.target;if(t&&t.classList&&t.classList.contains('wchip')){var n=t.dataset&&t.dataset.nodeId;if(n){e.dataTransfer.setData('application/x-planner-node',n);}}});g.addEventListener('dragover',function(e){var c=e.target&&e.target.closest&&e.target.closest('.wcell');if(c){e.preventDefault();c.classList.add('wdrop');}});g.addEventListener('dragleave',function(e){var c=e.target&&e.target.closest&&e.target.closest('.wcell');if(c){c.classList.remove('wdrop');}});g.addEventListener('drop',function(e){e.preventDefault();var c=e.target&&e.target.closest&&e.target.closest('.wcell');if(c){c.classList.remove('wdrop');var id=e.dataTransfer&&e.dataTransfer.getData&&e.dataTransfer.getData('application/x-planner-node');if(id){var __f=window.findNode(id);var node=__f&&__f.node;if(node){var iso=c.dataset&&c.dataset.iso;var block=c.dataset&&c.dataset.block;node.date=iso||null;node.block=(block!==undefined&&block!=='')?block:null;if(typeof Store!=='undefined'&&Store.save){Store.save();}if(typeof renderAll==='function'){renderAll();}}}}});})();
+(function(){var g=document.getElementById('weekGrid');if(!g)return;g.addEventListener('dragstart',function(e){var t=e.target;if(t&&t.classList&&t.classList.contains('wchip')){var n=t.dataset&&t.dataset.nodeId;if(n){e.dataTransfer.setData('application/x-planner-node',n);}}});g.addEventListener('dragover',function(e){var c=e.target&&e.target.closest&&e.target.closest('.wcell');if(c){e.preventDefault();c.classList.add('wdrop');}});g.addEventListener('dragleave',function(e){var c=e.target&&e.target.closest&&e.target.closest('.wcell');if(c){c.classList.remove('wdrop');}});g.addEventListener('drop',function(e){e.preventDefault();var c=e.target&&e.target.closest&&e.target.closest('.wcell');if(c){c.classList.remove('wdrop');var id=e.dataTransfer&&e.dataTransfer.getData&&e.dataTransfer.getData('application/x-planner-node');if(id){var __f=window.findNode(id);var node=__f&&__f.node;if(node){var iso=c.dataset&&c.dataset.iso;var block=c.dataset&&c.dataset.block;/* CARD 43/45: the WEEK GRID drop - a fifth path that wrote the series anchor.    On a repeat that re-anchors the whole series instead of moving one occurrence. */if(!(iso&&node.repeat&&node.repeat.freq&&window.__moveOccurrence&&window.__moveOccurrence(node,iso,node.time))){node.date=iso||null;}node.block=(block!==undefined&&block!=='')?block:null;if(typeof Store!=='undefined'&&Store.save){Store.save();}if(typeof renderAll==='function'){renderAll();}}}}});})();
 
 /* ===== g15a ===== */
 (function(){var monthGrid=document.getElementById('monthGrid');var yearGrid=document.getElementById('yearGrid');var lblMonth=document.getElementById('lblMonth');var tabsBar=document.getElementById('tabsBar');window.renderYearGrid=function(){var currentYear=window.viewMonth.getFullYear();var currentMonth=window.viewMonth.getMonth();var today=new Date();var thisYear=today.getFullYear();var thisMonth=today.getMonth();var head=document.createElement('div');head.className='yhead';var prevBtn=document.createElement('button');prevBtn.textContent='◀';prevBtn.addEventListener('click',function(){window.viewMonth=new Date(window.viewMonth.getFullYear()-1,window.viewMonth.getMonth(),1);window.renderYearGrid();});var yearSpan=document.createElement('span');yearSpan.textContent=currentYear;var nextBtn=document.createElement('button');nextBtn.textContent='▶';nextBtn.addEventListener('click',function(){window.viewMonth=new Date(window.viewMonth.getFullYear()+1,window.viewMonth.getMonth(),1);window.renderYearGrid();});head.appendChild(prevBtn);head.appendChild(yearSpan);head.appendChild(nextBtn);var body=document.createElement('div');body.className='ybody';var months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];months.forEach(function(label,idx){var cell=document.createElement('button');cell.className='ycell';cell.textContent=label;if(idx===currentMonth){cell.classList.add('ycurrent');}if(currentYear===thisYear&&idx===thisMonth){cell.classList.add('ytoday');}cell.addEventListener('click',(function(index){return function(){window.viewMonth=new Date(currentYear,index,1);window.toggleYearGrid(false);updateMonthLabel();renderMonth();};})(idx));body.appendChild(cell);});yearGrid.innerHTML='';yearGrid.appendChild(head);yearGrid.appendChild(body);};window.toggleYearGrid=function(force){var currentlyShown=!yearGrid.hidden;var desiredShown;if(force===true){desiredShown=true;}else if(force===false){desiredShown=false;}else{desiredShown=!currentlyShown;}if(desiredShown){window.renderYearGrid();yearGrid.hidden=false;monthGrid.hidden=true;}else{yearGrid.hidden=true;monthGrid.hidden=false;}};var btnYearJump=document.createElement('button');btnYearJump.id='btnYearJump';lblMonth.insertAdjacentElement('afterend',btnYearJump);btnYearJump.addEventListener('click',function(){window.toggleYearGrid();});window.syncYearJump=function(){btnYearJump.textContent=window.viewMonth.getFullYear()+'▾';};window.syncYearJump();var monthTab=tabsBar.querySelector('.tab[data-tab="month"]');if(monthTab){monthTab.addEventListener('dblclick',function(){window.toggleYearGrid(true);});}})();
@@ -10226,7 +10313,7 @@ window.renderHabits = function () {
 (function(){/* 2026-09-12: the day always runs the full 24 hours. The operator asked for the
    'Show 24h' / 'Working hours' toggle to go - a schedule that hides half the day
    by default is a schedule you cannot trust at a glance. */
-var TG=window.TG={HOUR_PX:60,SNAP_MIN:15,startHour:0,endHour:24,expanded:true};function pad(n){return(n<10?'0':'')+n;}function timeToMin(t){if(!t)return null;var p=t.split(':');return parseInt(p[0],10)*60+parseInt(p[1],10);}window.tgHours=function(){var a=[];for(var h=TG.startHour;h<TG.endHour;h++)a.push(h);return a;};window.tgHeight=function(){return (TG.endHour-TG.startHour)*TG.HOUR_PX;};window.tgToY=function(hhmm){if(!hhmm)return null;var p=hhmm.split(':');return ((parseInt(p[0],10)+parseInt(p[1],10)/60)-TG.startHour)*TG.HOUR_PX;};window.tgFromY=function(y){var totalMin=(y/TG.HOUR_PX)*60+TG.startHour*60;var snapped=Math.floor(totalMin/TG.SNAP_MIN)*TG.SNAP_MIN;var minMin=TG.startHour*60;var maxMin=(TG.endHour-0.25)*60;if(snapped<minMin)snapped=minMin;if(snapped>maxMin)snapped=maxMin;return pad(Math.floor(snapped/60))+':'+pad(snapped%60);};window.tgLabel=function(h){if(h===0)return'12 AM';if(h<12)return h+' AM';if(h===12)return'12 PM';return(h-12)+' PM';};window.tgToggleExpanded=function(){/* kept so nothing that calls it throws; the day is always 24h now */};window.tgTimeOf=function(e){if(e&&e.node&&e.node.time)return e.node.time;if(e&&e.event&&e.event.time)return e.event.time;return null;};window.tgDuration=function(e){var d=(e&&e.duration)||(e&&e.node&&e.node.duration)||30;return d<15?15:d;};window.tgMigrate=function(){if(localStorage.getItem('planner.timemigrated'))return;var map={morning:'09:00',afternoon:'13:00',evening:'18:00'};function mig(n){if(n&&n.date&&!n.time&&n.block){n.time=map[n.block]||null;}}walkTree(function(n){mig(n);});if(Store.data&&Store.data.events){Store.data.events.forEach(function(ev){if(ev&&ev.date&&!ev.time&&ev.block){ev.time=map[ev.block]||null;}});}localStorage.setItem('planner.timemigrated','true');Store.save();};window.tgLayout=function(entries){if(!entries||!entries.length)return[];var sorted=entries.filter(function(e){return!!window.tgTimeOf(e);}).sort(function(a,b){return timeToMin(window.tgTimeOf(a))-timeToMin(window.tgTimeOf(b));});var clusters=[];var res=[];sorted.forEach(function(e){var start=timeToMin(window.tgTimeOf(e));var dur=window.tgDuration(e);var end=start+dur;var top=window.tgToY(window.tgTimeOf(e));var height=Math.max(18,(dur/60)*TG.HOUR_PX);if(!clusters.length){clusters.push({colEnds:[end]});res.push({entry:e,top:top,height:height,col:0,cols:1});return;}var cur=clusters[clusters.length-1];var maxEnd=Math.max.apply(null,cur.colEnds);if(start<maxEnd){var col=-1;for(var i=0;i<cur.colEnds.length;i++){if(cur.colEnds[i]<=start){col=i;break;}}if(col===-1){if(cur.colEnds.length<3){col=cur.colEnds.length;cur.colEnds.push(end);}else{col=0;cur.colEnds[0]=end;}}else{cur.colEnds[col]=end;}var colCount=Math.min(3,cur.colEnds.length);res.push({entry:e,top:top,height:height,col:col,cols:colCount});}else{clusters.push({colEnds:[end]});res.push({entry:e,top:top,height:height,col:0,cols:1});}});return res;};if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',function(){setTimeout(window.tgMigrate,0);});}else{setTimeout(window.tgMigrate,0);}})();
+var TG=window.TG={HOUR_PX:60,SNAP_MIN:15,startHour:0,endHour:24,expanded:true};function pad(n){return(n<10?'0':'')+n;}function timeToMin(t){if(!t)return null;var p=t.split(':');return parseInt(p[0],10)*60+parseInt(p[1],10);}window.tgHours=function(){var a=[];for(var h=TG.startHour;h<TG.endHour;h++)a.push(h);return a;};window.tgHeight=function(){return (TG.endHour-TG.startHour)*TG.HOUR_PX;};window.tgToY=function(hhmm){if(!hhmm)return null;var p=hhmm.split(':');return ((parseInt(p[0],10)+parseInt(p[1],10)/60)-TG.startHour)*TG.HOUR_PX;};window.tgFromY=function(y){var totalMin=(y/TG.HOUR_PX)*60+TG.startHour*60;var snapped=Math.floor(totalMin/TG.SNAP_MIN)*TG.SNAP_MIN;var minMin=TG.startHour*60;var maxMin=(TG.endHour-0.25)*60;if(snapped<minMin)snapped=minMin;if(snapped>maxMin)snapped=maxMin;return pad(Math.floor(snapped/60))+':'+pad(snapped%60);};window.tgLabel=function(h){if(h===0)return'12 AM';if(h<12)return h+' AM';if(h===12)return'12 PM';return(h-12)+' PM';};window.tgToggleExpanded=function(){/* kept so nothing that calls it throws; the day is always 24h now */};window.tgTimeOf=function(e){/* OPERATOR 2026-10-29: "its not allowing me to change time when I manually move it up".    A moved occurrence stores its own time in repeat.moves[from].time, but this read the    NODE's time - the series anchor - so the new time was saved and then ignored and the    chip snapped back. Measured: moves held 11:30 while the item kept drawing at 14:00.    The occurrence's own time wins where there is one. */try{var n=e&&e.node;var iso=e&&(e.onDate||e.instanceDate||e.iso);if(n&&n.repeat&&n.repeat.moves&&iso&&window.__occurrenceFor){var oc=window.__occurrenceFor(n,iso);if(oc&&oc.shows===true&&oc.time)return oc.time;}}catch(err){}if(e&&e.node&&e.node.time)return e.node.time;if(e&&e.event&&e.event.time)return e.event.time;return null;};window.tgDuration=function(e){var d=(e&&e.duration)||(e&&e.node&&e.node.duration)||30;return d<15?15:d;};window.tgMigrate=function(){if(localStorage.getItem('planner.timemigrated'))return;var map={morning:'09:00',afternoon:'13:00',evening:'18:00'};function mig(n){if(n&&n.date&&!n.time&&n.block){n.time=map[n.block]||null;}}walkTree(function(n){mig(n);});if(Store.data&&Store.data.events){Store.data.events.forEach(function(ev){if(ev&&ev.date&&!ev.time&&ev.block){ev.time=map[ev.block]||null;}});}localStorage.setItem('planner.timemigrated','true');Store.save();};window.tgLayout=function(entries){if(!entries||!entries.length)return[];var sorted=entries.filter(function(e){return!!window.tgTimeOf(e);}).sort(function(a,b){return timeToMin(window.tgTimeOf(a))-timeToMin(window.tgTimeOf(b));});var clusters=[];var res=[];sorted.forEach(function(e){var start=timeToMin(window.tgTimeOf(e));var dur=window.tgDuration(e);var end=start+dur;var top=window.tgToY(window.tgTimeOf(e));var height=Math.max(18,(dur/60)*TG.HOUR_PX);if(!clusters.length){clusters.push({colEnds:[end]});res.push({entry:e,top:top,height:height,col:0,cols:1});return;}var cur=clusters[clusters.length-1];var maxEnd=Math.max.apply(null,cur.colEnds);if(start<maxEnd){var col=-1;for(var i=0;i<cur.colEnds.length;i++){if(cur.colEnds[i]<=start){col=i;break;}}if(col===-1){if(cur.colEnds.length<3){col=cur.colEnds.length;cur.colEnds.push(end);}else{col=0;cur.colEnds[0]=end;}}else{cur.colEnds[col]=end;}var colCount=Math.min(3,cur.colEnds.length);res.push({entry:e,top:top,height:height,col:col,cols:colCount});}else{clusters.push({colEnds:[end]});res.push({entry:e,top:top,height:height,col:0,cols:1});}});return res;};if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',function(){setTimeout(window.tgMigrate,0);});}else{setTimeout(window.tgMigrate,0);}})();
 
 /* ===== h26 ===== */
 window.tgLayout=function(e){var t=[];for(var n=0;n<e.length;n++){var r=e[n];var a=window.tgTimeOf(r);if(!a)continue;var s=a.split(":");var u=parseInt(s[0],10)*60+parseInt(s[1],10);var d=window.tgDuration(r);var l=u+d;t.push({entry:r,start:u,end:l,timeStr:a,dur:d})}t.sort(function(e,t){if(e.start!==t.start)return e.start-t.start;return e.end-t.end});var c=[];var i=0;while(i<t.length){var p=[];var f=t[i].end;p.push(t[i]);var h=i+1;while(h<t.length&&t[h].start<f){p.push(t[h]);if(t[h].end>f)f=t[h].end;h++}var m=[];for(var v=0;v<p.length;v++){var y=p[v];var b=-1;for(var g=0;g<m.length;g++){if(m[g]<=y.start){b=g;break}}if(b===-1){b=m.length;m.push(0)}m[b]=y.end;y.col=b}var C=Math.min(3,m.length);for(var x=0;x<p.length;x++){var E=p[x];var w=E.col;if(w>=C)w=C-1;var D=E.entry;var S=E.timeStr;var k=E.dur;var M=Math.max(18,k/60*window.TG.HOUR_PX);c.push({entry:D,top:window.tgToY(S),height:M,col:w,cols:C})}i=h}return c};
@@ -10322,12 +10409,46 @@ window.__moveOccurrence = function(node, toISO, time) {
   return true;
 };
 
+/* ===== ONE OWNER FOR "MOVE THIS OCCURRENCE" =====
+   Operator 2026-10-29, after four rounds: "the routine doesn't move to the next day
+   when I change the date on the priority tree" and "moving manually works in
+   internet explorer but not in chrome".
+
+   ROOT CAUSE OF THE REPEATS: I kept fixing ONE call site at a time. There are many
+   places that set a task's date - the tree date chip, the date grid's day buttons,
+   Today/Tomorrow, four calendar drop paths, the month view, the week grid. On a
+   REPEATING item, node.date is the SERIES ANCHOR, not the occurrence you dragged,
+   so every one of them re-anchored the series and the rule pinned the item back.
+
+   Rather than patch the next one after the operator finds it, this wraps the move
+   itself: any code that asks to put a repeating item on a date records a
+   per-occurrence move instead. New call sites are covered automatically. */
+(function () {
+  var base = window.__moveOccurrence;
+  if (typeof base !== 'function' || base.__oneOwner) return;
+  var wrapped = function (node, toISO, time) { return base(node, toISO, time); };
+  wrapped.__oneOwner = true;
+  window.__moveOccurrence = wrapped;
+
+  /* and the safety net: setting .date on a REPEAT, from anywhere, moves the
+     occurrence. Plain tasks are untouched. */
+  window.__setNodeDate = function (node, iso, time) {
+    if (!node) return false;
+    if (iso && node.repeat && node.repeat.freq && window.__moveOccurrence) {
+      return window.__moveOccurrence(node, iso, (time === undefined ? node.time : time));
+    }
+    node.date = iso || null;
+    if (!node.date) { node.time = null; node.block = null; }
+    return true;
+  };
+})();
+
 window.__occurrenceFor = function(node, iso) {
   var moves = (node.repeat && node.repeat.moves) || {};
   // A move whose .to lands on iso means this date shows the moved task.
   for (var k in moves) {
     if (Object.prototype.hasOwnProperty.call(moves, k) && moves[k] && moves[k].to === iso) {
-      return {shows: true, movedFrom: k, movedAway: false};
+      return {shows: true, movedFrom: k, movedAway: false, time: moves[k].time || null};
     }
   }
   // If iso itself was moved away, it should not show.
@@ -10665,8 +10786,16 @@ renderAll();
     var newTime = window.tgFromY(e.clientY - rect.top - d.grabOffset);
     var found = window.findNode(d.id);
     if (!found || !found.node) return;
-    found.node.date = col.dataset.iso;
-    found.node.time = newTime;
+    /* CARD 45: a real mouse drag reaches HERE, not the HTML5 drop handler. Writing
+       node.date re-anchors the whole repeat and the rule then pins the item back to
+       its own weekday - the "it snaps straight back to today" the operator saw.
+       __moveOccurrence records the move BESIDE the rule: one occurrence moves, the
+       series is untouched. */
+    if (!(window.__moveOccurrence &&
+          window.__moveOccurrence(found.node, col.dataset.iso, newTime))) {
+      found.node.date = col.dataset.iso;
+      found.node.time = newTime;
+    }
     window.Store.save();
     window.__suppressClick = true;
     setTimeout(function () { window.__suppressClick = false; }, 400);
@@ -10751,16 +10880,25 @@ renderAll();
     var found = window.findNode(d.id);
     if (!found || !found.node) return;
 
+    /* CARD 45, the all-day half of the same defect. */
     var ad = allDayAt(e.clientX, e.clientY);
     if (ad) {
-      found.node.date = ad.dataset.iso;
-      found.node.time = null;
+      if (!(window.__moveOccurrence &&
+            window.__moveOccurrence(found.node, ad.dataset.iso, null))) {
+        found.node.date = ad.dataset.iso;
+        found.node.time = null;
+      }
     } else {
       var col = colAt(e.clientX, e.clientY);
       if (!col) return;
-      found.node.date = col.dataset.iso;
+      /* CARD 45, the grid half of the same defect. */
       var rect = col.getBoundingClientRect();
-      found.node.time = window.tgFromY(e.clientY - rect.top);
+      var t51 = window.tgFromY(e.clientY - rect.top);
+      if (!(window.__moveOccurrence &&
+            window.__moveOccurrence(found.node, col.dataset.iso, t51))) {
+        found.node.date = col.dataset.iso;
+        found.node.time = t51;
+      }
     }
     window.Store.save();
     window.__suppressClick = true;
@@ -10807,8 +10945,13 @@ renderAll();
     if (!found || !found.node) return;
     
     // Make it an all-day item on that day: set date to hit.dataset.iso and time to null
-    found.node.date = hit.dataset.iso;
-    found.node.time = null;
+    /* CARD 45: a FOURTH drop path with the same defect - found by grepping every
+       writer of found.node.date rather than fixing the ones that were reported. */
+    if (!(window.__moveOccurrence &&
+          window.__moveOccurrence(found.node, hit.dataset.iso, null))) {
+      found.node.date = hit.dataset.iso;
+      found.node.time = null;
+    }
     
     // Persist changes and re-render
     Store.save();
@@ -11542,7 +11685,11 @@ renderAll();
     var isoDate = cell.dataset.iso;
     var node = found.node;
     // dates are 'YYYY-MM-DD' strings in this app; time lives separately in .time
-    node.date = isoDate;
+    /* CARD 43: a repeat moves ONE occurrence, never its anchor. */
+    if (!(node.repeat && node.repeat.freq && window.__moveOccurrence &&
+          window.__moveOccurrence(node, isoDate, node.time))) {
+      node.date = isoDate;
+    }
 
     window.Store.save();
     window.__suppressClick = true;
@@ -11586,6 +11733,22 @@ renderAll();
       window.openDatePopover(chip, node.date || '', function (iso) {
         var f = window.findNode(id);
         if (f && f.node) {
+          /* CARD 43, SECOND TIME. The operator: "the routine doesn't move to the next
+             day when I change the date on the priority tree."
+             I fixed buildDateChip's own click handler - but THIS handler owns the
+             chip (see the note above: a capture-phase listener calls it and stops
+             everything else), so my fix never ran. Measured through the real UI:
+             anchor became 2026-10-30 and moves stayed {}, so the weekly rule still
+             pinned it to today.
+             On a REPEAT, node.date is the series anchor, not the occurrence. Record a
+             per-occurrence move instead, exactly as the calendar drag does. */
+          if (iso && f.node.repeat && f.node.repeat.freq &&
+              window.__moveOccurrence &&
+              window.__moveOccurrence(f.node, iso, f.node.time)) {
+            window.Store.save();
+            window.renderAll();
+            return;
+          }
           f.node.date = iso || null;
           if (!f.node.date) { f.node.time = null; f.node.block = null; }
           window.Store.save();
@@ -12161,6 +12324,19 @@ renderAll();
             e.stopPropagation();
             var f = window.findNode(nodeId);
             if (f && f.node) {
+              /* CARD 43, THE HANDLER THAT ACTUALLY RUNS. Trapped a setter on
+                 node.date and clicked the real chip: the write came from HERE
+                 (the date grid's own day button), not from the two handlers I
+                 had already fixed. On a repeat, node.date is the series anchor,
+                 so writing it left moves:{} and the weekly rule kept the item on
+                 today - "the routine doesn't move to the next day". */
+              if (f.node.repeat && f.node.repeat.freq && window.__moveOccurrence &&
+                  window.__moveOccurrence(f.node, iso, f.node.time)) {
+                window.Store.save();
+                close();
+                window.renderAll();
+                return;
+              }
               f.node.date = iso;
               window.Store.save();
             }
@@ -17950,6 +18126,20 @@ function firstConnect(remote, rAt, lAt) {
        only for nodes written before real times existed, where recency cannot be told. */
     var wAt = Number(win.node.at) || 0, lAt = (lose && lose.node) ? (Number(lose.node.at) || 0) : 0;
     if (wAt && lAt && wAt !== lAt) {
+      /* CARD 46: the newer save wins the ITEM, but it may never wipe a note by
+         holding nothing. Only real text, or a note cleared ON PURPOSE (which stamps
+         its own notesAt), may replace written text. Guarded in BOTH directions - the
+         test matrix proved the loss happened whichever side was newer. */
+      var blank46 = function (x) {
+        return String(x == null ? '' : x).replace(/\s|&nbsp;/g, '') === '';
+      };
+      var wNA = Number(win.node.notesAt) || 0;
+      var lNA = (lose && lose.node) ? (Number(lose.node.notesAt) || 0) : 0;
+      if (blank46(copy.notes) && !blank46(ln) && !(wNA && wNA > lNA)) {
+        copy.notes = ln;
+        if (lose.node.notesHtml) copy.notesHtml = lose.node.notesHtml;
+        else delete copy.notesHtml;
+      }
       return { node: copy, parentId: win.parentId, index: win.index, tomb: win.tomb };
     }
     /* 2026-09-10: keeping BOTH copies is right when the two machines genuinely hold
@@ -21713,6 +21903,32 @@ function firstConnect(remote, rAt, lAt) {
     var range = host.scrollHeight - host.clientHeight;
     if (range <= 0) return 0;
     var t = y - (host.clientHeight / 3);
+
+    /* OPERATOR 2026-10-29: "Invoice March - chase ... is still not allowing me to
+       manually move it up, it reverts back to its actual timing."
+       MEASURED on the served demo: this opens the grid at NOW (~21:00, scrollTop
+       606). A 09:00 item sits at y=540, so it was 66px ABOVE the window - and
+       overflow:auto clips it out of hit-testing completely: elementsFromPoint at
+       the chip returned only [tgalldaycell, tgallday, ...]. The chip could not be
+       clicked or dragged at all, so the drag never began and nothing moved.
+       Opening at "now" is right when the day's work is ahead of you; it must not
+       hide work that is behind you. So scroll back far enough to include the
+       EARLIEST item drawn on this grid. */
+    try {
+      var chips = host.querySelectorAll('.tgevent');
+      if (chips.length) {
+        var bodyTop = host.querySelector('.tgbody').getBoundingClientRect().top;
+        var earliest = Infinity, k;
+        for (k = 0; k < chips.length; k++) {
+          var top = chips[k].getBoundingClientRect().top - bodyTop;
+          if (top < earliest) earliest = top;
+        }
+        if (earliest !== Infinity && earliest < t) {
+          t = Math.max(0, earliest - 12);
+        }
+      }
+    } catch (err) {}
+
     if (t < 0) t = 0;
     if (t > range) t = range;
     return t;
@@ -23846,7 +24062,11 @@ function firstConnect(remote, rAt, lAt) {
       var months = (a.y - s.y) * 12 + (a.m - s.m);
       if (months < 0) return false;
       if (months % n !== 0) return false;
-      var clampM = Math.min(s.d, lastDayOf(a.y, a.m));
+      /* CARD 36: the picked day of the month wins over the Starting date's day.
+         Without this the calendar would be a control that writes a setting nothing
+         reads. 31 clamps to the last day of a shorter month. */
+      var wantM = parseInt(r.dayOfMonth, 10) || 0;
+      var clampM = Math.min(wantM || s.d, lastDayOf(a.y, a.m));
       return a.d === clampM;
     }
     if (f === 'yearly') {
@@ -23855,8 +24075,12 @@ function firstConnect(remote, rAt, lAt) {
       var years = a.y - s.y;
       if (years < 0) return false;
       if (years % n !== 0) return false;
-      if (a.m !== s.m) return false;
-      var clampY = Math.min(s.d, lastDayOf(a.y, a.m));
+      /* CARD 36 (yearly): same idea, plus the month. monthOfYear is 1-12 and
+         dayOfMonth is 1-31; either may be unset, in which case Starting decides. */
+      var wantMo = parseInt(r.monthOfYear, 10) || 0;
+      if (a.m !== (wantMo || s.m)) return false;
+      var wantD = parseInt(r.dayOfMonth, 10) || 0;
+      var clampY = Math.min(wantD || s.d, lastDayOf(a.y, a.m));
       return a.d === clampY;
     }
     if (f === 'periodic') {
@@ -24023,8 +24247,13 @@ if (r.freq === 'yearly') {
 
     head.addEventListener('click', function (e) {
       e.preventDefault();
-      if (!node.repeat) node.repeat = blank(node);
-      else if (body.style.display === 'block') { node.repeat = null; }
+      /* CARD 44: this read body.style.display to decide, so the bar depended on a
+         CSS value rather than on the state it is meant to toggle. Once that display
+         was anything but the literal 'block' - which is what happens when another
+         module shows the panel, or after a rebuild - the "turn it off" branch could
+         not be reached and the bar became one-way: off stayed off.
+         The state IS node.repeat. Toggle that, and nothing else. */
+      node.repeat = node.repeat ? null : blank(node);
       draw();
     });
 
@@ -24130,10 +24359,113 @@ if (r.freq === 'yearly') {
       }
       body.appendChild(dwrap);
 
+      /* ===== CARD 36 - DAY OF THE MONTH, AS A CALENDAR =====
+         Monthly had no way to pick a date: the day came from Starting, so "start on
+         the 28th" meant the 28th for ever.
+         The operator saw the first build as a dropdown and asked for a calendar inside
+         the Edit box instead - the list hung outside the dialog and covered the
+         controls under it. So this is an INLINE 7-column grid, no popup, nothing to
+         overflow. It reuses the planner's own date-grid classes so it looks like the
+         date picker already in the app. 31 falls to the last day of a short month. */
+      (function () {
+        if (r.freq !== 'monthly' && r.freq !== 'yearly') return;
+        var MON = ['Jan','Feb','Mar','Apr','May','Jun',
+                   'Jul','Aug','Sep','Oct','Nov','Dec'];
+
+        /* YEARLY also needs a month. Same grid pattern, 12 cells. */
+        if (r.freq === 'yearly') {
+          var moLab = document.createElement('div');
+          moLab.className = 'rep-sub';
+          moLab.setAttribute('data-c36', 'monthlabel');
+          moLab.textContent = 'Month:';
+          body.appendChild(moLab);
+          var mg = document.createElement('div');
+          mg.className = 'datepop-grid c36grid c36months';
+          mg.setAttribute('data-c36', 'monthgrid');
+          for (var mi = 1; mi <= 12; mi++) {
+            (function (v) {
+              var b = document.createElement('button');
+              b.type = 'button';
+              b.className = 'datepop-day c36day'
+                + (((r.monthOfYear || 0) === v) ? ' sel' : '');
+              b.textContent = MON[v - 1];
+              b.addEventListener('click', function (e) {
+                e.preventDefault();
+                r.monthOfYear = ((r.monthOfYear || 0) === v) ? null : v;
+                draw();
+              });
+              mg.appendChild(b);
+            })(mi);
+          }
+          body.appendChild(mg);
+        }
+
+        var domLab = document.createElement('div');
+        domLab.className = 'rep-sub';
+        domLab.setAttribute('data-c36', 'label');
+        domLab.textContent = 'Day of the month:';
+        body.appendChild(domLab);
+
+        var cal = document.createElement('div');
+        cal.className = 'datepop-grid c36grid';
+        cal.setAttribute('data-c36', 'grid');
+        for (var d = 1; d <= 31; d++) {
+          (function (v) {
+            var b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'datepop-day c36day'
+              + (((r.dayOfMonth || 0) === v) ? ' sel' : '');
+            b.textContent = String(v);
+            b.addEventListener('click', function (e) {
+              /* clicking the day already chosen clears it, so "same day as Starting"
+                 is still reachable without a button sitting highlighted under the
+                 grid - operator: "not necessary for daily is highlighted". */
+              e.preventDefault();
+              r.dayOfMonth = ((r.dayOfMonth || 0) === v) ? null : v;
+              draw();
+            });
+            cal.appendChild(b);
+          })(d);
+        }
+        body.appendChild(cal);
+
+        var foot = document.createElement('div');
+        foot.className = 'c36foot';
+        foot.setAttribute('data-c36', 'foot');
+        var says = document.createElement('span');
+        says.className = 'c36says';
+        says.setAttribute('data-c36', 'says');
+        function ord(n) {
+          var t = ['th','st','nd','rd'], v = n % 100;
+          return n + (t[(v - 20) % 10] || t[v] || t[0]);
+        }
+        var dd = parseInt(r.dayOfMonth, 10) || 0;
+        var mm = parseInt(r.monthOfYear, 10) || 0;
+        if (r.freq === 'yearly') {
+          says.textContent = (dd || mm)
+            ? ('Repeats every year on ' + (mm ? MON[mm - 1] : 'the Starting month')
+               + ' ' + (dd ? ord(dd) : 'the Starting day')
+               + (dd === 31 ? ' (or the last day)' : ''))
+            : 'Repeats every year on the same date as Starting';
+        } else {
+          says.textContent = dd
+            ? ('Repeats on ' + ord(dd) + ' of every month'
+               + (dd === 31 ? ', or the last day of shorter months' : ''))
+            : 'Repeats on the same day of the month as Starting';
+        }
+        foot.appendChild(says);
+        body.appendChild(foot);
+      })();
+
       var dates = document.createElement('div');
       dates.className = 'rep-dates';
+      /* CARDS 38/40/41/42: "Starts" already sits at slot 1 on every frequency, with
+         its own date picker. This lower "Starting:" box was a SECOND control for the
+         same field - the operator: "the starting date is duplicate, it should be
+         specific day instead since starting already has a button for pick a date."
+         Built, but not appended: the Ending / If missed row keeps its shape. */
       var sBox = document.createElement('div');
-      sBox.className = 'rep-date';
+      sBox.className = 'rep-date c36-dupe-start';
       var sLab = document.createElement('div');
       sLab.className = 'rep-sub'; sLab.textContent = 'Starting:';
       var sBtn = document.createElement('button');
@@ -24217,7 +24549,7 @@ if (r.freq === 'yearly') {
     });
     kBox.appendChild(kLab);
     kBox.appendChild(kBtn);
-      dates.appendChild(sBox); dates.appendChild(eBox); dates.appendChild(kBox);
+      /* CARD 38: the duplicate Starting box is no longer added. */ dates.appendChild(eBox); dates.appendChild(kBox);
       body.appendChild(dates);
 
       refresh();
@@ -24596,12 +24928,17 @@ if (r.freq === 'yearly') {
         old.parentNode.removeChild(old);
       }
       // weekday boxes make no sense for "On specific dates"
-      var isSpecific = node && node.repeat && node.repeat.freq === 'specific';
+      /* CARD 36: this tested ONLY 'specific', so on monthly it wrote display='' every
+         tick and undid tidyDays, which hides the boxes for monthly/yearly/specific
+         alike. Two owners of one element, fighting - found by trapping writes to that
+         row, not by reading. Same test as tidyDays so the two agree. */
+      var fq = node && node.repeat ? node.repeat.freq : '';
+      var hideDays = (fq === 'specific' || fq === 'monthly' || fq === 'yearly');
       var dayWrap = panels[i].querySelector('.rep-days');
       var dayLab = panels[i].querySelector('.rep-sub');
-      if (dayWrap) dayWrap.style.display = isSpecific ? 'none' : '';
+      if (dayWrap) dayWrap.style.display = hideDays ? 'none' : '';
       if (dayLab && dayLab.textContent.indexOf('following days') >= 0) {
-        dayLab.style.display = isSpecific ? 'none' : '';
+        dayLab.style.display = hideDays ? 'none' : '';
       }
     }
     return true;
@@ -25076,6 +25413,20 @@ if (r.freq === 'yearly') {
     }
     var hosts = document.querySelectorAll('.rep-body'), i;
     var want = node && node.repeat && node.repeat.freq === 'specific';
+    /* CARD 39: measured on the live build - the calendar ends up a DIRECT CHILD OF
+       <body>, 555px above the panel it belongs to, and with no width to lay out in
+       its day buttons came out 16px wide and unusable. Mounting once is not enough:
+       adopt any calendar that has drifted out of a .rep-body, every pass. */
+    var escaped = document.querySelectorAll('.sd-cal');
+    for (i = 0; i < escaped.length; i++) {
+      var cal = escaped[i];
+      if (cal.closest && cal.closest('.rep-body')) continue;
+      if (!want || !hosts.length) {
+        if (cal.parentNode) cal.parentNode.removeChild(cal);
+      } else {
+        hosts[0].appendChild(cal);
+      }
+    }
     for (i = 0; i < hosts.length; i++) {
       var old = hosts[i].querySelector('.sd-cal');
       if (!want) {
@@ -25191,7 +25542,21 @@ if (r.freq === 'yearly') {
        rolled onto next Tuesday and Wednesday, because those days asked and the
        occurrence behind them was in the past. Measured: 7 future days showing it.
        Future days now show only what is genuinely scheduled. */
-    if (!window.todayISO || ord(iso) > ord(window.todayISO())) {
+    /* CARD 48, 2026-10-30, operator: "it's already established that whenever a weekly
+       task is not completed today, [once] the next day actually occurred it would be
+       moved from yesterday to the next day... I want the same thing to apply when I
+       change the priority tree date."
+
+       This line used to compare against the REAL CLOCK, so with the clock on Oct 30 it
+       treated Oct 31 as "the future" and refused to carry anything there - moving the
+       tree date to Oct 31 left Morning stretch sitting on Oct 30. MEASURED: Oct 31
+       column empty, Oct 30 still showing it.
+
+       The horizon is now the day the planner is being READ as: the later of the real
+       clock and the priority tree date. Verified to produce exactly what the clock
+       already produces when it reaches Oct 31 (Oct 30 clear, Oct 31 shows it), and
+       Nov 1 stays empty - the catch-up lands on the day you moved to and stops. */
+    if (!window.todayISO || ord(iso) > ord(window.__rollHorizon())) {
       delete node.__rolledFrom;
       return false;
     }
@@ -34811,7 +35176,67 @@ body[data-habits-left="1"] #habitsLeft {
     var base = window.scheduledOn;
     var w = function (iso) {
       var res = base.apply(this, arguments) || [];
-      if (!iso || iso >= todayISO()) return res;
+      /* OPERATOR 2026-10-29: "the priority tree date on the top dictates what's
+         happening in the planner. If I move the date to tomorrow, the rule I have for
+         missed routines must follow as if the date moved to the future. It works fine
+         as real-time date but not when I move the date in the priority tree."
+         MEASURED: this compared against todayISO() - the real clock - so moving the
+         tree date to tomorrow left TODAY'S unfinished routine still showing, when by
+         the rule it should already count as missed. The date at the top of the tree is
+         the day the planner is being read as, so that is what "today" means here. */
+      /* OPERATOR 2026-10-29: "make it available to weekly view calender to follow
+         priorty tree when dates move".
+
+         DAY view: the date at the top IS the day being read, so it is "today" - a
+         routine left unfinished on an earlier day clears, which is what they asked
+         for first.
+
+         WEEK view: the whole week is on screen at once. Treating the selected date as
+         today would empty the earlier days OF THE WEEK YOU ARE LOOKING AT (measured:
+         a daily routine stopped drawing on all 7 days). What follows the tree date
+         there is the WEEK: move to a later week and the earlier weeks read as past;
+         inside the week on screen the real clock still marks the line, so the week
+         you are reading stays whole.
+
+         MONTH and anything else: unchanged, the real clock. */
+      var sel = window.selectedDate || todayISO();
+      var onDay = !!(document.querySelector('#dayView') &&
+                     document.querySelector('#dayView').offsetParent !== null);
+      var onWeek = !!(document.querySelector('#weekGrid') &&
+                      document.querySelector('#weekGrid').offsetParent !== null);
+      /* CORRECTED 2026-10-30. The previous version used viewToday = sel on day view.
+         MEASURED: renderDay only ever calls scheduledOn(selectedDate), so iso === sel
+         every time, "iso >= viewToday" was always true, and the hiding rule could
+         NEVER fire on day view - looking back at a past day showed every unfinished
+         routine again. That is the regression the operator hit; the rule they said
+         "works fine as real time date" had been switched off by my own change.
+         Both views now take the LATER of the real clock and the date being read:
+           - move the tree date FORWARD  -> days before it count as missed (what they asked for)
+           - look BACK at a past day     -> the real clock still rules, so it stays hidden
+         Week uses the first day of the week on screen, so the week you are reading
+         stays whole instead of emptying its earlier days. */
+      var realToday = todayISO();
+      var viewToday;
+      if (onDay) {
+        viewToday = (sel > realToday) ? sel : realToday;
+      } else if (onWeek && typeof window.weekStartOf === 'function') {
+        /* CARD 48. A WEEK YOU HAVE PAGED FORWARD TO stays whole: its own first day is
+           the floor, so nothing inside it reads as missed (measured: otherwise a daily
+           routine drew on 2 of 7 days instead of 7).
+           THE WEEK CONTAINING TODAY is different - there the tree date is a day you
+           deliberately stepped to, and days before it count as missed. That is what
+           lets a rolled item move OFF the day it was missed on instead of being drawn
+           on both days. */
+        var wkStart = window.weekStartOf(sel) || realToday;
+        if (wkStart > realToday) {
+          viewToday = wkStart;
+        } else {
+          viewToday = (sel > realToday) ? sel : realToday;
+        }
+      } else {
+        viewToday = realToday;
+      }
+      if (!iso || iso >= viewToday) return res;
       /* Show in calendar puts them back, struck through, for when you want to look. */
       if (window.__habitsShowPast) return res;
       /* strictly BEFORE today: a repeat you ticked stays as a record, one you did not
@@ -41350,6 +41775,15 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
        anchors nor centres it. The date pickers (.dp2) and every other panel are
        untouched. */
     if (el.classList && el.classList.contains('tp2-selectlist')) return;
+
+    /* CARD 39, same class of defect as the select list above. The "On specific
+       dates" calendar is INLINE - it belongs inside .rep-body, not floating. This
+       module moved it to <body> to position it, which left it 555px above its own
+       panel with 138px of width, so its day buttons came out 16px wide and the
+       dates could not be read. Measured by trapping appendChild of .sd-cal: the
+       module mounts it correctly into .rep-body, then place() moves it out.
+       It is not a popover, so leave it where it was built. */
+    if (el.classList && el.classList.contains('sd-cal')) return;
 
     if (!inEditWindow(el) || (el.classList && el.classList.contains('tp2'))) {
       /* ======================================================== BOARD 28 CARD 5
