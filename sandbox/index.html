@@ -6510,7 +6510,7 @@ body[data-newbranch="1"] #treeFilters{
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-10-29 23:34 PRAC</span>
+    <span id="buildStamp">build 2026-10-29 23:51 PRAC</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -35247,14 +35247,36 @@ body[data-habits-left="1"] #habitsLeft {
          tree date to tomorrow left TODAY'S unfinished routine still showing, when by
          the rule it should already count as missed. The date at the top of the tree is
          the day the planner is being read as, so that is what "today" means here. */
-      /* 173-suite caught this: in WEEK view the grid draws 7 days at once, several of
-         them in the past, and treating the selected date as "today" wiped the routine
-         off those columns - a daily routine stopped drawing on all 7 days. The
-         selected date only means "the day I am reading" on the DAY view, which is the
-         one the operator was using. Everywhere else the real clock still decides. */
-      var onDayView = !!(document.querySelector('#dayView') &&
-                         document.querySelector('#dayView').offsetParent !== null);
-      var viewToday = (onDayView && window.selectedDate) ? window.selectedDate : todayISO();
+      /* OPERATOR 2026-10-29: "make it available to weekly view calender to follow
+         priorty tree when dates move".
+
+         DAY view: the date at the top IS the day being read, so it is "today" - a
+         routine left unfinished on an earlier day clears, which is what they asked
+         for first.
+
+         WEEK view: the whole week is on screen at once. Treating the selected date as
+         today would empty the earlier days OF THE WEEK YOU ARE LOOKING AT (measured:
+         a daily routine stopped drawing on all 7 days). What follows the tree date
+         there is the WEEK: move to a later week and the earlier weeks read as past;
+         inside the week on screen the real clock still marks the line, so the week
+         you are reading stays whole.
+
+         MONTH and anything else: unchanged, the real clock. */
+      var sel = window.selectedDate || todayISO();
+      var onDay = !!(document.querySelector('#dayView') &&
+                     document.querySelector('#dayView').offsetParent !== null);
+      var onWeek = !!(document.querySelector('#weekGrid') &&
+                      document.querySelector('#weekGrid').offsetParent !== null);
+      var viewToday;
+      if (onDay) {
+        viewToday = sel;
+      } else if (onWeek && typeof window.weekStartOf === 'function') {
+        /* the later of: the real today, and the first day of the week being shown */
+        var wkStart = window.weekStartOf(sel) || todayISO();
+        viewToday = (wkStart > todayISO()) ? wkStart : todayISO();
+      } else {
+        viewToday = todayISO();
+      }
       if (!iso || iso >= viewToday) return res;
       /* Show in calendar puts them back, struck through, for when you want to look. */
       if (window.__habitsShowPast) return res;
