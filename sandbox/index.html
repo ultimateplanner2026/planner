@@ -1,6 +1,152 @@
 <!doctype html>
 <html lang="en">
-<head><script>
+<head>
+<script>
+/* the demo copy keeps its own storage - same origin as the real
+   planner, so without this it would share their data. */
+(function(){
+  // Same origin, different path: localStorage is shared with the real app.
+  // We replace localStorage with a wrapper that namespaces every key with PRE
+  // so this copy cannot read or overwrite the real app's data.
+
+  var PRE = 'copy~';
+  var REAL = null;
+
+  // Capture real localStorage once; reading may throw in private browsing.
+  try { REAL = window.localStorage; } catch(e) { REAL = null; }
+
+  /* 2026-10-05: expose the genuine object. The purge that runs after this one needs
+     it, and MEASURED: `localStorage` is an OWN property of `window` in Chrome, not an
+     accessor on Window.prototype - so reading the descriptor from the prototype
+     returned undefined and the purge silently did nothing. Handing it over directly
+     removes the guesswork. */
+  try { window.__realLocalStorage = REAL; } catch(e) { }
+
+  // Every real-storage call is wrapped: private mode throws on some ops.
+  function safeCall(fn, args){
+    if (!REAL) return null;
+    try { return fn.apply(REAL, args); } catch(e) { return null; }
+  }
+
+  // Returns the array of real keys that start with PRE.
+  function getPrefixedKeys(){
+    var out = [];
+    if (!REAL) return out;
+    try {
+      var n = REAL.length;
+      for (var i = 0; i < n; i++){
+        var k = REAL.key(i);
+        if (k && k.indexOf(PRE) === 0) out.push(k);
+      }
+    } catch(e) {}
+    return out;
+  }
+
+  var shim = {};
+
+  // length counts only keys that belong to this copy (PRE-prefixed).
+  Object.defineProperty(shim, 'length', {
+    get: function(){ return getPrefixedKeys().length; },
+    configurable: true,
+    enumerable: true
+  });
+
+  // getItem/setItem/removeItem transparently add PRE to the key so callers
+  // never see the namespace and the real app's keys are untouched.
+  shim.getItem = function(k){ return safeCall(REAL.getItem, [PRE + k]); };
+  shim.setItem = function(k, v){ safeCall(REAL.setItem, [PRE + k, v]); };
+  shim.removeItem = function(k){ safeCall(REAL.removeItem, [PRE + k]); };
+
+  // key(i) returns the i-th PRE key with the prefix STRIPPED, so callers
+  // see the name they originally used.
+  shim.key = function(i){
+    var keys = getPrefixedKeys();
+    var k = keys[i];
+    if (k == null) return null;
+    return k.substring(PRE.length);
+  };
+
+  // clear() removes ONLY keys that start with PRE - never anything else,
+  // so we cannot accidentally wipe the real app's data.
+  shim.clear = function(){
+    var keys = getPrefixedKeys();
+    for (var i = 0; i < keys.length; i++){
+      safeCall(REAL.removeItem, [keys[i]]);
+    }
+  };
+
+  // Direct property access (shim.foo = 'bar') is not interceptable in ES5
+  // without Proxy; callers must use getItem/setItem/etc. Methods are plain
+  // properties so harmless enumeration/lookup still works.
+
+  // Install: prefer defineProperty; if it throws, fall back to assignment;
+  // if that also throws (frozen window, security policy), leave the original
+  // localStorage alone and signal failure.
+  try {
+    Object.defineProperty(window, 'localStorage', {
+      value: shim,
+      writable: true,
+      configurable: true,
+      enumerable: true
+    });
+  } catch(e1) {
+    try {
+      window.localStorage = shim;
+    } catch(e2) {
+      window.__storageShimFailed = true;
+      return;
+    }
+  }
+
+  // Marker so a check can verify the shim is active and what prefix it uses.
+  window.__storagePrefix = PRE;
+})();
+</script>
+<script>
+/* clear anything the pre-shim version of this page left behind */
+(function () {
+  // WHY wipe instead of detect: on a demo copy we cannot tell apart
+  // "user's real data" from "stale flag" — both must go, so we clear
+  // unconditionally on load. This IIFE is gated by __storagePrefix so
+  // it can never run on the real planner's own page.
+  try {
+    var PRE = window.__storagePrefix;
+    if (!PRE) { return; } // guard: real planner never sets the prefix
+
+    var raw = window.__realLocalStorage;
+    if (!raw) {
+      // Shim missing — recover the genuine storage via its accessor.
+      var desc = Object.getOwnPropertyDescriptor(window, 'localStorage');
+      if (desc && typeof desc.get === 'function') { raw = desc.get.call(window); }
+      if (!raw) {
+        desc = Object.getOwnPropertyDescriptor(Window.prototype, 'localStorage');
+        if (desc && typeof desc.get === 'function') { raw = desc.get.call(window); }
+      }
+      if (!raw) { return; }
+    }
+
+    // Snapshot every key first; deleting during an index loop would skip entries
+    // because the indices shift down as items are removed.
+    var keys = [];
+    for (var i = 0; i < raw.length; i++) { keys.push(raw.key(i)); }
+
+    var removed = 0;
+    for (var j = 0; j < keys.length; j++) {
+      var k = keys[j];
+      if (k && (k.indexOf(PRE) === 0 || k.indexOf('planner.') === 0)) {
+        raw.removeItem(k);
+        removed++;
+      }
+    }
+
+    window.__demoReset = removed;
+    console.log('demo copy: cleared ' + removed + ' key(s), starting fresh');
+  } catch (e) {
+    // Must never throw into the demo page.
+  }
+})();
+</script>
+<script>
 /* ===== THE DEMO IS SEALED OFF FROM THE REAL PLANNER =====
    Storage is per ORIGIN, so /planner/ and /planner/sandbox/ shared one localStorage
    and the demo showed the operator's real data. Every key this page reads or writes
@@ -241,7 +387,7 @@ window.__settleThenIdle = function (fn, idleMs) {
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <title>PRAC Planner</title>
+  <title>DEMO Planner</title>
 
   <!-- Home-screen install, iPhone. These four tags are what actually make
        "Add to Home Screen" open fullscreen instead of inside Safari. -->
@@ -6449,7 +6595,7 @@ body[data-newbranch="1"] #treeFilters{
 }
 </style>
 </head>
-<body><div id="practiceBanner" style="position:fixed;top:0;left:0;right:0;height:26px;z-index:2147483647;background:repeating-linear-gradient(45deg,#c00,#c00 12px,#a00 12px,#a00 24px);color:#fff;font:700 11px/26px -apple-system,system-ui;text-align:center;letter-spacing:.04em;pointer-events:none">PRACTICE COPY &mdash; NOT YOUR PLANNER</div><style>/* the banner is fixed, so the page must be pushed down by exactly its height or    it sits on top of the toolbar - the operator: "the red marking is covering some    of the setting and stuff up there". */html{padding-top:26px !important;box-sizing:border-box}#practiceBanner{top:0 !important}</style>
+<body><div id="practiceBanner" style="position:fixed;top:0;left:0;right:0;height:26px;z-index:2147483647;background:repeating-linear-gradient(45deg,#c00,#c00 12px,#a00 12px,#a00 24px);color:#fff;font:700 11px/26px -apple-system,system-ui;text-align:center;letter-spacing:.04em;pointer-events:none">DEMO COPY &mdash; made-up data, never syncs, not your planner</div><style>/* the banner is fixed, so the page must be pushed down by exactly its height or    it sits on top of the toolbar - the operator: "the red marking is covering some    of the setting and stuff up there". */html{padding-top:26px !important;box-sizing:border-box}#practiceBanner{top:0 !important}</style>
 <!-- ===== Internet Explorer notice - operator 2026-09-20 =====
      "It is Internet Explorer. Not sure if that makes any difference."
      It makes all the difference. The planner uses CSS variables in 1,074 places
@@ -6510,7 +6656,7 @@ body[data-newbranch="1"] #treeFilters{
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-10-29 23:51 PRAC</span>
+    <span id="buildStamp">build 2026-10-30 12:35 DEMO</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -35267,15 +35413,26 @@ body[data-habits-left="1"] #habitsLeft {
                      document.querySelector('#dayView').offsetParent !== null);
       var onWeek = !!(document.querySelector('#weekGrid') &&
                       document.querySelector('#weekGrid').offsetParent !== null);
+      /* CORRECTED 2026-10-30. The previous version used viewToday = sel on day view.
+         MEASURED: renderDay only ever calls scheduledOn(selectedDate), so iso === sel
+         every time, "iso >= viewToday" was always true, and the hiding rule could
+         NEVER fire on day view - looking back at a past day showed every unfinished
+         routine again. That is the regression the operator hit; the rule they said
+         "works fine as real time date" had been switched off by my own change.
+         Both views now take the LATER of the real clock and the date being read:
+           - move the tree date FORWARD  -> days before it count as missed (what they asked for)
+           - look BACK at a past day     -> the real clock still rules, so it stays hidden
+         Week uses the first day of the week on screen, so the week you are reading
+         stays whole instead of emptying its earlier days. */
+      var realToday = todayISO();
       var viewToday;
       if (onDay) {
-        viewToday = sel;
+        viewToday = (sel > realToday) ? sel : realToday;
       } else if (onWeek && typeof window.weekStartOf === 'function') {
-        /* the later of: the real today, and the first day of the week being shown */
-        var wkStart = window.weekStartOf(sel) || todayISO();
-        viewToday = (wkStart > todayISO()) ? wkStart : todayISO();
+        var wkStart = window.weekStartOf(sel) || realToday;
+        viewToday = (wkStart > realToday) ? wkStart : realToday;
       } else {
-        viewToday = todayISO();
+        viewToday = realToday;
       }
       if (!iso || iso >= viewToday) return res;
       /* Show in calendar puts them back, struck through, for when you want to look. */
@@ -40950,7 +41107,7 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
   /* 2026-09-11: back on. It was switched off because I misread "I can still get in" as
      "I can't get in" and rolled it back on a misreading. The operator confirmed the link
      takes them straight to their planner and the sign-in works. */
-  var GATE_ENABLED = true;
+  var GATE_ENABLED = false;  /* demo copy: no real data, no cloud, no gate */
   var host = String(location.hostname || '');
   var isLocal = !GATE_ENABLED || (location.protocol !== 'https:') ||
                 host === 'localhost' || host === '127.0.0.1' || host === '';
