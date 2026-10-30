@@ -47,6 +47,27 @@
     Object.defineProperty(window, 'sessionStorage', { get: function () { return ss; }, configurable: true });
   } catch (e) { /* a browser that refuses this still gets the banner */ }
   window.__DEMO_ISOLATED = true;
+
+  /* 2026-10-29, operator: "there is no need for demo password, can you remove it."
+     With the cloud code stripped out there is nothing for the sync control to do -
+     but clicking it still opened Email + Password fields (measured). A control that
+     can only ask for credentials it will never use does not belong in a demo, so the
+     sync pill is hidden here. The real planner keeps its sync untouched. */
+  try {
+    var st = document.createElement('style');
+    st.textContent = '#syncPill,.sync-pill,.sync-btn{display:none !important}';
+    (document.head || document.documentElement).appendChild(st);
+  } catch (e) {}
+  window.addEventListener('DOMContentLoaded', function () {
+    try {
+      if (window.Sync && typeof window.Sync.signIn === 'function') {
+        window.Sync.signIn = function () { return false; };
+      }
+      if (typeof window.showSignIn === 'function') {
+        window.showSignIn = function () { return false; };
+      }
+    } catch (e) {}
+  });
 })();
 </script>
 <!-- prepaint: the tree pane's saved width must be right on frame one.
@@ -6464,7 +6485,7 @@ body[data-newbranch="1"] #treeFilters{
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-10-29 19:54 PRAC</span>
+    <span id="buildStamp">build 2026-10-29 20:03 PRAC</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
