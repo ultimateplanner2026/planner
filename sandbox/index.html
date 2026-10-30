@@ -6607,6 +6607,30 @@ window.__rollHorizon = function () {
   return (s > t) ? s : t;
 };
 </script>
+<style id="card33">
+/* CARD 33, 2026-10-28 - confirm before the left arrow turns a subtask into a main
+   branch. Drawn in the planner's own colours; NOT styled as a danger dialog,
+   because nothing is lost - the move is reversible with the right arrow, and a red
+   "are you sure?" for a reversible action teaches you to click through every
+   dialog, including the ones that matter. */
+.c33-veil{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:99998}
+.c33-box{position:fixed;z-index:99999;left:50%;top:50%;transform:translate(-50%,-50%);
+ width:min(420px,calc(100vw - 32px));background:var(--surface,#1c1f26);
+ border:1px solid var(--line,#2e323a);border-radius:12px;padding:18px 20px 16px;
+ color:var(--text,#e6e8ec);font:14px -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;
+ box-shadow:0 18px 50px rgba(0,0,0,.55);box-sizing:border-box}
+.c33-box h3{margin:0 0 10px;font-size:15.5px;font-weight:650}
+.c33-box p{margin:0 0 7px;line-height:1.48;color:var(--text-dim,#c6cad2)}
+.c33-move{margin:10px 0 4px;padding:9px 11px;background:var(--bg,#15181d);
+ border:1px solid var(--line,#2a2e36);border-radius:8px;font-size:13px;line-height:1.7}
+.c33-move .f{color:var(--text-dim,#8b93a1)}
+.c33-move .t{color:var(--text,#e6e8ec);font-weight:600}
+.c33-note{font-size:12.5px;color:var(--text-dim,#8b93a1);margin:8px 0 0}
+.c33-row{display:flex;gap:9px;justify-content:flex-end;margin-top:15px}
+.c33-row button{font:inherit;font-size:13.5px;padding:7px 15px;border-radius:7px;cursor:pointer}
+.c33-cancel{background:transparent;border:1px solid var(--line,#3a4049);color:var(--text-dim,#c6cad2)}
+.c33-ok{background:var(--accent,#2f6fed);border:1px solid var(--accent,#2f6fed);color:#fff;font-weight:600}
+</style>
 </head>
 <body><div id="practiceBanner" style="position:fixed;top:0;left:0;right:0;height:26px;z-index:2147483647;background:repeating-linear-gradient(45deg,#c00,#c00 12px,#a00 12px,#a00 24px);color:#fff;font:700 11px/26px -apple-system,system-ui;text-align:center;letter-spacing:.04em;pointer-events:none">DEMO COPY &mdash; made-up data, never syncs, not your planner</div><style>/* the banner is fixed, so the page must be pushed down by exactly its height or    it sits on top of the toolbar - the operator: "the red marking is covering some    of the setting and stuff up there". */html{padding-top:26px !important;box-sizing:border-box}#practiceBanner{top:0 !important}</style>
 <!-- ===== Internet Explorer notice - operator 2026-09-20 =====
@@ -6669,7 +6693,7 @@ window.__rollHorizon = function () {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-10-30 17:40 DEMO</span>
+    <span id="buildStamp">build 2026-10-30 17:50 DEMO</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
