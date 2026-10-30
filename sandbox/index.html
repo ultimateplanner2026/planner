@@ -6510,7 +6510,7 @@ body[data-newbranch="1"] #treeFilters{
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-10-29 22:44 PRAC</span>
+    <span id="buildStamp">build 2026-10-29 23:34 PRAC</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -8471,6 +8471,39 @@ document.addEventListener("DOMContentLoaded", function() {
 
       if (node.repeat) {
         var rule = node.repeat;
+        /* ===== THE CALENDAR HAD ITS OWN COPY OF THE REPEAT RULE =====
+           Operator 2026-10-29, after many rounds: "Invoice March - chase still
+           doesn't drag" and "the routine doesn't move to the next day".
+           ROOT CAUSE, finally. This block is a SECOND implementation of the repeat
+           rule - it reads rule.days/freq itself and knows nothing about
+           repeat.moves. So every per-occurrence move I recorded was invisible here:
+           the calendar kept drawing the item on its rule days and never on the day
+           it had been moved to. MEASURED on the shipped demo: making the item a
+           routine removed it from its own day entirely (scheduledOn 1 -> 0) while
+           plannerRepeatMatches said true for both days.
+           plannerRepeatMatches IS the rule - it already handles moves, rollover and
+           "specific dates". Use it, and keep the old arithmetic only as a fallback
+           for a build where it is somehow missing. */
+        if (typeof window.plannerRepeatMatches === 'function') {
+          if (window.plannerRepeatMatches(node, dateISO)) {
+            var repeatDone0 = node.repeatDone || {};
+            result.push({
+              id: node.id + "@" + dateISO,
+              title: node.title,
+              kind: node.kind,
+              priority: node.priority,
+              done: !!repeatDone0[dateISO],
+              block: node.block,
+              duration: node.duration,
+              source: "repeat",
+              onDate: dateISO,
+              node: node,
+              event: null,
+              instanceDate: dateISO
+            });
+          }
+          return;   /* this node is handled - do not run the old copy as well */
+        }
         var baseDate = node.date ? parseISO(node.date) : null;
         var until = rule.until ? parseISO(rule.until) : null;
 
@@ -35206,7 +35239,23 @@ body[data-habits-left="1"] #habitsLeft {
     var base = window.scheduledOn;
     var w = function (iso) {
       var res = base.apply(this, arguments) || [];
-      if (!iso || iso >= todayISO()) return res;
+      /* OPERATOR 2026-10-29: "the priority tree date on the top dictates what's
+         happening in the planner. If I move the date to tomorrow, the rule I have for
+         missed routines must follow as if the date moved to the future. It works fine
+         as real-time date but not when I move the date in the priority tree."
+         MEASURED: this compared against todayISO() - the real clock - so moving the
+         tree date to tomorrow left TODAY'S unfinished routine still showing, when by
+         the rule it should already count as missed. The date at the top of the tree is
+         the day the planner is being read as, so that is what "today" means here. */
+      /* 173-suite caught this: in WEEK view the grid draws 7 days at once, several of
+         them in the past, and treating the selected date as "today" wiped the routine
+         off those columns - a daily routine stopped drawing on all 7 days. The
+         selected date only means "the day I am reading" on the DAY view, which is the
+         one the operator was using. Everywhere else the real clock still decides. */
+      var onDayView = !!(document.querySelector('#dayView') &&
+                         document.querySelector('#dayView').offsetParent !== null);
+      var viewToday = (onDayView && window.selectedDate) ? window.selectedDate : todayISO();
+      if (!iso || iso >= viewToday) return res;
       /* Show in calendar puts them back, struck through, for when you want to look. */
       if (window.__habitsShowPast) return res;
       /* strictly BEFORE today: a repeat you ticked stays as a record, one you did not
