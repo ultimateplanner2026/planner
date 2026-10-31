@@ -6693,7 +6693,7 @@ window.__rollHorizon = function () {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-10-30 23:35 DEMO</span>
+    <span id="buildStamp">build 2026-10-31 00:04 DEMO</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -13501,7 +13501,16 @@ function surfaceArrivals() {
            published by the tree. Falling back to drawing it is deliberate: if that
            global ever disappears, the operator sees an extra row rather than losing
            a real subtask. */
-        if (typeof window.__isHRNode === 'function' && window.__isHRNode(kids[j])) continue;
+        /* CARD 3, 2026-10-30, operator: "the routine if its in the priotry tree its
+           not showing inside the edit. even if I checkmark show routine and habits".
+           MEASURED: this line SKIPPED every routine before a row was ever built, so
+           the new "Show routines & habits" switch was filtering rows that did not
+           exist - it could never have worked. The switch now decides, and the old
+           behaviour is still the default (hidden unless they ask). */
+        if (typeof window.__isHRNode === 'function' && window.__isHRNode(kids[j])) {
+          var wantHR = !!(window.__eaSubState && window.__eaSubState.hab);
+          if (!wantHR) continue;
+        }
         /* hidden unless they ask - the chip beside the SUBTASKS heading */
         if (depth === 0 && !showFuture && kids[j] && kids[j].date
             && window.todayISO && String(kids[j].date) > window.todayISO()) continue;
@@ -43742,7 +43751,10 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
       /* the gear */
       '.ea-subgear{background:none;border:0;color:var(--text-dim,#9aa1ab);' +
       ' font-size:15px;cursor:pointer;padding:2px 6px;border-radius:6px}' +
-      '.ea-subgear:hover{color:var(--text,#e6e8ec);background:var(--surface-2,#22262e)}';
+      '.ea-subgear:hover{color:var(--text,#e6e8ec);background:var(--surface-2,#22262e)}' +
+      /* the gear replaces the old lone chip - belt and braces, because the app
+         rebuilds that chip on every redraw */
+      '.ea-subhead .ea-futchip{display:none !important}';
     document.head.appendChild(st);
   }
 
@@ -43802,6 +43814,8 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
       var hide = false;
       if (n.done)            hide = !S.done;
       else if (isFuture(n))  hide = !S.fut;
+      /* the row only EXISTS when the switch is on (drawLevel decides that now), so
+         hiding it here as well would be a second owner of the same rule. */
       if (!S.hab && window.__isHRNode && window.__isHRNode(n)) hide = true;
       row.style.display = hide ? 'none' : '';
     }
@@ -43854,7 +43868,11 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
       S.done = !S.done; apply();
     });
     item('Show routines & habits', {tick: S.hab}, function () {
-      S.hab = !S.hab; apply();
+      S.hab = !S.hab;
+      /* drawLevel decides whether the row is BUILT, so this one needs a redraw -
+         re-filtering cannot reveal a row that was never created. */
+      if (window.__eaRedrawSubs) window.__eaRedrawSubs();
+      apply();
     });
     var sep = document.createElement('div');
     sep.style.cssText = 'height:1px;background:var(--line,#2e323a);margin:6px 0';
@@ -43921,8 +43939,12 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
     css();
     var head = document.querySelector('.ea-subhead');
     if (!head || head.querySelector('.ea-subgear')) return;
+    /* 2026-10-30: the app REBUILDS this chip on every redraw and paintChip() rewrites
+       its style.display, so hiding it once lost the race - it reappeared beside the
+       gear after Show-routines redrew the list. A stylesheet rule cannot be undone by
+       an inline style the app sets to ''. */
     var chip = head.querySelector('.ea-futchip');
-    if (chip) chip.style.display = 'none';
+    if (chip) chip.style.setProperty('display', 'none', 'important');
     var g = document.createElement('button');
     g.type = 'button';
     g.className = 'ea-subgear';
