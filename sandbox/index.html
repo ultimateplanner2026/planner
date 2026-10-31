@@ -6693,7 +6693,7 @@ window.__rollHorizon = function () {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-10-30 19:12 DEMO</span>
+    <span id="buildStamp">build 2026-10-30 23:08 DEMO</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -13429,6 +13429,17 @@ function surfaceArrivals() {
       showFuture = !showFuture;
       drawSubs();
     });
+
+    /* CARD 3, 2026-10-30: the gear menu replaces this chip, so it needs the same two
+       levers the chip had. `showFuture` and `drawSubs` are closure-local, so they are
+       published here rather than reimplemented - one behaviour, not a copy that can
+       drift. Both are rebound every time the editor opens, which is correct: they
+       belong to THIS dialog's closure. */
+    window.__eaSetShowFuture = function (on) {
+      showFuture = !!on;
+      drawSubs();
+    };
+    window.__eaRedrawSubs = function () { drawSubs(); };
 
     subWrap.appendChild(subHead);
     var list = document.createElement('div');
@@ -43671,6 +43682,258 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
       if (install() || ++tries > 40) clearInterval(t);
     }, 150);
   }
+})();
+</script>
+<script id="card3gear">
+/* CARD 3, 2026-10-30 - the SUBTASKS settings menu.
+   Operator: "within the edit session of the task ... a setting sign I would want this
+   feature just as the priorty tree just remove focus mode", then "remove new subtask
+   from there", then "I want the features ... working fully as the regualar in priorty
+   tree", then "the left and right arrows, I hid them inside the edit button ... review
+   how I have the priorty tree set up".
+
+   AUDITED the tree row rather than copying from memory. Left to right it is:
+       title | date chip | +  | pen | three dots
+   The indent/outdent arrows are display:none on the row - the tree's own CSS says
+   "the indent / outdent arrows leave the row entirely for the row menu".
+
+   WHAT THIS ADDS
+     1. a gear in the SUBTASKS header, opening the tree's menu minus Focus mode and
+        minus New goal (the window already has an "Enter subtask.." field)
+     2. Missed  - filter to overdue, red count, and the surviving row painted red,
+        the way #treeRoot.overdue-only .od-hit .tree-title does
+     3. Show future subtasks     - replaces the old lone chip
+     4. Show completed subtasks  - NEW; finished subtasks were unhideable
+     5. Show routines & habits
+     6. Expand all / Contract all
+     7. the pen: the tree draws .tree-notepen when an item has notes; this window
+        drew nothing, so a note was invisible here
+     8. a date on every dated subtask, INSIDE the title so it flows after the text,
+        in the tree's own dim rgba(245,158,11,.32)
+     9. the row's arrows hidden, matching the tree
+    10. both popups clamped INSIDE the Edit box
+*/
+(function () {
+  if (window.__card3Installed) return;
+  window.__card3Installed = true;
+
+  var S = { missed:false, fut:false, done:false, hab:false };
+  window.__eaSubState = S;
+
+  function css() {
+    if (document.getElementById('card3css')) return;
+    var st = document.createElement('style');
+    st.id = 'card3css';
+    st.textContent =
+      /* the arrows leave the row, exactly as the tree does it */
+      '.ea-subrow .ea-subquick.q-out, .ea-subrow .ea-subquick.q-in{display:none !important}' +
+      /* the date, inside the title, in the tree's dim amber */
+      '.ea-subdate{font-size:9px;letter-spacing:.07em;margin-left:2.2em;' +
+      ' color:rgba(245,158,11,.32);text-transform:uppercase;font-weight:500;' +
+      ' font-variant-numeric:tabular-nums;white-space:nowrap}' +
+      /* the pen, same amber as the tree's */
+      '.ea-subpen{color:rgba(245,158,11,.32);font-size:13px;margin-right:8px;' +
+      ' cursor:default;opacity:0;transition:opacity 120ms}' +
+      '.ea-subrow:hover .ea-subpen,.ea-subrow:focus-within .ea-subpen{opacity:1}' +
+      /* a missed row reads red, title and date */
+      '.ea-subs.od-only .ea-subrow.od-hit .ea-subtitle{color:#f87171 !important}' +
+      '.ea-subs.od-only .ea-subrow.od-hit .ea-subdate{color:#f87171 !important}' +
+      '.ea-subs.od-only .ea-subrow:not(.od-hit){display:none !important}' +
+      /* the gear */
+      '.ea-subgear{background:none;border:0;color:var(--text-dim,#9aa1ab);' +
+      ' font-size:15px;cursor:pointer;padding:2px 6px;border-radius:6px}' +
+      '.ea-subgear:hover{color:var(--text,#e6e8ec);background:var(--surface-2,#22262e)}';
+    document.head.appendChild(st);
+  }
+
+  function isOverdue(n) {
+    var t = window.todayISO && window.todayISO();
+    return !!(n && n.date && t && String(n.date) < t && !n.done);
+  }
+  function isFuture(n) {
+    var t = window.todayISO && window.todayISO();
+    return !!(n && n.date && t && String(n.date) > t);
+  }
+
+  /* --- paint the list from the switches, and decorate each row --- */
+  function apply() {
+    var wrap = document.querySelector('.ea-subs');
+    if (!wrap) return;
+    wrap.classList.toggle('od-only', !!S.missed);
+
+    var rows = wrap.querySelectorAll('.ea-subrow');
+    for (var i = 0; i < rows.length; i++) {
+      var row = rows[i];
+      var id = row.dataset.subId;
+      var f = (window.findNode && id) ? window.findNode(id) : null;
+      var n = f && f.node;
+      if (!n) continue;
+
+      row.classList.toggle('od-hit', isOverdue(n));
+
+      /* the date, inside the title so it flows after the words */
+      var ttl = row.querySelector('.ea-subtitle');
+      if (ttl && n.date) {
+        var tag = ttl.querySelector('.ea-subdate');
+        if (!tag) {
+          tag = document.createElement('span');
+          tag.className = 'ea-subdate';
+          tag.contentEditable = 'false';
+          ttl.appendChild(tag);
+        }
+        var d = window.parseISO ? window.parseISO(n.date) : null;
+        var M = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+        tag.textContent = d ? (M[d.getMonth()] + ' ' + d.getDate()) : '';
+      }
+
+      /* the pen, only when the subtask carries notes - as the tree does */
+      var hasNotes = !!(n.notes && String(n.notes).replace(/<[^>]*>/g,'').trim());
+      var pen = row.querySelector('.ea-subpen');
+      if (hasNotes && !pen) {
+        pen = document.createElement('span');
+        pen.className = 'ea-subpen';
+        pen.textContent = '\u270e';
+        pen.title = 'This subtask has notes';
+        var dots = row.querySelector('.ea-subdots');
+        if (dots && dots.parentNode) dots.parentNode.insertBefore(pen, dots);
+      } else if (!hasNotes && pen) { pen.remove(); }
+
+      /* the three switches decide the rest */
+      var hide = false;
+      if (n.done)            hide = !S.done;
+      else if (isFuture(n))  hide = !S.fut;
+      if (!S.hab && window.__isHRNode && window.__isHRNode(n)) hide = true;
+      row.style.display = hide ? 'none' : '';
+    }
+  }
+  window.__eaSubApply = apply;
+
+  /* --- the menu, built from the tree's own classes --- */
+  function openMenu(gear) {
+    closeMenu();
+    var m = document.createElement('div');
+    m.className = 'tree-gearmenu';
+    m.style.cssText = 'position:fixed;z-index:99999;width:230px';
+
+    function item(label, opts, run) {
+      var b = document.createElement('button');
+      b.type = 'button'; b.className = 'gearitem'; b.textContent = label;
+      if (opts && opts.count) {
+        var k = document.createElement('span');
+        k.className = 'gearcount'; k.textContent = String(opts.count);
+        b.appendChild(k);
+      }
+      if (opts && opts.tick) {
+        var ck = document.createElement('span');
+        ck.className = 'gearcheck'; ck.textContent = '\u2713';
+        b.appendChild(ck);
+      }
+      b.onclick = function () { run(); closeMenu(); };
+      m.appendChild(b);
+      return b;
+    }
+
+    var wrap = document.querySelector('.ea-subs');
+    var over = 0;
+    if (wrap) {
+      var rr = wrap.querySelectorAll('.ea-subrow');
+      for (var i = 0; i < rr.length; i++) {
+        var f = window.findNode && window.findNode(rr[i].dataset.subId);
+        if (f && isOverdue(f.node)) over++;
+      }
+    }
+
+    item('Missed', {count: over, tick: S.missed}, function () {
+      S.missed = !S.missed; apply();
+    });
+    item('Show future subtasks', {tick: S.fut}, function () {
+      S.fut = !S.fut; if (window.__eaSetShowFuture) window.__eaSetShowFuture(S.fut);
+      apply();
+    });
+    item('Show completed subtasks', {tick: S.done}, function () {
+      S.done = !S.done; apply();
+    });
+    item('Show routines & habits', {tick: S.hab}, function () {
+      S.hab = !S.hab; apply();
+    });
+    var sep = document.createElement('div');
+    sep.style.cssText = 'height:1px;background:var(--line,#2e323a);margin:6px 0';
+    m.appendChild(sep);
+    item('Expand all', null, function () { setAll(true); });
+    item('Contract all', null, function () { setAll(false); });
+
+    document.body.appendChild(m);
+
+    /* INSIDE the Edit box - the operator asked for this twice.
+       MEASURED 2026-10-30: .ea-body is an inner SCROLLER whose box is smaller than
+       the dialog; the visible box is .modal (200,109 - 700,1238 at 900x1500). Clamping
+       to .ea-body left the menu outside the window. */
+    var dlg = gear.closest('.modal') || document.querySelector('.modal')
+              || gear.closest('.ea-body');
+    var db = dlg && dlg.getBoundingClientRect();
+    var r = gear.getBoundingClientRect();
+    var left = r.right - 230, top = r.bottom + 6;
+    if (db) {
+      var mh = m.getBoundingClientRect().height || 250;
+      if (left < db.left + 10) left = db.left + 10;
+      if (left + 230 > db.right - 10) left = db.right - 240;
+      if (top + mh > db.bottom - 10) top = Math.max(db.top + 10, db.bottom - 10 - mh);
+    }
+    m.style.left = Math.round(left) + 'px';
+    m.style.top = Math.round(top) + 'px';
+    window.__eaMenuEl = m;
+    setTimeout(function () {
+      document.addEventListener('click', onDoc, true);
+    }, 0);
+  }
+  function onDoc(e) {
+    var m = window.__eaMenuEl;
+    if (m && !m.contains(e.target)) closeMenu();
+  }
+  function closeMenu() {
+    var m = window.__eaMenuEl;
+    if (m && m.parentNode) m.parentNode.removeChild(m);
+    window.__eaMenuEl = null;
+    document.removeEventListener('click', onDoc, true);
+  }
+  function setAll(open) {
+    var wrap = document.querySelector('.ea-subs');
+    if (!wrap) return;
+    var rows = wrap.querySelectorAll('.ea-subrow');
+    for (var i = 0; i < rows.length; i++) {
+      var f = window.findNode && window.findNode(rows[i].dataset.subId);
+      if (f && f.node && f.node.children && f.node.children.length) {
+        f.node.__subOpen = open;
+      }
+    }
+    if (window.__eaRedrawSubs) window.__eaRedrawSubs();
+  }
+
+  /* --- put the gear in the header, replacing the lone chip --- */
+  function mount() {
+    css();
+    var head = document.querySelector('.ea-subhead');
+    if (!head || head.querySelector('.ea-subgear')) return;
+    var chip = head.querySelector('.ea-futchip');
+    if (chip) chip.style.display = 'none';
+    var g = document.createElement('button');
+    g.type = 'button';
+    g.className = 'ea-subgear';
+    g.title = 'Subtask settings';
+    g.textContent = '\u2699';
+    g.onclick = function (e) {
+      e.preventDefault(); e.stopPropagation();
+      if (window.__eaMenuEl) closeMenu(); else openMenu(g);
+    };
+    head.appendChild(g);
+    apply();
+  }
+
+  var tick = setInterval(function () {
+    if (document.querySelector('.ea-subhead')) mount();
+    else closeMenu();
+  }, 300);
+  window.__card3Stop = function () { clearInterval(tick); };
 })();
 </script>
 </body>
