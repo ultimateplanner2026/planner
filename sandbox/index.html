@@ -6693,7 +6693,7 @@ window.__rollHorizon = function () {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-10-30 23:08 DEMO</span>
+    <span id="buildStamp">build 2026-10-30 23:35 DEMO</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -43907,6 +43907,13 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
       }
     }
     if (window.__eaRedrawSubs) window.__eaRedrawSubs();
+    /* 2026-10-30, operator: "I don't think these options inside the edit button
+       working properly, can you test them".
+       MEASURED by pressing every line on the served demo: Expand/Contract REBUILD the
+       row elements, so the display:none this module had set was thrown away and
+       'finished one' came back with Show-completed still OFF - permanently, because
+       nothing re-applied it. Re-apply after the redraw. */
+    apply();
   }
 
   /* --- put the gear in the header, replacing the lone chip --- */
@@ -43929,8 +43936,11 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
     apply();
   }
 
+  /* Any redraw by the app rebuilds the rows and drops what this module set. The
+     mount tick already runs; make it re-apply so the list can never drift from the
+     switches - measured: after Expand all, a finished subtask reappeared and stayed. */
   var tick = setInterval(function () {
-    if (document.querySelector('.ea-subhead')) mount();
+    if (document.querySelector('.ea-subhead')) { mount(); apply(); }
     else closeMenu();
   }, 300);
   window.__card3Stop = function () { clearInterval(tick); };
