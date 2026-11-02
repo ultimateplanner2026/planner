@@ -6693,7 +6693,7 @@ window.__rollHorizon = function () {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-10-31 00:04 DEMO</span>
+    <span id="buildStamp">build 2026-11-02 13:12 DEMO</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -13874,11 +13874,17 @@ function surfaceArrivals() {
     var newSub = document.createElement('input');
     newSub.type = 'text'; newSub.className = 'ea-input';
     newSub.placeholder = 'Enter subtask..';
-    newSub.addEventListener('keydown', function (e) {
-      if (e.key !== 'Enter') return;
-      e.preventDefault();
+    /* CARD 5 - operator 2026-11-02: "adding an additional subtask in the edit of a
+       task doesn't save". MEASURED on both copies, driving the real controls: typing
+       into this field and pressing Save loses the text, because the ONLY thing that
+       ever turned it into a row was the Enter key - save() never read the field.
+       Pressing Enter worked, which is why it looked like a demo-vs-live difference.
+       So the body of the Enter handler becomes a named commit, and save() calls it. */
+    function commitPendingSub(parent) {
       var v = newSub.value.trim();
-      if (!v) return;
+      if (!v) return false;
+      var node = parent || window.__eaNodeRef || null;
+      if (!node) return false;
       var newChild = {
         id: window.uid(),
         title: v,
@@ -13917,7 +13923,13 @@ function surfaceArrivals() {
       window.Store.save();
       if (window.renderAll) window.renderAll();
       drawSubs();
-      try { newSub.focus(); } catch (_) {}
+      return true;
+    }
+    window.__eaCommitPendingSub = commitPendingSub;
+    newSub.addEventListener('keydown', function (e) {
+      if (e.key !== 'Enter') return;
+      e.preventDefault();
+      if (commitPendingSub(node)) { try { newSub.focus(); } catch (_) {} }
     });
     subWrap.appendChild(newSub);
     body.appendChild(subWrap);
@@ -13950,6 +13962,11 @@ function surfaceArrivals() {
          by id at save time; fall back to the captured object only if the id has gone. */
       var __f = (typeof window.findNode === 'function') ? window.findNode(id) : null;
       if (__f && __f.node) node = __f.node;
+
+      /* CARD 5: anything still sitting in "Enter subtask.." is text they typed and
+         pressed Save on. Commit it here - AFTER the re-resolve above, or it would be
+         pushed onto an orphaned node and thrown away by the next merge. */
+      try { commitPendingSub(node); } catch (_) {}
 
       var t = title.value.trim();
       /* 2026-09-03: same guard. If the field is empty but the task already had a title, keep it -
@@ -43586,6 +43603,15 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
     var base = window.__outdentNode;
 
     function ask(id, go) {
+      /* 2026-11-02: a SECOND call while one dialog is already up used to stack another
+         veil, and each veil is position:fixed inset:0 at z-index 99998 - so a stray one
+         covers every control on the page. Measured in a full suite run: the arrow click
+         landed on DIV.c33-veil and the date never moved. Never leave two, and never
+         leave one behind from an earlier ask. */
+      var stale = document.querySelectorAll('.c33-veil, .c33-box');
+      for (var si = 0; si < stale.length; si++) {
+        if (stale[si].parentNode) stale[si].parentNode.removeChild(stale[si]);
+      }
       var f = window.findNode && window.findNode(id);
       if (!f || !f.node) { go(); return; }
       /* already at the top level - there is nothing to move out of */
