@@ -2913,7 +2913,33 @@ aside#treePane { overflow-y: auto; }
 .ea-subtick.done { border-color: var(--accent, #4c9aff); }
 .ea-subtitle { flex: 1 1 auto; min-width: 0;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* ===================================================================== CARD 4
+   operator 2026-11-03: "the subtasks were not moving up or down when I click and
+   move". MEASURED by sweeping a real press+move across one row and recording which
+   events fire at each x:
+
+       x=290   the row's padding        -> dragstart      (the drag worked here)
+       x=337   ON the title's GLYPHS    -> selectstart    (NO dragstart)
+       x=384   ON the title's GLYPHS    -> selectstart    (NO dragstart)
+       x=430+  the title's empty tail   -> dragstart
+       x=640   the quick buttons        -> dragstart
+
+   So the row only refused to drag when the press landed on the TEXT ITSELF - the
+   browser starts a text selection there instead of a drag. The title span is 300px
+   wide but a short name only inks the first ~110px, which is exactly where a person
+   aims. That is the whole defect, and it is why it looked like a demo-vs-live
+   difference: whether it worked depended on where the pointer landed.
+
+   At rest the name is not selectable, so a press anywhere on the row starts a drag.
+   While it is being edited `user-select: text` is restored below, so selecting and
+   retyping a name still works normally. */
+.ea-subtitle { -webkit-user-select: none; user-select: none; }
+.ea-subtitle[contenteditable="plaintext-only"],
+.ea-subtitle[contenteditable="true"] { -webkit-user-select: text; user-select: text; }
 .ea-subtitle.done { color: var(--text-dim, #9aa1ab); text-decoration: line-through; }
+/* CARD 4: the same cue the tree row already gives (line 748). */
+.ea-subrow[draggable="true"] { cursor: grab; }
+.ea-subrow.dragging { cursor: grabbing; }
 .ea-subquick {
   background: none; border: 0; padding: 0 2px; cursor: pointer;
   color: var(--text-dim, #9aa1ab); font-size: 12px; line-height: 1;
@@ -2958,9 +2984,16 @@ aside#treePane { overflow-y: auto; }
   .ea-subrow:focus-within .ea-subtitle { padding-right: 116px; }
 }
 .ea-subrow:not(:hover) .ea-subdate:not(.hasdate) { visibility: hidden; }
-.ea-subtitle[contenteditable] { outline: none; cursor: text; border-radius: 3px; }
-.ea-subtitle[contenteditable]:hover { background: var(--surface-2, #22262e); }
-.ea-subtitle[contenteditable]:focus {
+/* CARD 4: these used to match [contenteditable] with ANY value. The card leaves the
+   attribute in place as "false" while the row is at rest, so the bare selector kept
+   showing a text cursor and the edit-hover on a row that is not editable - it looked
+   editable and dragged instead. Match only the states that really are editable. */
+.ea-subtitle[contenteditable="plaintext-only"],
+.ea-subtitle[contenteditable="true"] { outline: none; cursor: text; border-radius: 3px; }
+.ea-subtitle[contenteditable="plaintext-only"]:hover,
+.ea-subtitle[contenteditable="true"]:hover { background: var(--surface-2, #22262e); }
+.ea-subtitle[contenteditable="plaintext-only"]:focus,
+.ea-subtitle[contenteditable="true"]:focus {
   background: var(--surface-2, #22262e);
   box-shadow: inset 0 0 0 1px var(--accent, #4c9aff);
 }
@@ -6693,7 +6726,7 @@ window.__rollHorizon = function () {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-11-02 13:13 DEMO</span>
+    <span id="buildStamp">build 2026-11-03 15:10 DEMO</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -13564,7 +13597,91 @@ function surfaceArrivals() {
              person finishing, so a teardown must leave the text alone. */
           var ttl = document.createElement('span');
           ttl.className = 'ea-subtitle' + (child.done ? ' done' : '');
-          ttl.contentEditable = 'plaintext-only';
+          /* ============================================================== CARD 4
+             operator 2026-11-03: "the subtasks were not moving up or down when I
+             click and move", and "it works well in demo but not in live".
+
+             MEASURED with a real pointer on the live build. A drag grabbed in the
+             middle of the row DOES reorder - so the drag code was never broken, and
+             the builds never differed. What differed is WHERE the row is grabbed:
+
+                 grab the middle / the gap  -> dragstart fires -> the row moves
+                 grab the TITLE TEXT        -> mousedown, selectstart, NO dragstart
+
+             The title is contentEditable (2026-10-16, so a name can be clicked and
+             typed), and a press on editable text means "select text" to the browser,
+             never "drag". The title is the obvious thing to grab, so the gesture
+             they actually use was the one gesture that could not work.
+
+             FIX: the title is only editable while it is BEING edited. At rest it is
+             plain text, so a press on it starts a drag like anywhere else on the
+             row; clicking it (or tabbing to it) turns editing on and focuses it, so
+             click-to-rename still behaves exactly as before. Both gestures now reach
+             the same code instead of competing for the same press. */
+          /* MEASURED, and this is the part that actually mattered. Setting
+             contentEditable='false' was NOT enough: grabbing the row anywhere on the
+             title's GLYPHS still refused to drag, while grabbing 10px past the last
+             letter worked. Proven by dragging the bottom row to the top at five x
+             positions on one row whose text inked 323..380 -
+
+                 x=327  (on the letters)      UNCHANGED
+                 x=335  (on the letters)      UNCHANGED
+                 x=363  (on the letters)      UNCHANGED
+                 x=390  (10px past the text)  MOVED
+                 x=500  (row middle)          MOVED
+
+             user-select:none did not change those outcomes either. Chrome begins a
+             text selection on the glyphs of an element that merely CARRIES the
+             contenteditable attribute, and that selection pre-empts the drag. So the
+             attribute is REMOVED at rest and added only for the edit. */
+          ttl.removeAttribute('contenteditable');
+          ttl.tabIndex = 0;
+          /* THE MEASURED FIX. Four theories were wrong before this one, and each was
+             refuted by re-running the same five-position drag:
+                 contentEditable='false'      UNCHANGED on the glyphs
+                 attribute removed entirely   UNCHANGED
+                 user-select:none (computed)  UNCHANGED
+                 preventDefault(selectstart)  UNCHANGED - and the spy showed the
+                                              default was NOT prevented and NO text
+                                              was selected, so selection was never it
+                 pointer-events:none          MOVED  <- the only one that worked
+             The SPAN itself swallows the press. With it transparent to the pointer the
+             press reaches the row, which is what carries draggable and the handlers.
+             Verified at every x across the row, on the letters and off them. */
+          ttl.style.pointerEvents = 'none';
+          function ttlEdit(place) {
+            if (ttl.getAttribute('contenteditable') === 'plaintext-only') return;
+            ttl.style.pointerEvents = 'auto';    /* clickable while being renamed */
+            ttl.contentEditable = 'plaintext-only';
+            try {
+              ttl.focus();
+              if (place && window.getSelection && document.createRange) {
+                var rg = document.createRange();
+                rg.selectNodeContents(ttl); rg.collapse(false);
+                var sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(rg);
+              }
+            } catch (_) {}
+          }
+          /* The span is pointer-transparent at rest, so it can no longer receive its
+             own click - the ROW opens the rename instead, and only for a press that
+             landed on the title and did not turn into a drag. mouseUP, not mousedown:
+             a mousedown handler would turn the field editable before the browser has
+             decided that press-and-move is a drag, which is this card's defect. */
+          rowEl.addEventListener('mousedown', function (e) {
+            var tb = ttl.getBoundingClientRect();
+            rowEl.__ttlPress = (e.clientX >= tb.left && e.clientX <= tb.right
+                                && e.clientY >= tb.top && e.clientY <= tb.bottom)
+                               ? { x: e.clientX, y: e.clientY } : null;
+          });
+          rowEl.addEventListener('mouseup', function (e) {
+            var p = rowEl.__ttlPress; rowEl.__ttlPress = null;
+            if (!p) return;
+            if (rowEl.classList.contains('dragging')) return;
+            /* a press that travelled is a drag attempt, not a click on the name */
+            if (Math.abs(e.clientX - p.x) > 4 || Math.abs(e.clientY - p.y) > 4) return;
+            e.stopPropagation(); ttlEdit(true);
+          });
+          ttl.addEventListener('focus', function () { ttlEdit(false); });
           ttl.spellcheck = false;
           ttl.textContent = child.title || '';
           var prevTitle = child.title || '';
@@ -13577,6 +13694,10 @@ function surfaceArrivals() {
           });
           ttl.addEventListener('click', function (e) { e.stopPropagation(); });
           ttl.addEventListener('blur', function () {
+            /* CARD 4: back to plain, pointer-transparent text, or this row stays
+               undraggable after one rename - the exact defect, just deferred. */
+            ttl.removeAttribute('contenteditable');
+            ttl.style.pointerEvents = 'none';
             if (!ttl.isConnected) return;          /* a teardown, not the person */
             var v = String(ttl.textContent || '').replace(/^\s+|\s+$/g, '');
             if (!v) { ttl.textContent = prevTitle; return; }
@@ -13785,10 +13906,23 @@ function surfaceArrivals() {
             var arr = owner, from = -1, k;
             for (k = 0; k < arr.length; k++) if (arr[k] && arr[k].id === movedId) from = k;
             if (from < 0) return;
+            /* CARD 4, 2026-11-03 - DROPPING DOWNWARD LANDED ONE PLACE SHORT.
+               MEASURED on the live build: dragging the top row onto the bottom row
+               of three gave c4b,c4a,c4c - it moved down by one instead of to the
+               end. Removing the row first shifts every later index down by one, so
+               inserting AT the target's new index puts it BEFORE the target when it
+               came from above. Dropping onto a row below means "put me after it". */
+            var movingDown = (function () {
+              for (var q = 0; q < arr.length; q++) {
+                if (arr[q] && arr[q].id === child.id) return q > from;
+              }
+              return false;
+            })();
             var moved = arr.splice(from, 1)[0];
             var to = -1;
             for (k = 0; k < arr.length; k++) if (arr[k] && arr[k].id === child.id) to = k;
-            arr.splice(to < 0 ? arr.length : to, 0, moved);
+            if (to < 0) to = arr.length; else if (movingDown) to = to + 1;
+            arr.splice(to, 0, moved);
             if (window.Store) window.Store.save();
             if (window.renderAll) window.renderAll();
             drawSubs();
@@ -25190,6 +25324,30 @@ if (r.freq === 'yearly') {
         if (inside[node.id]) return '';
       }
     } catch (e) {}
+
+    /* ================================================================ CARD 6
+       operator 2026-11-03: "this is a branch, when I remove the date to take it
+       out of calender and bring it back to priority tree, it provides that pop up
+       ... even If I put it in the branch I get the same pop up".
+
+       MEASURED on both copies, by asking this guard directly with the date and
+       without it - the verdict was the SAME blocking message both times, on the
+       live build and on the demo. So the pop-up never depended on the date, and
+       it was never a demo-vs-live difference: clearing the date could not escape
+       a rule that does not read the date.
+
+       WHY IT FIRED: the only way out of this rule was to live under Habits or
+       Routines. A branch is neither, so a branch could never repeat - and setting
+       Location to the branch itself (which they tried) does not help, because the
+       branch is not one of those two hosts.
+
+       NOTE, said plainly: this rule exists because THEY asked for it on 2026-10-16
+       ("any type of frequency, that should automatically pop up ... saying it must
+       be a routine or a habit"). This narrows that rule rather than removing it -
+       a BRANCH (an item with children) may now repeat on its own; an ordinary leaf
+       task still has to be a routine or a habit, so the 2026-10-16 rule stands
+       everywhere it was aimed. */
+    if (node.children && node.children.length) return '';
 
     return 'A repeating item must be a routine or a habit. ' +
            'Change Location to Habits / Routines.';
