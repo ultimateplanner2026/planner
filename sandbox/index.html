@@ -2950,7 +2950,28 @@ aside#treePane { overflow-y: auto; }
 .ea-subrow:hover .ea-subquick,
 .ea-subrow:focus-within .ea-subquick { opacity: .85; }
 .ea-subquick:hover { opacity: 1 !important; color: var(--accent, #4c9aff); }
+/* 2026-11-03, operator: "I want the plus sign to be closer to the clock".
+   MEASURED on the row before the change, hovered:
+       + ends at 682, clock starts at 710  -> gap 28px
+       clock ends at 735, dots start at 743 -> gap  8px
+   The row is a flexbox with gap:8px, so 8px is the spacing every other pair of
+   controls gets. The clock carried margin-left:auto - the thing that pushes the
+   whole right-hand group over - which ADDED ~20px on top of that gap, and only
+   in front of the clock. Move the auto push to the FIRST control of that group
+   (the + / the arrows) so the group still sits right, and every control inside
+   it is spaced by the row's own 8px. */
 .ea-subdate { flex: 0 0 auto; margin-left: auto; cursor: pointer; }
+/* 2026-11-03, operator: "actually I would like the + first on the right", and they
+   chose the order  clock, +, dots.  The row is built caret, tick, title, arrows, +,
+   chip, dots - so the + is appended BEFORE the chip. Reorder with flex `order`
+   rather than moving the appendChild calls: the + carries its own click handler and
+   the chip carries the date popover, and moving DOM nodes around risks those far
+   more than a layout property does. The row is already display:flex.
+   `margin-left:auto` stays on the chip, which is now the first of the group, so the
+   whole group is still pushed right and the 8px gaps are unchanged. */
+.ea-subrow > .ea-subdate { order: 1; }
+.ea-subrow > .ea-subquick.q-add { order: 2; margin-left: 0; }
+.ea-subrow > .ea-subdots { order: 3; }
 /* The title must stay readable. MEASURED at 360px: the dialog narrows to 280px
    (the .modal:has(.ea) rule above), and with four more fixed-width controls in the
    row the title - the only flexible item - was crushed to 33px, about three
@@ -6726,7 +6747,7 @@ window.__rollHorizon = function () {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-11-03 15:10 DEMO</span>
+    <span id="buildStamp">build 2026-11-03 16:17 DEMO</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -43921,7 +43942,15 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
       /* the arrows leave the row, exactly as the tree does it */
       '.ea-subrow .ea-subquick.q-out, .ea-subrow .ea-subquick.q-in{display:none !important}' +
       /* the date, inside the title, in the tree's dim amber */
-      '.ea-subdate{font-size:9px;letter-spacing:.07em;margin-left:2.2em;' +
+      /* 2026-11-03, operator: "I want the plus sign to be closer to the clock".
+         MEASURED, hovered: + ended at 682, the clock began at 710 - a 28px gap,
+         while every other pair of controls in the row sits 8px apart (the row is
+         a flexbox with gap:8px). The cause is THIS rule: it was written for the
+         printed date that card 3 puts INSIDE the title, but .ea-subdate is also
+         the class on the row's own clock chip, so its 2.2em (19.8px at 9px) was
+         added in front of the clock as well. Scope it to the one inside the
+         title, which is the element it was written for. */
+      '.ea-subtitle > .ea-subdate{font-size:9px;letter-spacing:.07em;margin-left:.55em;' +
       ' color:rgba(245,158,11,.32);text-transform:uppercase;font-weight:500;' +
       ' font-variant-numeric:tabular-nums;white-space:nowrap}' +
       /* the pen, same amber as the tree's */
