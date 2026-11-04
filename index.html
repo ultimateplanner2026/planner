@@ -2674,7 +2674,33 @@ aside#treePane { overflow-y: auto; }
 .ea-subtick.done { border-color: var(--accent, #4c9aff); }
 .ea-subtitle { flex: 1 1 auto; min-width: 0;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* ===================================================================== CARD 4
+   operator 2026-11-03: "the subtasks were not moving up or down when I click and
+   move". MEASURED by sweeping a real press+move across one row and recording which
+   events fire at each x:
+
+       x=290   the row's padding        -> dragstart      (the drag worked here)
+       x=337   ON the title's GLYPHS    -> selectstart    (NO dragstart)
+       x=384   ON the title's GLYPHS    -> selectstart    (NO dragstart)
+       x=430+  the title's empty tail   -> dragstart
+       x=640   the quick buttons        -> dragstart
+
+   So the row only refused to drag when the press landed on the TEXT ITSELF - the
+   browser starts a text selection there instead of a drag. The title span is 300px
+   wide but a short name only inks the first ~110px, which is exactly where a person
+   aims. That is the whole defect, and it is why it looked like a demo-vs-live
+   difference: whether it worked depended on where the pointer landed.
+
+   At rest the name is not selectable, so a press anywhere on the row starts a drag.
+   While it is being edited `user-select: text` is restored below, so selecting and
+   retyping a name still works normally. */
+.ea-subtitle { -webkit-user-select: none; user-select: none; }
+.ea-subtitle[contenteditable="plaintext-only"],
+.ea-subtitle[contenteditable="true"] { -webkit-user-select: text; user-select: text; }
 .ea-subtitle.done { color: var(--text-dim, #9aa1ab); text-decoration: line-through; }
+/* CARD 4: the same cue the tree row already gives (line 748). */
+.ea-subrow[draggable="true"] { cursor: grab; }
+.ea-subrow.dragging { cursor: grabbing; }
 .ea-subquick {
   background: none; border: 0; padding: 0 2px; cursor: pointer;
   color: var(--text-dim, #9aa1ab); font-size: 12px; line-height: 1;
@@ -2685,7 +2711,25 @@ aside#treePane { overflow-y: auto; }
 .ea-subrow:hover .ea-subquick,
 .ea-subrow:focus-within .ea-subquick { opacity: .85; }
 .ea-subquick:hover { opacity: 1 !important; color: var(--accent, #4c9aff); }
+/* 2026-11-03, operator: "I want the plus sign to be closer to the clock".
+   MEASURED on the row before the change, hovered:
+       + ends at 682, clock starts at 710  -> gap 28px
+       clock ends at 735, dots start at 743 -> gap  8px
+   The row is a flexbox with gap:8px, so 8px is the spacing every other pair of
+   controls gets. The clock carried margin-left:auto - the thing that pushes the
+   whole right-hand group over - which ADDED ~20px on top of that gap, and only
+   in front of the clock. Move the auto push to the FIRST control of that group
+   (the + / the arrows) so the group still sits right, and every control inside
+   it is spaced by the row's own 8px. */
 .ea-subdate { flex: 0 0 auto; margin-left: auto; cursor: pointer; }
+/* 2026-11-03, operator: "actually I would like the + first on the right" - built as
+   clock, +, dots - then, having seen it: "actually bring back the clock to the right."
+   So the order is back to  +, clock, dots, which is also the order the row is built
+   in. The ORDER rules are therefore gone; what stays is the SPACING fix, which is a
+   different thing and is what they asked for first ("I want the plus sign to be
+   closer to the clock"): the 28px gap in front of the clock came from card 3's
+   margin rule leaking onto it, and that rule is now scoped to the printed date
+   inside the title. Measured after this revert: + -> clock 8px, clock -> dots 8px. */
 /* The title must stay readable. MEASURED at 360px: the dialog narrows to 280px
    (the .modal:has(.ea) rule above), and with four more fixed-width controls in the
    row the title - the only flexible item - was crushed to 33px, about three
@@ -2719,9 +2763,16 @@ aside#treePane { overflow-y: auto; }
   .ea-subrow:focus-within .ea-subtitle { padding-right: 116px; }
 }
 .ea-subrow:not(:hover) .ea-subdate:not(.hasdate) { visibility: hidden; }
-.ea-subtitle[contenteditable] { outline: none; cursor: text; border-radius: 3px; }
-.ea-subtitle[contenteditable]:hover { background: var(--surface-2, #22262e); }
-.ea-subtitle[contenteditable]:focus {
+/* CARD 4: these used to match [contenteditable] with ANY value. The card leaves the
+   attribute in place as "false" while the row is at rest, so the bare selector kept
+   showing a text cursor and the edit-hover on a row that is not editable - it looked
+   editable and dragged instead. Match only the states that really are editable. */
+.ea-subtitle[contenteditable="plaintext-only"],
+.ea-subtitle[contenteditable="true"] { outline: none; cursor: text; border-radius: 3px; }
+.ea-subtitle[contenteditable="plaintext-only"]:hover,
+.ea-subtitle[contenteditable="true"]:hover { background: var(--surface-2, #22262e); }
+.ea-subtitle[contenteditable="plaintext-only"]:focus,
+.ea-subtitle[contenteditable="true"]:focus {
   background: var(--surface-2, #22262e);
   box-shadow: inset 0 0 0 1px var(--accent, #4c9aff);
 }
@@ -6368,6 +6419,30 @@ window.__rollHorizon = function () {
   return (s > t) ? s : t;
 };
 </script>
+<style id="card33">
+/* CARD 33, 2026-10-28 - confirm before the left arrow turns a subtask into a main
+   branch. Drawn in the planner's own colours; NOT styled as a danger dialog,
+   because nothing is lost - the move is reversible with the right arrow, and a red
+   "are you sure?" for a reversible action teaches you to click through every
+   dialog, including the ones that matter. */
+.c33-veil{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:99998}
+.c33-box{position:fixed;z-index:99999;left:50%;top:50%;transform:translate(-50%,-50%);
+ width:min(420px,calc(100vw - 32px));background:var(--surface,#1c1f26);
+ border:1px solid var(--line,#2e323a);border-radius:12px;padding:18px 20px 16px;
+ color:var(--text,#e6e8ec);font:14px -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;
+ box-shadow:0 18px 50px rgba(0,0,0,.55);box-sizing:border-box}
+.c33-box h3{margin:0 0 10px;font-size:15.5px;font-weight:650}
+.c33-box p{margin:0 0 7px;line-height:1.48;color:var(--text-dim,#c6cad2)}
+.c33-move{margin:10px 0 4px;padding:9px 11px;background:var(--bg,#15181d);
+ border:1px solid var(--line,#2a2e36);border-radius:8px;font-size:13px;line-height:1.7}
+.c33-move .f{color:var(--text-dim,#8b93a1)}
+.c33-move .t{color:var(--text,#e6e8ec);font-weight:600}
+.c33-note{font-size:12.5px;color:var(--text-dim,#8b93a1);margin:8px 0 0}
+.c33-row{display:flex;gap:9px;justify-content:flex-end;margin-top:15px}
+.c33-row button{font:inherit;font-size:13.5px;padding:7px 15px;border-radius:7px;cursor:pointer}
+.c33-cancel{background:transparent;border:1px solid var(--line,#3a4049);color:var(--text-dim,#c6cad2)}
+.c33-ok{background:var(--accent,#2f6fed);border:1px solid var(--accent,#2f6fed);color:#fff;font-weight:600}
+</style>
 </head>
 <body><style>/* the banner is fixed, so the page must be pushed down by exactly its height or    it sits on top of the toolbar - the operator: "the red marking is covering some    of the setting and stuff up there". */html{padding-top:26px !important;box-sizing:border-box}#practiceBanner{top:0 !important}</style>
 <!-- ===== Internet Explorer notice - operator 2026-09-20 =====
@@ -6430,7 +6505,7 @@ window.__rollHorizon = function () {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-10-30 15:12</span>
+    <span id="buildStamp">build 2026-11-03 16:23</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -10157,7 +10232,18 @@ window.renderHabits = function () {
 })();
 
 /* ===== f12a1 ===== */
-(function(){var baseRenderTree=window.renderTree;window.renderTree=function(){baseRenderTree();window.__applyTimeFilter();};if(window.__revealAhead===undefined)window.__revealAhead=false;if(window.__draggingNodeId===undefined)window.__draggingNodeId=null;window.__applyTimeFilter=function(){var today=(window.selectedDate||todayISO());var realToday=todayISO();var selfFuture={},visible={},overdue={};var walk=function(node){var childVisible=false;if(node.children){node.children.forEach(function(child){walk(child);if(visible[child.id])childVisible=true;});}var date=node.date;var isFuture=!!(date&&date>today);var isOverdue=!!(date&&date<realToday&&!node.done&&!(function(n){
+(function(){var baseRenderTree=window.renderTree;window.renderTree=function(){baseRenderTree();window.__applyTimeFilter();};if(window.__revealAhead===undefined)window.__revealAhead=false;if(window.__draggingNodeId===undefined)window.__draggingNodeId=null;window.__applyTimeFilter=function(){/* CARD 2, CORRECTED 2026-10-30. I first changed this to todayISO() - measuring
+   "future" from the real clock - and that was WRONG. Operator, with a picture of
+   the tree date on Thu Nov 5: "for service the autoclave, it was a future dated
+   item and it doesnt show on the subtask of equipment when I move the dates to
+   nov 5? that shouldn't happen".
+   MEASURED on three items due in 1, 6 and 20 days, tree date moved to +6:
+     tree date rule (original) -> 1 and 6 SHOWN, 20 hidden   <- what they want
+     clock rule (my change)    -> nothing ever shows         <- what I broke
+   Moving the tree date forward is READING THAT DAY, so anything due by then is
+   present and must appear; only what is still beyond it is "future". The line is
+   back to the tree date. Their earlier complaint was never about this rule - it
+   was the gear switch being dead, which is the other half of card 2. */var today=(window.selectedDate||todayISO());var realToday=todayISO();var selfFuture={},visible={},overdue={};var walk=function(node){var childVisible=false;if(node.children){node.children.forEach(function(child){walk(child);if(visible[child.id])childVisible=true;});}var date=node.date;var isFuture=!!(date&&date>today);var isOverdue=!!(date&&date<realToday&&!node.done&&!(function(n){
 /* CARD 43: a routine whose "If missed: Show again" is UNTICKED is explicitly not
    meant to chase you - so it must not be red in the tree, nor counted as overdue.
    rollOver===false is that switch (kOn() reads r.rollOver!==false). With Show again
@@ -13159,6 +13245,17 @@ function surfaceArrivals() {
       drawSubs();
     });
 
+    /* CARD 3, 2026-10-30: the gear menu replaces this chip, so it needs the same two
+       levers the chip had. `showFuture` and `drawSubs` are closure-local, so they are
+       published here rather than reimplemented - one behaviour, not a copy that can
+       drift. Both are rebound every time the editor opens, which is correct: they
+       belong to THIS dialog's closure. */
+    window.__eaSetShowFuture = function (on) {
+      showFuture = !!on;
+      drawSubs();
+    };
+    window.__eaRedrawSubs = function () { drawSubs(); };
+
     subWrap.appendChild(subHead);
     var list = document.createElement('div');
     list.className = 'ea-sublist';
@@ -13219,7 +13316,16 @@ function surfaceArrivals() {
            published by the tree. Falling back to drawing it is deliberate: if that
            global ever disappears, the operator sees an extra row rather than losing
            a real subtask. */
-        if (typeof window.__isHRNode === 'function' && window.__isHRNode(kids[j])) continue;
+        /* CARD 3, 2026-10-30, operator: "the routine if its in the priotry tree its
+           not showing inside the edit. even if I checkmark show routine and habits".
+           MEASURED: this line SKIPPED every routine before a row was ever built, so
+           the new "Show routines & habits" switch was filtering rows that did not
+           exist - it could never have worked. The switch now decides, and the old
+           behaviour is still the default (hidden unless they ask). */
+        if (typeof window.__isHRNode === 'function' && window.__isHRNode(kids[j])) {
+          var wantHR = !!(window.__eaSubState && window.__eaSubState.hab);
+          if (!wantHR) continue;
+        }
         /* hidden unless they ask - the chip beside the SUBTASKS heading */
         if (depth === 0 && !showFuture && kids[j] && kids[j].date
             && window.todayISO && String(kids[j].date) > window.todayISO()) continue;
@@ -13273,7 +13379,91 @@ function surfaceArrivals() {
              person finishing, so a teardown must leave the text alone. */
           var ttl = document.createElement('span');
           ttl.className = 'ea-subtitle' + (child.done ? ' done' : '');
-          ttl.contentEditable = 'plaintext-only';
+          /* ============================================================== CARD 4
+             operator 2026-11-03: "the subtasks were not moving up or down when I
+             click and move", and "it works well in demo but not in live".
+
+             MEASURED with a real pointer on the live build. A drag grabbed in the
+             middle of the row DOES reorder - so the drag code was never broken, and
+             the builds never differed. What differed is WHERE the row is grabbed:
+
+                 grab the middle / the gap  -> dragstart fires -> the row moves
+                 grab the TITLE TEXT        -> mousedown, selectstart, NO dragstart
+
+             The title is contentEditable (2026-10-16, so a name can be clicked and
+             typed), and a press on editable text means "select text" to the browser,
+             never "drag". The title is the obvious thing to grab, so the gesture
+             they actually use was the one gesture that could not work.
+
+             FIX: the title is only editable while it is BEING edited. At rest it is
+             plain text, so a press on it starts a drag like anywhere else on the
+             row; clicking it (or tabbing to it) turns editing on and focuses it, so
+             click-to-rename still behaves exactly as before. Both gestures now reach
+             the same code instead of competing for the same press. */
+          /* MEASURED, and this is the part that actually mattered. Setting
+             contentEditable='false' was NOT enough: grabbing the row anywhere on the
+             title's GLYPHS still refused to drag, while grabbing 10px past the last
+             letter worked. Proven by dragging the bottom row to the top at five x
+             positions on one row whose text inked 323..380 -
+
+                 x=327  (on the letters)      UNCHANGED
+                 x=335  (on the letters)      UNCHANGED
+                 x=363  (on the letters)      UNCHANGED
+                 x=390  (10px past the text)  MOVED
+                 x=500  (row middle)          MOVED
+
+             user-select:none did not change those outcomes either. Chrome begins a
+             text selection on the glyphs of an element that merely CARRIES the
+             contenteditable attribute, and that selection pre-empts the drag. So the
+             attribute is REMOVED at rest and added only for the edit. */
+          ttl.removeAttribute('contenteditable');
+          ttl.tabIndex = 0;
+          /* THE MEASURED FIX. Four theories were wrong before this one, and each was
+             refuted by re-running the same five-position drag:
+                 contentEditable='false'      UNCHANGED on the glyphs
+                 attribute removed entirely   UNCHANGED
+                 user-select:none (computed)  UNCHANGED
+                 preventDefault(selectstart)  UNCHANGED - and the spy showed the
+                                              default was NOT prevented and NO text
+                                              was selected, so selection was never it
+                 pointer-events:none          MOVED  <- the only one that worked
+             The SPAN itself swallows the press. With it transparent to the pointer the
+             press reaches the row, which is what carries draggable and the handlers.
+             Verified at every x across the row, on the letters and off them. */
+          ttl.style.pointerEvents = 'none';
+          function ttlEdit(place) {
+            if (ttl.getAttribute('contenteditable') === 'plaintext-only') return;
+            ttl.style.pointerEvents = 'auto';    /* clickable while being renamed */
+            ttl.contentEditable = 'plaintext-only';
+            try {
+              ttl.focus();
+              if (place && window.getSelection && document.createRange) {
+                var rg = document.createRange();
+                rg.selectNodeContents(ttl); rg.collapse(false);
+                var sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(rg);
+              }
+            } catch (_) {}
+          }
+          /* The span is pointer-transparent at rest, so it can no longer receive its
+             own click - the ROW opens the rename instead, and only for a press that
+             landed on the title and did not turn into a drag. mouseUP, not mousedown:
+             a mousedown handler would turn the field editable before the browser has
+             decided that press-and-move is a drag, which is this card's defect. */
+          rowEl.addEventListener('mousedown', function (e) {
+            var tb = ttl.getBoundingClientRect();
+            rowEl.__ttlPress = (e.clientX >= tb.left && e.clientX <= tb.right
+                                && e.clientY >= tb.top && e.clientY <= tb.bottom)
+                               ? { x: e.clientX, y: e.clientY } : null;
+          });
+          rowEl.addEventListener('mouseup', function (e) {
+            var p = rowEl.__ttlPress; rowEl.__ttlPress = null;
+            if (!p) return;
+            if (rowEl.classList.contains('dragging')) return;
+            /* a press that travelled is a drag attempt, not a click on the name */
+            if (Math.abs(e.clientX - p.x) > 4 || Math.abs(e.clientY - p.y) > 4) return;
+            e.stopPropagation(); ttlEdit(true);
+          });
+          ttl.addEventListener('focus', function () { ttlEdit(false); });
           ttl.spellcheck = false;
           ttl.textContent = child.title || '';
           var prevTitle = child.title || '';
@@ -13286,6 +13476,10 @@ function surfaceArrivals() {
           });
           ttl.addEventListener('click', function (e) { e.stopPropagation(); });
           ttl.addEventListener('blur', function () {
+            /* CARD 4: back to plain, pointer-transparent text, or this row stays
+               undraggable after one rename - the exact defect, just deferred. */
+            ttl.removeAttribute('contenteditable');
+            ttl.style.pointerEvents = 'none';
             if (!ttl.isConnected) return;          /* a teardown, not the person */
             var v = String(ttl.textContent || '').replace(/^\s+|\s+$/g, '');
             if (!v) { ttl.textContent = prevTitle; return; }
@@ -13494,10 +13688,23 @@ function surfaceArrivals() {
             var arr = owner, from = -1, k;
             for (k = 0; k < arr.length; k++) if (arr[k] && arr[k].id === movedId) from = k;
             if (from < 0) return;
+            /* CARD 4, 2026-11-03 - DROPPING DOWNWARD LANDED ONE PLACE SHORT.
+               MEASURED on the live build: dragging the top row onto the bottom row
+               of three gave c4b,c4a,c4c - it moved down by one instead of to the
+               end. Removing the row first shifts every later index down by one, so
+               inserting AT the target's new index puts it BEFORE the target when it
+               came from above. Dropping onto a row below means "put me after it". */
+            var movingDown = (function () {
+              for (var q = 0; q < arr.length; q++) {
+                if (arr[q] && arr[q].id === child.id) return q > from;
+              }
+              return false;
+            })();
             var moved = arr.splice(from, 1)[0];
             var to = -1;
             for (k = 0; k < arr.length; k++) if (arr[k] && arr[k].id === child.id) to = k;
-            arr.splice(to < 0 ? arr.length : to, 0, moved);
+            if (to < 0) to = arr.length; else if (movingDown) to = to + 1;
+            arr.splice(to, 0, moved);
             if (window.Store) window.Store.save();
             if (window.renderAll) window.renderAll();
             drawSubs();
@@ -13583,11 +13790,17 @@ function surfaceArrivals() {
     var newSub = document.createElement('input');
     newSub.type = 'text'; newSub.className = 'ea-input';
     newSub.placeholder = 'Enter subtask..';
-    newSub.addEventListener('keydown', function (e) {
-      if (e.key !== 'Enter') return;
-      e.preventDefault();
+    /* CARD 5 - operator 2026-11-02: "adding an additional subtask in the edit of a
+       task doesn't save". MEASURED on both copies, driving the real controls: typing
+       into this field and pressing Save loses the text, because the ONLY thing that
+       ever turned it into a row was the Enter key - save() never read the field.
+       Pressing Enter worked, which is why it looked like a demo-vs-live difference.
+       So the body of the Enter handler becomes a named commit, and save() calls it. */
+    function commitPendingSub(parent) {
       var v = newSub.value.trim();
-      if (!v) return;
+      if (!v) return false;
+      var node = parent || window.__eaNodeRef || null;
+      if (!node) return false;
       var newChild = {
         id: window.uid(),
         title: v,
@@ -13626,7 +13839,13 @@ function surfaceArrivals() {
       window.Store.save();
       if (window.renderAll) window.renderAll();
       drawSubs();
-      try { newSub.focus(); } catch (_) {}
+      return true;
+    }
+    window.__eaCommitPendingSub = commitPendingSub;
+    newSub.addEventListener('keydown', function (e) {
+      if (e.key !== 'Enter') return;
+      e.preventDefault();
+      if (commitPendingSub(node)) { try { newSub.focus(); } catch (_) {} }
     });
     subWrap.appendChild(newSub);
     body.appendChild(subWrap);
@@ -13659,6 +13878,11 @@ function surfaceArrivals() {
          by id at save time; fall back to the captured object only if the id has gone. */
       var __f = (typeof window.findNode === 'function') ? window.findNode(id) : null;
       if (__f && __f.node) node = __f.node;
+
+      /* CARD 5: anything still sitting in "Enter subtask.." is text they typed and
+         pressed Save on. Commit it here - AFTER the re-resolve above, or it would be
+         pushed onto an orphaned node and thrown away by the next merge. */
+      try { commitPendingSub(node); } catch (_) {}
 
       var t = title.value.trim();
       /* 2026-09-03: same guard. If the field is empty but the task already had a title, keep it -
@@ -16270,7 +16494,16 @@ function surfaceArrivals() {
   function settings() {
     if (!window.Store.data.settings) window.Store.data.settings = {};
     var s = window.Store.data.settings;
-    s.hideFuture = true;
+    /* CARD 2, 2026-10-30. This line used to be an ORDER, not a default, and it
+       runs on EVERY render - so "Show future branches" could never stay on.
+       MEASURED by trapping writes to the field: toggleHideFuture set it to
+       false on the press, then settings() wrote it back to true immediately
+       and again on every redraw. The switch flipped for a fraction of a
+       second and was gone before anything was drawn.
+       Operator: "you are missing the picture for todays date plus show future
+       branch is checked on" - I could not take that picture, which is how
+       this was found. It now seeds a default and leaves your choice alone. */
+    if (typeof s.hideFuture !== 'boolean') s.hideFuture = true;
     if (!Array.isArray(s.revealed)) s.revealed = [];
     return s;
   }
@@ -24873,6 +25106,30 @@ if (r.freq === 'yearly') {
         if (inside[node.id]) return '';
       }
     } catch (e) {}
+
+    /* ================================================================ CARD 6
+       operator 2026-11-03: "this is a branch, when I remove the date to take it
+       out of calender and bring it back to priority tree, it provides that pop up
+       ... even If I put it in the branch I get the same pop up".
+
+       MEASURED on both copies, by asking this guard directly with the date and
+       without it - the verdict was the SAME blocking message both times, on the
+       live build and on the demo. So the pop-up never depended on the date, and
+       it was never a demo-vs-live difference: clearing the date could not escape
+       a rule that does not read the date.
+
+       WHY IT FIRED: the only way out of this rule was to live under Habits or
+       Routines. A branch is neither, so a branch could never repeat - and setting
+       Location to the branch itself (which they tried) does not help, because the
+       branch is not one of those two hosts.
+
+       NOTE, said plainly: this rule exists because THEY asked for it on 2026-10-16
+       ("any type of frequency, that should automatically pop up ... saying it must
+       be a routine or a habit"). This narrows that rule rather than removing it -
+       a BRANCH (an item with children) may now repeat on its own; an ordinary leaf
+       task still has to be a routine or a habit, so the 2026-10-16 rule stands
+       everywhere it was aimed. */
+    if (node.children && node.children.length) return '';
 
     return 'A repeating item must be a routine or a habit. ' +
            'Change Location to Habits / Routines.';
@@ -42956,5 +43213,436 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
 </script>
 
 
+<script id="card1note">
+/* CARD 1 (was 33), restored 2026-10-30.
+   Operator: "this one doesn't work on the live planner, and same thing in the priorty
+   tree section."
+
+   THREE things were measured before putting it back:
+   1. The code was in NO live build. It existed in one practice copy on 29 Oct 19:02 and
+      was gone by 19:54 - a practice rebuild pulls from the LIVE build, and this had
+      never reached live, so it was overwritten. The card said "LIVE - check it".
+   2. The control the old card NAMED does not exist for a person. The row's own
+      .tree-outdent / .tree-indent are `display:none !important` at every width - the
+      app's own CSS comment says "the indent / outdent arrows leave the row entirely
+      for the row menu". The only reachable outdent is the <- inside the row's
+      three-dots menu.
+   3. That menu IS rebuilt on every open, so it reads window.__outdentNode fresh and
+      the wrapper below is picked up. Verified by driving the real menu with a real
+      pointer: the confirm appears and the item does not move until you confirm. */
+</script>
+<script id="card33js">
+/* CARD 33 - one confirmation, covering ALL FOUR ways to outdent.
+   MEASURED: the tree row arrow, the tree row menu's arrow pair, the Edit window's
+   subtask arrow and Shift+Tab ALL reach window.__outdentNode, so wrapping that one
+   function covers every instance - rather than four copies that can drift apart. */
+(function () {
+  if (window.__c33Installed) return;
+  function install() {
+    if (typeof window.__outdentNode !== 'function') { setTimeout(install, 150); return; }
+    if (window.__outdentNode.__c33) return;
+    window.__c33Installed = true;
+    var base = window.__outdentNode;
+
+    function ask(id, go) {
+      /* 2026-11-02: a SECOND call while one dialog is already up used to stack another
+         veil, and each veil is position:fixed inset:0 at z-index 99998 - so a stray one
+         covers every control on the page. Measured in a full suite run: the arrow click
+         landed on DIV.c33-veil and the date never moved. Never leave two, and never
+         leave one behind from an earlier ask. */
+      var stale = document.querySelectorAll('.c33-veil, .c33-box');
+      for (var si = 0; si < stale.length; si++) {
+        if (stale[si].parentNode) stale[si].parentNode.removeChild(stale[si]);
+      }
+      var f = window.findNode && window.findNode(id);
+      if (!f || !f.node) { go(); return; }
+      /* already at the top level - there is nothing to move out of */
+      if (!f.parent) { go(); return; }
+      var name = f.node.title || 'this task';
+      var parent = f.parent.title || 'its branch';
+      var kids = (f.node.children && f.node.children.length) || 0;
+
+      var veil = document.createElement('div');
+      veil.className = 'c33-veil';
+      var box = document.createElement('div');
+      box.className = 'c33-box';
+      box.setAttribute('role', 'dialog');
+      box.setAttribute('aria-modal', 'true');
+      function esc(t) {
+        return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      }
+      box.innerHTML =
+        '<h3>Move this out to its own branch?</h3>' +
+        '<p><b>' + esc(name) + '</b> is a subtask of <b>' + esc(parent) + '</b>. ' +
+        'Moving it out makes it a main branch of its own.</p>' +
+        '<div class="c33-move">' +
+          '<div><span class="f">now</span> &nbsp; ' + esc(parent) +
+            ' &rsaquo; ' + esc(name) + '</div>' +
+          '<div><span class="f">after</span> &nbsp; <span class="t">' + esc(name) +
+            '</span> &nbsp;<span class="f">(top level)</span></div>' +
+        '</div>' +
+        '<p class="c33-note">' +
+          (kids ? 'Its ' + kids + ' subtask' + (kids > 1 ? 's move' : ' moves') +
+                  ' with it. ' : 'Anything inside it moves with it. ') +
+          'Nothing is deleted &mdash; the right arrow <b>&rarr;</b> puts it back.</p>' +
+        '<div class="c33-row">' +
+          '<button type="button" class="c33-cancel">Cancel</button>' +
+          '<button type="button" class="c33-ok">Move it out</button>' +
+        '</div>';
+
+      function shut() {
+        document.removeEventListener('keydown', onKey, true);
+        if (veil.parentNode) veil.parentNode.removeChild(veil);
+        if (box.parentNode) box.parentNode.removeChild(box);
+      }
+      function onKey(e) {
+        if (e.key === 'Escape') { e.preventDefault(); shut(); }
+        else if (e.key === 'Enter') { e.preventDefault(); shut(); go(); }
+      }
+      box.querySelector('.c33-cancel').addEventListener('click', shut);
+      veil.addEventListener('click', shut);
+      box.querySelector('.c33-ok').addEventListener('click', function () { shut(); go(); });
+      document.addEventListener('keydown', onKey, true);
+      document.body.appendChild(veil);
+      document.body.appendChild(box);
+      try { box.querySelector('.c33-ok').focus(); } catch (e) {}
+    }
+
+    var w = function (id) {
+      var self = this, args = arguments;
+      ask(id, function () { base.apply(self, args); });
+    };
+    w.__c33 = true;
+    window.__outdentNode = w;
+  }
+  install();
+})();
+</script>
+<script id="c2gearsync">
+/* CARD 2, third fault, 2026-10-30.
+   Operator: "you are missing the picture for todays date plus show future branch is
+   checked on". Taking that picture found TWO more things, not one.
+
+   MEASURED by pressing the real gear item with a real pointer, then reading the tree:
+   the gear's "Show future branches" calls window.__futToggle, which writes
+   localStorage 'planner.showFutureBranches' and adds a CSS class. But the rows are
+   hidden by __applyTimeFilter, which reads window.__revealAhead - a DIFFERENT switch,
+   owned by toggleHideFuture. So pressing the button flipped a flag nothing was
+   watching: gearSwitch null -> "1" while 0 extra rows appeared, even for a branch the
+   menu itself was counting ("Show future branches 1").
+
+   Two switches for one control is the bug. The button keeps its own state - it is the
+   one the tick and the count read - and now carries the other along with it, so one
+   press means one thing. Verified: press it once and both a future TASK and a future
+   BRANCH appear; press again and both go. */
+(function () {
+  function sync() {
+    var want = !!(window.__futShowing && window.__futShowing());
+    var have = !!window.__revealAhead;
+    if (want !== have && typeof window.toggleHideFuture === 'function') {
+      window.toggleHideFuture();
+    }
+  }
+  function install() {
+    var base = window.__futToggle;
+    if (typeof base !== 'function' || base.__c2wrapped) return false;
+    var w = function () { var r = base.apply(this, arguments); sync(); return r; };
+    w.__c2wrapped = true;
+    window.__futToggle = w;
+    sync();              /* agree with whatever the button already says */
+    return true;
+  }
+  if (!install()) {
+    /* the gear's module may load after this one */
+    var tries = 0;
+    var t = setInterval(function () {
+      if (install() || ++tries > 40) clearInterval(t);
+    }, 150);
+  }
+})();
+</script>
+<script id="card3gear">
+/* CARD 3, 2026-10-30 - the SUBTASKS settings menu.
+   Operator: "within the edit session of the task ... a setting sign I would want this
+   feature just as the priorty tree just remove focus mode", then "remove new subtask
+   from there", then "I want the features ... working fully as the regualar in priorty
+   tree", then "the left and right arrows, I hid them inside the edit button ... review
+   how I have the priorty tree set up".
+
+   AUDITED the tree row rather than copying from memory. Left to right it is:
+       title | date chip | +  | pen | three dots
+   The indent/outdent arrows are display:none on the row - the tree's own CSS says
+   "the indent / outdent arrows leave the row entirely for the row menu".
+
+   WHAT THIS ADDS
+     1. a gear in the SUBTASKS header, opening the tree's menu minus Focus mode and
+        minus New goal (the window already has an "Enter subtask.." field)
+     2. Missed  - filter to overdue, red count, and the surviving row painted red,
+        the way #treeRoot.overdue-only .od-hit .tree-title does
+     3. Show future subtasks     - replaces the old lone chip
+     4. Show completed subtasks  - NEW; finished subtasks were unhideable
+     5. Show routines & habits
+     6. Expand all / Contract all
+     7. the pen: the tree draws .tree-notepen when an item has notes; this window
+        drew nothing, so a note was invisible here
+     8. a date on every dated subtask, INSIDE the title so it flows after the text,
+        in the tree's own dim rgba(245,158,11,.32)
+     9. the row's arrows hidden, matching the tree
+    10. both popups clamped INSIDE the Edit box
+*/
+(function () {
+  if (window.__card3Installed) return;
+  window.__card3Installed = true;
+
+  var S = { missed:false, fut:false, done:false, hab:false };
+  window.__eaSubState = S;
+
+  function css() {
+    if (document.getElementById('card3css')) return;
+    var st = document.createElement('style');
+    st.id = 'card3css';
+    st.textContent =
+      /* the arrows leave the row, exactly as the tree does it */
+      '.ea-subrow .ea-subquick.q-out, .ea-subrow .ea-subquick.q-in{display:none !important}' +
+      /* the date, inside the title, in the tree's dim amber */
+      /* 2026-11-03, operator: "I want the plus sign to be closer to the clock".
+         MEASURED, hovered: + ended at 682, the clock began at 710 - a 28px gap,
+         while every other pair of controls in the row sits 8px apart (the row is
+         a flexbox with gap:8px). The cause is THIS rule: it was written for the
+         printed date that card 3 puts INSIDE the title, but .ea-subdate is also
+         the class on the row's own clock chip, so its 2.2em (19.8px at 9px) was
+         added in front of the clock as well. Scope it to the one inside the
+         title, which is the element it was written for. */
+      '.ea-subtitle > .ea-subdate{font-size:9px;letter-spacing:.07em;margin-left:.55em;' +
+      ' color:rgba(245,158,11,.32);text-transform:uppercase;font-weight:500;' +
+      ' font-variant-numeric:tabular-nums;white-space:nowrap}' +
+      /* the pen, same amber as the tree's */
+      '.ea-subpen{color:rgba(245,158,11,.32);font-size:13px;margin-right:8px;' +
+      ' cursor:default;opacity:0;transition:opacity 120ms}' +
+      '.ea-subrow:hover .ea-subpen,.ea-subrow:focus-within .ea-subpen{opacity:1}' +
+      /* a missed row reads red, title and date */
+      '.ea-subs.od-only .ea-subrow.od-hit .ea-subtitle{color:#f87171 !important}' +
+      '.ea-subs.od-only .ea-subrow.od-hit .ea-subdate{color:#f87171 !important}' +
+      '.ea-subs.od-only .ea-subrow:not(.od-hit){display:none !important}' +
+      /* the gear */
+      '.ea-subgear{background:none;border:0;color:var(--text-dim,#9aa1ab);' +
+      ' font-size:15px;cursor:pointer;padding:2px 6px;border-radius:6px}' +
+      '.ea-subgear:hover{color:var(--text,#e6e8ec);background:var(--surface-2,#22262e)}' +
+      /* the gear replaces the old lone chip - belt and braces, because the app
+         rebuilds that chip on every redraw */
+      '.ea-subhead .ea-futchip{display:none !important}';
+    document.head.appendChild(st);
+  }
+
+  function isOverdue(n) {
+    var t = window.todayISO && window.todayISO();
+    return !!(n && n.date && t && String(n.date) < t && !n.done);
+  }
+  function isFuture(n) {
+    var t = window.todayISO && window.todayISO();
+    return !!(n && n.date && t && String(n.date) > t);
+  }
+
+  /* --- paint the list from the switches, and decorate each row --- */
+  function apply() {
+    var wrap = document.querySelector('.ea-subs');
+    if (!wrap) return;
+    wrap.classList.toggle('od-only', !!S.missed);
+
+    var rows = wrap.querySelectorAll('.ea-subrow');
+    for (var i = 0; i < rows.length; i++) {
+      var row = rows[i];
+      var id = row.dataset.subId;
+      var f = (window.findNode && id) ? window.findNode(id) : null;
+      var n = f && f.node;
+      if (!n) continue;
+
+      row.classList.toggle('od-hit', isOverdue(n));
+
+      /* the date, inside the title so it flows after the words */
+      var ttl = row.querySelector('.ea-subtitle');
+      if (ttl && n.date) {
+        var tag = ttl.querySelector('.ea-subdate');
+        if (!tag) {
+          tag = document.createElement('span');
+          tag.className = 'ea-subdate';
+          tag.contentEditable = 'false';
+          ttl.appendChild(tag);
+        }
+        var d = window.parseISO ? window.parseISO(n.date) : null;
+        var M = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+        tag.textContent = d ? (M[d.getMonth()] + ' ' + d.getDate()) : '';
+      }
+
+      /* the pen, only when the subtask carries notes - as the tree does */
+      var hasNotes = !!(n.notes && String(n.notes).replace(/<[^>]*>/g,'').trim());
+      var pen = row.querySelector('.ea-subpen');
+      if (hasNotes && !pen) {
+        pen = document.createElement('span');
+        pen.className = 'ea-subpen';
+        pen.textContent = '\u270e';
+        pen.title = 'This subtask has notes';
+        var dots = row.querySelector('.ea-subdots');
+        if (dots && dots.parentNode) dots.parentNode.insertBefore(pen, dots);
+      } else if (!hasNotes && pen) { pen.remove(); }
+
+      /* the three switches decide the rest */
+      var hide = false;
+      if (n.done)            hide = !S.done;
+      else if (isFuture(n))  hide = !S.fut;
+      /* the row only EXISTS when the switch is on (drawLevel decides that now), so
+         hiding it here as well would be a second owner of the same rule. */
+      if (!S.hab && window.__isHRNode && window.__isHRNode(n)) hide = true;
+      row.style.display = hide ? 'none' : '';
+    }
+  }
+  window.__eaSubApply = apply;
+
+  /* --- the menu, built from the tree's own classes --- */
+  function openMenu(gear) {
+    closeMenu();
+    var m = document.createElement('div');
+    m.className = 'tree-gearmenu';
+    m.style.cssText = 'position:fixed;z-index:99999;width:230px';
+
+    function item(label, opts, run) {
+      var b = document.createElement('button');
+      b.type = 'button'; b.className = 'gearitem'; b.textContent = label;
+      if (opts && opts.count) {
+        var k = document.createElement('span');
+        k.className = 'gearcount'; k.textContent = String(opts.count);
+        b.appendChild(k);
+      }
+      if (opts && opts.tick) {
+        var ck = document.createElement('span');
+        ck.className = 'gearcheck'; ck.textContent = '\u2713';
+        b.appendChild(ck);
+      }
+      b.onclick = function () { run(); closeMenu(); };
+      m.appendChild(b);
+      return b;
+    }
+
+    var wrap = document.querySelector('.ea-subs');
+    var over = 0;
+    if (wrap) {
+      var rr = wrap.querySelectorAll('.ea-subrow');
+      for (var i = 0; i < rr.length; i++) {
+        var f = window.findNode && window.findNode(rr[i].dataset.subId);
+        if (f && isOverdue(f.node)) over++;
+      }
+    }
+
+    item('Missed', {count: over, tick: S.missed}, function () {
+      S.missed = !S.missed; apply();
+    });
+    item('Show future subtasks', {tick: S.fut}, function () {
+      S.fut = !S.fut; if (window.__eaSetShowFuture) window.__eaSetShowFuture(S.fut);
+      apply();
+    });
+    item('Show completed subtasks', {tick: S.done}, function () {
+      S.done = !S.done; apply();
+    });
+    item('Show routines & habits', {tick: S.hab}, function () {
+      S.hab = !S.hab;
+      /* drawLevel decides whether the row is BUILT, so this one needs a redraw -
+         re-filtering cannot reveal a row that was never created. */
+      if (window.__eaRedrawSubs) window.__eaRedrawSubs();
+      apply();
+    });
+    var sep = document.createElement('div');
+    sep.style.cssText = 'height:1px;background:var(--line,#2e323a);margin:6px 0';
+    m.appendChild(sep);
+    item('Expand all', null, function () { setAll(true); });
+    item('Contract all', null, function () { setAll(false); });
+
+    document.body.appendChild(m);
+
+    /* INSIDE the Edit box - the operator asked for this twice.
+       MEASURED 2026-10-30: .ea-body is an inner SCROLLER whose box is smaller than
+       the dialog; the visible box is .modal (200,109 - 700,1238 at 900x1500). Clamping
+       to .ea-body left the menu outside the window. */
+    var dlg = gear.closest('.modal') || document.querySelector('.modal')
+              || gear.closest('.ea-body');
+    var db = dlg && dlg.getBoundingClientRect();
+    var r = gear.getBoundingClientRect();
+    var left = r.right - 230, top = r.bottom + 6;
+    if (db) {
+      var mh = m.getBoundingClientRect().height || 250;
+      if (left < db.left + 10) left = db.left + 10;
+      if (left + 230 > db.right - 10) left = db.right - 240;
+      if (top + mh > db.bottom - 10) top = Math.max(db.top + 10, db.bottom - 10 - mh);
+    }
+    m.style.left = Math.round(left) + 'px';
+    m.style.top = Math.round(top) + 'px';
+    window.__eaMenuEl = m;
+    setTimeout(function () {
+      document.addEventListener('click', onDoc, true);
+    }, 0);
+  }
+  function onDoc(e) {
+    var m = window.__eaMenuEl;
+    if (m && !m.contains(e.target)) closeMenu();
+  }
+  function closeMenu() {
+    var m = window.__eaMenuEl;
+    if (m && m.parentNode) m.parentNode.removeChild(m);
+    window.__eaMenuEl = null;
+    document.removeEventListener('click', onDoc, true);
+  }
+  function setAll(open) {
+    var wrap = document.querySelector('.ea-subs');
+    if (!wrap) return;
+    var rows = wrap.querySelectorAll('.ea-subrow');
+    for (var i = 0; i < rows.length; i++) {
+      var f = window.findNode && window.findNode(rows[i].dataset.subId);
+      if (f && f.node && f.node.children && f.node.children.length) {
+        f.node.__subOpen = open;
+      }
+    }
+    if (window.__eaRedrawSubs) window.__eaRedrawSubs();
+    /* 2026-10-30, operator: "I don't think these options inside the edit button
+       working properly, can you test them".
+       MEASURED by pressing every line on the served demo: Expand/Contract REBUILD the
+       row elements, so the display:none this module had set was thrown away and
+       'finished one' came back with Show-completed still OFF - permanently, because
+       nothing re-applied it. Re-apply after the redraw. */
+    apply();
+  }
+
+  /* --- put the gear in the header, replacing the lone chip --- */
+  function mount() {
+    css();
+    var head = document.querySelector('.ea-subhead');
+    if (!head || head.querySelector('.ea-subgear')) return;
+    /* 2026-10-30: the app REBUILDS this chip on every redraw and paintChip() rewrites
+       its style.display, so hiding it once lost the race - it reappeared beside the
+       gear after Show-routines redrew the list. A stylesheet rule cannot be undone by
+       an inline style the app sets to ''. */
+    var chip = head.querySelector('.ea-futchip');
+    if (chip) chip.style.setProperty('display', 'none', 'important');
+    var g = document.createElement('button');
+    g.type = 'button';
+    g.className = 'ea-subgear';
+    g.title = 'Subtask settings';
+    g.textContent = '\u2699';
+    g.onclick = function (e) {
+      e.preventDefault(); e.stopPropagation();
+      if (window.__eaMenuEl) closeMenu(); else openMenu(g);
+    };
+    head.appendChild(g);
+    apply();
+  }
+
+  /* Any redraw by the app rebuilds the rows and drops what this module set. The
+     mount tick already runs; make it re-apply so the list can never drift from the
+     switches - measured: after Expand all, a finished subtask reappeared and stayed. */
+  var tick = setInterval(function () {
+    if (document.querySelector('.ea-subhead')) { mount(); apply(); }
+    else closeMenu();
+  }, 300);
+  window.__card3Stop = function () { clearInterval(tick); };
+})();
+</script>
 </body>
 </html>
