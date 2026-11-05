@@ -6613,7 +6613,7 @@ window.__rollHorizon = function () {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-11-04 22:35 TEST c11</span>
+    <span id="buildStamp">build 2026-11-04 23:40 TEST c14</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -13836,11 +13836,73 @@ function surfaceArrivals() {
             var kid = child;
             if (typeof window.openDatePopover === 'function' && typeof window.buildDateGrid === 'function') {
               window.openDatePopover(chip, kid.date || '', function (iso) {
-                kid.date = iso || null;
-                if (!kid.date) kid.block = null;
-                if (window.Store) window.Store.save();
-                if (window.renderAll) window.renderAll();
-                drawSubs();
+                /* ============================================ CARD 14, 2026-11-04
+                   operator: "have a pop up when moving dates conflicts", and they
+                   chose which conflict it means: "Subtask date moves outside its
+                   parent's date" - the subtask would fall due AFTER the task it
+                   belongs to, so the parent is finished before its own piece.
+                   The dialog is card 33's (.c33-veil/.c33-box), not a second one,
+                   so there is one confirmation look in the app. */
+                function commit() {
+                  kid.date = iso || null;
+                  if (!kid.date) kid.block = null;
+                  if (window.Store) window.Store.save();
+                  if (window.renderAll) window.renderAll();
+                  drawSubs();
+                }
+                var pdate = node && node.date;
+                /* clearing a date can never conflict, and a parent with no date of
+                   its own has nothing to be outside of */
+                if (!iso || !pdate || String(iso) <= String(pdate)) { commit(); return; }
+
+                function esc(t) {
+                  return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+                }
+                function pretty(d) {
+                  if (window.fmtDate) { try { return window.fmtDate(d,'short'); } catch (_) {} }
+                  return d;
+                }
+                var veil = document.createElement('div');
+                veil.className = 'c33-veil';
+                var box = document.createElement('div');
+                box.className = 'c33-box';
+                box.setAttribute('role','dialog');
+                box.setAttribute('aria-modal','true');
+                box.innerHTML =
+                  '<h3>That date is after its task</h3>' +
+                  '<p><b>' + esc(kid.title || 'This subtask') + '</b> would be due <b>' +
+                    esc(pretty(iso)) + '</b>, but <b>' + esc(node.title || 'its task') +
+                    '</b> is due <b>' + esc(pretty(pdate)) + '</b>.</p>' +
+                  '<div class="c33-move">' +
+                    '<div><span class="f">task</span> &nbsp; ' + esc(node.title || '') +
+                      ' &nbsp; ' + esc(pretty(pdate)) + '</div>' +
+                    '<div><span class="f">subtask</span> &nbsp; <span class="t">' +
+                      esc(kid.title || '') + '</span> &nbsp; ' + esc(pretty(iso)) + '</div>' +
+                  '</div>' +
+                  '<p class="c33-note">The task would be finished before one of its own ' +
+                    'subtasks is due. Nothing is changed unless you choose to move it.</p>' +
+                  '<div class="c33-row">' +
+                    '<button type="button" class="c33-cancel">Cancel</button>' +
+                    '<button type="button" class="c33-ok">Move it anyway</button>' +
+                  '</div>';
+                function shut() {
+                  document.removeEventListener('keydown', onKey, true);
+                  if (veil.parentNode) veil.parentNode.removeChild(veil);
+                  if (box.parentNode) box.parentNode.removeChild(box);
+                }
+                function onKey(ev) {
+                  if (ev.key === 'Escape') { ev.preventDefault(); shut(); }
+                  else if (ev.key === 'Enter') { ev.preventDefault(); shut(); commit(); }
+                }
+                box.querySelector('.c33-cancel').addEventListener('click', shut);
+                veil.addEventListener('click', shut);
+                box.querySelector('.c33-ok').addEventListener('click', function () {
+                  shut(); commit();
+                });
+                document.addEventListener('keydown', onKey, true);
+                document.body.appendChild(veil);
+                document.body.appendChild(box);
+                try { box.querySelector('.c33-cancel').focus(); } catch (_) {}
               });
             }
           });
@@ -43651,11 +43713,24 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
          title, which is the element it was written for. */
       '.ea-subtitle > .ea-subdate{font-size:9px;letter-spacing:.07em;margin-left:.55em;' +
       ' color:rgba(245,158,11,.32);text-transform:uppercase;font-weight:500;' +
-      ' font-variant-numeric:tabular-nums;white-space:nowrap}' +
+      ' font-variant-numeric:tabular-nums;white-space:nowrap;' +
+      /* CARD 13: the printed date lives INSIDE the title, and the row-level rule
+         `.ea-subrow:not(:hover) .ea-subdate:not(.hasdate){visibility:hidden}` was
+         written for the row's CLOCK CHIP but matches this span too - same class.
+         It is scoped to a direct child of the row, so saying so here wins. */
+      ' visibility:visible !important;display:inline !important}' +
       /* the pen, same amber as the tree's */
+      /* ===================================================== CARD 13, 2026-11-04
+         operator: "I want to see the date there when I click show future subtasks
+         not when I hover ... and it shows it automatically without hovering, same
+         thing as the pen".
+         MEASURED on the live test copy - three rows HAD a date (2026-11-04) and
+         printed no date text at rest, because the only thing that showed it was
+         :hover. The pen had exactly the same rule (opacity:0 until hover), which
+         is why their screenshot shows the pen on the hovered row alone.
+         So BOTH are visible at rest now. */
       '.ea-subpen{color:rgba(245,158,11,.32);font-size:13px;margin-right:8px;' +
-      ' cursor:default;opacity:0;transition:opacity 120ms}' +
-      '.ea-subrow:hover .ea-subpen,.ea-subrow:focus-within .ea-subpen{opacity:1}' +
+      ' cursor:default;opacity:1}' +
       /* a missed row reads red, title and date */
       '.ea-subs.od-only .ea-subrow.od-hit .ea-subtitle{color:#f87171 !important}' +
       '.ea-subs.od-only .ea-subrow.od-hit .ea-subdate{color:#f87171 !important}' +
