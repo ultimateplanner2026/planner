@@ -7885,9 +7885,69 @@ document.addEventListener("DOMContentLoaded", function() {
 
     var titleSpan = document.createElement('span');
     titleSpan.className = 'tree-title';
-    titleSpan.contentEditable = 'plaintext-only';
+    /* ========================================================== CARD 10, 2026-11-04
+       Operator: "i think you are reffering to the tasks in edit and they move in the
+       priorty tree? also the order of the priorty tree must be the same in the edit
+       tasks, so if one moves the othes suppose to move to."
+
+       THE SAME DEFECT CARD 4 FIXED, IN THE PLACE CARD 4 DID NOT TOUCH. Card 4 made
+       SUBTASK rows draggable by their name; the tree row kept a permanently
+       contentEditable title, so Chrome claimed the press as a text selection and the
+       drag never began. MEASURED on the live build, dragging the bottom row to the
+       top of a 488px-wide row whose title inks x=38..439:
+
+           grab ON the title's letters      UNCHANGED   <- nearly the whole row
+           grab RIGHT of the title          UNCHANGED
+           grab the far-LEFT 38px strip     moved
+
+       So only a 38px strip of a 488px row could be dragged at all - and that is why
+       the two lists could not agree: edit -> tree worked, tree -> edit could not
+       happen, because the tree row could not be reordered by the gesture anyone
+       would actually use.
+
+       FIX: identical to card 4. The attribute is REMOVED at rest and the span is
+       pointer-transparent, so the press reaches the row (which carries draggable);
+       clicking or tabbing turns editing on and focuses it, so click-to-rename is
+       unchanged. Both gestures reach the same code instead of competing for one
+       press. */
+    titleSpan.removeAttribute('contenteditable');
+    titleSpan.tabIndex = 0;
+    titleSpan.style.pointerEvents = 'none';
+    function treeTtlEdit(place) {
+      if (titleSpan.getAttribute('contenteditable') === 'plaintext-only') return;
+      titleSpan.style.pointerEvents = 'auto';
+      titleSpan.contentEditable = 'plaintext-only';
+      try {
+        titleSpan.focus();
+        if (place && window.getSelection && document.createRange) {
+          var rg = document.createRange();
+          rg.selectNodeContents(titleSpan); rg.collapse(false);
+          var sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(rg);
+        }
+      } catch (_) {}
+    }
+    titleSpan.addEventListener('focus', function () { treeTtlEdit(false); });
     titleSpan.textContent = node.title;
     titleSpan.spellcheck = false;
+
+    /* CARD 10: the span is pointer-transparent at rest, so it can no longer receive
+       its own click - the ROW opens the rename instead, and only for a press that
+       landed on the title and did NOT travel (a press that moved is a drag attempt).
+       mouseUP, not mousedown: making the field editable on mousedown would do it
+       before the browser has decided press-and-move is a drag, which is the defect. */
+    row.addEventListener('mousedown', function (e) {
+      var tb = titleSpan.getBoundingClientRect();
+      row.__ttlPress = (e.clientX >= tb.left && e.clientX <= tb.right
+                        && e.clientY >= tb.top && e.clientY <= tb.bottom)
+                       ? { x: e.clientX, y: e.clientY } : null;
+    });
+    row.addEventListener('mouseup', function (e) {
+      var pr = row.__ttlPress; row.__ttlPress = null;
+      if (!pr) return;
+      if (row.classList.contains('dragging')) return;
+      if (Math.abs(e.clientX - pr.x) > 4 || Math.abs(e.clientY - pr.y) > 4) return;
+      e.stopPropagation(); treeTtlEdit(true);
+    });
 
     var prevTitle = node.title;
     titleSpan.addEventListener('keydown', function(e) {
@@ -7918,6 +7978,10 @@ document.addEventListener("DOMContentLoaded", function() {
          A blur caused by a RE-RENDER is not the person finishing. Only trim when
          focus genuinely left the title: if the element is no longer in the document,
          this is a teardown and the text must be left exactly as typed. */
+      /* CARD 10: back to plain, pointer-transparent text, or the row stays
+         undraggable after one rename - the same defect, merely deferred. */
+      titleSpan.removeAttribute('contenteditable');
+      titleSpan.style.pointerEvents = 'none';
       if (window.__treeTearingDown) return;
       var trimmed = titleSpan.textContent.trim();
       if (trimmed === '') {
@@ -8078,6 +8142,34 @@ document.addEventListener("DOMContentLoaded", function() {
     }
   }, false);
 
+  /* ========================================================== CARD 10, 2026-11-04
+     THE ROW HANDED TO THE DROP HANDLER CAN BE A DETACHED ORPHAN.
+
+     MEASURED by instrumenting the real handler. A drop aimed at the TOP QUARTER of
+     the first row logged:
+
+         drop on __s1  rectH=0 offsetH=0 rectTop=0  pct=INF  zone=AFTER
+         row state: connected=false  sameAsLive=false
+         LIVE element rect: top=905 h=32        <- the real row was fine
+
+     A re-render during the drag replaces the row elements. e.target then points at
+     the OLD node, which is detached, and a detached node measures 0x0 at position
+     0,0 - so `y/h` was Infinity and EVERY drop scored as "after" regardless of where
+     it was aimed. That, not the splice index, is why a row dropped at the top landed
+     one short.
+
+     So: always resolve a row to the one currently in the document before measuring
+     it. Falls back to the element itself if the id cannot be found, so this can only
+     improve on what was there. */
+  function liveTreeRow(row) {
+    if (!row) return row;
+    if (row.isConnected) return row;
+    var id = row.dataset && row.dataset.id;
+    if (!id) return row;
+    var live = document.querySelector('.tree-row[data-id="' + id + '"]');
+    return live || row;
+  }
+
   document.getElementById("treeRoot").addEventListener("dragover", function (e) {
     e.preventDefault();
     var row = e.target.closest(".tree-row");
@@ -8091,9 +8183,10 @@ document.addEventListener("DOMContentLoaded", function() {
       clearDropIndicators();
       return;
     }
+    row = liveTreeRow(row);
     var rect = row.getBoundingClientRect();
     var y = e.clientY - rect.top;
-    var h = rect.height;
+    var h = rect.height || row.offsetHeight || 32;
     var pct = y / h;
     clearDropIndicators();
     if (pct < 0.25) {
@@ -8124,14 +8217,34 @@ document.addEventListener("DOMContentLoaded", function() {
       if (!targetFound) return;
       targetParent = targetFound.parent;
       parentArr = targetParent ? targetParent.children : Store.data.tree;
-      var targetIndex = targetFound.index;
+
+      /* ====================================================== CARD 10, 2026-11-04
+         THE OFF-BY-ONE, and it is the same one card 4 fixed for subtask rows.
+         targetIndex used to be read BEFORE removeNode(), then spliced with AFTER
+         the removal had already shifted the array. When the dragged row sat ABOVE
+         the target, everything below it moved up one, so the row landed one short
+         of where it was dropped.
+
+         MEASURED on the live build, dragging the bottom row to the top of three:
+             expected  charlie | alpha | bravo
+             got       alpha | charlie | bravo     <- one short, every time
+
+         FIX: re-read the target's index AFTER the removal, so it describes the
+         array actually being spliced. */
+      var rect = liveTreeRow(targetRow).getBoundingClientRect();
+      var y = e.clientY - rect.top;
+      var h = rect.height || liveTreeRow(targetRow).offsetHeight || 32;
+      var pct = y / h;
 
       removeNode(draggedId);
 
-      var rect = targetRow.getBoundingClientRect();
-      var y = e.clientY - rect.top;
-      var h = rect.height;
-      var pct = y / h;
+      var targetIndex = -1;
+      for (var __ti = 0; __ti < parentArr.length; __ti++) {
+        if (parentArr[__ti] && parentArr[__ti].id === targetFound.node.id) {
+          targetIndex = __ti; break;
+        }
+      }
+      if (targetIndex < 0) targetIndex = parentArr.length;
 
       if (pct < 0.25) {
         parentArr.splice(targetIndex, 0, node);
