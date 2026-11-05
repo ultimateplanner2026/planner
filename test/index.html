@@ -6613,7 +6613,7 @@ window.__rollHorizon = function () {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-11-04 23:40 TEST c14</span>
+    <span id="buildStamp">build 2026-11-05 00:30 TEST c49</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -43768,7 +43768,12 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
       var n = f && f.node;
       if (!n) continue;
 
-      row.classList.toggle('od-hit', isOverdue(n));
+      /* CARD 49: the same exclusion the COUNT uses, so the number and the view
+         can never disagree. The tree does exactly this in CSS:
+             #treeRoot.overdue-only .tree-row.is-repeat { display: none }
+         Caught by the gate, not by reading: with the count fixed but this line
+         untouched, Missed said 2 and left 3 rows on screen. */
+      row.classList.toggle('od-hit', isOverdue(n) && !(n && n.repeat));
 
       /* the date, inside the title so it flows after the words */
       var ttl = row.querySelector('.ea-subtitle');
@@ -43834,19 +43839,55 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
       return b;
     }
 
+    /* ============================================================== CARD 49
+       operator 2026-11-04: "add the missed to the setting up in the edit task
+       just like the priorty tree".
+
+       The item was already here - what was NOT like the tree is how it counts
+       and how it behaves when there is nothing to show. MEASURED on one set of
+       subtasks (two plainly overdue, plus a daily routine dated two days ago):
+
+           the TREE's menu said      Missed  2
+           the EDIT window said      Missed  3
+
+       Two numbers for the same data, in two menus the operator reads as one
+       feature. The tree asks window.__odCount(), which the routines module
+       HOOKS so a repeating task never counts as missed - it has already come
+       round again. This menu ran its own loop and had no such hook, so the
+       routine was counted.
+
+       Also measured: with nothing overdue at all, the tree DISABLES its Missed
+       line (b3.disabled = n === 0) while this one stayed clickable and silently
+       filtered the list down to nothing.
+
+       So: count repeats out, the same rule the tree uses, and go dim at zero. */
     var wrap = document.querySelector('.ea-subs');
     var over = 0;
     if (wrap) {
       var rr = wrap.querySelectorAll('.ea-subrow');
       for (var i = 0; i < rr.length; i++) {
         var f = window.findNode && window.findNode(rr[i].dataset.subId);
-        if (f && isOverdue(f.node)) over++;
+        if (!f || !f.node) continue;
+        if (!isOverdue(f.node)) continue;
+        /* A repeating task is not "missed" - it has already come round again.
+           That is the routines module's own rule, and its test is literally
+           `!!(n && n.repeat)`.
+           I first wrote this against window.__isRepeatNode and CHECKED before
+           trusting it: that name is NOT defined in this build (typeof came back
+           "undefined"), so the call would have been a dead branch that always
+           fell through. Matching the module's expression is the honest version. */
+        var n0 = f.node;
+        if (n0 && n0.repeat) continue;
+        over++;
       }
     }
 
-    item('Missed', {count: over, tick: S.missed}, function () {
+    var missedItem = item('Missed', {count: over, tick: S.missed}, function () {
+      if (over === 0 && !S.missed) return;   /* nothing to show - say nothing */
       S.missed = !S.missed; apply();
     });
+    /* the tree dims this line when there is nothing missed; so does this one */
+    if (missedItem && over === 0 && !S.missed) missedItem.disabled = true;
     item('Show future subtasks', {tick: S.fut}, function () {
       S.fut = !S.fut; if (window.__eaSetShowFuture) window.__eaSetShowFuture(S.fut);
       apply();
