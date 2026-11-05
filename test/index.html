@@ -6613,7 +6613,7 @@ window.__rollHorizon = function () {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-11-05 00:30 TEST c49</span>
+    <span id="buildStamp">build 2026-11-05 01:15 TEST c50</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -43736,6 +43736,21 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
       '.ea-subs.od-only .ea-subrow.od-hit .ea-subdate{color:#f87171 !important}' +
       '.ea-subs.od-only .ea-subrow:not(.od-hit){display:none !important}' +
       /* the gear */
+      /* CARD 50: the add button, styled from the tree's own toolbar button so the
+         two read as one app. The label hides below 560px exactly as the tree's
+         does, leaving the plus - measured, the tree's button is 26px wide there. */
+      '.ea-subadd{background:none;border:0;color:var(--text-dim,#9aa1ab);' +
+      ' cursor:pointer;padding:2px 6px;border-radius:6px;margin-right:2px;' +
+      ' display:inline-flex;align-items:center;gap:5px;font:inherit;font-size:12px}' +
+      '.ea-subadd:hover{color:var(--text,#e6e8ec);background:var(--surface-2,#22262e)}' +
+      '@media (max-width:560px){.ea-subadd > span{display:none}}' +
+      /* CARD 50: .ea-subhead is justify-content:space-between, so simply appending
+         the button pushed it to the far left of the free space - MEASURED, the add
+         landed at x=610 and the gear at x=889, 279px apart, while the TREE's pair
+         sits 34px apart (345 and 379). Group the two controls so they travel
+         together at the right-hand end, the way the tree's toolbar ends. */
+      '.ea-subhead{align-items:center}' +
+      '.ea-subhead > .ea-subadd{margin-left:auto}' +
       '.ea-subgear{background:none;border:0;color:var(--text-dim,#9aa1ab);' +
       ' font-size:15px;cursor:pointer;padding:2px 6px;border-radius:6px}' +
       '.ea-subgear:hover{color:var(--text,#e6e8ec);background:var(--surface-2,#22262e)}' +
@@ -43973,6 +43988,47 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
        an inline style the app sets to ''. */
     var chip = head.querySelector('.ea-futchip');
     if (chip) chip.style.setProperty('display', 'none', 'important');
+    /* ============================================================== CARD 50
+       operator 2026-11-05: "can you also add a add task left of the setting
+       button just like the priorty tree".
+
+       MEASURED on the tree's own toolbar before building, left to right:
+           ps-wrap(search) x=10 | treeDateGroup x=178 | btnAddGoal x=345 w=26
+           | treeGear x=379 w=30
+       So the tree's add sits immediately LEFT of its gear, 34px apart, and its
+       markup is a plus SVG plus a <span> label - NOT a text glyph:
+           <button id="btnAddGoal" title="New branch">
+             <svg ...><path d="M12 5v14M5 12h14" .../></svg><span>New branch</span>
+           </button>
+       The same SVG path is reused here rather than drawing a second plus, so the
+       two can never look different. The label says "New subtask" because that is
+       what it makes - the tree says "New branch" for the same reason.
+
+       WHAT IT DOES: focuses the "Enter subtask.." field that is already in this
+       window (measured at x=370 y=1104 w=541) and scrolls it into view, rather
+       than inventing a second way to create a subtask. One field, one behaviour.
+       That field is also why the gear MENU has no "New subtask" line - the
+       operator asked for that removal on 2026-10-30 ("remove new subtask from
+       there"), and this does not put it back. */
+    var add = document.createElement('button');
+    add.type = 'button';
+    add.className = 'ea-subadd';
+    add.title = 'New subtask';
+    add.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">'
+      + '<path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" '
+      + 'stroke-width="2" stroke-linecap="round"/></svg><span>New subtask</span>';
+    add.onclick = function (e) {
+      e.preventDefault(); e.stopPropagation();
+      var inp = null, all = document.querySelectorAll('input');
+      for (var k = 0; k < all.length; k++) {
+        if (/subtask/i.test(all[k].placeholder || '')) { inp = all[k]; break; }
+      }
+      if (!inp) return;
+      try { inp.scrollIntoView({block: 'center'}); } catch (_) {}
+      try { inp.focus(); } catch (_) {}
+    };
+    head.appendChild(add);
+
     var g = document.createElement('button');
     g.type = 'button';
     g.className = 'ea-subgear';
