@@ -2899,6 +2899,42 @@ aside#treePane { overflow-y: auto; }
   cursor: grab; user-select: none;
 }
 .ea-subrow.dragging { opacity: .45; cursor: grabbing; }
+/* ============================================================== CARD 11
+   operator 2026-11-04: "craig payment is still not moving above anybody,
+   I holding it from the 3 dots or the square".
+
+   MEASURED on the live build (2026-11-03 16:23), dragging the bottom row of four
+   to the top and logging dragstart + dragover-per-row + drop:
+
+       grab the NAME        dragstart fires   row 0 got dragover    drop   MOVED
+       grab the CHECKBOX    dragstart fires   row 0 got NO dragover no drop  unchanged
+       grab the far LEFT    dragstart fires   row 0 got NO dragover no drop  unchanged
+
+   The drag ALWAYS started, so this is NOT card 4 again - the press was fine. The
+   DROP failed. A row's own buttons (caret, tick, +, clock, dots) are painted above
+   the row and never call preventDefault on dragover, so while the pointer is over
+   one of them the row beneath is not a valid drop target. Grabbing low on the left
+   means travelling up a column of checkboxes, so the row being aimed at never
+   accepted the drop. elementFromPoint along the corridor showed it exactly:
+
+       x at  3% of the row   ea-subrow / ea-sublist / ea-subrow / ea-subcaret
+       x at  8% of the row   ea-subtick / ea-subrow / ea-subtick / ea-subrow / ...
+       x at 15% of the row   ea-subrow all the way up        <- the one that worked
+
+   (The priority tree does NOT have this bug: its dragover is delegated on #treeRoot
+   and calls preventDefault unconditionally, before any row lookup. Checked, not
+   assumed - that is why only the dialog needs this.)
+
+   FIX: while a subtask drag is in flight every .ea-sublist carries .ea-dragging and
+   the controls inside the rows go pointer-transparent, so the corridor is plain
+   ea-subrow at every x. At rest the buttons are untouched. */
+.ea-sublist.ea-dragging .ea-subcaret,
+.ea-sublist.ea-dragging .ea-subtick,
+.ea-sublist.ea-dragging .ea-subquick,
+.ea-sublist.ea-dragging .ea-subdate,
+.ea-sublist.ea-dragging .ea-subdots,
+.ea-sublist.ea-dragging .ea-subtitle,
+.ea-sublist.ea-dragging .ea-subpen { pointer-events: none !important; }
 .ea-subrow.dropon  { outline: 2px solid var(--accent, #4c9aff); outline-offset: -2px; }
 .ea-subcaret, .ea-subtick, .ea-subdots {
   background: none; border: 0; padding: 0; cursor: pointer;
@@ -6744,7 +6780,7 @@ window.__rollHorizon = function () {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-11-04 19:11 DEMO</span>
+    <span id="buildStamp">build 2026-11-04 21:14 DEMO</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -14002,9 +14038,16 @@ function surfaceArrivals() {
             e.dataTransfer.effectAllowed = 'move';
             try { e.dataTransfer.setData('text/plain', child.id); } catch (_) {}
             rowEl.classList.add('dragging');
+            /* CARD 11: every control in every row goes pointer-transparent for the
+               duration, so dragover reaches the ROW the whole way up. Marked on
+               EVERY list, not only this row's - a drag crosses nested levels. */
+            var ls = document.querySelectorAll('.ea-sublist');
+            for (var q = 0; q < ls.length; q++) ls[q].classList.add('ea-dragging');
           });
           rowEl.addEventListener('dragend', function () {
             rowEl.classList.remove('dragging');
+            var ls = document.querySelectorAll('.ea-sublist');
+            for (var q = 0; q < ls.length; q++) ls[q].classList.remove('ea-dragging');
           });
           rowEl.addEventListener('dragover', function (e) {
             e.preventDefault();
@@ -23976,6 +24019,14 @@ function firstConnect(remote, rAt, lAt) {
       if (rows[i].querySelector('.tree-marker')) continue;
       var sq = document.createElement('span');
       sq.className = 'tree-marker';
+      /* CARD 11, 2026-11-04: the marker is decoration with no handler of its own,
+         but it took the pointer, so a press on it never reached the row and the
+         row would not drag. MEASURED on the live tree, dragging the bottom row up:
+             x=10  far left   MOVED
+             x=28  the MARKER unchanged   <- this square
+             x=53  left of the name  MOVED (once card 10 freed the title)
+         Transparent at rest, exactly as card 10 made the title. */
+      sq.style.pointerEvents = 'none';
       var caret = rows[i].querySelector('.tree-caret');
       var check = rows[i].querySelector('.tree-check');
       if (check) rows[i].insertBefore(sq, check);
@@ -43562,305 +43613,7 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
 </script>
 
 
-<script>
-/* ================================================================ 2026-09-26
-   THE PRACTICE COPY SEEDS ITSELF.
-
-   Operator: "it should always be one link", and they want a full made-up planner
-   to click through. Storage is per-URL, so any link that differs even by a query
-   string starts empty - which is how they ended up looking at a bare planner.
-
-   So: if this copy has no demo data, it plants it on boot. It plants ONCE, then
-   leaves the data alone, so anything they change while clicking around survives.
-   None of this is their real data - invented clinic, house, company, family. */
-(function () {
-  function ready() {
-    if (!window.Store || !window.Store.data || !window.renderAll) { setTimeout(ready, 250); return; }
-    var t = window.Store.data.tree || [];
-    var planted = false;
-    try { planted = localStorage.getItem('planner.demoSeeded') === '1'; } catch (e) {}
-    /* 2026-09-26 - BOOT ORDER RACE, found while sweeping after the due-date fix.
-       The guard used to be "planted || t.length > 3". But the Habits/Routines
-       tracker records rebuild their own loose branches at boot, BEFORE this runs,
-       so the tree already held 7 entries and the seeder skipped - leaving a
-       planner with 2 loose branches, no per-branch hosts and none of the demo
-       content. Measured: fresh origin gave topLevel=7 loose=2 hosts=2, where a
-       correctly seeded one gives topLevel=5 loose=0 hosts=10.
-       The count was never the question. The question is whether the DEMO CONTENT
-       is here, so that is what is asked now. */
-    var seeded = false;
-    for (var si = 0; si < t.length; si++) {
-      if (t[si] && t[si].title === 'Riverside Clinic') { seeded = true; break; }
-    }
-    /* 2026-10-10: it also leaves alone a tree that is ALREADY REAL but is not this
-       fixture. The guard only ever looked for its own demo content, so any other
-       existing tree was destroyed and replaced - measured with a seeded one-task
-       tree, which was silently swapped for the demo on boot. The stated intent was
-       always "plant ONCE, then leave the data alone"; this makes that true for
-       every tree, not only for this one. A tree counts as real when it holds
-       anything the demo did not plant. */
-    var hasOtherContent = false;
-    for (var sj = 0; sj < t.length; sj++) {
-      if (t[sj] && t[sj].title) { hasOtherContent = true; break; }
-    }
-    if (planted || seeded || hasOtherContent) return;
-    try {
-      (function () {
-  function iso(off){ var t=new Date(); t.setDate(t.getDate()+off);
-    return t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0'); }
-  var n = 0;
-  function id(p){ n++; return p+n; }
-  function T(title, o){
-    o = o || {};
-    return { id: o.id || id('x'), title: title, notes: o.notes || '', kind: 'task',
-      done: !!o.done, priority: o.priority || 'normal',
-      date: (o.off === undefined || o.off === null) ? null : iso(o.off),
-      time: o.time || null, block: null, duration: o.dur || 60,
-      repeat: o.rep ? { freq: o.rep, interval: 1, until: null } : null,
-      tags: o.tags || [], areaId: o.area || null, endDate: null,
-      collapsed: false, children: o.kids || [], reminders: o.rem || [] };
-  }
-
-  var tree = [
-    T('Riverside Clinic', { kids: [
-      T('Patient intake', { kids: [
-        /* 2026-10-01, operator: "remove what you just did as far as the little
-           sample thing." I had seeded three demo alarms so the Alarms tab was not
-           empty. They do not want sample alarms in their data - they set their own
-           and watch that task turn orange. So the demo tree carries NO alarms
-           again, and the gate creates (and tears down) its own fixture instead of
-           relying on one living here. */
-        T('Call back Mrs Alvarez', { off: 0, time: '09:30', dur: 30, priority: 'high' }),
-        T('Chase referral for J. Okafor', { off: 1, time: '11:00' }),
-        T('File insurance for 14 Sep batch', { off: 3, time: '14:00', dur: 90 })
-      ]}),
-      T('Equipment', { kids: [
-        T('Service the autoclave', { off: 6, time: '08:00', dur: 120 }),
-        T('Order gloves and swabs', { off: 2, time: '16:00' })
-      ]}),
-      T('Staffing', { kids: [
-        T('Rota for October', { off: 8, time: '10:00', dur: 120, priority: 'high' }),
-        T('Interview - practice nurse', { off: 4, time: '13:30', dur: 60 }),
-        T('Sign off Dani timesheet', { off: -2, time: '17:00', done: true })
-      ]}),
-      T('Routines', { id: 'riverside_clinic~routines', kids: [
-        T('Open-up checklist', { off: 0, time: '08:00', dur: 20, rep: 'daily' }),
-        T('Stock count', { off: 0, time: '17:30', dur: 30, rep: 'weekly' })
-      ]}),
-      T('Habits', { id: 'riverside_clinic~habits', kids: [
-        T('Wash hands log', { off: 0, time: '12:00', dur: 5, rep: 'daily' })
-      ]})]}),
-
-    T('Maple Street house', { kids: [
-      T('Kitchen', { kids: [
-        T('Measure for the island', { off: 1, time: '18:00' }),
-        T('Pick tile - three samples', { off: 5, time: '11:00', dur: 90 }),
-        T('Call the electrician back', { off: 0, time: '15:00', priority: 'high' })
-      ]}),
-      T('Garden', { kids: [
-        T('Cut back the hedge', { off: 7, time: '09:00', dur: 180 }),
-        T('Plant the bulbs', { off: 12, time: '10:00', dur: 120 })
-      ]}),
-      T('Paperwork', { kids: [
-        T('Renew the buildings cover', { off: 9, time: '12:00', priority: 'high' }),
-        T('Boiler service booking', { off: 14, time: '09:00' })
-      ]}),
-      T('Routines', { id: 'maple_street_house~routines', kids: [
-        T('Bins out', { id: 'rt_bins', off: 0, time: '19:00', dur: 10, rep: 'weekly' }),
-        T('Water the plants', { off: 0, time: '08:30', dur: 10, rep: 'daily' })
-      ]}),
-      T('Habits', { id: 'maple_street_house~habits', kids: [
-        T('Tidy 15 minutes', { off: 0, time: '20:00', dur: 15, rep: 'daily' })
-      ]})]}),
-
-    T('Harborview LLC', { kids: [
-      T('Q4 planning', { kids: [
-        T('Draft the budget', { off: 2, time: '09:00', dur: 180, priority: 'high' }),
-        T('Board pack - send Friday', { off: 4, time: '16:00', dur: 60 }),
-        T('Forecast vs actuals', { off: 10, time: '11:00', dur: 120 })
-      ]}),
-      T('Clients', { kids: [
-        T('Renewal call - Fenwick', { off: 1, time: '14:00' }),
-        T('Proposal for Castellan', { off: 6, time: '10:00', dur: 150 }),
-        T('Invoice March - chase', { off: -3, time: '09:00' })
-      ]}),
-      T('Admin', { kids: [
-        T('Expenses to accounts', { off: 3, time: '17:00' }),
-        T('Renew the domain', { off: 20, time: '09:00' })
-      ]}),
-      T('Routines', { id: 'harborview_llc~routines', kids: [
-        T('Weekly numbers', { off: 0, time: '09:00', dur: 45, rep: 'weekly' }),
-        T('Invoice run', { off: 0, time: '10:00', dur: 60, rep: 'monthly' }),
-        T('Monday reset', { id: 'rt_reset', off: 0, time: '08:00', dur: 45, rep: 'weekly' }),
-        T('Friday review', { id: 'rt_review', off: 0, time: '16:30', dur: 30, rep: 'weekly' }),
-        T('Month-end books', { id: 'rt_books', off: 0, time: '10:00', dur: 120, rep: 'monthly' })
-      ]}),
-      T('Habits', { id: 'harborview_llc~habits', kids: [
-        T('Inbox to zero', { off: 0, time: '17:00', dur: 20, rep: 'daily' })
-      ]})]}),
-
-    T('Family', { kids: [
-      T('Noor', { kids: [
-        T('Parents evening', { off: 5, time: '17:30', dur: 60, priority: 'high' }),
-        T('Swimming kit - new goggles', { off: 2, time: '19:00' })
-      ]}),
-      T('Theo', { kids: [
-        T('Football - away match', { off: 6, time: '10:00', dur: 180 }),
-        T('Dentist', { off: 11, time: '15:20' })
-      ]}),
-      T('Together', { kids: [
-        T('Sunday lunch at Mum\'s', { off: 4, time: '13:00', dur: 180 }),
-        T('Book the half-term cottage', { off: 8, time: '20:00', priority: 'high' })
-      ]}),
-      T('Routines', { id: 'family~routines', kids: [
-        T('Sunday call with Mum', { off: 0, time: '11:00', dur: 30, rep: 'weekly' })
-      ]}),
-      T('Habits', { id: 'family~habits', kids: [
-        T('Read with Noor', { off: 0, time: '19:30', dur: 20, rep: 'daily' }),
-        /* BOARD 30, 2026-09-26: these four had habit RECORDS but no tree node, so
-           they could never reach the calendar - the operator: "no screens after 10
-           and new habits is not on the calendar". The ids must match fromTask or the
-           two halves are strangers. */
-        T('Morning stretch', { id: 'hb_stretch', off: 0, time: '06:45', dur: 15, rep: 'daily' }),
-        T('Read 20 pages', { id: 'hb_read', off: 0, time: '21:30', dur: 30, rep: 'daily' }),
-        T('Walk 8k steps', { id: 'hb_walk', off: 0, time: '18:00', dur: 45, rep: 'daily' }),
-        T('No screens after 10', { id: 'hb_screens', off: 0, time: '22:00', dur: 30, rep: 'daily' })
-      ]})]}),
-
-    T('Study - MSc', { kids: [
-      T('Module 3', { kids: [
-        T('Read chapters 7-9', { off: 1, time: '20:00', dur: 90 }),
-        T('Problem set due', { off: 7, time: '23:00', priority: 'high' }),
-        T('Seminar - statistics', { off: 3, time: '18:00', dur: 120 })
-      ]}),
-      T('Dissertation', { kids: [
-        T('Pick a supervisor', { off: 13, time: '12:00', priority: 'high' }),
-        T('Literature list - first pass', { off: 16, time: '19:00', dur: 120 })
-      ]}),
-      T('Routines', { id: 'study_-_msc~routines', kids: [
-        T('Weekly reading block', { off: 0, time: '14:00', dur: 120, rep: 'weekly' })
-      ]}),
-      T('Habits', { id: 'study_-_msc~habits', kids: [
-        T('Flashcards', { off: 0, time: '07:30', dur: 15, rep: 'daily' })
-      ]})]}),
-
-    /* BOARD 30, 2026-09-26 - operator: "there is a branch by itself that says habits
-       and routines, you need to remove that". Habits and routines belong INSIDE the
-       branch they serve, never as two loose branches of their own. These four each
-       moved to the branch they actually belong to. */
-  ];
-
-  window.Store.data.tree = tree;
-
-  /* 2026-10-02, operator: "can you put items in deleted and undo so I could see
-     how it would look like?"
-     Three deleted tasks, shaped exactly like a real delete (node / parentId /
-     index / deletedAt), so the Deleted list renders its real Restore and Delete
-     forever rows - the same shape `__trash().push` writes. Staggered times so the
-     "when" column is not three identical strings.
-     The UNDO list is NOT seeded here: its entries live in a closure that records
-     real changes, not in storage. Faking them would show a list that cannot be
-     undone. It is populated below by making real edits. */
-  (function () {
-    var hourAgo = function (h) {
-      return new Date(Date.now() - h * 3600000).toISOString();
-    };
-    window.Store.data.trash = [
-      { node: { id: 'del1', title: 'Order new label printer', kind: 'task',
-                done: false, priority: 'normal', date: iso(-2), time: '11:00',
-                duration: 30, children: [], reminders: [] },
-        parentId: null, index: 0, deletedAt: hourAgo(3) },
-      { node: { id: 'del2', title: 'Chase the Henderson invoice', kind: 'task',
-                done: false, priority: 'high', date: iso(-1), time: '09:30',
-                duration: 20, children: [], reminders: [] },
-        parentId: null, index: 1, deletedAt: hourAgo(26) },
-      { node: { id: 'del3', title: 'Old supplier list - replaced', kind: 'task',
-                done: false, priority: 'normal', date: null, time: null,
-                duration: 60, children: [], reminders: [] },
-        parentId: null, index: 2, deletedAt: hourAgo(50) }
-    ];
-  })();
-
-  window.Store.data.habits = [
-    { id: 'hb_stretch', name: 'Morning stretch', color: '#34a853', freq: 'daily', targetPerWeek: 7, fromTask: 'hb_stretch' },
-    { id: 'hb_read',    name: 'Read 20 pages',  color: '#1a73e8', freq: 'daily', targetPerWeek: 7, fromTask: 'hb_read' },
-    { id: 'hb_walk',    name: 'Walk 8k steps',  color: '#fbbc04', freq: 'daily', targetPerWeek: 7, fromTask: 'hb_walk' },
-    { id: 'hb_screens', name: 'No screens after 10', color: '#9c27b0', freq: 'daily', targetPerWeek: 7, fromTask: 'hb_screens' }
-  ];
-  window.Store.data.routines = [
-    { id: 'rt_reset',  name: 'Monday reset',   color: '#00bcd4', freq: 'weekly', targetPerWeek: 1, fromTask: 'rt_reset' },
-    { id: 'rt_review', name: 'Friday review',  color: '#ea4335', freq: 'weekly', targetPerWeek: 1, fromTask: 'rt_review' },
-    { id: 'rt_bins',   name: 'Bins out',       color: '#607d8b', freq: 'weekly', targetPerWeek: 1, fromTask: 'rt_bins' },
-    { id: 'rt_books',  name: 'Month-end books',color: '#ff6d01', freq: 'monthly', targetPerWeek: 1, fromTask: 'rt_books' }
-  ];
-
-  /* a few days already ticked, so the habit grid is not empty */
-  var log = {};
-  ['hb_stretch','hb_read','hb_walk'].forEach(function(h){
-    log[h] = {};
-    [1,2,3,5,6].forEach(function(d){ log[h][iso(-d)] = true; });
-  });
-  window.Store.data.habitLog = log;
-
-  /* focus sessions, so the week view has them */
-  window.Store.data.focusBlocks = [
-    { id: 'fb1', name: 'Clinic admin', from: '09:00', to: '11:00', days: [1,2,3,4,5], timer: 25, itemIds: [] },
-    { id: 'fb2', name: 'Deep work',    from: '14:00', to: '16:00', days: [1,3,5],     timer: 45, itemIds: [] }
-  ];
-  try { localStorage.setItem('planner.focusBlocks.on','1'); } catch(e){}
-  try { localStorage.setItem('planner.showHabitsRoutines','0'); } catch(e){}
-  try { localStorage.setItem('planner.showFutureHR','0'); } catch(e){}
-
-  window.Store.save();
-  if (window.renderAll) window.renderAll();
-
-  /* 2026-10-02 - POPULATE THE UNDO LIST WITH REAL, UNDOABLE CHANGES.
-     Undo entries are not stored: `record()` compares a snapshot before and after
-     every change and keeps the description in a closure. So the only honest way
-     to show the list is to MAKE a few changes after the seed - each one is then
-     genuinely reversible, which a faked record would not be.
-     Deferred a tick so the recorder has taken its first baseline snapshot;
-     without that the first change has nothing to diff against and no entry
-     appears. */
-  setTimeout(function () {
-    try {
-      var find = function (title) {
-        var hit = null;
-        if (window.walkTree) window.walkTree(function (n) {
-          if (!hit && n && n.title === title) hit = n;
-        });
-        return hit;
-      };
-      var steps = [
-        function () { var n = find('Inbox to zero'); if (n) n.time = '17:30'; },
-        function () { var n = find('Stock count');  if (n) n.priority = 'high'; },
-        function () { var n = find('Bins out');     if (n) n.done = true; }
-      ];
-      var i = 0;
-      var step = function () {
-        if (i >= steps.length) { if (window.renderAll) window.renderAll(); return; }
-        steps[i++]();
-        window.Store.save();
-        /* one change per tick - record() only notices a change when the snapshot
-           it holds differs from the new one, so batching them in a single frame
-           would collapse three entries into one */
-        setTimeout(step, 120);
-      };
-      step();
-    } catch (e) { }
-  }, 600);
-
-  var count = 0;
-  (function walk(l){ for (var i=0;i<l.length;i++){ count++; if (l[i].children) walk(l[i].children); } })(tree);
-  return 'seeded ' + tree.length + ' branches, ' + count + ' rows';
-})();
-      localStorage.setItem('planner.demoSeeded', '1');
-    } catch (e) {}
-  }
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', ready);
-  else ready();
-})();
-</script><script id="card1note">
+<script id="card1note">
 /* CARD 1 (was 33), restored 2026-10-30.
    Operator: "this one doesn't work on the live planner, and same thing in the priorty
    tree section."
@@ -44291,5 +44044,303 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
   window.__card3Stop = function () { clearInterval(tick); };
 })();
 </script>
-</body>
+<script>
+/* ================================================================ 2026-09-26
+   THE PRACTICE COPY SEEDS ITSELF.
+
+   Operator: "it should always be one link", and they want a full made-up planner
+   to click through. Storage is per-URL, so any link that differs even by a query
+   string starts empty - which is how they ended up looking at a bare planner.
+
+   So: if this copy has no demo data, it plants it on boot. It plants ONCE, then
+   leaves the data alone, so anything they change while clicking around survives.
+   None of this is their real data - invented clinic, house, company, family. */
+(function () {
+  function ready() {
+    if (!window.Store || !window.Store.data || !window.renderAll) { setTimeout(ready, 250); return; }
+    var t = window.Store.data.tree || [];
+    var planted = false;
+    try { planted = localStorage.getItem('planner.demoSeeded') === '1'; } catch (e) {}
+    /* 2026-09-26 - BOOT ORDER RACE, found while sweeping after the due-date fix.
+       The guard used to be "planted || t.length > 3". But the Habits/Routines
+       tracker records rebuild their own loose branches at boot, BEFORE this runs,
+       so the tree already held 7 entries and the seeder skipped - leaving a
+       planner with 2 loose branches, no per-branch hosts and none of the demo
+       content. Measured: fresh origin gave topLevel=7 loose=2 hosts=2, where a
+       correctly seeded one gives topLevel=5 loose=0 hosts=10.
+       The count was never the question. The question is whether the DEMO CONTENT
+       is here, so that is what is asked now. */
+    var seeded = false;
+    for (var si = 0; si < t.length; si++) {
+      if (t[si] && t[si].title === 'Riverside Clinic') { seeded = true; break; }
+    }
+    /* 2026-10-10: it also leaves alone a tree that is ALREADY REAL but is not this
+       fixture. The guard only ever looked for its own demo content, so any other
+       existing tree was destroyed and replaced - measured with a seeded one-task
+       tree, which was silently swapped for the demo on boot. The stated intent was
+       always "plant ONCE, then leave the data alone"; this makes that true for
+       every tree, not only for this one. A tree counts as real when it holds
+       anything the demo did not plant. */
+    var hasOtherContent = false;
+    for (var sj = 0; sj < t.length; sj++) {
+      if (t[sj] && t[sj].title) { hasOtherContent = true; break; }
+    }
+    if (planted || seeded || hasOtherContent) return;
+    try {
+      (function () {
+  function iso(off){ var t=new Date(); t.setDate(t.getDate()+off);
+    return t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0'); }
+  var n = 0;
+  function id(p){ n++; return p+n; }
+  function T(title, o){
+    o = o || {};
+    return { id: o.id || id('x'), title: title, notes: o.notes || '', kind: 'task',
+      done: !!o.done, priority: o.priority || 'normal',
+      date: (o.off === undefined || o.off === null) ? null : iso(o.off),
+      time: o.time || null, block: null, duration: o.dur || 60,
+      repeat: o.rep ? { freq: o.rep, interval: 1, until: null } : null,
+      tags: o.tags || [], areaId: o.area || null, endDate: null,
+      collapsed: false, children: o.kids || [], reminders: o.rem || [] };
+  }
+
+  var tree = [
+    T('Riverside Clinic', { kids: [
+      T('Patient intake', { kids: [
+        /* 2026-10-01, operator: "remove what you just did as far as the little
+           sample thing." I had seeded three demo alarms so the Alarms tab was not
+           empty. They do not want sample alarms in their data - they set their own
+           and watch that task turn orange. So the demo tree carries NO alarms
+           again, and the gate creates (and tears down) its own fixture instead of
+           relying on one living here. */
+        T('Call back Mrs Alvarez', { off: 0, time: '09:30', dur: 30, priority: 'high' }),
+        T('Chase referral for J. Okafor', { off: 1, time: '11:00' }),
+        T('File insurance for 14 Sep batch', { off: 3, time: '14:00', dur: 90 })
+      ]}),
+      T('Equipment', { kids: [
+        T('Service the autoclave', { off: 6, time: '08:00', dur: 120 }),
+        T('Order gloves and swabs', { off: 2, time: '16:00' })
+      ]}),
+      T('Staffing', { kids: [
+        T('Rota for October', { off: 8, time: '10:00', dur: 120, priority: 'high' }),
+        T('Interview - practice nurse', { off: 4, time: '13:30', dur: 60 }),
+        T('Sign off Dani timesheet', { off: -2, time: '17:00', done: true })
+      ]}),
+      T('Routines', { id: 'riverside_clinic~routines', kids: [
+        T('Open-up checklist', { off: 0, time: '08:00', dur: 20, rep: 'daily' }),
+        T('Stock count', { off: 0, time: '17:30', dur: 30, rep: 'weekly' })
+      ]}),
+      T('Habits', { id: 'riverside_clinic~habits', kids: [
+        T('Wash hands log', { off: 0, time: '12:00', dur: 5, rep: 'daily' })
+      ]})]}),
+
+    T('Maple Street house', { kids: [
+      T('Kitchen', { kids: [
+        T('Measure for the island', { off: 1, time: '18:00' }),
+        T('Pick tile - three samples', { off: 5, time: '11:00', dur: 90 }),
+        T('Call the electrician back', { off: 0, time: '15:00', priority: 'high' })
+      ]}),
+      T('Garden', { kids: [
+        T('Cut back the hedge', { off: 7, time: '09:00', dur: 180 }),
+        T('Plant the bulbs', { off: 12, time: '10:00', dur: 120 })
+      ]}),
+      T('Paperwork', { kids: [
+        T('Renew the buildings cover', { off: 9, time: '12:00', priority: 'high' }),
+        T('Boiler service booking', { off: 14, time: '09:00' })
+      ]}),
+      T('Routines', { id: 'maple_street_house~routines', kids: [
+        T('Bins out', { id: 'rt_bins', off: 0, time: '19:00', dur: 10, rep: 'weekly' }),
+        T('Water the plants', { off: 0, time: '08:30', dur: 10, rep: 'daily' })
+      ]}),
+      T('Habits', { id: 'maple_street_house~habits', kids: [
+        T('Tidy 15 minutes', { off: 0, time: '20:00', dur: 15, rep: 'daily' })
+      ]})]}),
+
+    T('Harborview LLC', { kids: [
+      T('Q4 planning', { kids: [
+        T('Draft the budget', { off: 2, time: '09:00', dur: 180, priority: 'high' }),
+        T('Board pack - send Friday', { off: 4, time: '16:00', dur: 60 }),
+        T('Forecast vs actuals', { off: 10, time: '11:00', dur: 120 })
+      ]}),
+      T('Clients', { kids: [
+        T('Renewal call - Fenwick', { off: 1, time: '14:00' }),
+        T('Proposal for Castellan', { off: 6, time: '10:00', dur: 150 }),
+        T('Invoice March - chase', { off: -3, time: '09:00' })
+      ]}),
+      T('Admin', { kids: [
+        T('Expenses to accounts', { off: 3, time: '17:00' }),
+        T('Renew the domain', { off: 20, time: '09:00' })
+      ]}),
+      T('Routines', { id: 'harborview_llc~routines', kids: [
+        T('Weekly numbers', { off: 0, time: '09:00', dur: 45, rep: 'weekly' }),
+        T('Invoice run', { off: 0, time: '10:00', dur: 60, rep: 'monthly' }),
+        T('Monday reset', { id: 'rt_reset', off: 0, time: '08:00', dur: 45, rep: 'weekly' }),
+        T('Friday review', { id: 'rt_review', off: 0, time: '16:30', dur: 30, rep: 'weekly' }),
+        T('Month-end books', { id: 'rt_books', off: 0, time: '10:00', dur: 120, rep: 'monthly' })
+      ]}),
+      T('Habits', { id: 'harborview_llc~habits', kids: [
+        T('Inbox to zero', { off: 0, time: '17:00', dur: 20, rep: 'daily' })
+      ]})]}),
+
+    T('Family', { kids: [
+      T('Noor', { kids: [
+        T('Parents evening', { off: 5, time: '17:30', dur: 60, priority: 'high' }),
+        T('Swimming kit - new goggles', { off: 2, time: '19:00' })
+      ]}),
+      T('Theo', { kids: [
+        T('Football - away match', { off: 6, time: '10:00', dur: 180 }),
+        T('Dentist', { off: 11, time: '15:20' })
+      ]}),
+      T('Together', { kids: [
+        T('Sunday lunch at Mum\'s', { off: 4, time: '13:00', dur: 180 }),
+        T('Book the half-term cottage', { off: 8, time: '20:00', priority: 'high' })
+      ]}),
+      T('Routines', { id: 'family~routines', kids: [
+        T('Sunday call with Mum', { off: 0, time: '11:00', dur: 30, rep: 'weekly' })
+      ]}),
+      T('Habits', { id: 'family~habits', kids: [
+        T('Read with Noor', { off: 0, time: '19:30', dur: 20, rep: 'daily' }),
+        /* BOARD 30, 2026-09-26: these four had habit RECORDS but no tree node, so
+           they could never reach the calendar - the operator: "no screens after 10
+           and new habits is not on the calendar". The ids must match fromTask or the
+           two halves are strangers. */
+        T('Morning stretch', { id: 'hb_stretch', off: 0, time: '06:45', dur: 15, rep: 'daily' }),
+        T('Read 20 pages', { id: 'hb_read', off: 0, time: '21:30', dur: 30, rep: 'daily' }),
+        T('Walk 8k steps', { id: 'hb_walk', off: 0, time: '18:00', dur: 45, rep: 'daily' }),
+        T('No screens after 10', { id: 'hb_screens', off: 0, time: '22:00', dur: 30, rep: 'daily' })
+      ]})]}),
+
+    T('Study - MSc', { kids: [
+      T('Module 3', { kids: [
+        T('Read chapters 7-9', { off: 1, time: '20:00', dur: 90 }),
+        T('Problem set due', { off: 7, time: '23:00', priority: 'high' }),
+        T('Seminar - statistics', { off: 3, time: '18:00', dur: 120 })
+      ]}),
+      T('Dissertation', { kids: [
+        T('Pick a supervisor', { off: 13, time: '12:00', priority: 'high' }),
+        T('Literature list - first pass', { off: 16, time: '19:00', dur: 120 })
+      ]}),
+      T('Routines', { id: 'study_-_msc~routines', kids: [
+        T('Weekly reading block', { off: 0, time: '14:00', dur: 120, rep: 'weekly' })
+      ]}),
+      T('Habits', { id: 'study_-_msc~habits', kids: [
+        T('Flashcards', { off: 0, time: '07:30', dur: 15, rep: 'daily' })
+      ]})]}),
+
+    /* BOARD 30, 2026-09-26 - operator: "there is a branch by itself that says habits
+       and routines, you need to remove that". Habits and routines belong INSIDE the
+       branch they serve, never as two loose branches of their own. These four each
+       moved to the branch they actually belong to. */
+  ];
+
+  window.Store.data.tree = tree;
+
+  /* 2026-10-02, operator: "can you put items in deleted and undo so I could see
+     how it would look like?"
+     Three deleted tasks, shaped exactly like a real delete (node / parentId /
+     index / deletedAt), so the Deleted list renders its real Restore and Delete
+     forever rows - the same shape `__trash().push` writes. Staggered times so the
+     "when" column is not three identical strings.
+     The UNDO list is NOT seeded here: its entries live in a closure that records
+     real changes, not in storage. Faking them would show a list that cannot be
+     undone. It is populated below by making real edits. */
+  (function () {
+    var hourAgo = function (h) {
+      return new Date(Date.now() - h * 3600000).toISOString();
+    };
+    window.Store.data.trash = [
+      { node: { id: 'del1', title: 'Order new label printer', kind: 'task',
+                done: false, priority: 'normal', date: iso(-2), time: '11:00',
+                duration: 30, children: [], reminders: [] },
+        parentId: null, index: 0, deletedAt: hourAgo(3) },
+      { node: { id: 'del2', title: 'Chase the Henderson invoice', kind: 'task',
+                done: false, priority: 'high', date: iso(-1), time: '09:30',
+                duration: 20, children: [], reminders: [] },
+        parentId: null, index: 1, deletedAt: hourAgo(26) },
+      { node: { id: 'del3', title: 'Old supplier list - replaced', kind: 'task',
+                done: false, priority: 'normal', date: null, time: null,
+                duration: 60, children: [], reminders: [] },
+        parentId: null, index: 2, deletedAt: hourAgo(50) }
+    ];
+  })();
+
+  window.Store.data.habits = [
+    { id: 'hb_stretch', name: 'Morning stretch', color: '#34a853', freq: 'daily', targetPerWeek: 7, fromTask: 'hb_stretch' },
+    { id: 'hb_read',    name: 'Read 20 pages',  color: '#1a73e8', freq: 'daily', targetPerWeek: 7, fromTask: 'hb_read' },
+    { id: 'hb_walk',    name: 'Walk 8k steps',  color: '#fbbc04', freq: 'daily', targetPerWeek: 7, fromTask: 'hb_walk' },
+    { id: 'hb_screens', name: 'No screens after 10', color: '#9c27b0', freq: 'daily', targetPerWeek: 7, fromTask: 'hb_screens' }
+  ];
+  window.Store.data.routines = [
+    { id: 'rt_reset',  name: 'Monday reset',   color: '#00bcd4', freq: 'weekly', targetPerWeek: 1, fromTask: 'rt_reset' },
+    { id: 'rt_review', name: 'Friday review',  color: '#ea4335', freq: 'weekly', targetPerWeek: 1, fromTask: 'rt_review' },
+    { id: 'rt_bins',   name: 'Bins out',       color: '#607d8b', freq: 'weekly', targetPerWeek: 1, fromTask: 'rt_bins' },
+    { id: 'rt_books',  name: 'Month-end books',color: '#ff6d01', freq: 'monthly', targetPerWeek: 1, fromTask: 'rt_books' }
+  ];
+
+  /* a few days already ticked, so the habit grid is not empty */
+  var log = {};
+  ['hb_stretch','hb_read','hb_walk'].forEach(function(h){
+    log[h] = {};
+    [1,2,3,5,6].forEach(function(d){ log[h][iso(-d)] = true; });
+  });
+  window.Store.data.habitLog = log;
+
+  /* focus sessions, so the week view has them */
+  window.Store.data.focusBlocks = [
+    { id: 'fb1', name: 'Clinic admin', from: '09:00', to: '11:00', days: [1,2,3,4,5], timer: 25, itemIds: [] },
+    { id: 'fb2', name: 'Deep work',    from: '14:00', to: '16:00', days: [1,3,5],     timer: 45, itemIds: [] }
+  ];
+  try { localStorage.setItem('planner.focusBlocks.on','1'); } catch(e){}
+  try { localStorage.setItem('planner.showHabitsRoutines','0'); } catch(e){}
+  try { localStorage.setItem('planner.showFutureHR','0'); } catch(e){}
+
+  window.Store.save();
+  if (window.renderAll) window.renderAll();
+
+  /* 2026-10-02 - POPULATE THE UNDO LIST WITH REAL, UNDOABLE CHANGES.
+     Undo entries are not stored: `record()` compares a snapshot before and after
+     every change and keeps the description in a closure. So the only honest way
+     to show the list is to MAKE a few changes after the seed - each one is then
+     genuinely reversible, which a faked record would not be.
+     Deferred a tick so the recorder has taken its first baseline snapshot;
+     without that the first change has nothing to diff against and no entry
+     appears. */
+  setTimeout(function () {
+    try {
+      var find = function (title) {
+        var hit = null;
+        if (window.walkTree) window.walkTree(function (n) {
+          if (!hit && n && n.title === title) hit = n;
+        });
+        return hit;
+      };
+      var steps = [
+        function () { var n = find('Inbox to zero'); if (n) n.time = '17:30'; },
+        function () { var n = find('Stock count');  if (n) n.priority = 'high'; },
+        function () { var n = find('Bins out');     if (n) n.done = true; }
+      ];
+      var i = 0;
+      var step = function () {
+        if (i >= steps.length) { if (window.renderAll) window.renderAll(); return; }
+        steps[i++]();
+        window.Store.save();
+        /* one change per tick - record() only notices a change when the snapshot
+           it holds differs from the new one, so batching them in a single frame
+           would collapse three entries into one */
+        setTimeout(step, 120);
+      };
+      step();
+    } catch (e) { }
+  }, 600);
+
+  var count = 0;
+  (function walk(l){ for (var i=0;i<l.length;i++){ count++; if (l[i].children) walk(l[i].children); } })(tree);
+  return 'seeded ' + tree.length + ' branches, ' + count + ' rows';
+})();
+      localStorage.setItem('planner.demoSeeded', '1');
+    } catch (e) {}
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', ready);
+  else ready();
+})();
+</script></body>
 </html>
