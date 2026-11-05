@@ -2660,6 +2660,42 @@ aside#treePane { overflow-y: auto; }
   cursor: grab; user-select: none;
 }
 .ea-subrow.dragging { opacity: .45; cursor: grabbing; }
+/* ============================================================== CARD 11
+   operator 2026-11-04: "craig payment is still not moving above anybody,
+   I holding it from the 3 dots or the square".
+
+   MEASURED on the live build (2026-11-03 16:23), dragging the bottom row of four
+   to the top and logging dragstart + dragover-per-row + drop:
+
+       grab the NAME        dragstart fires   row 0 got dragover    drop   MOVED
+       grab the CHECKBOX    dragstart fires   row 0 got NO dragover no drop  unchanged
+       grab the far LEFT    dragstart fires   row 0 got NO dragover no drop  unchanged
+
+   The drag ALWAYS started, so this is NOT card 4 again - the press was fine. The
+   DROP failed. A row's own buttons (caret, tick, +, clock, dots) are painted above
+   the row and never call preventDefault on dragover, so while the pointer is over
+   one of them the row beneath is not a valid drop target. Grabbing low on the left
+   means travelling up a column of checkboxes, so the row being aimed at never
+   accepted the drop. elementFromPoint along the corridor showed it exactly:
+
+       x at  3% of the row   ea-subrow / ea-sublist / ea-subrow / ea-subcaret
+       x at  8% of the row   ea-subtick / ea-subrow / ea-subtick / ea-subrow / ...
+       x at 15% of the row   ea-subrow all the way up        <- the one that worked
+
+   (The priority tree does NOT have this bug: its dragover is delegated on #treeRoot
+   and calls preventDefault unconditionally, before any row lookup. Checked, not
+   assumed - that is why only the dialog needs this.)
+
+   FIX: while a subtask drag is in flight every .ea-sublist carries .ea-dragging and
+   the controls inside the rows go pointer-transparent, so the corridor is plain
+   ea-subrow at every x. At rest the buttons are untouched. */
+.ea-sublist.ea-dragging .ea-subcaret,
+.ea-sublist.ea-dragging .ea-subtick,
+.ea-sublist.ea-dragging .ea-subquick,
+.ea-sublist.ea-dragging .ea-subdate,
+.ea-sublist.ea-dragging .ea-subdots,
+.ea-sublist.ea-dragging .ea-subtitle,
+.ea-sublist.ea-dragging .ea-subpen { pointer-events: none !important; }
 .ea-subrow.dropon  { outline: 2px solid var(--accent, #4c9aff); outline-offset: -2px; }
 .ea-subcaret, .ea-subtick, .ea-subdots {
   background: none; border: 0; padding: 0; cursor: pointer;
@@ -6300,6 +6336,16 @@ body[data-newbranch="1"] #treeFilters{
 .tree-gearmenu .gearitem:hover{ background:#343a43 }
 .tree-gearmenu .gearcheck{ margin-left:auto; color:#a8c7de; font-weight:600 }
 .tree-gearmenu .gearcount{ margin-left:auto; color:#f87171; font-weight:600 }
+/* CARD 52, 2026-11-05. A disabled gear line was styled EXACTLY like a live one -
+   MEASURED: color rgb(233,236,241) and opacity 1 on both, because nothing in this
+   file ever styled .gearitem:disabled. So "Missed" has been shipping as a line
+   that looks clickable and does nothing, and the new zero count would have read as
+   an urgent red 0. The dim has to be VISIBLE, not just a property.
+   The count goes muted too - a red number means "these are waiting for you", and
+   zero of them is not. */
+.tree-gearmenu .gearitem:disabled{ color:var(--muted,#8b93a1); cursor:default }
+.tree-gearmenu .gearitem:disabled .gearcount{ color:var(--muted,#8b93a1); font-weight:500 }
+.tree-gearmenu .gearitem:disabled:hover{ background:transparent }
 
 /* the date left the top bar, so the space it held open goes too - the remaining controls move to
    the left edge instead of leaving a hole where the date used to be */
@@ -6444,7 +6490,7 @@ window.__rollHorizon = function () {
 .c33-ok{background:var(--accent,#2f6fed);border:1px solid var(--accent,#2f6fed);color:#fff;font-weight:600}
 </style>
 </head>
-<body><style>/* the banner is fixed, so the page must be pushed down by exactly its height or    it sits on top of the toolbar - the operator: "the red marking is covering some    of the setting and stuff up there". */html{padding-top:26px !important;box-sizing:border-box}#practiceBanner{top:0 !important}</style>
+<body><style>/* CARD 7, 2026-11-05: the 26px reserved for the PRACTICE banner was removed here - the live planner has no banner, so nothing needed the space. The practice copy keeps both rules, where the banner is real. */</style>
 <!-- ===== Internet Explorer notice - operator 2026-09-20 =====
      "It is Internet Explorer. Not sure if that makes any difference."
      It makes all the difference. The planner uses CSS variables in 1,074 places
@@ -6505,7 +6551,7 @@ window.__rollHorizon = function () {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-11-03 16:23</span>
+    <span id="buildStamp">build 2026-11-05 14:25 c58</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -7819,9 +7865,69 @@ document.addEventListener("DOMContentLoaded", function() {
 
     var titleSpan = document.createElement('span');
     titleSpan.className = 'tree-title';
-    titleSpan.contentEditable = 'plaintext-only';
+    /* ========================================================== CARD 10, 2026-11-04
+       Operator: "i think you are reffering to the tasks in edit and they move in the
+       priorty tree? also the order of the priorty tree must be the same in the edit
+       tasks, so if one moves the othes suppose to move to."
+
+       THE SAME DEFECT CARD 4 FIXED, IN THE PLACE CARD 4 DID NOT TOUCH. Card 4 made
+       SUBTASK rows draggable by their name; the tree row kept a permanently
+       contentEditable title, so Chrome claimed the press as a text selection and the
+       drag never began. MEASURED on the live build, dragging the bottom row to the
+       top of a 488px-wide row whose title inks x=38..439:
+
+           grab ON the title's letters      UNCHANGED   <- nearly the whole row
+           grab RIGHT of the title          UNCHANGED
+           grab the far-LEFT 38px strip     moved
+
+       So only a 38px strip of a 488px row could be dragged at all - and that is why
+       the two lists could not agree: edit -> tree worked, tree -> edit could not
+       happen, because the tree row could not be reordered by the gesture anyone
+       would actually use.
+
+       FIX: identical to card 4. The attribute is REMOVED at rest and the span is
+       pointer-transparent, so the press reaches the row (which carries draggable);
+       clicking or tabbing turns editing on and focuses it, so click-to-rename is
+       unchanged. Both gestures reach the same code instead of competing for one
+       press. */
+    titleSpan.removeAttribute('contenteditable');
+    titleSpan.tabIndex = 0;
+    titleSpan.style.pointerEvents = 'none';
+    function treeTtlEdit(place) {
+      if (titleSpan.getAttribute('contenteditable') === 'plaintext-only') return;
+      titleSpan.style.pointerEvents = 'auto';
+      titleSpan.contentEditable = 'plaintext-only';
+      try {
+        titleSpan.focus();
+        if (place && window.getSelection && document.createRange) {
+          var rg = document.createRange();
+          rg.selectNodeContents(titleSpan); rg.collapse(false);
+          var sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(rg);
+        }
+      } catch (_) {}
+    }
+    titleSpan.addEventListener('focus', function () { treeTtlEdit(false); });
     titleSpan.textContent = node.title;
     titleSpan.spellcheck = false;
+
+    /* CARD 10: the span is pointer-transparent at rest, so it can no longer receive
+       its own click - the ROW opens the rename instead, and only for a press that
+       landed on the title and did NOT travel (a press that moved is a drag attempt).
+       mouseUP, not mousedown: making the field editable on mousedown would do it
+       before the browser has decided press-and-move is a drag, which is the defect. */
+    row.addEventListener('mousedown', function (e) {
+      var tb = titleSpan.getBoundingClientRect();
+      row.__ttlPress = (e.clientX >= tb.left && e.clientX <= tb.right
+                        && e.clientY >= tb.top && e.clientY <= tb.bottom)
+                       ? { x: e.clientX, y: e.clientY } : null;
+    });
+    row.addEventListener('mouseup', function (e) {
+      var pr = row.__ttlPress; row.__ttlPress = null;
+      if (!pr) return;
+      if (row.classList.contains('dragging')) return;
+      if (Math.abs(e.clientX - pr.x) > 4 || Math.abs(e.clientY - pr.y) > 4) return;
+      e.stopPropagation(); treeTtlEdit(true);
+    });
 
     var prevTitle = node.title;
     titleSpan.addEventListener('keydown', function(e) {
@@ -7852,6 +7958,10 @@ document.addEventListener("DOMContentLoaded", function() {
          A blur caused by a RE-RENDER is not the person finishing. Only trim when
          focus genuinely left the title: if the element is no longer in the document,
          this is a teardown and the text must be left exactly as typed. */
+      /* CARD 10: back to plain, pointer-transparent text, or the row stays
+         undraggable after one rename - the same defect, merely deferred. */
+      titleSpan.removeAttribute('contenteditable');
+      titleSpan.style.pointerEvents = 'none';
       if (window.__treeTearingDown) return;
       var trimmed = titleSpan.textContent.trim();
       if (trimmed === '') {
@@ -8012,6 +8122,34 @@ document.addEventListener("DOMContentLoaded", function() {
     }
   }, false);
 
+  /* ========================================================== CARD 10, 2026-11-04
+     THE ROW HANDED TO THE DROP HANDLER CAN BE A DETACHED ORPHAN.
+
+     MEASURED by instrumenting the real handler. A drop aimed at the TOP QUARTER of
+     the first row logged:
+
+         drop on __s1  rectH=0 offsetH=0 rectTop=0  pct=INF  zone=AFTER
+         row state: connected=false  sameAsLive=false
+         LIVE element rect: top=905 h=32        <- the real row was fine
+
+     A re-render during the drag replaces the row elements. e.target then points at
+     the OLD node, which is detached, and a detached node measures 0x0 at position
+     0,0 - so `y/h` was Infinity and EVERY drop scored as "after" regardless of where
+     it was aimed. That, not the splice index, is why a row dropped at the top landed
+     one short.
+
+     So: always resolve a row to the one currently in the document before measuring
+     it. Falls back to the element itself if the id cannot be found, so this can only
+     improve on what was there. */
+  function liveTreeRow(row) {
+    if (!row) return row;
+    if (row.isConnected) return row;
+    var id = row.dataset && row.dataset.id;
+    if (!id) return row;
+    var live = document.querySelector('.tree-row[data-id="' + id + '"]');
+    return live || row;
+  }
+
   document.getElementById("treeRoot").addEventListener("dragover", function (e) {
     e.preventDefault();
     var row = e.target.closest(".tree-row");
@@ -8025,9 +8163,10 @@ document.addEventListener("DOMContentLoaded", function() {
       clearDropIndicators();
       return;
     }
+    row = liveTreeRow(row);
     var rect = row.getBoundingClientRect();
     var y = e.clientY - rect.top;
-    var h = rect.height;
+    var h = rect.height || row.offsetHeight || 32;
     var pct = y / h;
     clearDropIndicators();
     if (pct < 0.25) {
@@ -8058,14 +8197,34 @@ document.addEventListener("DOMContentLoaded", function() {
       if (!targetFound) return;
       targetParent = targetFound.parent;
       parentArr = targetParent ? targetParent.children : Store.data.tree;
-      var targetIndex = targetFound.index;
+
+      /* ====================================================== CARD 10, 2026-11-04
+         THE OFF-BY-ONE, and it is the same one card 4 fixed for subtask rows.
+         targetIndex used to be read BEFORE removeNode(), then spliced with AFTER
+         the removal had already shifted the array. When the dragged row sat ABOVE
+         the target, everything below it moved up one, so the row landed one short
+         of where it was dropped.
+
+         MEASURED on the live build, dragging the bottom row to the top of three:
+             expected  charlie | alpha | bravo
+             got       alpha | charlie | bravo     <- one short, every time
+
+         FIX: re-read the target's index AFTER the removal, so it describes the
+         array actually being spliced. */
+      var rect = liveTreeRow(targetRow).getBoundingClientRect();
+      var y = e.clientY - rect.top;
+      var h = rect.height || liveTreeRow(targetRow).offsetHeight || 32;
+      var pct = y / h;
 
       removeNode(draggedId);
 
-      var rect = targetRow.getBoundingClientRect();
-      var y = e.clientY - rect.top;
-      var h = rect.height;
-      var pct = y / h;
+      var targetIndex = -1;
+      for (var __ti = 0; __ti < parentArr.length; __ti++) {
+        if (parentArr[__ti] && parentArr[__ti].id === targetFound.node.id) {
+          targetIndex = __ti; break;
+        }
+      }
+      if (targetIndex < 0) targetIndex = parentArr.length;
 
       if (pct < 0.25) {
         parentArr.splice(targetIndex, 0, node);
@@ -13615,11 +13774,73 @@ function surfaceArrivals() {
             var kid = child;
             if (typeof window.openDatePopover === 'function' && typeof window.buildDateGrid === 'function') {
               window.openDatePopover(chip, kid.date || '', function (iso) {
-                kid.date = iso || null;
-                if (!kid.date) kid.block = null;
-                if (window.Store) window.Store.save();
-                if (window.renderAll) window.renderAll();
-                drawSubs();
+                /* ============================================ CARD 14, 2026-11-04
+                   operator: "have a pop up when moving dates conflicts", and they
+                   chose which conflict it means: "Subtask date moves outside its
+                   parent's date" - the subtask would fall due AFTER the task it
+                   belongs to, so the parent is finished before its own piece.
+                   The dialog is card 33's (.c33-veil/.c33-box), not a second one,
+                   so there is one confirmation look in the app. */
+                function commit() {
+                  kid.date = iso || null;
+                  if (!kid.date) kid.block = null;
+                  if (window.Store) window.Store.save();
+                  if (window.renderAll) window.renderAll();
+                  drawSubs();
+                }
+                var pdate = node && node.date;
+                /* clearing a date can never conflict, and a parent with no date of
+                   its own has nothing to be outside of */
+                if (!iso || !pdate || String(iso) <= String(pdate)) { commit(); return; }
+
+                function esc(t) {
+                  return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+                }
+                function pretty(d) {
+                  if (window.fmtDate) { try { return window.fmtDate(d,'short'); } catch (_) {} }
+                  return d;
+                }
+                var veil = document.createElement('div');
+                veil.className = 'c33-veil';
+                var box = document.createElement('div');
+                box.className = 'c33-box';
+                box.setAttribute('role','dialog');
+                box.setAttribute('aria-modal','true');
+                box.innerHTML =
+                  '<h3>That date is after its task</h3>' +
+                  '<p><b>' + esc(kid.title || 'This subtask') + '</b> would be due <b>' +
+                    esc(pretty(iso)) + '</b>, but <b>' + esc(node.title || 'its task') +
+                    '</b> is due <b>' + esc(pretty(pdate)) + '</b>.</p>' +
+                  '<div class="c33-move">' +
+                    '<div><span class="f">task</span> &nbsp; ' + esc(node.title || '') +
+                      ' &nbsp; ' + esc(pretty(pdate)) + '</div>' +
+                    '<div><span class="f">subtask</span> &nbsp; <span class="t">' +
+                      esc(kid.title || '') + '</span> &nbsp; ' + esc(pretty(iso)) + '</div>' +
+                  '</div>' +
+                  '<p class="c33-note">The task would be finished before one of its own ' +
+                    'subtasks is due. Nothing is changed unless you choose to move it.</p>' +
+                  '<div class="c33-row">' +
+                    '<button type="button" class="c33-cancel">Cancel</button>' +
+                    '<button type="button" class="c33-ok">Move it anyway</button>' +
+                  '</div>';
+                function shut() {
+                  document.removeEventListener('keydown', onKey, true);
+                  if (veil.parentNode) veil.parentNode.removeChild(veil);
+                  if (box.parentNode) box.parentNode.removeChild(box);
+                }
+                function onKey(ev) {
+                  if (ev.key === 'Escape') { ev.preventDefault(); shut(); }
+                  else if (ev.key === 'Enter') { ev.preventDefault(); shut(); commit(); }
+                }
+                box.querySelector('.c33-cancel').addEventListener('click', shut);
+                veil.addEventListener('click', shut);
+                box.querySelector('.c33-ok').addEventListener('click', function () {
+                  shut(); commit();
+                });
+                document.addEventListener('keydown', onKey, true);
+                document.body.appendChild(veil);
+                document.body.appendChild(box);
+                try { box.querySelector('.c33-cancel').focus(); } catch (_) {}
               });
             }
           });
@@ -13653,9 +13874,16 @@ function surfaceArrivals() {
             e.dataTransfer.effectAllowed = 'move';
             try { e.dataTransfer.setData('text/plain', child.id); } catch (_) {}
             rowEl.classList.add('dragging');
+            /* CARD 11: every control in every row goes pointer-transparent for the
+               duration, so dragover reaches the ROW the whole way up. Marked on
+               EVERY list, not only this row's - a drag crosses nested levels. */
+            var ls = document.querySelectorAll('.ea-sublist');
+            for (var q = 0; q < ls.length; q++) ls[q].classList.add('ea-dragging');
           });
           rowEl.addEventListener('dragend', function () {
             rowEl.classList.remove('dragging');
+            var ls = document.querySelectorAll('.ea-sublist');
+            for (var q = 0; q < ls.length; q++) ls[q].classList.remove('ea-dragging');
           });
           rowEl.addEventListener('dragover', function (e) {
             e.preventDefault();
@@ -23627,6 +23855,14 @@ function firstConnect(remote, rAt, lAt) {
       if (rows[i].querySelector('.tree-marker')) continue;
       var sq = document.createElement('span');
       sq.className = 'tree-marker';
+      /* CARD 11, 2026-11-04: the marker is decoration with no handler of its own,
+         but it took the pointer, so a press on it never reached the row and the
+         row would not drag. MEASURED on the live tree, dragging the bottom row up:
+             x=10  far left   MOVED
+             x=28  the MARKER unchanged   <- this square
+             x=53  left of the name  MOVED (once card 10 freed the title)
+         Transparent at rest, exactly as card 10 made the title. */
+      sq.style.pointerEvents = 'none';
       var caret = rows[i].querySelector('.tree-caret');
       var check = rows[i].querySelector('.tree-check');
       if (check) rows[i].insertBefore(sq, check);
@@ -43379,8 +43615,10 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
         minus New goal (the window already has an "Enter subtask.." field)
      2. Missed  - filter to overdue, red count, and the surviving row painted red,
         the way #treeRoot.overdue-only .od-hit .tree-title does
-     3. Show future subtasks     - replaces the old lone chip
-     4. Show completed subtasks  - NEW; finished subtasks were unhideable
+     3. Show future tasks        - replaces the old lone chip
+     4. Show completed tasks     - NEW; finished subtasks were unhideable
+        (both renamed 2026-11-05 at the operator's word - they read as tasks
+         in this window, not subtasks)
      5. Show routines & habits
      6. Expand all / Contract all
      7. the pen: the tree draws .tree-notepen when an item has notes; this window
@@ -43415,16 +43653,72 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
          title, which is the element it was written for. */
       '.ea-subtitle > .ea-subdate{font-size:9px;letter-spacing:.07em;margin-left:.55em;' +
       ' color:rgba(245,158,11,.32);text-transform:uppercase;font-weight:500;' +
-      ' font-variant-numeric:tabular-nums;white-space:nowrap}' +
+      ' font-variant-numeric:tabular-nums;white-space:nowrap;' +
+      /* CARD 13: the printed date lives INSIDE the title, and the row-level rule
+         `.ea-subrow:not(:hover) .ea-subdate:not(.hasdate){visibility:hidden}` was
+         written for the row's CLOCK CHIP but matches this span too - same class.
+         It is scoped to a direct child of the row, so saying so here wins. */
+      ' visibility:visible !important;display:inline !important}' +
       /* the pen, same amber as the tree's */
+      /* ===================================================== CARD 13, 2026-11-04
+         operator: "I want to see the date there when I click show future subtasks
+         not when I hover ... and it shows it automatically without hovering, same
+         thing as the pen".
+         MEASURED on the live test copy - three rows HAD a date (2026-11-04) and
+         printed no date text at rest, because the only thing that showed it was
+         :hover. The pen had exactly the same rule (opacity:0 until hover), which
+         is why their screenshot shows the pen on the hovered row alone.
+         So BOTH are visible at rest now. */
       '.ea-subpen{color:rgba(245,158,11,.32);font-size:13px;margin-right:8px;' +
-      ' cursor:default;opacity:0;transition:opacity 120ms}' +
-      '.ea-subrow:hover .ea-subpen,.ea-subrow:focus-within .ea-subpen{opacity:1}' +
+      ' cursor:default;opacity:1}' +
       /* a missed row reads red, title and date */
       '.ea-subs.od-only .ea-subrow.od-hit .ea-subtitle{color:#f87171 !important}' +
       '.ea-subs.od-only .ea-subrow.od-hit .ea-subdate{color:#f87171 !important}' +
       '.ea-subs.od-only .ea-subrow:not(.od-hit){display:none !important}' +
       /* the gear */
+      /* CARD 50: the add button, styled from the tree's own toolbar button so the
+         two read as one app. The label hides below 560px exactly as the tree's
+         does, leaving the plus - measured, the tree's button is 26px wide there. */
+      /* ===================================================== CARD 50, ROUND 3
+         operator 2026-11-05, with a screenshot of the TEST COPY: "you are wrong,
+         I am reffering to the + buttton to be next to the setting just like the
+         priorty tree". They were right and I was wrong twice - I checked that the
+         plus was PRESENT and plus-ONLY, and never that it LOOKED like the tree's.
+         MEASURED side by side in this same build, rendered:
+                          tree #btnAddGoal      mine .ea-subadd
+             box          26 x 26               26 x 18
+             background   rgb(77,139,255) blue  transparent
+             colour       white                 dim grey #9aa1ab
+             svg          16 x 16               14 x 14
+         So it was a dim grey ghost of a different size, not the tree's blue
+         square. Every one of those four numbers is now taken from the tree's
+         own rule rather than chosen again here. */
+      '.ea-subadd{background:var(--accent,#4d8bff);border:0;color:#fff;' +
+      ' cursor:pointer;padding:0;border-radius:6px;margin-right:2px;' +
+      ' flex:0 0 26px;width:26px;min-width:26px;height:26px;' +
+      /* no gap: with the label hidden a gap is dead space beside the plus */
+      ' display:inline-flex;align-items:center;justify-content:center;gap:0;' +
+      ' font:inherit;font-size:12px}' +
+      '.ea-subadd svg{width:16px !important;height:16px !important}' +
+      /* the tree brightens rather than changing colour - same gesture here */
+      '.ea-subadd:hover{filter:brightness(1.08)}' +
+      '.ea-subadd:active{filter:brightness(.92)}' +
+      /* CARD 50 REVISED 2026-11-05, operator: "no just make it a plus sign like
+         the priorty tree". MEASURED in this same file: the tree's button carries
+         <span>New branch</span> in the markup and hides it at EVERY width with
+         `#btnAddGoal span{display:none !important}` - it is never a word, it is
+         always just the plus. My version only hid the label below 560px, so at
+         desktop width it read "+ New subtask" beside a tree button showing a
+         bare plus. The span stays in the markup for screen readers, as the
+         tree's does, and the hover title still names it. */
+      '.ea-subadd > span{display:none !important}' +
+      /* CARD 50: .ea-subhead is justify-content:space-between, so simply appending
+         the button pushed it to the far left of the free space - MEASURED, the add
+         landed at x=610 and the gear at x=889, 279px apart, while the TREE's pair
+         sits 34px apart (345 and 379). Group the two controls so they travel
+         together at the right-hand end, the way the tree's toolbar ends. */
+      '.ea-subhead{align-items:center}' +
+      '.ea-subhead > .ea-subadd{margin-left:auto}' +
       '.ea-subgear{background:none;border:0;color:var(--text-dim,#9aa1ab);' +
       ' font-size:15px;cursor:pointer;padding:2px 6px;border-radius:6px}' +
       '.ea-subgear:hover{color:var(--text,#e6e8ec);background:var(--surface-2,#22262e)}' +
@@ -43457,7 +43751,12 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
       var n = f && f.node;
       if (!n) continue;
 
-      row.classList.toggle('od-hit', isOverdue(n));
+      /* CARD 49: the same exclusion the COUNT uses, so the number and the view
+         can never disagree. The tree does exactly this in CSS:
+             #treeRoot.overdue-only .tree-row.is-repeat { display: none }
+         Caught by the gate, not by reading: with the count fixed but this line
+         untouched, Missed said 2 and left 3 rows on screen. */
+      row.classList.toggle('od-hit', isOverdue(n) && !(n && n.repeat));
 
       /* the date, inside the title so it flows after the words */
       var ttl = row.querySelector('.ea-subtitle');
@@ -43508,7 +43807,12 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
     function item(label, opts, run) {
       var b = document.createElement('button');
       b.type = 'button'; b.className = 'gearitem'; b.textContent = label;
-      if (opts && opts.count) {
+      /* CARD 52: `if (opts.count)` dropped the span whenever the count was 0,
+         because 0 is falsy - so a line could dim at zero while showing no number
+         at all, which is the ambiguity this card exists to remove. The tree's own
+         view bar prints "Deleted (0)", so zero is a number this app shows.
+         Tested: the gate asserted `reads 0` and FAILED here before this line. */
+      if (opts && opts.count != null && opts.count !== '') {
         var k = document.createElement('span');
         k.className = 'gearcount'; k.textContent = String(opts.count);
         b.appendChild(k);
@@ -43523,26 +43827,97 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
       return b;
     }
 
+    /* ============================================================== CARD 49
+       operator 2026-11-04: "add the missed to the setting up in the edit task
+       just like the priorty tree".
+
+       The item was already here - what was NOT like the tree is how it counts
+       and how it behaves when there is nothing to show. MEASURED on one set of
+       subtasks (two plainly overdue, plus a daily routine dated two days ago):
+
+           the TREE's menu said      Missed  2
+           the EDIT window said      Missed  3
+
+       Two numbers for the same data, in two menus the operator reads as one
+       feature. The tree asks window.__odCount(), which the routines module
+       HOOKS so a repeating task never counts as missed - it has already come
+       round again. This menu ran its own loop and had no such hook, so the
+       routine was counted.
+
+       Also measured: with nothing overdue at all, the tree DISABLES its Missed
+       line (b3.disabled = n === 0) while this one stayed clickable and silently
+       filtered the list down to nothing.
+
+       So: count repeats out, the same rule the tree uses, and go dim at zero. */
     var wrap = document.querySelector('.ea-subs');
     var over = 0;
     if (wrap) {
       var rr = wrap.querySelectorAll('.ea-subrow');
       for (var i = 0; i < rr.length; i++) {
         var f = window.findNode && window.findNode(rr[i].dataset.subId);
-        if (f && isOverdue(f.node)) over++;
+        if (!f || !f.node) continue;
+        if (!isOverdue(f.node)) continue;
+        /* A repeating task is not "missed" - it has already come round again.
+           That is the routines module's own rule, and its test is literally
+           `!!(n && n.repeat)`.
+           I first wrote this against window.__isRepeatNode and CHECKED before
+           trusting it: that name is NOT defined in this build (typeof came back
+           "undefined"), so the call would have been a dead branch that always
+           fell through. Matching the module's expression is the honest version. */
+        var n0 = f.node;
+        if (n0 && n0.repeat) continue;
+        over++;
       }
     }
 
-    item('Missed', {count: over, tick: S.missed}, function () {
+    /* CARD 52: pass null (not 0) so Missed keeps reading exactly as the tree's
+       Missed does - dimmed and with no number - now that item() prints zeros. */
+    var missedItem = item('Missed', {count: over || null, tick: S.missed}, function () {
+      if (over === 0 && !S.missed) return;   /* nothing to show - say nothing */
       S.missed = !S.missed; apply();
     });
-    item('Show future subtasks', {tick: S.fut}, function () {
+    /* the tree dims this line when there is nothing missed; so does this one */
+    if (missedItem && over === 0 && !S.missed) missedItem.disabled = true;
+    /* CARD 52 WORDING, operator 2026-11-05: "i want the wording to be show future
+       tasks instead of subtasks, and same thing in show completed tasks". */
+    item('Show future tasks', {tick: S.fut}, function () {
       S.fut = !S.fut; if (window.__eaSetShowFuture) window.__eaSetShowFuture(S.fut);
       apply();
     });
-    item('Show completed subtasks', {tick: S.done}, function () {
-      S.done = !S.done; apply();
-    });
+    /* ============================================================== CARD 52
+       operator 2026-11-05, after the card 51 review: the one line in this menu
+       that hides something and does not say how many.
+
+       Every other hiding line in this app carries its number - Missed shows a
+       count here and in the tree, and the tree's view bar reads
+       "Completed (1)", "Past due (1)", "Deleted (0)". Without one you cannot
+       tell whether anything is behind this line without turning it on.
+
+       The count is taken from the SAME rows and the SAME test the filter uses
+       a few lines above (`if (n.done) hide = !S.done`), so the number and the
+       list can never disagree. Counting separately is exactly how the tree's
+       Completed tab once came to read "(1)" over an empty list - that is card
+       3's comment, and this does not repeat it.
+
+       Routines are excluded only when they are themselves hidden, because a
+       hidden routine is not something this line would reveal. */
+    var doneN = 0;
+    if (wrap) {
+      var dr = wrap.querySelectorAll('.ea-subrow');
+      for (var di = 0; di < dr.length; di++) {
+        var df = window.findNode && window.findNode(dr[di].dataset.subId);
+        if (!df || !df.node || !df.node.done) continue;
+        if (!S.hab && window.__isHRNode && window.__isHRNode(df.node)) continue;
+        doneN++;
+      }
+    }
+    var doneItem = item('Show completed tasks', {count: doneN, tick: S.done},
+      function () {
+        if (doneN === 0 && !S.done) return;   /* nothing to show - say nothing */
+        S.done = !S.done; apply();
+      });
+    /* dim at zero, the same way Missed and the tree's own lines do */
+    if (doneItem && doneN === 0 && !S.done) doneItem.disabled = true;
     item('Show routines & habits', {tick: S.hab}, function () {
       S.hab = !S.hab;
       /* drawLevel decides whether the row is BUILT, so this one needs a redraw -
@@ -43621,6 +43996,49 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
        an inline style the app sets to ''. */
     var chip = head.querySelector('.ea-futchip');
     if (chip) chip.style.setProperty('display', 'none', 'important');
+    /* ============================================================== CARD 50
+       operator 2026-11-05: "can you also add a add task left of the setting
+       button just like the priorty tree".
+
+       MEASURED on the tree's own toolbar before building, left to right:
+           ps-wrap(search) x=10 | treeDateGroup x=178 | btnAddGoal x=345 w=26
+           | treeGear x=379 w=30
+       So the tree's add sits immediately LEFT of its gear, 34px apart, and its
+       markup is a plus SVG plus a <span> label - NOT a text glyph:
+           <button id="btnAddGoal" title="New branch">
+             <svg ...><path d="M12 5v14M5 12h14" .../></svg><span>New branch</span>
+           </button>
+       The same SVG path is reused here rather than drawing a second plus, so the
+       two can never look different. The label says "New subtask" because that is
+       what it makes - the tree says "New branch" for the same reason.
+
+       WHAT IT DOES: focuses the "Enter subtask.." field that is already in this
+       window (measured at x=370 y=1104 w=541) and scrolls it into view, rather
+       than inventing a second way to create a subtask. One field, one behaviour.
+       That field is also why the gear MENU has no "New subtask" line - the
+       operator asked for that removal on 2026-10-30 ("remove new subtask from
+       there"), and this does not put it back. */
+    var add = document.createElement('button');
+    add.type = 'button';
+    add.className = 'ea-subadd';
+    add.title = 'New subtask';
+    /* 16x16 like the tree's; the CSS rule above also forces it, so the two
+       can never disagree if one of them is edited later. */
+    add.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">'
+      + '<path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" '
+      + 'stroke-width="2" stroke-linecap="round"/></svg><span>New subtask</span>';
+    add.onclick = function (e) {
+      e.preventDefault(); e.stopPropagation();
+      var inp = null, all = document.querySelectorAll('input');
+      for (var k = 0; k < all.length; k++) {
+        if (/subtask/i.test(all[k].placeholder || '')) { inp = all[k]; break; }
+      }
+      if (!inp) return;
+      try { inp.scrollIntoView({block: 'center'}); } catch (_) {}
+      try { inp.focus(); } catch (_) {}
+    };
+    head.appendChild(add);
+
     var g = document.createElement('button');
     g.type = 'button';
     g.className = 'ea-subgear';
