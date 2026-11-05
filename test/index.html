@@ -57,7 +57,13 @@
   window.addEventListener('DOMContentLoaded', function () {
     try {
       var b = document.createElement('div');
-      b.textContent = 'TEST COPY \u2014 second account, not your planner';
+      /* 2026-11-04: the operator kept testing a build without the fix and could
+         not tell which copy they were on - the demo was deleted that day, so a
+         reload dropped them back on the REAL planner, which still has the bug.
+         The banner now names the build, loudly, so one glance answers it. */
+      b.textContent = 'TEST COPY \u2014 drag fix v11 \u2014 '
+        + ((document.getElementById('buildStamp')||{}).textContent || '')
+        + ' \u2014 not your planner';
       b.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:2147483647;'
         + 'background:#7c3aed;color:#fff;font:600 12px/1.9 system-ui,sans-serif;'
         + 'text-align:center;letter-spacing:.04em';
@@ -6607,7 +6613,7 @@ window.__rollHorizon = function () {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-11-04 21:50 TEST c11</span>
+    <span id="buildStamp">build 2026-11-04 22:35 TEST c11</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
