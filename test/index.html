@@ -6623,7 +6623,7 @@ window.__rollHorizon = function () {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-11-05 11:05 c53 TEST</span>
+    <span id="buildStamp">build 2026-11-05 13:40 c56 TEST</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -43751,11 +43751,30 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
       /* CARD 50: the add button, styled from the tree's own toolbar button so the
          two read as one app. The label hides below 560px exactly as the tree's
          does, leaving the plus - measured, the tree's button is 26px wide there. */
-      '.ea-subadd{background:none;border:0;color:var(--text-dim,#9aa1ab);' +
-      ' cursor:pointer;padding:2px 6px;border-radius:6px;margin-right:2px;' +
+      /* ===================================================== CARD 50, ROUND 3
+         operator 2026-11-05, with a screenshot of the TEST COPY: "you are wrong,
+         I am reffering to the + buttton to be next to the setting just like the
+         priorty tree". They were right and I was wrong twice - I checked that the
+         plus was PRESENT and plus-ONLY, and never that it LOOKED like the tree's.
+         MEASURED side by side in this same build, rendered:
+                          tree #btnAddGoal      mine .ea-subadd
+             box          26 x 26               26 x 18
+             background   rgb(77,139,255) blue  transparent
+             colour       white                 dim grey #9aa1ab
+             svg          16 x 16               14 x 14
+         So it was a dim grey ghost of a different size, not the tree's blue
+         square. Every one of those four numbers is now taken from the tree's
+         own rule rather than chosen again here. */
+      '.ea-subadd{background:var(--accent,#4d8bff);border:0;color:#fff;' +
+      ' cursor:pointer;padding:0;border-radius:6px;margin-right:2px;' +
+      ' flex:0 0 26px;width:26px;min-width:26px;height:26px;' +
       /* no gap: with the label hidden a gap is dead space beside the plus */
-      ' display:inline-flex;align-items:center;gap:0;font:inherit;font-size:12px}' +
-      '.ea-subadd:hover{color:var(--text,#e6e8ec);background:var(--surface-2,#22262e)}' +
+      ' display:inline-flex;align-items:center;justify-content:center;gap:0;' +
+      ' font:inherit;font-size:12px}' +
+      '.ea-subadd svg{width:16px !important;height:16px !important}' +
+      /* the tree brightens rather than changing colour - same gesture here */
+      '.ea-subadd:hover{filter:brightness(1.08)}' +
+      '.ea-subadd:active{filter:brightness(.92)}' +
       /* CARD 50 REVISED 2026-11-05, operator: "no just make it a plus sign like
          the priorty tree". MEASURED in this same file: the tree's button carries
          <span>New branch</span> in the markup and hides it at EVERY width with
@@ -44075,7 +44094,9 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
     add.type = 'button';
     add.className = 'ea-subadd';
     add.title = 'New subtask';
-    add.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">'
+    /* 16x16 like the tree's; the CSS rule above also forces it, so the two
+       can never disagree if one of them is edited later. */
+    add.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">'
       + '<path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" '
       + 'stroke-width="2" stroke-linecap="round"/></svg><span>New subtask</span>';
     add.onclick = function (e) {
