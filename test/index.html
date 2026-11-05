@@ -6408,6 +6408,16 @@ body[data-newbranch="1"] #treeFilters{
 .tree-gearmenu .gearitem:hover{ background:#343a43 }
 .tree-gearmenu .gearcheck{ margin-left:auto; color:#a8c7de; font-weight:600 }
 .tree-gearmenu .gearcount{ margin-left:auto; color:#f87171; font-weight:600 }
+/* CARD 52, 2026-11-05. A disabled gear line was styled EXACTLY like a live one -
+   MEASURED: color rgb(233,236,241) and opacity 1 on both, because nothing in this
+   file ever styled .gearitem:disabled. So "Missed" has been shipping as a line
+   that looks clickable and does nothing, and the new zero count would have read as
+   an urgent red 0. The dim has to be VISIBLE, not just a property.
+   The count goes muted too - a red number means "these are waiting for you", and
+   zero of them is not. */
+.tree-gearmenu .gearitem:disabled{ color:var(--muted,#8b93a1); cursor:default }
+.tree-gearmenu .gearitem:disabled .gearcount{ color:var(--muted,#8b93a1); font-weight:500 }
+.tree-gearmenu .gearitem:disabled:hover{ background:transparent }
 
 /* the date left the top bar, so the space it held open goes too - the remaining controls move to
    the left edge instead of leaving a hole where the date used to be */
@@ -6613,7 +6623,7 @@ window.__rollHorizon = function () {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-11-05 01:15 TEST c50</span>
+    <span id="buildStamp">build 2026-11-05 09:40 c52 TEST</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -43839,7 +43849,12 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
     function item(label, opts, run) {
       var b = document.createElement('button');
       b.type = 'button'; b.className = 'gearitem'; b.textContent = label;
-      if (opts && opts.count) {
+      /* CARD 52: `if (opts.count)` dropped the span whenever the count was 0,
+         because 0 is falsy - so a line could dim at zero while showing no number
+         at all, which is the ambiguity this card exists to remove. The tree's own
+         view bar prints "Deleted (0)", so zero is a number this app shows.
+         Tested: the gate asserted `reads 0` and FAILED here before this line. */
+      if (opts && opts.count != null && opts.count !== '') {
         var k = document.createElement('span');
         k.className = 'gearcount'; k.textContent = String(opts.count);
         b.appendChild(k);
@@ -43897,7 +43912,9 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
       }
     }
 
-    var missedItem = item('Missed', {count: over, tick: S.missed}, function () {
+    /* CARD 52: pass null (not 0) so Missed keeps reading exactly as the tree's
+       Missed does - dimmed and with no number - now that item() prints zeros. */
+    var missedItem = item('Missed', {count: over || null, tick: S.missed}, function () {
       if (over === 0 && !S.missed) return;   /* nothing to show - say nothing */
       S.missed = !S.missed; apply();
     });
@@ -43907,9 +43924,40 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
       S.fut = !S.fut; if (window.__eaSetShowFuture) window.__eaSetShowFuture(S.fut);
       apply();
     });
-    item('Show completed subtasks', {tick: S.done}, function () {
-      S.done = !S.done; apply();
-    });
+    /* ============================================================== CARD 52
+       operator 2026-11-05, after the card 51 review: the one line in this menu
+       that hides something and does not say how many.
+
+       Every other hiding line in this app carries its number - Missed shows a
+       count here and in the tree, and the tree's view bar reads
+       "Completed (1)", "Past due (1)", "Deleted (0)". Without one you cannot
+       tell whether anything is behind this line without turning it on.
+
+       The count is taken from the SAME rows and the SAME test the filter uses
+       a few lines above (`if (n.done) hide = !S.done`), so the number and the
+       list can never disagree. Counting separately is exactly how the tree's
+       Completed tab once came to read "(1)" over an empty list - that is card
+       3's comment, and this does not repeat it.
+
+       Routines are excluded only when they are themselves hidden, because a
+       hidden routine is not something this line would reveal. */
+    var doneN = 0;
+    if (wrap) {
+      var dr = wrap.querySelectorAll('.ea-subrow');
+      for (var di = 0; di < dr.length; di++) {
+        var df = window.findNode && window.findNode(dr[di].dataset.subId);
+        if (!df || !df.node || !df.node.done) continue;
+        if (!S.hab && window.__isHRNode && window.__isHRNode(df.node)) continue;
+        doneN++;
+      }
+    }
+    var doneItem = item('Show completed subtasks', {count: doneN, tick: S.done},
+      function () {
+        if (doneN === 0 && !S.done) return;   /* nothing to show - say nothing */
+        S.done = !S.done; apply();
+      });
+    /* dim at zero, the same way Missed and the tree's own lines do */
+    if (doneItem && doneN === 0 && !S.done) doneItem.disabled = true;
     item('Show routines & habits', {tick: S.hab}, function () {
       S.hab = !S.hab;
       /* drawLevel decides whether the row is BUILT, so this one needs a redraw -
