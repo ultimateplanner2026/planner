@@ -2726,6 +2726,42 @@ aside#treePane { overflow-y: auto; }
   cursor: grab; user-select: none;
 }
 .ea-subrow.dragging { opacity: .45; cursor: grabbing; }
+/* ============================================================== CARD 11
+   operator 2026-11-04: "craig payment is still not moving above anybody,
+   I holding it from the 3 dots or the square".
+
+   MEASURED on the live build (2026-11-03 16:23), dragging the bottom row of four
+   to the top and logging dragstart + dragover-per-row + drop:
+
+       grab the NAME        dragstart fires   row 0 got dragover    drop   MOVED
+       grab the CHECKBOX    dragstart fires   row 0 got NO dragover no drop  unchanged
+       grab the far LEFT    dragstart fires   row 0 got NO dragover no drop  unchanged
+
+   The drag ALWAYS started, so this is NOT card 4 again - the press was fine. The
+   DROP failed. A row's own buttons (caret, tick, +, clock, dots) are painted above
+   the row and never call preventDefault on dragover, so while the pointer is over
+   one of them the row beneath is not a valid drop target. Grabbing low on the left
+   means travelling up a column of checkboxes, so the row being aimed at never
+   accepted the drop. elementFromPoint along the corridor showed it exactly:
+
+       x at  3% of the row   ea-subrow / ea-sublist / ea-subrow / ea-subcaret
+       x at  8% of the row   ea-subtick / ea-subrow / ea-subtick / ea-subrow / ...
+       x at 15% of the row   ea-subrow all the way up        <- the one that worked
+
+   (The priority tree does NOT have this bug: its dragover is delegated on #treeRoot
+   and calls preventDefault unconditionally, before any row lookup. Checked, not
+   assumed - that is why only the dialog needs this.)
+
+   FIX: while a subtask drag is in flight every .ea-sublist carries .ea-dragging and
+   the controls inside the rows go pointer-transparent, so the corridor is plain
+   ea-subrow at every x. At rest the buttons are untouched. */
+.ea-sublist.ea-dragging .ea-subcaret,
+.ea-sublist.ea-dragging .ea-subtick,
+.ea-sublist.ea-dragging .ea-subquick,
+.ea-sublist.ea-dragging .ea-subdate,
+.ea-sublist.ea-dragging .ea-subdots,
+.ea-sublist.ea-dragging .ea-subtitle,
+.ea-sublist.ea-dragging .ea-subpen { pointer-events: none !important; }
 .ea-subrow.dropon  { outline: 2px solid var(--accent, #4c9aff); outline-offset: -2px; }
 .ea-subcaret, .ea-subtick, .ea-subdots {
   background: none; border: 0; padding: 0; cursor: pointer;
@@ -6571,7 +6607,7 @@ window.__rollHorizon = function () {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-11-03 16:23 TEST</span>
+    <span id="buildStamp">build 2026-11-04 21:05 TEST c11</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -13832,9 +13868,16 @@ function surfaceArrivals() {
             e.dataTransfer.effectAllowed = 'move';
             try { e.dataTransfer.setData('text/plain', child.id); } catch (_) {}
             rowEl.classList.add('dragging');
+            /* CARD 11: every control in every row goes pointer-transparent for the
+               duration, so dragover reaches the ROW the whole way up. Marked on
+               EVERY list, not only this row's - a drag crosses nested levels. */
+            var ls = document.querySelectorAll('.ea-sublist');
+            for (var q = 0; q < ls.length; q++) ls[q].classList.add('ea-dragging');
           });
           rowEl.addEventListener('dragend', function () {
             rowEl.classList.remove('dragging');
+            var ls = document.querySelectorAll('.ea-sublist');
+            for (var q = 0; q < ls.length; q++) ls[q].classList.remove('ea-dragging');
           });
           rowEl.addEventListener('dragover', function (e) {
             e.preventDefault();
@@ -23806,6 +23849,14 @@ function firstConnect(remote, rAt, lAt) {
       if (rows[i].querySelector('.tree-marker')) continue;
       var sq = document.createElement('span');
       sq.className = 'tree-marker';
+      /* CARD 11, 2026-11-04: the marker is decoration with no handler of its own,
+         but it took the pointer, so a press on it never reached the row and the
+         row would not drag. MEASURED on the live tree, dragging the bottom row up:
+             x=10  far left   MOVED
+             x=28  the MARKER unchanged   <- this square
+             x=53  left of the name  MOVED (once card 10 freed the title)
+         Transparent at rest, exactly as card 10 made the title. */
+      sq.style.pointerEvents = 'none';
       var caret = rows[i].querySelector('.tree-caret');
       var check = rows[i].querySelector('.tree-check');
       if (check) rows[i].insertBefore(sq, check);
