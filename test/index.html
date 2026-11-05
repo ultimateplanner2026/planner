@@ -6623,7 +6623,7 @@ window.__rollHorizon = function () {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-11-05 09:40 c52 TEST</span>
+    <span id="buildStamp">build 2026-11-05 11:05 c53 TEST</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -43687,8 +43687,10 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
         minus New goal (the window already has an "Enter subtask.." field)
      2. Missed  - filter to overdue, red count, and the surviving row painted red,
         the way #treeRoot.overdue-only .od-hit .tree-title does
-     3. Show future subtasks     - replaces the old lone chip
-     4. Show completed subtasks  - NEW; finished subtasks were unhideable
+     3. Show future tasks        - replaces the old lone chip
+     4. Show completed tasks     - NEW; finished subtasks were unhideable
+        (both renamed 2026-11-05 at the operator's word - they read as tasks
+         in this window, not subtasks)
      5. Show routines & habits
      6. Expand all / Contract all
      7. the pen: the tree draws .tree-notepen when an item has notes; this window
@@ -43751,9 +43753,18 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
          does, leaving the plus - measured, the tree's button is 26px wide there. */
       '.ea-subadd{background:none;border:0;color:var(--text-dim,#9aa1ab);' +
       ' cursor:pointer;padding:2px 6px;border-radius:6px;margin-right:2px;' +
-      ' display:inline-flex;align-items:center;gap:5px;font:inherit;font-size:12px}' +
+      /* no gap: with the label hidden a gap is dead space beside the plus */
+      ' display:inline-flex;align-items:center;gap:0;font:inherit;font-size:12px}' +
       '.ea-subadd:hover{color:var(--text,#e6e8ec);background:var(--surface-2,#22262e)}' +
-      '@media (max-width:560px){.ea-subadd > span{display:none}}' +
+      /* CARD 50 REVISED 2026-11-05, operator: "no just make it a plus sign like
+         the priorty tree". MEASURED in this same file: the tree's button carries
+         <span>New branch</span> in the markup and hides it at EVERY width with
+         `#btnAddGoal span{display:none !important}` - it is never a word, it is
+         always just the plus. My version only hid the label below 560px, so at
+         desktop width it read "+ New subtask" beside a tree button showing a
+         bare plus. The span stays in the markup for screen readers, as the
+         tree's does, and the hover title still names it. */
+      '.ea-subadd > span{display:none !important}' +
       /* CARD 50: .ea-subhead is justify-content:space-between, so simply appending
          the button pushed it to the far left of the free space - MEASURED, the add
          landed at x=610 and the gear at x=889, 279px apart, while the TREE's pair
@@ -43920,7 +43931,9 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
     });
     /* the tree dims this line when there is nothing missed; so does this one */
     if (missedItem && over === 0 && !S.missed) missedItem.disabled = true;
-    item('Show future subtasks', {tick: S.fut}, function () {
+    /* CARD 52 WORDING, operator 2026-11-05: "i want the wording to be show future
+       tasks instead of subtasks, and same thing in show completed tasks". */
+    item('Show future tasks', {tick: S.fut}, function () {
       S.fut = !S.fut; if (window.__eaSetShowFuture) window.__eaSetShowFuture(S.fut);
       apply();
     });
@@ -43951,7 +43964,7 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
         doneN++;
       }
     }
-    var doneItem = item('Show completed subtasks', {count: doneN, tick: S.done},
+    var doneItem = item('Show completed tasks', {count: doneN, tick: S.done},
       function () {
         if (doneN === 0 && !S.done) return;   /* nothing to show - say nothing */
         S.done = !S.done; apply();
