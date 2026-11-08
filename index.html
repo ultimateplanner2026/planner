@@ -6551,7 +6551,7 @@ window.__rollHorizon = function () {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-11-05 21:30</span>
+    <span id="buildStamp">build 2026-11-07 19:30</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -10641,6 +10641,22 @@ window.__moveOccurrence = function(node, toISO, time) {
   var moves = node.repeat.moves;
   // The chip was drawn for __dragFromISO, or for the anchor date otherwise.
   var fromISO = node.__dragFromISO || node.date;
+  /* 2026-11-07, operator: "when I drag a task from the tree to the calender it
+     drags but the task becomes without a date, it must have a date to the day I
+     drag it to."
+     MEASURED on build 2026-11-05 21:30, same drag, two tasks:
+         plain task     -> date 2026-11-07          (correct)
+         REPEATING task -> date null, and
+                           repeat.moves = {"null": {to: "2026-11-07"}}
+     This function moves ONE OCCURRENCE of a series, so it needs the day the
+     occurrence was drawn on. A task dragged out of the TREE has never been drawn
+     on any day: __dragFromISO and date are both null, so it filed the move under
+     the literal key "null" and returned true - and `true` tells the caller the
+     move is handled, so the caller skips `node.date = <the day>`. The task landed
+     on the calendar through the bogus moves entry while its own date stayed empty.
+     There is no occurrence to move here. Return false so the caller does the
+     normal thing and ANCHORS the series on the day it was dropped. */
+  if (!fromISO) return false;
   var t = time || null;
   // If a prior move already targeted fromISO, re-point that entry to
   // toISO so we don't leave a dangling intermediate hop.
@@ -10704,6 +10720,58 @@ window.__occurrenceFor = function(node, iso) {
   return {shows: null, movedFrom: null, movedAway: false};
 };
 
+window.tgWireAllDayDrops=function(host){
+/* 2026-11-07, operator: "its when I move a tree or a task, it doesn't matter into
+   the calender like physically moving it, it moves without a date".
+   ROOT CAUSE, found by reading every drag path rather than by dispatching events:
+   there are TWO drag systems and each covers a different half.
+     * a POINTER system that starts on a .tgchip - calendar to calendar - which
+       handles the hour grid AND the ALL DAY row;
+     * the HTML5 system below, which starts on a TREE ROW - tree to calendar -
+       and was only ever wired to .tgcol (tgWireDrops is called with .tgcols).
+   So dragging from the tree onto the ALL DAY strip landed on an element with no
+   dragover and no drop: the browser refused the drop, nothing was written, and the
+   item appeared to "move without a date". A CSS rule for .tgalldaycell.tgdrop and a
+   clearDropHighlight() that clears it both already existed - the row was styled as a
+   drop target that nobody had wired.
+   Dropping on ALL DAY means "this day, no particular time", so it sets the date and
+   clears the time - the same thing the pointer system does for a chip. */
+try{
+if(!host)return;
+host.addEventListener('dragover',function(e){
+try{
+var c=e.target.closest&&e.target.closest('.tgalldaycell');
+if(c){e.preventDefault();c.classList.add('tgdrop');}
+}catch(err){}
+});
+host.addEventListener('dragleave',function(e){
+try{
+var c=e.target.closest&&e.target.closest('.tgalldaycell');
+if(c)c.classList.remove('tgdrop');
+}catch(err){}
+});
+host.addEventListener('drop',function(e){
+try{
+e.preventDefault();
+var c=e.target.closest&&e.target.closest('.tgalldaycell');
+if(!c)return;
+c.classList.remove('tgdrop');
+if(!e.dataTransfer)return;
+var id=e.dataTransfer.getData('application/x-planner-node');
+if(!id)return;
+var found=window.findNode(id);
+if(!found||!found.node)return;
+if(window.__moveOccurrence&&window.__moveOccurrence(found.node,c.dataset.iso,null)){
+Store.save();renderAll();return;}
+found.node.date=c.dataset.iso;
+found.node.time=null;
+Store.save();
+renderAll();
+}catch(err){}
+});
+}catch(err){}
+};
+
 window.tgWireDrops=function(colsWrap){
 try{
 if(!colsWrap)return;
@@ -10759,10 +10827,10 @@ renderAll();
 })();
 
 /* ===== h24 ===== */
-(function(){window.renderDay=function(){var host=document.getElementById('dayView');if(!host)return;host.textContent='';var iso=window.selectedDate;var header=document.createElement('div');header.className='tgtop';var prevBtn=document.createElement('button');prevBtn.textContent='◀';prevBtn.onclick=function(){var d=parseISO(window.selectedDate);d.setDate(d.getDate()-1);window.selectedDate=isoOf(d);renderAll();};var titleSpan=document.createElement('span');titleSpan.className='tgtitle';titleSpan.textContent=fmtDate(iso,'long');var nextBtn=document.createElement('button');nextBtn.textContent='▶';nextBtn.onclick=function(){var d=parseISO(window.selectedDate);d.setDate(d.getDate()+1);window.selectedDate=isoOf(d);renderAll();};var spacer=document.createElement('span');spacer.className='tgspacer';header.appendChild(prevBtn);header.appendChild(titleSpan);header.appendChild(nextBtn);header.appendChild(spacer);host.appendChild(header);var allDay=document.createElement('div');allDay.className='tgallday';var gutterLabel=document.createElement('div');gutterLabel.className='tggutterlabel';gutterLabel.textContent='All day';var allDayCell=document.createElement('div');allDayCell.className='tgalldaycell';allDayCell.dataset.iso=iso;var entries=scheduledOn(iso);for(var i=0;i<entries.length;i++){var entry=entries[i];if(!tgTimeOf(entry)){var chip=document.createElement('div');chip.className='tgchip';chip.textContent=entry.title;chip.dataset.nodeId=(entry.node?entry.node.id:entry.id);chip.title=entry.title;allDayCell.appendChild(chip);}}allDay.appendChild(gutterLabel);allDay.appendChild(allDayCell);host.appendChild(allDay);var g=tgBuildGrid(host,[iso]);tgFillColumn(g.cols[0],iso);tgWireDrops(g.body.querySelector('.tgcols'));tgScrollToMorning(g.scroll);};})();
+(function(){window.renderDay=function(){var host=document.getElementById('dayView');if(!host)return;host.textContent='';var iso=window.selectedDate;var header=document.createElement('div');header.className='tgtop';var prevBtn=document.createElement('button');prevBtn.textContent='◀';prevBtn.onclick=function(){var d=parseISO(window.selectedDate);d.setDate(d.getDate()-1);window.selectedDate=isoOf(d);renderAll();};var titleSpan=document.createElement('span');titleSpan.className='tgtitle';titleSpan.textContent=fmtDate(iso,'long');var nextBtn=document.createElement('button');nextBtn.textContent='▶';nextBtn.onclick=function(){var d=parseISO(window.selectedDate);d.setDate(d.getDate()+1);window.selectedDate=isoOf(d);renderAll();};var spacer=document.createElement('span');spacer.className='tgspacer';header.appendChild(prevBtn);header.appendChild(titleSpan);header.appendChild(nextBtn);header.appendChild(spacer);host.appendChild(header);var allDay=document.createElement('div');allDay.className='tgallday';var gutterLabel=document.createElement('div');gutterLabel.className='tggutterlabel';gutterLabel.textContent='All day';var allDayCell=document.createElement('div');allDayCell.className='tgalldaycell';allDayCell.dataset.iso=iso;var entries=scheduledOn(iso);for(var i=0;i<entries.length;i++){var entry=entries[i];if(!tgTimeOf(entry)){var chip=document.createElement('div');chip.className='tgchip';chip.textContent=entry.title;chip.dataset.nodeId=(entry.node?entry.node.id:entry.id);chip.title=entry.title;allDayCell.appendChild(chip);}}allDay.appendChild(gutterLabel);allDay.appendChild(allDayCell);host.appendChild(allDay);var g=tgBuildGrid(host,[iso]);tgFillColumn(g.cols[0],iso);tgWireDrops(g.body.querySelector('.tgcols'));tgWireAllDayDrops(allDay);tgScrollToMorning(g.scroll);};})();
 
 /* ===== h25 ===== */
-(function(){window.renderWeek=function(){var host=document.getElementById('weekGrid');if(!host)return;host.textContent='';var startISO=weekStartOf(window.selectedDate);var start=parseISO(startISO);var isos=[];for(var i=0;i<7;i++){var d=new Date(start);d.setDate(d.getDate()+i);isos.push(isoOf(d));}var tgtop=document.createElement('div');tgtop.className='tgtop';var btnPrev=document.createElement('button');btnPrev.textContent='\u25C0';btnPrev.addEventListener('click',function(){shiftWeek(-1);});var btnNext=document.createElement('button');btnNext.textContent='\u25B6';btnNext.addEventListener('click',function(){shiftWeek(1);});var dateRange=document.createElement('span');dateRange.textContent=fmtDate(isos[0],'short')+' - '+fmtDate(isos[6],'short');var btnThisWeek=document.createElement('button');btnThisWeek.textContent='This week';btnThisWeek.addEventListener('click',function(){window.selectedDate=todayISO();renderAll();});var spacer=document.createElement('span');spacer.className='tgspacer';tgtop.appendChild(btnPrev);tgtop.appendChild(dateRange);tgtop.appendChild(btnNext);tgtop.appendChild(btnThisWeek);tgtop.appendChild(spacer);host.appendChild(tgtop);var dayHeaderRow=document.createElement('div');dayHeaderRow.className='tgweekhead';var gutterLabel=document.createElement('div');gutterLabel.className='tggutterlabel';dayHeaderRow.appendChild(gutterLabel);isos.forEach(function(iso){var dayHead=document.createElement('div');dayHead.className='tgdayhead';dayHead.dataset.iso=iso;var d=parseISO(iso);var weekdays=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];var weekday=weekdays[d.getDay()];var dayNum=d.getDate();dayHead.textContent=weekday+' '+dayNum;if(iso===todayISO())dayHead.classList.add('tgtoday');if(iso===window.selectedDate)dayHead.classList.add('tgsel');dayHead.addEventListener('click',function(){window.selectedDate=iso;setTab('day');});dayHeaderRow.appendChild(dayHead);});host.appendChild(dayHeaderRow);var allDayRow=document.createElement('div');allDayRow.className='tgallday';var allDayGutter=document.createElement('div');allDayGutter.className='tggutterlabel';allDayGutter.textContent='All day';allDayRow.appendChild(allDayGutter);isos.forEach(function(iso){var allDayCell=document.createElement('div');allDayCell.className='tgalldaycell';allDayCell.dataset.iso=iso;var entries=scheduledOn(iso);entries.forEach(function(entry){if(!tgTimeOf(entry)){var chip=document.createElement('div');chip.className='tgchip';chip.textContent=entry.title||entry.name||'';chip.dataset.nodeId=(entry.node?entry.node.id:entry.id);chip.title=entry.title||'';allDayCell.appendChild(chip);}});allDayRow.appendChild(allDayCell);});host.appendChild(allDayRow);var g=tgBuildGrid(host,isos);isos.forEach(function(iso,i){tgFillColumn(g.cols[i],iso);});tgWireDrops(g.body.querySelector('.tgcols'));tgScrollToMorning(g.scroll);};})();
+(function(){window.renderWeek=function(){var host=document.getElementById('weekGrid');if(!host)return;host.textContent='';var startISO=weekStartOf(window.selectedDate);var start=parseISO(startISO);var isos=[];for(var i=0;i<7;i++){var d=new Date(start);d.setDate(d.getDate()+i);isos.push(isoOf(d));}var tgtop=document.createElement('div');tgtop.className='tgtop';var btnPrev=document.createElement('button');btnPrev.textContent='\u25C0';btnPrev.addEventListener('click',function(){shiftWeek(-1);});var btnNext=document.createElement('button');btnNext.textContent='\u25B6';btnNext.addEventListener('click',function(){shiftWeek(1);});var dateRange=document.createElement('span');dateRange.textContent=fmtDate(isos[0],'short')+' - '+fmtDate(isos[6],'short');var btnThisWeek=document.createElement('button');btnThisWeek.textContent='This week';btnThisWeek.addEventListener('click',function(){window.selectedDate=todayISO();renderAll();});var spacer=document.createElement('span');spacer.className='tgspacer';tgtop.appendChild(btnPrev);tgtop.appendChild(dateRange);tgtop.appendChild(btnNext);tgtop.appendChild(btnThisWeek);tgtop.appendChild(spacer);host.appendChild(tgtop);var dayHeaderRow=document.createElement('div');dayHeaderRow.className='tgweekhead';var gutterLabel=document.createElement('div');gutterLabel.className='tggutterlabel';dayHeaderRow.appendChild(gutterLabel);isos.forEach(function(iso){var dayHead=document.createElement('div');dayHead.className='tgdayhead';dayHead.dataset.iso=iso;var d=parseISO(iso);var weekdays=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];var weekday=weekdays[d.getDay()];var dayNum=d.getDate();dayHead.textContent=weekday+' '+dayNum;if(iso===todayISO())dayHead.classList.add('tgtoday');if(iso===window.selectedDate)dayHead.classList.add('tgsel');dayHead.addEventListener('click',function(){window.selectedDate=iso;setTab('day');});dayHeaderRow.appendChild(dayHead);});host.appendChild(dayHeaderRow);var allDayRow=document.createElement('div');allDayRow.className='tgallday';var allDayGutter=document.createElement('div');allDayGutter.className='tggutterlabel';allDayGutter.textContent='All day';allDayRow.appendChild(allDayGutter);isos.forEach(function(iso){var allDayCell=document.createElement('div');allDayCell.className='tgalldaycell';allDayCell.dataset.iso=iso;var entries=scheduledOn(iso);entries.forEach(function(entry){if(!tgTimeOf(entry)){var chip=document.createElement('div');chip.className='tgchip';chip.textContent=entry.title||entry.name||'';chip.dataset.nodeId=(entry.node?entry.node.id:entry.id);chip.title=entry.title||'';allDayCell.appendChild(chip);}});allDayRow.appendChild(allDayCell);});host.appendChild(allDayRow);var g=tgBuildGrid(host,isos);isos.forEach(function(iso,i){tgFillColumn(g.cols[i],iso);});tgWireDrops(g.body.querySelector('.tgcols'));tgWireAllDayDrops(allDayRow);tgScrollToMorning(g.scroll);};})();
 
 /* ===== k30 ===== */
 (function(){window.DEFAULT_AREAS=[{id:"work",name:"Work",color:"#2f6feb"},{id:"money",name:"Finances",color:"#16a34a"},{id:"health",name:"Health",color:"#ea580c"},{id:"love",name:"Relationships",color:"#db2777"},{id:"growth",name:"Growth",color:"#7c3aed"},{id:"spirit",name:"Spirituality",color:"#0891b2"},{id:"fun",name:"Fun",color:"#ca8a04"},{id:"home",name:"Home",color:"#64748b"}];window.migrateV2=function(){var d=Store.data;if(!Array.isArray(d.areas)||!d.areas.length)d.areas=DEFAULT_AREAS.map(function(a){return {id:a.id,name:a.name,color:a.color};});if(!Array.isArray(d.lists))d.lists=[];if(!Array.isArray(d.timeLog))d.timeLog=[];if(!d.settings)d.settings={};if(!d.settings.filters)d.settings.filters={areas:[],tags:[]};walkTree(function(n){if(n.areaId===undefined)n.areaId=null;if(!Array.isArray(n.tags))n.tags=[];if(n.endDate===undefined)n.endDate=null;if(n.time===undefined)n.time=null;if(n.repeat&&n.repeat.interval===undefined)n.repeat.interval=1;if(n.repeat&&!Array.isArray(n.repeat.exceptions))n.repeat.exceptions=[];});Object.keys(d.journal||{}).forEach(function(k){var e=d.journal[k];if(e&&typeof e==='object'){if(e.mood===undefined)e.mood=null;if(e.template===undefined)e.template=null;if(!Array.isArray(e.photos))e.photos=[];}});d.version=2;};window.areaById=function(id){var areas = Store.data.areas || [];for(var i=0;i<areas.length;i++){if(areas[i].id===id)return areas[i];}return null;};window.allTags=function(){var tags={};walkTree(function(n){if(Array.isArray(n.tags)){n.tags.forEach(function(t){tags[t]=true;});}});return Object.keys(tags).sort();};window.addArea=function(name,color){var area={id:uid(),name:name,color:color};Store.data.areas.push(area);Store.save();};window.removeArea=function(id){if(!confirm('Remove area?'))return;walkTree(function(n){if(n.areaId===id)n.areaId=null;});var areas = Store.data.areas || [];var idx=-1;for(var i=0;i<areas.length;i++){if(areas[i].id===id){idx=i;break;}}if(idx!==-1)areas.splice(idx,1);Store.save();renderAll();};var run=function(){migrateV2();Store.save();};if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',function(){setTimeout(run,30);});}else{setTimeout(run,30);}})();
