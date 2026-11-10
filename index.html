@@ -6551,7 +6551,7 @@ window.__rollHorizon = function () {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-11-07 21:15</span>
+    <span id="buildStamp">build 2026-11-09 17:56</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -26185,6 +26185,86 @@ if (r.freq === 'yearly') {
   if (typeof base !== 'function') return;
   window.plannerRepeatMatches = function (node, iso) {
     if (window.plannerDayIsSkipped(node, iso)) return false;   /* gone for that day */
+    return base.apply(this, arguments);
+  };
+})();
+
+/* ===================================================== CARD 63, 2026-11-09
+   Operator: "i move activities from tree to calender. it does show a date, once
+   I have the date removed, it still lingering in the calender rather than
+   dispaearnig and staying in the tree."
+
+   MEASURED on build 2026-11-07 21:15, with a real drag and the real Clear button
+   in the date popup: the clear WORKS (node.date becomes null) and the chip stays
+   on the day anyway.
+
+   ROOT CAUSE - two independent owners of "does this belong on this day":
+
+       a plain task      shown because node.date says so      clears correctly
+       a REPEATING item  shown because the repeat RULE says so NEVER clears
+
+   plannerRepeatMatches opens with `if (!node || !node.repeat || !iso) return
+   false;` and never consults node.date at all. Worse, anchorOf() falls back to
+   TODAY when repeat.start is unset, so an item whose date was just removed
+   matches from today onwards for ever.
+
+   SCOPE, measured across every repeat shape with the date cleared: daily, every-N
+   daily, weekly, weekly on set days, monthly, monthly-on-a-day, yearly, specific
+   dates and with-a-start-date ALL linger - 11 of 12. Only an item with no repeat
+   at all cleared correctly, which is why it looked random.
+
+   THE RULE: an item with no date is not on the calendar, whatever its repeat rule
+   says. It stays in the tree with the rule INTACT - give it a date again and the
+   schedule resumes exactly as before. Nothing is deleted and no repeat setting is
+   touched. That restoration is asserted by the gate, because a "fix" that cleared
+   the rule would pass a naive off-the-calendar check while destroying their
+   schedule.
+
+   PLACED LAST ON PURPOSE. plannerRepeatMatches is wrapped four times (the moves /
+   rollover layer, the skip layer, and others); this is the outermost, so every
+   caller goes through it and no earlier layer can answer true behind its back.
+   The same lesson as the 2026-10-04 note above: a wrapper must come after the
+   LAST assignment or it wraps nothing.
+
+   EVENTS ARE NOT AFFECTED - this gates tree nodes only, which is what a repeat
+   rule lives on.
+
+   WHAT THIS DELIBERATELY DOES **NOT** GATE, found by measuring the fix against
+   the live build before shipping it. The first version of this gate was a blunt
+   `if (!node.date) return false;` and it silently removed THREE legitimate
+   routine shapes from the calendar:
+
+       daily/weekly anchored by repeat.start   drawn 1 -> drawn 0   LOST
+       "On specific dates" (r.dates)           drawn 1 -> drawn 0   LOST
+
+   Those rules carry their OWN schedule and never needed node.date in the first
+   place - "On specific dates" is a real option in the repeat dialog, and an item
+   using it legitimately has no node.date at all. Wiping them would have been a
+   far worse defect than the one being fixed, and the card's own gate could not
+   see it because it only seeds DATED routines.
+
+   So the gate applies only to rules that DERIVE their days from the date, which
+   are exactly the ones that go wrong when the date is taken away. A rule that
+   carries its own dates keeps drawing, exactly as it does today. */
+(function () {
+  var base = window.plannerRepeatMatches;
+  if (typeof base !== 'function') return;
+  window.__repeatMatchesBeforeDateGate = base;  /* so a check can see the raw answer */
+
+  /* A rule that supplies its own schedule, so the item never needed a date:
+     - specific: the user picked the exact dates
+     - any rule with an explicit start: that start is the anchor
+     Everything else (daily / weekly / monthly / yearly / periodic with no start)
+     falls back to the item's date - or, when that is gone, to TODAY, which is
+     the bug. */
+  function carriesItsOwnSchedule(r) {
+    if (!r) return false;
+    if (r.freq === 'specific') return !!(r.dates && r.dates.length);
+    return !!r.start;
+  }
+
+  window.plannerRepeatMatches = function (node, iso) {
+    if (node && !node.date && !carriesItsOwnSchedule(node.repeat)) return false;
     return base.apply(this, arguments);
   };
 })();
