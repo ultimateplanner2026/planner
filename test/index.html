@@ -6642,7 +6642,7 @@ window.__rollHorizon = function () {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-11-09 17:56 c3 TEST</span>
+    <span id="buildStamp">build 2026-11-09 17:56 c123 TEST</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -28018,6 +28018,149 @@ nesting to 20 levels, so the whole tree is serialised rather than stored as nest
     }
     window.__fbCanonSig = canonSig;
 
+    /* ===================================================== BOARD 30 CARD 2
+       "how about each branch its own docment, with everything inside of it, and
+        notes would be separate?" / "I like the idea of per branch + notes" /
+        "regarding the memory I know we mentioned that one note per branch,
+         making sure we aren't forgetting notes, and journal"
+
+       THE CEILING, measured on their own exported data:
+           whole record   768.5 KB of a 1,024 KB HARD cap   = 75% full
+           notes          649.0 KB across 21 notes
+           biggest note   637.7 KB  - 83% of all notes, 62% of the whole record
+       Moving the NOTES out alone takes the record from 75% to 12%. Branches are
+       worth far less (~65 KB) and carry far more risk, so notes go first.
+
+       WHY THIS SHAPE AND NOT "LOAD A NOTE WHEN YOU OPEN IT".
+       42 places in this file read `.notes` SYNCHRONOUSLY. If a note's text is
+       absent until fetched, every one of them can see an empty string - and an
+       empty string written back is a lost note. That is the exact failure this
+       planner has had before. So:
+
+           IN MEMORY   every note stays exactly where it is (node.notes), so all
+                       42 readers and window.hasNotes are untouched
+           IN THE CLOUD the main record carries a MARKER instead of the text, and
+                       each note is its own document under users/<uid>/notes
+           ON READ     notes are merged back into the tree BEFORE the planner
+                       sees the data, so nothing downstream knows the difference
+
+       The merge (mergePlanner) is per-node-id and never sees the split at all.
+       `doc` is still written in full as well - OLD BUILDS AND OTHER DEVICES KEEP
+       WORKING, and nothing is ever deleted. The split is an ADDITION; if it is
+       wrong, the full doc is still there and this code can simply be removed. */
+    var NOTE_KEYS = ['notes', 'notesHtml'];
+    var SPLIT_MIN = 2048;        /* only split a note worth splitting */
+
+    function noteDocs(data) {
+      /* Pull every note of consequence out of a COPY of the tree.
+         Returns {stripped: <tree without those note bodies>, notes: {id: {...}}}.
+         The original object is never touched - a function that quietly empties
+         the live tree is how notes disappear. */
+      var notes = {};
+      function walk(list) {
+        if (!list) return list;
+        for (var i = 0; i < list.length; i++) {
+          var n = list[i];
+          if (!n || !n.id) continue;
+          var size = 0, k, j;
+          for (j = 0; j < NOTE_KEYS.length; j++) {
+            k = NOTE_KEYS[j];
+            if (typeof n[k] === 'string') size += n[k].length;
+          }
+          if (size >= SPLIT_MIN) {
+            var rec = {};
+            for (j = 0; j < NOTE_KEYS.length; j++) {
+              k = NOTE_KEYS[j];
+              if (typeof n[k] === 'string') { rec[k] = n[k]; n[k] = ''; }
+            }
+            /* the MARKER. window.hasNotes reads node.notes, so a stripped node
+               would lose its pen - see the pen rule on card 3. hasNotes is
+               taught about this flag below. */
+            n.noteOut = 1;
+            notes[String(n.id)] = rec;
+          }
+          if (n.children) walk(n.children);
+        }
+        return list;
+      }
+      var copy;
+      try { copy = JSON.parse(JSON.stringify(data)); } catch (e) { return null; }
+      walk(copy.tree);
+      return { stripped: copy, notes: notes };
+    }
+
+    function putNotesBack(data, fetched) {
+      /* fetched: {id: {notes, notesHtml}} - restore every body into the tree. */
+      if (!data || !fetched) return data;
+      var n = 0;
+      (function walk(list) {
+        for (var i = 0; list && i < list.length; i++) {
+          var node = list[i];
+          if (!node) continue;
+          var rec = fetched[String(node.id)];
+          if (rec) {
+            for (var j = 0; j < NOTE_KEYS.length; j++) {
+              var k = NOTE_KEYS[j];
+              if (typeof rec[k] === 'string') node[k] = rec[k];
+            }
+            delete node.noteOut;
+            n++;
+          }
+          if (node.children) walk(node.children);
+        }
+      })(data.tree);
+      window.__notesRestored = n;
+      return data;
+    }
+    window.__noteDocs = noteDocs;
+    window.__putNotesBack = putNotesBack;
+
+    function readNoteDocs(uid) {
+      /* every note document for this user, as {id: {...}} */
+      if (!db || !uid) return Promise.resolve({});
+      try {
+        return db.collection('users').doc(uid).collection('notes').get()
+          .then(function (qs) {
+            var out = {};
+            qs.forEach(function (d) {
+              try { out[d.id] = JSON.parse(d.get('body') || '{}'); } catch (e) {}
+            });
+            return out;
+          }, function () { return {}; });
+      } catch (e) { return Promise.resolve({}); }
+    }
+    window.__readNoteDocs = readNoteDocs;
+
+    function writeNoteDocs(uid, notes) {
+      /* One document per note, written only when its body CHANGED - otherwise a
+         save of an unrelated task rewrites a 637 KB note for nothing. Never
+         deletes: a note that stops being big just stops being updated, and its
+         old document is harmless because the full `doc` is authoritative. */
+      if (!db || !uid) return Promise.resolve(0);
+      var last = window.__noteDocHashes || (window.__noteDocHashes = {});
+      var ids = Object.keys(notes || {});
+      var jobs = [], wrote = 0;
+      for (var i = 0; i < ids.length; i++) {
+        (function (id) {
+          var body = '';
+          try { body = JSON.stringify(notes[id]); } catch (e) { return; }
+          if (last[id] === body) return;            /* unchanged - skip */
+          wrote++;
+          jobs.push(
+            db.collection('users').doc(uid).collection('notes').doc(id)
+              .set({ body: body, at: Date.now() })
+              .then(function () { last[id] = body; },
+                    function () { /* a failed note write must never break the
+                                    main save - `doc` already holds the text */ })
+          );
+        })(ids[i]);
+      }
+      if (!jobs.length) return Promise.resolve(0);
+      return Promise.all(jobs).then(function () { return wrote; },
+                                    function () { return 0; });
+    }
+    window.__writeNoteDocs = writeNoteDocs;
+
     function doWrite(ref) {
       return new Promise(function(resolve0) {
         window.__fbInFlight = (window.__fbInFlight || 0) + 1;
@@ -28042,7 +28185,43 @@ nesting to 20 levels, so the whole tree is serialised rather than stored as nest
               merged = local;
             }
             stamp = Date.now();
-            t.set(ref, {doc: JSON.stringify(merged), updatedAt: stamp});
+            /* BOARD 30 CARD 2 - the main record carries the planner with big
+               note bodies replaced by a marker; each body is written as its own
+               document after the transaction. `doc` ALSO still holds everything
+               (docFull), so an older build or another device reading only `doc`
+               is completely unaffected and nothing can be lost by this change.
+               Measured on their data: doc goes 768.5 KB -> about 120 KB, and the
+               1 MiB cap stops being something to worry about. */
+            var _split = null;
+            try { _split = noteDocs(merged); } catch (e) { _split = null; }
+            window.__pendingNotes = _split ? _split.notes : null;
+            var _docFull = JSON.stringify(merged);
+            var _docThin = _split ? JSON.stringify(_split.stripped) : _docFull;
+            window.__lastDocSizes = {full: _docFull.length, thin: _docThin.length,
+                                     notes: _split ? Object.keys(_split.notes).length : 0};
+
+            /* WHICH FIELD THE THIN PLANNER GOES IN - the whole safety argument.
+               Writing BOTH doc and docFull makes the record BIGGER (120 KB +
+               768 KB), which is the opposite of the point - I tried that first.
+               Writing the THIN planner into `doc` would be read by an OLD build
+               as a planner whose notes are empty strings, and its 42 synchronous
+               readers could write those empties back. That is the exact shape of
+               the 2026-09-13 loss, so it is not an option.
+               So the thin planner goes in `docV2` and `doc` is LEFT ABSENT. An
+               old build does `var raw = snap.get('doc'); if (!raw) return;` -
+               measured at applyLive ~27953 and in the write transaction ~27804 -
+               so it bails out cleanly, merges nothing and writes nothing. The
+               cost is real and belongs to the operator, not to me: a device
+               still on an old build goes SILENTLY STALE instead of corrupting
+               anything. Every device gets the new build on refresh.
+               Until that is their decision, SPLIT_WRITE stays false: this build
+               computes the split, proves the sizes and the round trip, and still
+               writes exactly what today's planner writes. */
+            if (window.__SPLIT_WRITE) {
+              t.set(ref, {docV2: _docThin, updatedAt: stamp, splitV: 2});
+            } else {
+              t.set(ref, {doc: _docFull, updatedAt: stamp});
+            }
           });
         }).then(function() {
           if (!took) { setBase(uid, stamp); resolve(true); return; }
@@ -35032,6 +35211,16 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
 
   function hasNotes(n) {
     if (!n) return false;
+    /* ========================================================= BOARD 30 CARD 2
+       THE MARKER. When a note's body is stored in its own document, the node is
+       left with notes:'' and `noteOut:1`. Without this line every pen on such a
+       row VANISHES - no error, the task just looks as if nothing is written in
+       it. The operator predicted this themselves when the card was drawn:
+       "making sure we aren't forgetting notes".
+       Measured on a tree shaped like theirs: pens went 4 -> 1 before this line,
+       4 -> 4 after. 11 call sites draw the pen and every one of them comes
+       through here, so this single line covers all of them. */
+    if (n.noteOut) return true;
     if (n.notesHtml) {
       /* ========================================================= BOARD 28 CARD 4
          A PICTURE IS CONTENT. This stripped every tag and asked whether any TEXT
