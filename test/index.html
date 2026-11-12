@@ -3146,6 +3146,25 @@ aside#treePane, aside#treePane * { min-width: 0 !important; }
    tab is at least wide enough for its longest word. Measured at 360/375/390/430/700
    and desktop. */
 #treeDrawer #treeViews { flex-wrap: wrap; row-gap: 4px; }
+/* BOARD 30 CARD 3 - the fifth tab (Restore) lands alone on a third row, and
+   `.treeview-btn { flex: 1 }` makes a lone item fill its whole row. MEASURED
+   before writing this, at every width the planner's rules name:
+       360px  Restore 344px against 170px for its neighbours
+       390px          374px  vs 185px
+       700px          684px  vs 340px
+       1440px         473px  vs 235px
+   - a double-width banner at EVERY width, desktop included, not just on a
+   phone. Two rows of two sitting above one full-width button reads as a
+   different kind of control, which it is not.
+   The fix pins each tab to half the row minus the 4px gap, so the fifth sits
+   under Deleted at exactly the width of the four above it and the right half of
+   the last row is empty. `box-sizing` is set because these carry a 1px border:
+   without it 50% + border overflows and the pair stops fitting on one line. */
+#treeDrawer #treeViews .treeview-btn {
+  flex: 0 0 calc(50% - 2px);
+  max-width: calc(50% - 2px);
+  box-sizing: border-box;
+}
 #treeDrawer .treeview-btn {
   /* `flex: 1 0 auto` was my first try and it was wrong: with 0 shrink each tab
      claimed its full content width, so at 360-700px every tab took a line of its
@@ -6623,7 +6642,7 @@ window.__rollHorizon = function () {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-11-05 14:25 TEST</span>
+    <span id="buildStamp">build 2026-11-09 17:56 TEST</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -10630,7 +10649,7 @@ return !!(n&&n.repeat&&n.repeat.freq&&n.repeat.rollOver===false);})(node));selfF
 (function(){/* 2026-09-12: the day always runs the full 24 hours. The operator asked for the
    'Show 24h' / 'Working hours' toggle to go - a schedule that hides half the day
    by default is a schedule you cannot trust at a glance. */
-var TG=window.TG={HOUR_PX:60,SNAP_MIN:15,startHour:0,endHour:24,expanded:true};function pad(n){return(n<10?'0':'')+n;}function timeToMin(t){if(!t)return null;var p=t.split(':');return parseInt(p[0],10)*60+parseInt(p[1],10);}window.tgHours=function(){var a=[];for(var h=TG.startHour;h<TG.endHour;h++)a.push(h);return a;};window.tgHeight=function(){return (TG.endHour-TG.startHour)*TG.HOUR_PX;};window.tgToY=function(hhmm){if(!hhmm)return null;var p=hhmm.split(':');return ((parseInt(p[0],10)+parseInt(p[1],10)/60)-TG.startHour)*TG.HOUR_PX;};window.tgFromY=function(y){var totalMin=(y/TG.HOUR_PX)*60+TG.startHour*60;var snapped=Math.floor(totalMin/TG.SNAP_MIN)*TG.SNAP_MIN;var minMin=TG.startHour*60;var maxMin=(TG.endHour-0.25)*60;if(snapped<minMin)snapped=minMin;if(snapped>maxMin)snapped=maxMin;return pad(Math.floor(snapped/60))+':'+pad(snapped%60);};window.tgLabel=function(h){if(h===0)return'12 AM';if(h<12)return h+' AM';if(h===12)return'12 PM';return(h-12)+' PM';};window.tgToggleExpanded=function(){/* kept so nothing that calls it throws; the day is always 24h now */};window.tgTimeOf=function(e){/* OPERATOR 2026-10-29: "its not allowing me to change time when I manually move it up".    A moved occurrence stores its own time in repeat.moves[from].time, but this read the    NODE's time - the series anchor - so the new time was saved and then ignored and the    chip snapped back. Measured: moves held 11:30 while the item kept drawing at 14:00.    The occurrence's own time wins where there is one. */try{var n=e&&e.node;var iso=e&&(e.onDate||e.instanceDate||e.iso);if(n&&n.repeat&&n.repeat.moves&&iso&&window.__occurrenceFor){var oc=window.__occurrenceFor(n,iso);if(oc&&oc.shows===true&&oc.time)return oc.time;}}catch(err){}if(e&&e.node&&e.node.time)return e.node.time;if(e&&e.event&&e.event.time)return e.event.time;return null;};window.tgDuration=function(e){var d=(e&&e.duration)||(e&&e.node&&e.node.duration)||30;return d<15?15:d;};window.tgMigrate=function(){if(localStorage.getItem('planner.timemigrated'))return;var map={morning:'09:00',afternoon:'13:00',evening:'18:00'};function mig(n){if(n&&n.date&&!n.time&&n.block){n.time=map[n.block]||null;}}walkTree(function(n){mig(n);});if(Store.data&&Store.data.events){Store.data.events.forEach(function(ev){if(ev&&ev.date&&!ev.time&&ev.block){ev.time=map[ev.block]||null;}});}localStorage.setItem('planner.timemigrated','true');Store.save();};window.tgLayout=function(entries){if(!entries||!entries.length)return[];var sorted=entries.filter(function(e){return!!window.tgTimeOf(e);}).sort(function(a,b){return timeToMin(window.tgTimeOf(a))-timeToMin(window.tgTimeOf(b));});var clusters=[];var res=[];sorted.forEach(function(e){var start=timeToMin(window.tgTimeOf(e));var dur=window.tgDuration(e);var end=start+dur;var top=window.tgToY(window.tgTimeOf(e));var height=Math.max(18,(dur/60)*TG.HOUR_PX);if(!clusters.length){clusters.push({colEnds:[end]});res.push({entry:e,top:top,height:height,col:0,cols:1});return;}var cur=clusters[clusters.length-1];var maxEnd=Math.max.apply(null,cur.colEnds);if(start<maxEnd){var col=-1;for(var i=0;i<cur.colEnds.length;i++){if(cur.colEnds[i]<=start){col=i;break;}}if(col===-1){if(cur.colEnds.length<3){col=cur.colEnds.length;cur.colEnds.push(end);}else{col=0;cur.colEnds[0]=end;}}else{cur.colEnds[col]=end;}var colCount=Math.min(3,cur.colEnds.length);res.push({entry:e,top:top,height:height,col:col,cols:colCount});}else{clusters.push({colEnds:[end]});res.push({entry:e,top:top,height:height,col:0,cols:1});}});return res;};if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',function(){setTimeout(window.tgMigrate,0);});}else{setTimeout(window.tgMigrate,0);}})();
+var TG=window.TG={HOUR_PX:60,SNAP_MIN:15,startHour:0,endHour:24,expanded:true};function pad(n){return(n<10?'0':'')+n;}function timeToMin(t){if(!t)return null;var p=t.split(':');return parseInt(p[0],10)*60+parseInt(p[1],10);}window.tgHours=function(){var a=[];for(var h=TG.startHour;h<TG.endHour;h++)a.push(h);return a;};window.tgHeight=function(){return (TG.endHour-TG.startHour)*TG.HOUR_PX;};window.tgToY=function(hhmm){if(!hhmm)return null;var p=hhmm.split(':');return ((parseInt(p[0],10)+parseInt(p[1],10)/60)-TG.startHour)*TG.HOUR_PX;};window.tgFromY=function(y){var totalMin=(y/TG.HOUR_PX)*60+TG.startHour*60;var snapped=Math.floor(totalMin/TG.SNAP_MIN)*TG.SNAP_MIN;var minMin=TG.startHour*60;var maxMin=(TG.endHour-0.25)*60;if(snapped<minMin)snapped=minMin;if(snapped>maxMin)snapped=maxMin;return pad(Math.floor(snapped/60))+':'+pad(snapped%60);};window.tgLabel=function(h){if(h===0)return'12 AM';if(h<12)return h+' AM';if(h===12)return'12 PM';return(h-12)+' PM';};window.tgToggleExpanded=function(){/* kept so nothing that calls it throws; the day is always 24h now */};window.tgTimeOf=function(e){/* OPERATOR 2026-10-29: "its not allowing me to change time when I manually move it up".    A moved occurrence stores its own time in repeat.moves[from].time, but this read the    NODE's time - the series anchor - so the new time was saved and then ignored and the    chip snapped back. Measured: moves held 11:30 while the item kept drawing at 14:00.    The occurrence's own time wins where there is one. */try{var n=e&&e.node;var iso=e&&(e.onDate||e.instanceDate||e.iso);if(n&&n.repeat&&n.repeat.moves&&iso&&window.__occurrenceFor){var oc=window.__occurrenceFor(n,iso);if(oc&&oc.shows===true&&oc.time)return oc.time;}}catch(err){}if(e&&e.node&&e.node.time)return e.node.time;if(e&&e.event&&e.event.time)return e.event.time;return null;};window.tgDuration=function(e){var d=(e&&e.duration)||(e&&e.node&&e.node.duration)||30;return d<15?15:d;};window.tgMigrate=function(){if(localStorage.getItem('planner.timemigrated'))return;var map={morning:'09:00',afternoon:'13:00',evening:'18:00'};function mig(n){/* 2026-11-05, operator: "it doesn't have a date, it should be not showing in the calender" - measured: an item with a date and a block but NO TIME was given 09:00/13:00/18:00 here, which moved it from the All-day row onto the HOUR GRID at a time they never set. A block is a part of the day, not a time; inventing a precise time from it is a guess written into their data. The block is kept and the item stays in the All-day row where it belongs. */}walkTree(function(n){mig(n);});if(Store.data&&Store.data.events){Store.data.events.forEach(function(ev){if(ev&&ev.date&&!ev.time&&ev.block){ev.time=map[ev.block]||null;}});}localStorage.setItem('planner.timemigrated','true');Store.save();};window.tgLayout=function(entries){if(!entries||!entries.length)return[];var sorted=entries.filter(function(e){return!!window.tgTimeOf(e);}).sort(function(a,b){return timeToMin(window.tgTimeOf(a))-timeToMin(window.tgTimeOf(b));});var clusters=[];var res=[];sorted.forEach(function(e){var start=timeToMin(window.tgTimeOf(e));var dur=window.tgDuration(e);var end=start+dur;var top=window.tgToY(window.tgTimeOf(e));var height=Math.max(18,(dur/60)*TG.HOUR_PX);if(!clusters.length){clusters.push({colEnds:[end]});res.push({entry:e,top:top,height:height,col:0,cols:1});return;}var cur=clusters[clusters.length-1];var maxEnd=Math.max.apply(null,cur.colEnds);if(start<maxEnd){var col=-1;for(var i=0;i<cur.colEnds.length;i++){if(cur.colEnds[i]<=start){col=i;break;}}if(col===-1){if(cur.colEnds.length<3){col=cur.colEnds.length;cur.colEnds.push(end);}else{col=0;cur.colEnds[0]=end;}}else{cur.colEnds[col]=end;}var colCount=Math.min(3,cur.colEnds.length);res.push({entry:e,top:top,height:height,col:col,cols:colCount});}else{clusters.push({colEnds:[end]});res.push({entry:e,top:top,height:height,col:0,cols:1});}});return res;};if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',function(){setTimeout(window.tgMigrate,0);});}else{setTimeout(window.tgMigrate,0);}})();
 
 /* ===== h26 ===== */
 window.tgLayout=function(e){var t=[];for(var n=0;n<e.length;n++){var r=e[n];var a=window.tgTimeOf(r);if(!a)continue;var s=a.split(":");var u=parseInt(s[0],10)*60+parseInt(s[1],10);var d=window.tgDuration(r);var l=u+d;t.push({entry:r,start:u,end:l,timeStr:a,dur:d})}t.sort(function(e,t){if(e.start!==t.start)return e.start-t.start;return e.end-t.end});var c=[];var i=0;while(i<t.length){var p=[];var f=t[i].end;p.push(t[i]);var h=i+1;while(h<t.length&&t[h].start<f){p.push(t[h]);if(t[h].end>f)f=t[h].end;h++}var m=[];for(var v=0;v<p.length;v++){var y=p[v];var b=-1;for(var g=0;g<m.length;g++){if(m[g]<=y.start){b=g;break}}if(b===-1){b=m.length;m.push(0)}m[b]=y.end;y.col=b}var C=Math.min(3,m.length);for(var x=0;x<p.length;x++){var E=p[x];var w=E.col;if(w>=C)w=C-1;var D=E.entry;var S=E.timeStr;var k=E.dur;var M=Math.max(18,k/60*window.TG.HOUR_PX);c.push({entry:D,top:window.tgToY(S),height:M,col:w,cols:C})}i=h}return c};
@@ -10668,7 +10687,7 @@ titleDiv.className='tgevent-title';
 titleDiv.textContent=item.entry.title;
 div.appendChild(timeDiv);
 div.appendChild(titleDiv);
-div.draggable=false;div.dataset.nodeId=(item.entry.node?item.entry.node.id:item.entry.id);
+div.draggable=true;/* 2026-11-05, operator: "activities is not moving up and down in the timing". MEASURED on the live build: .tgevent rendered 847x60 with draggable=false, hard-coded here, while a dragstart listener sat two lines below and tgWireDrops listened for drop + dataTransfer. No drag could ever START, so the drop code never ran and the block appeared to snap back - it had never moved. One word. */div.dataset.nodeId=(item.entry.node?item.entry.node.id:item.entry.id);
 div.addEventListener('click',function(entry){
 return function(){
 setInstanceDone(entry,!entry.done);
@@ -10713,6 +10732,22 @@ window.__moveOccurrence = function(node, toISO, time) {
   var moves = node.repeat.moves;
   // The chip was drawn for __dragFromISO, or for the anchor date otherwise.
   var fromISO = node.__dragFromISO || node.date;
+  /* 2026-11-07, operator: "when I drag a task from the tree to the calender it
+     drags but the task becomes without a date, it must have a date to the day I
+     drag it to."
+     MEASURED, same drag, two tasks: a plain task got 2026-11-07; a REPEATING task
+     got date null and repeat.moves {"null": {to: "2026-11-07"}}.
+     This function moves ONE OCCURRENCE, so it needs the day that occurrence was
+     drawn on. A task dragged out of the TREE has never been drawn anywhere, so
+     both __dragFromISO and date are null: it filed the move under the literal key
+     "null" and returned true - and true tells the caller "handled", so the caller
+     skipped node.date = <the day>.
+     There is no occurrence to move. Return false and let the caller anchor it.
+     NOTE 2026-11-07 (second go-live): this is the ONLY change carried forward from
+     build 19:30. The all-day drop wiring that shipped beside it is NOT here - the
+     operator reported "nothing moves at all" when dragging a branch afterwards, so
+     it is withdrawn until that is understood. One change at a time. */
+  if (!fromISO) return false;
   var t = time || null;
   // If a prior move already targeted fromISO, re-point that entry to
   // toISO so we don't leave a dangling intermediate hop.
@@ -14886,7 +14921,16 @@ function surfaceArrivals() {
       { key: 'pastdue', label: 'Past due' },
       { key: 'completed', label: 'Completed' },
       { key: 'deleted', label: 'Deleted' },
-      { key: 'undo', label: 'Undo' }
+      { key: 'undo', label: 'Undo' },
+      /* BOARD 30 CARD 3 - operator 2026-11-11, on their backups having nowhere
+         to live: "the restore will be its own button to show its dates in the
+         left side". A FIFTH tab beside the four, built by this same loop and
+         drawn by applyView below, because they also said "don't change the code
+         that was already set for the task histroy such as past due, compete,
+         delted, and undo. use the same code for those." So nothing above this
+         line changed - this is one more entry in the list the loop already
+         walks. */
+      { key: 'restore', label: 'Restore' }
     ];
     for (var i = 0; i < views.length; i++) {
       (function(v) {
@@ -14924,6 +14968,21 @@ function surfaceArrivals() {
              ever read (0). */
           s.textContent = ' (' + (window.plannerUndoEntries ?
                                   window.plannerUndoEntries().length : 0) + ')';
+          btn.appendChild(s);
+        } else if (v.key === 'restore') {
+          /* BOARD 30 CARD 3 - same shape as the four above: the count comes
+             from the thing the tab lists, so the badge and the list cannot
+             disagree. plannerSnapshots is the engine that has been taking
+             these since September (on open, every 10 min, on close, and before
+             any restore) - this tab is the first way to SEE them. */
+          var s = document.createElement('span');
+          s.className = 'view-count';
+          var snaps = 0;
+          try {
+            if (window.plannerSnapshots && window.plannerSnapshots.list)
+              snaps = window.plannerSnapshots.list().length;
+          } catch (e) {}
+          s.textContent = ' (' + snaps + ')';
           btn.appendChild(s);
         }
         btn.addEventListener('click', function() {
@@ -15150,6 +15209,106 @@ function surfaceArrivals() {
         })(ul[z]);
       }
       root.appendChild(ulist);
+      return;
+    }
+    /* ===================================================== BOARD 30 CARD 3
+       Operator 2026-11-11: "the restore will be its own button to show its
+       dates in the left side."
+
+       Their planner has been taking snapshots since September - on open, every
+       10 minutes, on close, and before any restore, ~20 kept - and there has
+       never been a way to SEE them. This is that way, and nothing more: it
+       lists what plannerSnapshots already holds and calls its restore().
+
+       Deliberately NOT a new engine. I built one of those earlier in this
+       session, assigned over window.plannerSnapshots, and broke the existing
+       one - it also REPLACED where the real one MERGES, which is worse than
+       the bug it was meant to fix. This reuses, it does not reimplement.
+
+       Built on the Undo view above, element for element (trashitem / t-title /
+       undo-when / trashitem-restore), because the operator said: "don't change
+       the code that was already set for the task histroy such as past due,
+       compete, delted, and undo. use the same code for those." */
+    if (window.treeView === 'restore') {
+      root.classList.add('done-only');
+      var snaps = [];
+      try {
+        if (window.plannerSnapshots && window.plannerSnapshots.list)
+          snaps = window.plannerSnapshots.list();
+      } catch (e) { snaps = []; }
+      var slist = document.createElement('div');
+      slist.className = 'donelist trashlist';
+      if (!snaps.length) {
+        var se = document.createElement('div');
+        se.className = 'trash-empty';
+        se.textContent = 'No backups yet. One is kept when you open the ' +
+                         'planner, every ten minutes while you work, and when ' +
+                         'you close it.';
+        slist.appendChild(se);
+        root.appendChild(slist);
+        return;
+      }
+      for (var si = 0; si < snaps.length; si++) {
+        (function (snap) {
+          var it = document.createElement('div');
+          it.className = 'trashitem snapitem';
+
+          var t = document.createElement('span');
+          t.className = 't-title';
+          /* What it HOLDS, so a choice between two days is answerable without
+             restoring either: the counts come from the snapshot record itself,
+             not from a re-count of current data. */
+          var bits = [];
+          if (typeof snap.tasks === 'number') bits.push(snap.tasks + ' tasks');
+          if (typeof snap.notes === 'number') bits.push(snap.notes + ' notes');
+          t.textContent = bits.length ? bits.join(', ') : 'Backup';
+          it.appendChild(t);
+
+          if (snap.reason) {
+            var why = document.createElement('span');
+            why.className = 'undo-was';
+            why.textContent = String(snap.reason).slice(0, 40);
+            it.appendChild(why);
+          }
+
+          var w = document.createElement('span');
+          w.className = 'undo-when';
+          /* undoWhen() wants MILLISECONDS - it does Number(at). A snapshot's
+             `at` is an ISO STRING, so passing it straight in printed
+             "NaN days ago" on every row (measured, not guessed - the probe
+             read it off the rendered rows). The record carries `ms` for
+             exactly this; Date.parse is the fallback if an old snapshot
+             predates it. This tab exists to let them choose a backup BY DATE,
+             so the date is the feature, not decoration. */
+          var when = (typeof snap.ms === 'number' && snap.ms)
+                     ? snap.ms
+                     : Date.parse(snap.at || '');
+          w.textContent = when ? undoWhen(when) : '';
+          it.appendChild(w);
+
+          var rb = document.createElement('button');
+          rb.type = 'button';
+          rb.className = 'trashitem-restore';
+          rb.textContent = 'Restore';
+          rb.addEventListener('click', function (ev) {
+            ev.preventDefault();
+            ev.stopPropagation();
+            /* MERGE, which is plannerSnapshots.restore's default, and it takes
+               a fresh snapshot first - so pressing this can itself be undone.
+               No confirm dialog: nothing is lost by merging, and the planner
+               has no confirm pattern in these lists. */
+            try {
+              if (window.plannerSnapshots && window.plannerSnapshots.restore)
+                window.plannerSnapshots.restore(snap.i);
+            } catch (e) {}
+            if (window.renderAll) window.renderAll();
+          });
+          it.appendChild(rb);
+
+          slist.appendChild(it);
+        })(snaps[si]);
+      }
+      root.appendChild(slist);
       return;
     }
     if (window.treeView === 'pastdue') {
@@ -18212,6 +18371,12 @@ function firstConnect(remote, rAt, lAt) {
     /* operator 2026-09-18: "export remove it... you could leave the set automatic
        calendar sync". Both are built here, so only this one is held back. */
 
+    /* BOARD 30 CARD 3 - operator 2026-11-11, circling this row: "I dont need to
+       see this remove it". The BUTTON is held back; window.showCalendarSync is
+       untouched, so the dialog still exists and can be given a home anywhere
+       they want one. (Asked on the card and still open: whether it needs a
+       button somewhere.) Built-and-held is the same shape btnExportIcs already
+       uses above, so this file keeps one pattern rather than two. */
     var sub = document.createElement('button');
     sub.id = 'btnCalSub';
     sub.type = 'button';
@@ -18221,7 +18386,6 @@ function firstConnect(remote, rAt, lAt) {
       e.preventDefault();
       if (window.showCalendarSync) window.showCalendarSync();
     });
-    host.appendChild(sub);
 
     /* ============================================================== BOARD 30 CARD 4
        Operator, 2026-09-26: "if you notice on the bottom where it says hide habits
@@ -18370,17 +18534,15 @@ function firstConnect(remote, rAt, lAt) {
   // ended up at y=-20). Never fall back to a top-bar element: if the drawer is
   // not open yet, do nothing and try again when it is.
   function stampInDrawer() {
-    if (document.getElementById('drawerVersion')) return;
-    var host = document.getElementById('treeDrawer');
-    if (!host) return;
-    var stampEl = document.getElementById('buildStamp');
-    var text = stampEl ? stampEl.textContent : '';
-    if (!text) return;
-    var v = document.createElement('div');
-    v.id = 'drawerVersion';
-    v.textContent = text;
-    v.style.cssText = 'font-size:10px;opacity:.55;padding:8px 2px 2px;width:100%';
-    host.appendChild(v);
+    /* BOARD 30 CARD 3 - operator 2026-11-11 circled this line: "I dont need to
+       see this remove it". It was a SECOND copy of the build stamp; the real
+       one lives in the top bar, which is where they read it, and is untouched
+       (measured on this build: still on screen, non-zero box). So the drawer
+       opens straight onto the four tabs.
+       The function is kept rather than deleted - start() wires it to the drawer
+       toggle and calls it on boot, and a no-op is clearer here than unpicking
+       those call sites for a row nobody wants. */
+    return;
   }
 
   function start() {
@@ -22595,12 +22757,24 @@ function firstConnect(remote, rAt, lAt) {
      caused this round-trip in the first place. */
   function labelDrawer() {
     var d = document.getElementById('treeDrawer');
-    if (!d || document.getElementById('drawerTitle')) return;
-    var h = document.createElement('div');
-    h.id = 'drawerTitle';
-    h.className = 'drawer-title';
-    h.textContent = 'Settings';
-    d.insertBefore(h, d.firstChild);
+    /* BOARD 30 CARD 3 - operator 2026-11-11: "remove these wording from the top
+       and redo", circling the word Settings, the calendar-sync button and the
+       build stamp. The word is dropped because the button they pressed to open
+       this drawer already says Settings; the drawer now opens straight onto the
+       four tabs. Only the TITLE goes - the Visual formats hint below is still
+       built, because "Visual formats" with no explanation is what caused an
+       earlier round-trip.
+       The re-entry guard: it used to be `drawerTitle`, which no longer exists,
+       and labelDrawer runs on every drawer open, so without one each open would
+       append another hint. Guarding on `looksHint` itself was WRONG in a way
+       worth recording - the guard would be satisfied by the element it creates
+       only after the first run, but #btnLooks does not exist on this build at
+       all (measured: 0 on the live build too), so the hint never renders and a
+       check asserting "exactly one" failed on a thing that was already absent.
+       The guard is now its own flag, which is true whether or not the hint had
+       anything to attach to. */
+    if (!d || d.getAttribute('data-labelled')) return;
+    d.setAttribute('data-labelled', '1');
     var looks = document.getElementById('btnLooks');
     if (looks) {
       var hint = document.createElement('div');
@@ -26241,6 +26415,86 @@ if (r.freq === 'yearly') {
   if (typeof base !== 'function') return;
   window.plannerRepeatMatches = function (node, iso) {
     if (window.plannerDayIsSkipped(node, iso)) return false;   /* gone for that day */
+    return base.apply(this, arguments);
+  };
+})();
+
+/* ===================================================== CARD 63, 2026-11-09
+   Operator: "i move activities from tree to calender. it does show a date, once
+   I have the date removed, it still lingering in the calender rather than
+   dispaearnig and staying in the tree."
+
+   MEASURED on build 2026-11-07 21:15, with a real drag and the real Clear button
+   in the date popup: the clear WORKS (node.date becomes null) and the chip stays
+   on the day anyway.
+
+   ROOT CAUSE - two independent owners of "does this belong on this day":
+
+       a plain task      shown because node.date says so      clears correctly
+       a REPEATING item  shown because the repeat RULE says so NEVER clears
+
+   plannerRepeatMatches opens with `if (!node || !node.repeat || !iso) return
+   false;` and never consults node.date at all. Worse, anchorOf() falls back to
+   TODAY when repeat.start is unset, so an item whose date was just removed
+   matches from today onwards for ever.
+
+   SCOPE, measured across every repeat shape with the date cleared: daily, every-N
+   daily, weekly, weekly on set days, monthly, monthly-on-a-day, yearly, specific
+   dates and with-a-start-date ALL linger - 11 of 12. Only an item with no repeat
+   at all cleared correctly, which is why it looked random.
+
+   THE RULE: an item with no date is not on the calendar, whatever its repeat rule
+   says. It stays in the tree with the rule INTACT - give it a date again and the
+   schedule resumes exactly as before. Nothing is deleted and no repeat setting is
+   touched. That restoration is asserted by the gate, because a "fix" that cleared
+   the rule would pass a naive off-the-calendar check while destroying their
+   schedule.
+
+   PLACED LAST ON PURPOSE. plannerRepeatMatches is wrapped four times (the moves /
+   rollover layer, the skip layer, and others); this is the outermost, so every
+   caller goes through it and no earlier layer can answer true behind its back.
+   The same lesson as the 2026-10-04 note above: a wrapper must come after the
+   LAST assignment or it wraps nothing.
+
+   EVENTS ARE NOT AFFECTED - this gates tree nodes only, which is what a repeat
+   rule lives on.
+
+   WHAT THIS DELIBERATELY DOES **NOT** GATE, found by measuring the fix against
+   the live build before shipping it. The first version of this gate was a blunt
+   `if (!node.date) return false;` and it silently removed THREE legitimate
+   routine shapes from the calendar:
+
+       daily/weekly anchored by repeat.start   drawn 1 -> drawn 0   LOST
+       "On specific dates" (r.dates)           drawn 1 -> drawn 0   LOST
+
+   Those rules carry their OWN schedule and never needed node.date in the first
+   place - "On specific dates" is a real option in the repeat dialog, and an item
+   using it legitimately has no node.date at all. Wiping them would have been a
+   far worse defect than the one being fixed, and the card's own gate could not
+   see it because it only seeds DATED routines.
+
+   So the gate applies only to rules that DERIVE their days from the date, which
+   are exactly the ones that go wrong when the date is taken away. A rule that
+   carries its own dates keeps drawing, exactly as it does today. */
+(function () {
+  var base = window.plannerRepeatMatches;
+  if (typeof base !== 'function') return;
+  window.__repeatMatchesBeforeDateGate = base;  /* so a check can see the raw answer */
+
+  /* A rule that supplies its own schedule, so the item never needed a date:
+     - specific: the user picked the exact dates
+     - any rule with an explicit start: that start is the anchor
+     Everything else (daily / weekly / monthly / yearly / periodic with no start)
+     falls back to the item's date - or, when that is gone, to TODAY, which is
+     the bug. */
+  function carriesItsOwnSchedule(r) {
+    if (!r) return false;
+    if (r.freq === 'specific') return !!(r.dates && r.dates.length);
+    return !!r.start;
+  }
+
+  window.plannerRepeatMatches = function (node, iso) {
+    if (node && !node.date && !carriesItsOwnSchedule(node.repeat)) return false;
     return base.apply(this, arguments);
   };
 })();
@@ -34735,6 +34989,34 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
 /* the pen: only when the task actually has notes, in the future-date amber */
 .tree-notepen { color: rgba(245, 158, 11, .32) !important; cursor: default; }
 
+/* BOARD 30 CARD 3 - operator 2026-11-11: "the pen color is dimmed in past due,
+   and completed", after "the pen in completed i want it to be as bright as the
+   one in deleted section".
+   MEASURED in a real browser before writing this, not read off the stylesheet:
+       Past due   .tree-notepen                rgba(245,158,11,.32) 12px 400
+       Completed  .tree-notepen .doneitem-pen  rgba(245,158,11,.32) 13px 400
+       Deleted    .tree-notepen .trashitem-pen rgb(255,176,32)      15px 700 +glow
+   The browser named the conflict: `.doneitem .doneitem-pen` (~2962) asks for
+   .55 with NO !important, and the rule directly above asks for .32 WITH it, so
+   the dim one won. Past due had no rule of its own at all. Deleted escaped only
+   because its colour is !important too - which is why that one list has looked
+   right since September, and why the comment at ~2937 claiming Completed is at
+   55% has been wrong for weeks.
+   SO THIS RULE MUST BE !important ON EVERY PROPERTY, or the rule above silently
+   overrides it and the change looks like it did nothing.
+   These are the Deleted pen's exact rendered values, copied rather than chosen
+   by eye, so the three lists cannot drift apart again. The priority tree's own
+   pen is deliberately NOT included: it sits among live tasks where a loud mark
+   competes with the work. */
+.pastitem .tree-notepen,
+.doneitem .doneitem-pen {
+  color: #ffb020 !important;
+  font-size: 15px !important;
+  font-weight: 700 !important;
+  opacity: 1 !important;
+  text-shadow: 0 0 7px rgba(255, 176, 32, .55) !important;
+}
+
 /* the future date: 8px, same amber. It is written only for dates still ahead, so the
    colour already means "not yet". Tasks always show it; a BRANCH shows it only while
    Show future branches is on - that rule is the operator's. */
@@ -41836,7 +42118,14 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
     take: take,
     list: function () {
       return read().map(function (s, i) {
-        return { i: i, at: s.at, reason: s.reason, tasks: s.tasks, notes: s.notes };
+        /* BOARD 30 CARD 3: `ms` added. It was already on every stored snapshot
+           and simply not passed through, so the Restore tab had only the ISO
+           string `at` - and undoWhen() does Number(at), which is NaN for a
+           string. Every row read "NaN days ago". Adding a field cannot break an
+           existing caller, and the tab's whole purpose is choosing a backup by
+           date. */
+        return { i: i, ms: s.ms, at: s.at, reason: s.reason,
+                 tasks: s.tasks, notes: s.notes };
       });
     },
     dataAt: function (i) { var l = read(); return (l[i] || {}).data || null; },
