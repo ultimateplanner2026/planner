@@ -3174,6 +3174,34 @@ aside#treePane, aside#treePane * { min-width: 0 !important; }
   flex: 1 1 calc(50% - 2px); min-width: 0; padding: 0 6px; white-space: nowrap;
 }
 
+/* ================================================= BOARD 30, 2026-11-13
+   Operator: "back up must be in its own tap for the drop down from setting...
+   it was task history and back up on the setting dropdown."
+
+   The heading takes a FULL row (flex-basis 100%), which is what forces the
+   wrap - Backups cannot sit beside Undo once a 100%-wide element is written
+   between them. Without that the section label would simply join the row and
+   the four tabs would reflow around it.
+
+   It is a <div>, never a button: it must not be pressable, and it must not be
+   mistaken for a tab. Lettering deliberately small and dim, matching the
+   SETTINGS label this drawer used to carry, so it reads as a label rather
+   than a control. */
+#treeDrawer #treeViews .treeview-group {
+  flex: 0 0 100%;
+  max-width: 100%;
+  margin: 2px 0 1px;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: .7px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  user-select: none;
+  pointer-events: none;
+}
+/* the first heading sits at the very top of the drawer - no gap above it */
+#treeDrawer #treeViews .treeview-group:first-child { margin-top: 0; }
+
 /* ============================================================
    Right-align the date properly.
    `margin-left:auto` on the chip was inert because .tree-title was
@@ -5784,14 +5812,21 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
    squares, and reusing it would be silently cancelled.
 
    Sized in PERCENT so it follows every depth step (16/12/10/9/8/7px) without
-   a rule per depth. 44% leaves a clear gap of background between the two
-   outlines at the smallest size; a fixed pixel inner square filled the 7px
-   one completely and read as a solid blob. */
+   a rule per depth. A fixed pixel inner square filled the 7px one completely
+   and read as a solid blob.
+
+   2026-11-13, operator: "the circle I want it to be be more closer to the
+   edge, talking about the inner circle." Was 44%, now 68% - the gap between
+   the two outlines closes from about 3.5px to 1.3px at the top level. 68% is
+   the largest that still leaves a visible dark line between them at the
+   SMALLEST marker (7px at depth 5, where 68% is 4.8px and the remaining gap
+   is under a pixel); past that the two outlines touch and it reads as one
+   thick border rather than a square inside a square. */
 #treeRoot .tree-row > .tree-caret::before {
   content: '' !important;
   display: block !important;
-  width: 44% !important;
-  height: 44% !important;
+  width: 68% !important;
+  height: 68% !important;
   box-sizing: border-box !important;
   border: 1.25px solid rgb(229, 72, 77) !important;
   border-radius: 1px !important;
@@ -6674,7 +6709,7 @@ window.__rollHorizon = function () {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-11-09 17:56 c125 TEST</span>
+    <span id="buildStamp">build 2026-11-09 17:56 c126 TEST</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -14949,11 +14984,26 @@ function surfaceArrivals() {
     /* 2026-09-20, operator: "add a missed tasks, called it past due, on the left
        side of complete button. There it would show all the past due task that
        weren't completed the any days prior." */
+    /* ============================================ BOARD 30, 2026-11-13
+       Operator, with a picture of their four tabs: "it must not show back ups,
+       back up must be in its own tap for the drop down from setting... it was
+       task history and back up on the setting dropdown."
+
+       They are remembering something real. MEASURED: "Restore a snapshot..."
+       lived in the ACCOUNT menu (the three dots, far right) until 2026-09-15,
+       when they asked for it to be taken out. The dialog it opened is kept in
+       releases/planner-2026-09-15-1059.html.
+
+       So Backups is NOT a fifth task-history tab. TASK HISTORY is their four -
+       Past due, Completed, Deleted, Undo - and Backups is a separate thing
+       that happens to live in the same drop-down. `group` says which section
+       a tab belongs to; the loop below is unchanged and still walks one list,
+       so the four tabs are built by exactly the same code as before. */
     var views = [
-      { key: 'pastdue', label: 'Past due' },
-      { key: 'completed', label: 'Completed' },
-      { key: 'deleted', label: 'Deleted' },
-      { key: 'undo', label: 'Undo' },
+      { key: 'pastdue', label: 'Past due', group: 'TASK HISTORY' },
+      { key: 'completed', label: 'Completed', group: 'TASK HISTORY' },
+      { key: 'deleted', label: 'Deleted', group: 'TASK HISTORY' },
+      { key: 'undo', label: 'Undo', group: 'TASK HISTORY' },
       /* BOARD 30 CARD 3 - operator 2026-11-11, on their backups having nowhere
          to live: "the restore will be its own button to show its dates in the
          left side". A FIFTH tab beside the four, built by this same loop and
@@ -14969,10 +15019,21 @@ function surfaceArrivals() {
          buttons inside the list keep saying "Restore", because that is the
          verb for what pressing one does - the tab names what the list HOLDS,
          the button names the ACTION. */
-      { key: 'restore', label: 'Backups' }
+      { key: 'restore', label: 'Backups', group: 'BACKUPS' }
     ];
+    var lastGroup = null;
     for (var i = 0; i < views.length; i++) {
       (function(v) {
+        /* the section heading, written once when the group changes. A <div>
+           with its own class rather than a styled button, so it can never be
+           pressed and can never be mistaken for a tab. */
+        if (v.group && v.group !== lastGroup) {
+          var h = document.createElement('div');
+          h.className = 'treeview-group';
+          h.textContent = v.group;
+          bar.appendChild(h);
+          lastGroup = v.group;
+        }
         var btn = document.createElement('button');
         btn.className = 'treeview-btn' + (v.key === window.treeView ? ' on' : '');
         btn.textContent = v.label;
