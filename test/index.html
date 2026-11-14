@@ -6725,7 +6725,7 @@ window.__rollHorizon = function () {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-11-09 17:56 c127 TEST</span>
+    <span id="buildStamp">build 2026-11-09 17:56 c130 TEST</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -15016,10 +15016,10 @@ function surfaceArrivals() {
        a tab belongs to; the loop below is unchanged and still walks one list,
        so the four tabs are built by exactly the same code as before. */
     var views = [
-      { key: 'pastdue', label: 'Past due', group: 'TASK HISTORY' },
-      { key: 'completed', label: 'Completed', group: 'TASK HISTORY' },
-      { key: 'deleted', label: 'Deleted', group: 'TASK HISTORY' },
-      { key: 'undo', label: 'Undo', group: 'TASK HISTORY' },
+      { key: 'pastdue', label: 'Past due' },
+      { key: 'completed', label: 'Completed' },
+      { key: 'deleted', label: 'Deleted' },
+      { key: 'undo', label: 'Undo' },
       /* BOARD 30 CARD 3 - operator 2026-11-11, on their backups having nowhere
          to live: "the restore will be its own button to show its dates in the
          left side". A FIFTH tab beside the four, built by this same loop and
@@ -15035,7 +15035,6 @@ function surfaceArrivals() {
          buttons inside the list keep saying "Restore", because that is the
          verb for what pressing one does - the tab names what the list HOLDS,
          the button names the ACTION. */
-      { key: 'restore', label: 'Backups', group: 'BACKUPS' }
     ];
     var lastGroup = null;
     for (var i = 0; i < views.length; i++) {
@@ -15110,6 +15109,53 @@ function surfaceArrivals() {
         bar.appendChild(btn);
       })(views[i]);
     }
+
+    /* ============================================ BOARD 30, 2026-11-13
+       Operator, with a picture of the panel showing BOTH the four tabs and a
+       Backups button: "there should never be the back up showing in the same
+       time, its either or, based on the button clicked."
+
+       EITHER/OR. The Settings menu decides which list the panel shows:
+           Task history      -> the four tabs, no backups
+           Restore a backup  -> the backups list, NO TAB ROW AT ALL
+
+       MEASURED before this: with Restore showing, all four task-history tabs
+       were still drawn above the backups list. Taking the Backups TAB out
+       (which the previous build did) was not enough - the tab row itself has
+       to go when the panel is not showing task history, or the two lists are
+       on screen together, which is exactly the picture they sent.
+
+       Done here rather than in CSS so the row is not built at all: a hidden
+       row can still be found by a keyboard or a screen reader, and "not
+       there" is simpler to reason about than "there but invisible".
+
+       THE WAY BACK. Removing the row outright would trap you in the backups
+       list - there is no other control that leaves it. So in this view the
+       row holds exactly ONE button, "Backups", lit. Pressing a lit tab
+       already returns to the priority tree (that is how the four behave, and
+       how the Active button used to work), so this is the SAME gesture the
+       other lists use, not a new one. */
+    if (window.treeView === 'restore') {
+      while (bar.firstChild) bar.removeChild(bar.firstChild);
+      var only = document.createElement('button');
+      only.className = 'treeview-btn on';
+      only.textContent = 'Backups';
+      var sc = 0;
+      try {
+        if (window.plannerSnapshots && window.plannerSnapshots.list)
+          sc = window.plannerSnapshots.list().length;
+      } catch (e) {}
+      var scs = document.createElement('span');
+      scs.className = 'view-count';
+      scs.textContent = ' (' + sc + ')';
+      only.appendChild(scs);
+      only.addEventListener('click', function () {
+        window.treeView = 'active';
+        window.renderTree();
+      });
+      bar.appendChild(only);
+    }
+
     root.parentNode.insertBefore(bar, root);
   }
   window.__buildTreeViews = buildBar;
@@ -36255,6 +36301,161 @@ body[data-habits-left="1"] #habitsLeft {
 
   window.__habitsShow = show;
 
+  /* ========================================= BOARD 30 CARD 1 - the menu
+     Built on .acctmenu, the dropdown the planner already has. See the note on
+     the Settings button below for why. */
+
+  /* ================================================= 2026-11-13, MEASURED
+     Both dropdowns in this planner positioned themselves as
+         left: clamped to the window,  top: button.bottom + 6
+     which assumes the button is in a bar at the TOP of the page. At 700px and
+     below the top bar drops to the BOTTOM, so "below the button" is off the
+     screen: measured at 700/430/390/360, the menu opened at y=738 on a 757px
+     screen - 142px past the bottom edge, with ZERO rows visible.
+
+     The old clamp only ever looked at left/right, so my own check reported
+     "offScreen: false" on a menu nobody could see. Horizontal-only is not a
+     clamp.
+
+     ONE placer for BOTH menus: the account menu (three dots) had the same
+     latent bug and would have hit it the moment anything moved it down the
+     page. Flips above the button when there is no room below, and never lets
+     the menu start above the top edge either. */
+  window.__placeMenu = function (menu, btn) {
+    var r = btn.getBoundingClientRect();
+    var box = menu.getBoundingClientRect();
+    var w = box.width || 210;
+    var h = box.height || 160;
+    var vw = window.innerWidth, vh = window.innerHeight;
+
+    var left = Math.min(r.right - w, vw - w - 8);
+    menu.style.left = Math.round(Math.max(8, left)) + 'px';
+
+    var below = r.bottom + 6;
+    var above = r.top - h - 6;
+    var top;
+    if (below + h <= vh - 8) {
+      top = below;                 /* the normal case: under the button */
+    } else if (above >= 8) {
+      top = above;                 /* no room below - flip above it */
+    } else {
+      top = Math.max(8, vh - h - 8);  /* no room either way - sit on screen */
+    }
+    menu.style.top = Math.round(top) + 'px';
+    return top;
+  };
+
+  window.__settingsMenuOpen = false;
+
+  window.__closeSettingsMenu = function () {
+    var m = document.getElementById('settingsMenu');
+    if (m && m.parentNode) m.parentNode.removeChild(m);
+    window.__settingsMenuOpen = false;
+    var b = document.getElementById('btnAppSettings');
+    if (b) b.setAttribute('aria-expanded', 'false');
+    document.removeEventListener('mousedown', settingsMenuAway, true);
+  };
+
+  function settingsMenuAway(e) {
+    var m = document.getElementById('settingsMenu');
+    var b = document.getElementById('btnAppSettings');
+    if (m && m.contains(e.target)) return;
+    if (b && (e.target === b || b.contains(e.target))) return;
+    window.__closeSettingsMenu();
+  }
+
+  function openSettingsMenu(btn) {
+    window.__closeSettingsMenu();
+    var menu = document.createElement('div');
+    menu.className = 'acctmenu';
+    menu.id = 'settingsMenu';
+
+    function row(label, hint, onClick) {
+      var x = document.createElement('button');
+      x.type = 'button';
+      x.textContent = label;
+      if (hint) {
+        /* the count sits at the right of the row, dim - same shape as
+           "4 saved" in the picture the operator chose */
+        var s = document.createElement('span');
+        s.className = 'smhint';
+        s.textContent = hint;
+        x.appendChild(s);
+      }
+      x.addEventListener('click', function (e) {
+        e.preventDefault();
+        window.__closeSettingsMenu();
+        try { onClick(); } catch (err) {}
+      });
+      menu.appendChild(x);
+      return x;
+    }
+
+    /* 1. Task history - opens the drawer, which is what Settings used to do
+          directly. The four tabs and everything behind them are untouched:
+          this calls the same function the button called before. */
+    row('Task history', '', function () {
+      if (window.plannerOpenSettings) window.plannerOpenSettings();
+      else {
+        var d = document.getElementById('treeDrawer');
+        if (d) {
+          d.removeAttribute('hidden');
+          d.className = String(d.className).replace(/\bhidden\b/, '');
+        }
+      }
+      /* land on the tree's own view, never on a stale tab from last time */
+      if (window.treeView === 'restore') window.treeView = 'pastdue';
+      if (window.renderTree) window.renderTree();
+    });
+
+    /* 2. Restore a backup - the count comes from the thing it lists, so the
+          badge and the list cannot disagree. */
+    var saved = 0;
+    try {
+      if (window.plannerSnapshots && window.plannerSnapshots.list)
+        saved = window.plannerSnapshots.list().length;
+    } catch (e) {}
+    row('Restore a backup', saved ? (saved + ' saved') : '', function () {
+      if (window.plannerOpenSettings) window.plannerOpenSettings();
+      window.treeView = 'restore';
+      if (window.renderTree) window.renderTree();
+    });
+
+    var hr = document.createElement('div');
+    hr.className = 'acctsep';
+    menu.appendChild(hr);
+
+    /* 3. Calendar sync - the dialog already exists; card 1 takes its button
+          out of the drawer, and this is where it lands (operator's choice,
+          2026-11-13). */
+    row('Calendar sync', '', function () {
+      if (window.showCalendarSync) window.showCalendarSync();
+    });
+
+    /* 4. Sign out - same behaviour as the account menu's own Sign out. */
+    row('Sign out', '', function () {
+      function reload() { try { location.reload(); } catch (e) {} }
+      try {
+        var r = (window.FB && window.FB.signOut) ? window.FB.signOut() : null;
+        if (r && r.then) r.then(reload, reload); else reload();
+      } catch (e) { reload(); }
+    });
+
+    document.body.appendChild(menu);
+    btn.setAttribute('aria-expanded', 'true');
+
+    /* right-align to the button and never let it hang off the window - copied
+       from .acctmenu's own placement, which already handles the narrow case:
+       Math.max(8, ...) pins it 8px from the left edge on a phone, where the
+       button sits too far right for a right-aligned menu to fit. */
+    window.__placeMenu(menu, btn);
+
+    window.__settingsMenuOpen = true;
+    setTimeout(function () {
+      document.addEventListener('mousedown', settingsMenuAway, true);
+    }, 0);
+  }
+
   /* ---------- Settings moves to the top right ---------- */
 
   function placeSettings() {
@@ -36269,12 +36470,34 @@ body[data-habits-left="1"] #habitsLeft {
     var t = document.createElement('span');
     t.textContent = 'Settings';
     b.appendChild(t);
-    b.addEventListener('click', function () {
-      if (window.plannerOpenSettings) window.plannerOpenSettings();
-      else {
-        var d = document.getElementById('treeDrawer');
-        if (d) { d.removeAttribute('hidden'); d.className = String(d.className).replace(/\bhidden\b/, ''); }
-      }
+    /* ============================================== BOARD 30 CARD 1, 2026-11-13
+       Operator, shown the mockup drawn on 11 Nov: "this is the one i want".
+
+       Settings opens a MENU, not the drawer. Two lines, a divider, then the
+       two settings proper:
+
+           Task history                 -> opens the four tabs (the drawer)
+           Restore a backup   4 saved   -> the backups list
+           ------------------------------
+           Calendar sync                -> the dialog that already exists
+           Sign out
+
+       WHY IT REUSES .acctmenu: that class is the planner's existing dropdown
+       (the three-dots account menu) and it already solves everything this
+       needs - right-aligning to its button, clamping to the window edge so it
+       cannot hang off, closing on an outside mousedown, and the z-index that
+       puts it over the calendar. Writing a second menu would mean a second
+       set of those bugs. House rule: find the nearest existing equivalent and
+       copy its structure.
+
+       SAME ON EVERY WIDTH, at the operator's choice 2026-11-13 - the menu
+       appears on a phone too, anchored to the screen edge instead of the
+       button, so there is one behaviour to learn and one to test. */
+    b.addEventListener('click', function (ev) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      if (window.__settingsMenuOpen) { window.__closeSettingsMenu(); return; }
+      openSettingsMenu(b);
     });
     if (ex.nextSibling) ex.parentNode.insertBefore(b, ex.nextSibling);
     else ex.parentNode.appendChild(b);
@@ -39685,6 +39908,14 @@ body[data-fb="on"] .fb-band { display: block; }
   border:0; color:#e6e8ec; font:inherit; font-size:13px; padding:8px 10px; border-radius:7px;
   cursor:pointer; }
 .acctmenu button:hover{ background:#262b33; }
+/* BOARD 30 CARD 1, 2026-11-13 - the Settings menu reuses .acctmenu, and adds
+   only these two: a dim count at the right of a row ("4 saved"), and the
+   divider between the two lists and the two settings. Both are in the mockup
+   the operator chose. */
+#settingsMenu button{ display:flex; align-items:baseline; justify-content:space-between;
+  gap:14px; }
+#settingsMenu .smhint{ font-size:11px; color:#6b7280; flex:0 0 auto; }
+.acctsep{ height:1px; background:#2e323a; margin:6px 4px; }
 .tgevent.routine-past { opacity: .5; }
 .tgevent.routine-past .tgevent-title,
 .tgevent.routine-past .tgtitle { text-decoration: line-through; }
@@ -41515,12 +41746,21 @@ function buildCompactTime(initHHMM, onPick, onCancel) {
     btn.setAttribute('aria-expanded', 'true');
 
     /* right-align to the button and never let it hang off the window - it is the last
-       thing on the bar, so a left-aligned menu would run off the edge */
-    var r = btn.getBoundingClientRect();
-    var w = menu.getBoundingClientRect().width || 210;
-    var left = Math.min(r.right - w, window.innerWidth - w - 8);
-    menu.style.left = Math.round(Math.max(8, left)) + 'px';
-    menu.style.top = Math.round(r.bottom + 6) + 'px';
+       thing on the bar, so a left-aligned menu would run off the edge.
+       2026-11-13: this used to clamp left/right only and put the menu at
+       button.bottom + 6 unconditionally. Below 700px the top bar sits at the
+       BOTTOM of the page, so that is off the screen - measured 142px past the
+       edge with no row visible. Both menus now share one placer that flips
+       above the button when there is no room below. */
+    if (window.__placeMenu) {
+      window.__placeMenu(menu, btn);
+    } else {
+      var r = btn.getBoundingClientRect();
+      var w = menu.getBoundingClientRect().width || 210;
+      var left = Math.min(r.right - w, window.innerWidth - w - 8);
+      menu.style.left = Math.round(Math.max(8, left)) + 'px';
+      menu.style.top = Math.round(r.bottom + 6) + 'px';
+    }
 
     setTimeout(function () { document.addEventListener('mousedown', away, true); }, 0);
   }
