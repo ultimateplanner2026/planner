@@ -6725,7 +6725,7 @@ window.__rollHorizon = function () {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-11-09 17:56 c130 TEST</span>
+    <span id="buildStamp">build 2026-11-09 17:56 c131 TEST</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -36403,8 +36403,16 @@ body[data-habits-left="1"] #habitsLeft {
           d.className = String(d.className).replace(/\bhidden\b/, '');
         }
       }
-      /* land on the tree's own view, never on a stale tab from last time */
-      if (window.treeView === 'restore') window.treeView = 'pastdue';
+      /* ======================================== 2026-11-13, OPERATOR
+         "each button has its own left side option, task history is the 4
+          buttons I been talking about"
+
+         ALWAYS land on Past due. The old line only reset the view when it
+         happened to be 'restore', so coming from anywhere else left
+         treeView at 'active' - MEASURED: the four tabs drew, and NOTHING
+         under them, because 'active' is the priority tree, not a list.
+         Choosing Task history must always show task history. */
+      window.treeView = 'pastdue';
       if (window.renderTree) window.renderTree();
     });
 
@@ -36427,8 +36435,23 @@ body[data-habits-left="1"] #habitsLeft {
 
     /* 3. Calendar sync - the dialog already exists; card 1 takes its button
           out of the drawer, and this is where it lands (operator's choice,
-          2026-11-13). */
+          2026-11-13).
+
+          2026-11-13, OPERATOR: "calender which is actually a pop up". It is
+          NOT a left-panel option like the other two, so it must not leave
+          one behind it. MEASURED: choosing Calendar sync while the backups
+          list was open opened the dialog OVER the backups - two different
+          answers to one menu on screen at once, which is the same complaint
+          as task history and backups sharing the panel.
+          So: close the panel first, then open the pop-up. */
     row('Calendar sync', '', function () {
+      if (window.plannerCloseSettings) window.plannerCloseSettings();
+      else {
+        var d = document.getElementById('treeDrawer');
+        if (d) d.hidden = true;
+      }
+      window.treeView = 'active';
+      if (window.renderTree) window.renderTree();
       if (window.showCalendarSync) window.showCalendarSync();
     });
 
