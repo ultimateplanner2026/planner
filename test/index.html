@@ -5766,6 +5766,38 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
 #treeRoot .tree-row > .tree-caret::after,
 #treeRoot .tree-row > .tree-marker::after,
 #treeRoot .tree-row > .tree-title::before { content: none !important; }
+
+/* ================================================= BOARD 30 CARD 3
+   Operator, 2026-11-13: "the red square needs to have another red square to
+   indicate it has a subtask".
+
+   MEASURED on the live tree before writing this (_marker_now.py) - the two
+   shapes were INDISTINGUISHABLE, which is exactly the complaint:
+       PARENT with subtasks   .tree-caret   16x16  1.5px solid rgb(229,72,77)
+       LEAF with none         .tree-marker  16x16  1.5px solid rgb(229,72,77)
+   A row that HAS children draws .tree-caret and hides .tree-marker (the rule
+   at ~5665); a leaf draws the marker. So the second square belongs on the
+   CARET, where it marks precisely the rows that have subtasks - no JavaScript
+   and no new element, so nothing can fall out of step with the tree.
+
+   ::before, not ::after - the rule directly above blanks ::after on both
+   squares, and reusing it would be silently cancelled.
+
+   Sized in PERCENT so it follows every depth step (16/12/10/9/8/7px) without
+   a rule per depth. 44% leaves a clear gap of background between the two
+   outlines at the smallest size; a fixed pixel inner square filled the 7px
+   one completely and read as a solid blob. */
+#treeRoot .tree-row > .tree-caret::before {
+  content: '' !important;
+  display: block !important;
+  width: 44% !important;
+  height: 44% !important;
+  box-sizing: border-box !important;
+  border: 1.25px solid rgb(229, 72, 77) !important;
+  border-radius: 1px !important;
+  background: transparent !important;
+  pointer-events: none !important;
+}
 #treeRoot .tree-row[data-revealed] { opacity: 1 !important; }
 
 /* THE SIGNAL: a sub-branch holding something is underlined */
@@ -6642,7 +6674,7 @@ window.__rollHorizon = function () {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-11-09 17:56 c123 TEST</span>
+    <span id="buildStamp">build 2026-11-09 17:56 c125 TEST</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -14930,7 +14962,14 @@ function surfaceArrivals() {
          delted, and undo. use the same code for those." So nothing above this
          line changed - this is one more entry in the list the loop already
          walks. */
-      { key: 'restore', label: 'Restore' }
+      /* 2026-11-13, operator: "maybe a better button name for the restore
+         option" -> they chose "Backups". The KEY stays 'restore': it is the
+         stored view name, so renaming it would strand anyone whose planner
+         remembers that tab. Only the visible label changed. The per-row
+         buttons inside the list keep saying "Restore", because that is the
+         verb for what pressing one does - the tab names what the list HOLDS,
+         the button names the ACTION. */
+      { key: 'restore', label: 'Backups' }
     ];
     for (var i = 0; i < views.length; i++) {
       (function(v) {
@@ -24941,7 +24980,17 @@ if (r.freq === 'yearly') {
   window.buildRepeatPanel = function (node) {
     var wrap = document.createElement('div');
     wrap.className = 'rep-wrap';
-    if (!node.repeat) node.repeat = null;
+    /* BOARD 30 CARD 2 - operator 2026-11-13: "the undo section doesn't say what
+       changed it just says changed a task".
+       MEASURED (_undo_fields.py): opening a task and pressing Save WITHOUT
+       editing anything moved exactly one field - `repeat: undefined -> null`.
+       That is a real change to the stored data, so an Undo entry was created;
+       but `repeat` is not one of the fields describe() compares, so every such
+       entry fell through to the useless 'Changed a task'.
+       `if (!node.repeat) node.repeat = null` rewrote the key even when it was
+       merely ABSENT, because undefined is falsy. Only fill it in when the key
+       genuinely is not there, so opening a dialog is no longer an edit. */
+    if (!('repeat' in node)) node.repeat = null;
 
     var head = document.createElement('div');
     head.className = 'rep-head';
@@ -26995,20 +27044,59 @@ if (r.freq === 'yearly') {
 
          So: compare the fields a person actually edits and name the one that moved,
          with its OLD value and its NEW one. */
+      /* BOARD 30 CARD 2 - operator 2026-11-13: "the undo section doesn't say
+         what changed it just says changed a task it needs to be specific".
+         The list below was SHORT, so any edit to a field missing from it
+         changed the data (creating an entry) and then matched nothing (so the
+         entry read 'Changed a task'). Measured: `repeat` was the one the task
+         dialog moved. Rather than add that single key and wait for the next
+         one, every field the dialog can write is named here, and anything
+         still unnamed is reported by its own key at the bottom of describe()
+         instead of falling through to a sentence that says nothing. */
       var FIELDS = [
-        { key: 'title',    label: 'name' },
-        { key: 'duration', label: 'duration', unit: ' min' },
-        { key: 'priority', label: 'priority' },
-        { key: 'date',     label: 'date' },
-        { key: 'time',     label: 'time' },
-        { key: 'notes',    label: 'notes' },
-        { key: 'done',     label: 'done' }
+        { key: 'title',     label: 'name' },
+        { key: 'duration',  label: 'duration', unit: ' min' },
+        { key: 'priority',  label: 'priority' },
+        { key: 'date',      label: 'date' },
+        { key: 'time',      label: 'time' },
+        { key: 'notes',     label: 'notes' },
+        { key: 'done',      label: 'done' },
+        { key: 'repeat',    label: 'repeat' },
+        { key: 'areaId',    label: 'colour' },
+        { key: 'tags',      label: 'tags' },
+        { key: 'block',     label: 'block' },
+        { key: 'endDate',   label: 'end date' },
+        { key: 'collapsed', label: 'collapsed' },
+        { key: 'kind',      label: 'kind' }
       ];
       function shown(v, unit) {
         if (v === null || v === undefined || v === '') return 'empty';
         if (v === true) return 'yes';
         if (v === false) return 'no';
+        /* BOARD 30 CARD 2: tags is an array and repeat an object, and
+           String([object Object]) tells the operator nothing. Name them the way
+           the app does. */
+        if (Object.prototype.toString.call(v) === '[object Array]') {
+          return v.length ? v.join(', ') : 'empty';
+        }
+        if (typeof v === 'object') {
+          if (v.freq) {
+            return String(v.freq) +
+                   (v.interval && v.interval !== 1 ? ' every ' + v.interval : '');
+          }
+          try { return JSON.stringify(v).slice(0, 40); } catch (e) { return 'set'; }
+        }
         return String(v) + (unit || '');
+      }
+      /* Compare by VALUE: `was.tags !== now.tags` is true for two identical
+         arrays, which would report a change that never happened. */
+      function same(a, b) {
+        if (a === b) return true;
+        if (a === null || a === undefined) return (b === null || b === undefined);
+        if (typeof a === 'object' || typeof b === 'object') {
+          try { return JSON.stringify(a) === JSON.stringify(b); } catch (e) { return false; }
+        }
+        return false;
       }
       var edits = [];
       for (i2 = 0; i2 < ca.length; i2++) {
@@ -27017,7 +27105,7 @@ if (r.freq === 'yearly') {
         for (var f2 = 0; f2 < FIELDS.length; f2++) {
           var F = FIELDS[f2];
           if (F.key === 'title') continue;           /* renames are handled above */
-          if (was[F.key] === now[F.key]) continue;
+          if (same(was[F.key], now[F.key])) continue;
           edits.push({
             who: now.title || was.title || 'Untitled',
             what: F.label,
@@ -27048,15 +27136,229 @@ if (r.freq === 'yearly') {
       }
 
       if ((a.trash || []).length !== (b.trash || []).length) return 'Changed the trash';
+
+      /* ============================================== BOARD 30 CARD 2, part 2
+         MEASURED with the planner's own describe() over 13 kinds of change
+         (_run_describe.js): teaching it every TASK field still left 7 of 13
+         reading 'Changed a task', because describe() only ever walked
+         `a.tree`. Everything OUTSIDE the tree - areas, habits, the journal,
+         the notes tab, lists - and a MOVE within it, which changes no field at
+         all, fell straight through.
+
+         So: name the other places, and name a move. Each is read the way the
+         app stores it, checked against the real shapes in Store.data. */
+
+      /* --- a MOVE: same ids, same fields, different order/parent --- */
+      try {
+        var orderA = [], orderB = [], parentA = {}, parentB = {};
+        (function walk(list, into, par, pid) {
+          for (var i = 0; i < (list || []).length; i++) {
+            into.push(list[i].id);
+            par[list[i].id] = pid;
+            walk(list[i].children, into, par, list[i].id);
+          }
+        })(a.tree, orderA, parentA, null);
+        (function walk(list, into, par, pid) {
+          for (var i = 0; i < (list || []).length; i++) {
+            into.push(list[i].id);
+            par[list[i].id] = pid;
+            walk(list[i].children, into, par, list[i].id);
+          }
+        })(b.tree, orderB, parentB, null);
+        if (orderA.length === orderB.length &&
+            orderA.join(',') !== orderB.join(',')) {
+          /* a task that changed PARENT is the interesting case - say where */
+          for (var mi = 0; mi < orderB.length; mi++) {
+            var mid = orderB[mi];
+            if (parentA[mid] === parentB[mid]) continue;
+            var who = (idb[mid] && idb[mid].title) || 'a task';
+            var into2 = parentB[mid] ? (idb[parentB[mid]] &&
+                                        idb[parentB[mid]].title) : null;
+            return into2 ? ('Moved “' + who + '” under “' +
+                            into2 + '”')
+                         : ('Moved “' + who + '” to the top level');
+          }
+          return 'Reordered the tree';
+        }
+      } catch (em) {}
+
+      /* --- the other five places, each named the way the app stores it --- */
+      function named(x) {
+        return (x && (x.name || x.title)) ? (x.name || x.title) : null;
+      }
+      function byId(list) {
+        var o = {}, i;
+        for (i = 0; i < (list || []).length; i++) o[(list[i] || {}).id] = list[i];
+        return o;
+      }
+      var PLACES = [
+        { key: 'areas',  one: 'area',  many: 'areas'  },
+        { key: 'habits', one: 'habit', many: 'habits' },
+        { key: 'lists',  one: 'list',  many: 'lists'  }
+      ];
+      for (var pi = 0; pi < PLACES.length; pi++) {
+        var P = PLACES[pi];
+        var LA = a[P.key], LB = b[P.key];
+        if (!LA && !LB) continue;
+        if (JSON.stringify(LA) === JSON.stringify(LB)) continue;
+        var mA = byId(LA), mB = byId(LB), pid2;
+        for (pid2 in mB) {
+          if (!mA[pid2]) {
+            return 'Added the ' + P.one + ' “' +
+                   (named(mB[pid2]) || 'Untitled') + '”';
+          }
+        }
+        for (pid2 in mA) {
+          if (!mB[pid2]) {
+            return 'Deleted the ' + P.one + ' “' +
+                   (named(mA[pid2]) || 'Untitled') + '”';
+          }
+        }
+        for (pid2 in mB) {
+          if (same(mA[pid2], mB[pid2])) continue;
+          var wasN = named(mA[pid2]), nowN = named(mB[pid2]);
+          if (wasN !== nowN) {
+            return 'Renamed the ' + P.one + ' ' + wasN +
+                   ' → ' + nowN;
+          }
+          /* same name, something inside it moved - name the field */
+          var fk;
+          for (fk in mB[pid2]) {
+            if (fk === 'id') continue;
+            if (same(mA[pid2][fk], mB[pid2][fk])) continue;
+            return (nowN || 'A ' + P.one) + ' — ' + fk + ' ' +
+                   shown(mA[pid2][fk]) + ' → ' + shown(mB[pid2][fk]);
+          }
+          return 'Changed the ' + P.one + ' “' +
+                 (nowN || 'Untitled') + '”';
+        }
+        return 'Changed the ' + P.many;
+      }
+
+      /* the journal is keyed by DATE, the notes tab by note id */
+      var DOCS = [
+        { key: 'journal',      one: 'the journal', byDate: true },
+        { key: 'journalNotes', one: 'a note',      byDate: false }
+      ];
+      for (var di = 0; di < DOCS.length; di++) {
+        var Dk = DOCS[di], DA = a[Dk.key] || {}, DB = b[Dk.key] || {};
+        if (JSON.stringify(DA) === JSON.stringify(DB)) continue;
+        var dk;
+        for (dk in DB) {
+          if (same(DA[dk], DB[dk])) continue;
+          if (!(dk in DA)) {
+            return Dk.byDate ? ('Wrote in the journal on ' + dk)
+                             : 'Added a note';
+          }
+          return Dk.byDate ? ('Edited the journal on ' + dk)
+                           : 'Edited a note';
+        }
+        for (dk in DA) {
+          if (dk in DB) continue;
+          return Dk.byDate ? ('Cleared the journal on ' + dk)
+                           : 'Deleted a note';
+        }
+        return 'Changed ' + Dk.one;
+      }
+
+      /* --- sync bookkeeping is NOT something the operator did --- */
+      try {
+        var stripA = JSON.parse(beforeJson), stripB = JSON.parse(afterJson);
+        delete stripA.sync; delete stripB.sync;
+        if (JSON.stringify(stripA) === JSON.stringify(stripB)) {
+          return 'Synced with your other devices';
+        }
+      } catch (es) {}
+
+      /* BOARD 30 CARD 2 - LAST RESORT, and the reason this can no longer print
+         a sentence that says nothing. If a field moved that FIELDS does not
+         name, report it BY ITS OWN KEY rather than giving up. The operator
+         would rather read "Field probe - repeat empty -> daily" than
+         "Changed a task", and an ugly key name is a bug report: it tells us
+         exactly which field to add to FIELDS above. */
+      try {
+        for (i2 = 0; i2 < ca.length; i2++) {
+          var w3 = ca[i2], n3 = idb[w3.id];
+          if (!n3) continue;
+          var seen = {}, k3;
+          for (k3 in w3) seen[k3] = 1;
+          for (k3 in n3) seen[k3] = 1;
+          for (k3 in seen) {
+            if (k3 === 'children' || k3 === 'id') continue;
+            if (k3.indexOf('__') === 0) continue;   /* in-memory only, never a real edit */
+            if (same(w3[k3], n3[k3])) continue;
+            return (n3.title || w3.title || 'Untitled') + ' — ' + k3 + ' ' +
+                   shown(w3[k3]) + ' → ' + shown(n3[k3]);
+          }
+        }
+      } catch (e3) {}
+
       return 'Changed a task';
     } catch (e) { return 'Changed something'; }
+  }
+
+  /* ================================================= BOARD 30 CARD 2
+     Operator, 2026-11-13: "the undo section doesn't say what changed it just
+     says changed a task it needs to be specific".
+
+     MEASURED (_undo_fields.py): opening a task and pressing Save WITHOUT
+     editing anything moved exactly one field - `repeat: undefined -> null`,
+     written by buildRepeatPanel as it builds the Repeat row. That is a real
+     change to the stored JSON, so an entry was created, and because the entry
+     described nothing a person did it read 'Changed a task'.
+
+     Guarding inside buildRepeatPanel is not enough: the key is genuinely
+     ABSENT on older tasks, so filling it in is correct - it just is not an
+     EDIT. So the test belongs here, where "is this worth remembering?" is
+     already being asked. A change that only adds keys whose value is null or
+     undefined - a default being filled in - is not something the operator did,
+     and must not take a slot in a 30-deep undo stack. */
+  var NOT_AN_EDIT = { repeat: 1, block: 1, tags: 1, areaId: 1,
+                      endDate: 1, notesHtml: 1 };
+
+  function onlyDefaultsFilledIn(aJson, bJson) {
+    try {
+      var a = JSON.parse(aJson), b = JSON.parse(bJson);
+      function flat(d, into) {
+        var list = (d && d.tree) || [];
+        (function walk(ns) {
+          for (var i = 0; i < ns.length; i++) {
+            into[ns[i].id] = ns[i];
+            if (ns[i].children) walk(ns[i].children);
+          }
+        })(list);
+        return into;
+      }
+      var A = flat(a, {}), B = flat(b, {}), id;
+      /* any node added or removed is a real change */
+      for (id in A) if (!B[id]) return false;
+      for (id in B) if (!A[id]) return false;
+      var sawSomething = false;
+      for (id in B) {
+        var x = A[id], y = B[id], k, keys = {};
+        for (k in x) keys[k] = 1;
+        for (k in y) keys[k] = 1;
+        for (k in keys) {
+          if (k === 'children') continue;
+          var sx = JSON.stringify(x[k]), sy = JSON.stringify(y[k]);
+          if (sx === sy) continue;
+          sawSomething = true;
+          /* was absent, is now the empty default -> a default being filled in */
+          var wasBlank = (x[k] === undefined || x[k] === null);
+          var nowBlank = (y[k] === undefined || y[k] === null);
+          if (wasBlank && nowBlank && NOT_AN_EDIT[k]) continue;
+          return false;            /* a real edit */
+        }
+      }
+      return sawSomething;         /* something moved, all of it defaults */
+    } catch (e) { return false; }  /* never swallow a change we cannot read */
   }
 
   function record() {
     if (restoring) return;
     if (prev !== null) {
       var cur = snap();
-      if (cur !== null && cur !== prev) {
+      if (cur !== null && cur !== prev && !onlyDefaultsFilledIn(prev, cur)) {
         stack.push(prev);
         /* BOARD 27 CARD 2 - what the change WAS, so the Undo tab can list it.
            Kept in step with `stack` (same push, same shift) so an entry and its
@@ -35168,33 +35470,62 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
 /* the pen: only when the task actually has notes, in the future-date amber */
 .tree-notepen { color: rgba(245, 158, 11, .32) !important; cursor: default; }
 
-/* BOARD 30 CARD 3 - operator 2026-11-11: "the pen color is dimmed in past due,
-   and completed", after "the pen in completed i want it to be as bright as the
-   one in deleted section".
-   MEASURED in a real browser before writing this, not read off the stylesheet:
+/* BOARD 30 CARD 1 - operator 2026-11-13: "all the pens there are too bright,
+   bring it back as the same shade we have in priorty tree."
+   This REVERSES the brightening asked for on 2026-11-11 ("the pen color is
+   dimmed in past due, and completed") and on 2026-09-20 ("make the pen really
+   more bright on the delete section only"). Both were real instructions; this
+   one is current and stands. Seeing all four lists side by side is what
+   settled it - the loud amber in Deleted read as an alert rather than a mark.
+   ONE SHADE EVERYWHERE, taken from the priority tree, not chosen by eye:
+       .tree-notepen   rgba(245, 158, 11, .32)   13px   400   no glow
+   MEASURED in a real browser before this was written, not read off the sheet:
        Past due   .tree-notepen                rgba(245,158,11,.32) 12px 400
        Completed  .tree-notepen .doneitem-pen  rgba(245,158,11,.32) 13px 400
        Deleted    .tree-notepen .trashitem-pen rgb(255,176,32)      15px 700 +glow
-   The browser named the conflict: `.doneitem .doneitem-pen` (~2962) asks for
-   .55 with NO !important, and the rule directly above asks for .32 WITH it, so
-   the dim one won. Past due had no rule of its own at all. Deleted escaped only
-   because its colour is !important too - which is why that one list has looked
-   right since September, and why the comment at ~2937 claiming Completed is at
-   55% has been wrong for weeks.
-   SO THIS RULE MUST BE !important ON EVERY PROPERTY, or the rule above silently
-   overrides it and the change looks like it did nothing.
-   These are the Deleted pen's exact rendered values, copied rather than chosen
-   by eye, so the three lists cannot drift apart again. The priority tree's own
-   pen is deliberately NOT included: it sits among live tasks where a loud mark
-   competes with the work. */
+   WHY EVERY PROPERTY IS !important, and why removing one silently breaks this:
+   `.doneitem .doneitem-pen` (~2962) asks for .55 with NO !important, and
+   `.tree-notepen` (~34760) asks for .32 WITH it, so the later bare rule loses.
+   `.trashitem .trashitem-pen` (~2941) sets colour and opacity !important, so
+   only an !important rule can pull Deleted back down. Drop a flag here and the
+   change looks like it did nothing.
+   The glow and the weight are reset explicitly rather than left out - Deleted
+   still carries `text-shadow` and `font-weight: 700` from its own rule, and an
+   omitted property is an inherited one. */
 .pastitem .tree-notepen,
-.doneitem .doneitem-pen {
-  color: #ffb020 !important;
-  font-size: 15px !important;
-  font-weight: 700 !important;
+.doneitem .doneitem-pen,
+.trashitem .trashitem-pen {
+  color: rgba(245, 158, 11, .32) !important;
+  font-size: 13px !important;
+  font-weight: 400 !important;
   opacity: 1 !important;
-  text-shadow: 0 0 7px rgba(255, 176, 32, .55) !important;
+  text-shadow: none !important;
 }
+
+/* BOARD 30 CARD 2 - the description is the whole point of the card, and
+   `white-space: nowrap` + ellipsis was cutting it exactly where the new value
+   starts: "Call the accountant - priority empty ..." hid the word that
+   matters. MEASURED in the AFTER picture before this rule existed.
+   Only the UNDO list wraps. Past due, Completed and Deleted keep one line -
+   their titles are task names, where an ellipsis is fine, and the operator
+   asked for that code to be left alone. */
+/* `.undoitem` is the class the builder actually puts on each row
+   (`it.className = 'trashitem undoitem'`). An earlier version of this rule
+   used `.undolist`, which EXISTS NOWHERE in the file - it would have matched
+   nothing and the card would have shipped with the text still cut off. */
+#treeRoot .undoitem {
+  align-items: flex-start !important;
+}
+#treeRoot .undoitem .t-title {
+  white-space: normal !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  line-height: 1.35 !important;
+  word-break: break-word !important;
+}
+/* the time and the Undo button stay on the first line beside the text */
+#treeRoot .undoitem .undo-when,
+#treeRoot .undoitem .trashitem-restore { margin-top: 1px !important; }
 
 /* the future date: 8px, same amber. It is written only for dates still ahead, so the
    colour already means "not yet". Tasks always show it; a BRANCH shows it only while
