@@ -5816,19 +5816,35 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
    and read as a solid blob.
 
    2026-11-13, operator: "the circle I want it to be be more closer to the
-   edge, talking about the inner circle." Was 44%, now 68% - the gap between
-   the two outlines closes from about 3.5px to 1.3px at the top level. 68% is
-   the largest that still leaves a visible dark line between them at the
-   SMALLEST marker (7px at depth 5, where 68% is 4.8px and the remaining gap
-   is under a pixel); past that the two outlines touch and it reads as one
-   thick border rather than a square inside a square. */
+   edge, talking about the inner circle", then "the inside line must be
+   thinner as well", then - shown C, H and I as separate pictures -
+   "i choose c".
+
+   OPTION C: 88% with a 0.5px line. MEASURED on the rendered page, not
+   calculated: gap 0.78px at the 16px marker, and the two outlines stay
+   distinct all the way down to the 7px one.
+
+   TWO THINGS I GOT WRONG HERE, both corrected by measuring:
+   1. An earlier version of this comment said 68% was the largest that leaves
+      a visible gap, and that past it the outlines touch. FALSE - I had done
+      arithmetic instead of measuring and forgotten that `box-sizing:
+      border-box` draws the outer border INSIDE its own 16px, which leaves
+      more room than I assumed. Nothing touches until 100%, where the gap is
+      exactly 0.
+   2. The line is 0.5px, and 0.75px would be identical: at these sizes Chrome
+      paints 1.25px and 1px the same, and everything from 0.9px down the same.
+      Two "different" options that render identically is a fake choice - the
+      picture gate refused a pair of byte-identical files, which is how this
+      was found.
+
+   Sized in PERCENT so it follows every depth step without a rule per depth. */
 #treeRoot .tree-row > .tree-caret::before {
   content: '' !important;
   display: block !important;
-  width: 68% !important;
-  height: 68% !important;
+  width: 88% !important;
+  height: 88% !important;
   box-sizing: border-box !important;
-  border: 1.25px solid rgb(229, 72, 77) !important;
+  border: 0.5px solid rgb(229, 72, 77) !important;
   border-radius: 1px !important;
   background: transparent !important;
   pointer-events: none !important;
@@ -6709,7 +6725,7 @@ window.__rollHorizon = function () {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-11-09 17:56 c126 TEST</span>
+    <span id="buildStamp">build 2026-11-09 17:56 c127 TEST</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
