@@ -6747,7 +6747,7 @@ window.__rollHorizon = function () {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-11-09 17:56 c140 TEST</span>
+    <span id="buildStamp">build 2026-11-09 17:56 c141 TEST</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -10886,15 +10886,89 @@ window.__moveOccurrence = function(node, toISO, time) {
      it is withdrawn until that is understood. One change at a time. */
   if (!fromISO) return false;
   var t = time || null;
-  // If a prior move already targeted fromISO, re-point that entry to
-  // toISO so we don't leave a dangling intermediate hop.
+  /* 2026-11-17, operator after the first fix: "still not working, ____hours
+     of week and incoming payments still leaving a duplicate when I move it".
+
+     THE SHAPE I HAD NEVER TESTED: a routine that HAS ALREADY BEEN DRAGGED.
+     Every fixture I built had an empty moves map; theirs have been dragged
+     for days. Measured on c140, dragging today -> tomorrow:
+
+         never dragged before   ['18 Nov', '24 Nov']              correct
+         ONE prior move         ['17 Nov', '18 Nov', '24 Nov']    WRONG
+         TWO prior moves        ['17 Nov', '18 Nov', '24 Nov']    WRONG
+
+     WHY. A move is keyed by the day the occurrence was DUE, and
+     __occurrenceFor hides a day only when it is a KEY. Re-pointing an
+     existing entry moved its destination but left the day in the middle as
+     nobody's key:
+
+         moves { 20 Oct -> 17 Nov }    20 Oct hidden, 17 Nov shown
+         drag 17 Nov -> 18 Nov
+         moves { 20 Oct -> 18 Nov }    20 Oct hidden, 18 Nov shown
+                                       17 Nov claimed by nobody -> drawn
+
+     WHAT DOES NOT WORK, tried and measured first: also writing a marker for
+     the intermediate day. The markers accumulate, each one keeps pointing at
+     an old destination, and by the third consecutive drag the map resurrects
+     days it had already vacated - 4 chips after six hops. A map keyed by
+     origin cannot carry a per-hop history without rotting.
+
+     THE FIX: ONE ENTRY PER OCCURRENCE, keyed by the day it was originally
+     due, retargeted in place. That key never changes however many times the
+     chip is dragged, so exactly one day is ever claimed as the destination
+     and every day the rule generates is either a key (hidden) or not
+     (drawn by the rule). Dragging it back onto its own due day removes the
+     entry entirely, which is the state it started in. */
+  /* 2026-11-17, operator chose option A: MERGE.
+
+     THE SITUATION. An occurrence you postponed can land on a day the routine
+     is ALREADY due. Measured on their build, a weekly routine with
+     moves {10 Nov -> 17 Nov} where 17 Nov is itself a due day:
+
+         occurrences scheduled on 17 Nov, before any drag: 1
+
+     TWO occurrences, ONE chip. Dragging that chip moved only one of them and
+     the other became visible - which is what they were seeing as a duplicate
+     appearing from nowhere. Nothing was ever copied.
+
+     Asked which behaviour they wanted, they chose A: "if a postponed
+     occurrence lands on a day the routine is already due, they become one.
+     Postponing it moves the whole thing; you never see two."
+
+     SO: when the day being dragged FROM is also a day the rule generates in
+     its own right, that occurrence moves along with whatever was postponed
+     onto it. One chip in, one chip out.
+
+     The raw rule is consulted through __rawRepeatMatches - the rule BEFORE
+     the moves layer - because asking the final answer would just tell us the
+     chip is showing, not whether this day is due in its own right. */
+  var merged = false;
   for (var k in moves) {
     if (Object.prototype.hasOwnProperty.call(moves, k) && moves[k] && moves[k].to === fromISO) {
-      moves[k] = {to: toISO, time: t};
-      return true;
+      if (k === toISO) {
+        /* dragged back to where it was due - there is no move any more */
+        delete moves[k];
+      } else {
+        moves[k] = {to: toISO, time: t};
+      }
+      merged = true;
+      /* keep scanning: more than one postponed occurrence can have piled up
+         on this day, and option A says the whole chip moves. */
     }
   }
-  moves[fromISO] = {to: toISO, time: t};
+  if (fromISO === toISO) return true;
+  /* fromISO's OWN occurrence. It moves too when the rule generates that day -
+     otherwise the chip splits and the leftover looks like a duplicate. When
+     nothing was postponed onto this day, this is the ordinary single move. */
+  var ownDueDay = true;
+  try {
+    if (merged && typeof window.__rawRepeatMatches === 'function') {
+      ownDueDay = !!window.__rawRepeatMatches(node, fromISO);
+    }
+  } catch (err) { ownDueDay = true; }
+  if (ownDueDay) {
+    moves[fromISO] = {to: toISO, time: t};
+  }
   return true;
 };
 
