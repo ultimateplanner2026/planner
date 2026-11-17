@@ -5841,8 +5841,23 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
 #treeRoot .tree-row > .tree-caret::before {
   content: '' !important;
   display: block !important;
-  width: 88% !important;
-  height: 88% !important;
+  /* 2026-11-16, operator: "the inside sware needs to be thinner. and the
+     branch square needs to be in its orginal thickness."
+     MEASURED, and the two asks turned out to be ONE fix. At 88% the inner
+     square sits 0.24px from the wall on the 7px marker - sub-pixel, so the
+     browser fuses them into a single 2px band and the branch square reads
+     THICKER than it should. Scanned dead centre, the live planner's wall is
+     24 device px at EVERY depth; at 88% c133 painted 32 there.
+     80% is the largest size that puts the wall back to 24 everywhere while
+     keeping two distinct squares (_pct_ladder2.py sweeps 88/80/72/64/56/50).
+     The line stays 0.5px - the thinnest that paints at these sizes; 0.9px
+     down to 0.25px are all the same picture (_thin_ladder.py).
+     A WARNING FOR LATER: my first diagnosis of this was WRONG. Scanning the
+     marker off-centre caught the 2px border-radius bulging on the small
+     squares and reported the live wall as 26-29px, which made it look like
+     the wall itself had changed. It had not. Scan dead centre. */
+  width: 80% !important;
+  height: 80% !important;
   box-sizing: border-box !important;
   border: 0.5px solid rgb(229, 72, 77) !important;
   border-radius: 1px !important;
@@ -6740,7 +6755,7 @@ window.__rollHorizon = function () {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-11-09 17:56 c133 TEST</span>
+    <span id="buildStamp">build 2026-11-09 17:56 c134 TEST</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
