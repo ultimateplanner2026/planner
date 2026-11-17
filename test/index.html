@@ -4937,16 +4937,42 @@ input:focus, textarea:focus, select:focus {
 #treeRoot .tree-row > .tree-marker {
   flex: 0 0 auto;
   display: inline-block;
-  border: 1.5px solid #e5484d;
+  /* 2026-11-16, operator: "can you make the square red line thicker" ->
+     shown 1.5 / 2 / 2.5 / 3px as pictures -> "do 2.0 px into copy planner".
+     Changed in BOTH places: the leaf square (.tree-marker, here) and the
+     parent square (.tree-caret, ~5685). They are the same shape by design,
+     so a change to one alone would split a leaf from a parent.
+     MEASURED first: only four widths render at these marker sizes -
+     1.5px = 1.75px -> 24 device px, 2px = 2.25px -> 32, 2.5px -> 40,
+     3px -> 48. So 2px is a real step, and 2.25px would have been the same
+     picture (_thick_ladder.py).
+     The border is drawn INSIDE the square (box-sizing: border-box), so the
+     hole in the smallest 7px marker goes 4px -> 3px. Still an outline; 3px
+     was rejected because it closes to 1px and reads as a solid dot. */
+  border: 2px solid #e5484d;
   background: transparent;
   border-radius: 1px;
   margin-right: 2px;
 }
 #treeRoot .tree-row[data-depth="0"] > .tree-marker { width: 10px; height: 10px; }
 #treeRoot .tree-row[data-depth="1"] > .tree-marker { width: 8px;  height: 8px; }
-#treeRoot .tree-row[data-depth="2"] > .tree-marker { width: 6px;  height: 6px; border-width: 1.25px; }
-#treeRoot .tree-row[data-depth="3"] > .tree-marker { width: 5px;  height: 5px; border-width: 1px; }
-#treeRoot .tree-row[data-depth="4"] > .tree-marker { width: 4px;  height: 4px; border-width: 1px; }
+/* 2026-11-16: the border-width values that used to sit on the next three
+   rules are GONE, and that is a fix, not a side effect.
+   This block is superseded: its 6/5/4px sizes lost long ago to the rules at
+   ~5700 (16/12/10/9/8/7px). But those newer rules never set border-width, so
+   the old 1.25px / 1px / 1px kept winning - which meant a nested LEAF was
+   drawn thinner than a nested PARENT at the same depth:
+       depth 2   leaf 1.25px   parent 1.5px
+       depth 3   leaf 1px      parent 1.5px
+       depth 4   leaf 1px      parent 1.5px
+   That mismatch is in the live planner today. Found by a check that compared
+   a leaf and a parent at every depth; a grep for "1.5px" could never have
+   found it, because these rules never said 1.5px.
+   The sizes are left exactly as they were - they are dead either way, and
+   deleting them is a separate change nobody asked for. */
+#treeRoot .tree-row[data-depth="2"] > .tree-marker { width: 6px;  height: 6px; }
+#treeRoot .tree-row[data-depth="3"] > .tree-marker { width: 5px;  height: 5px; }
+#treeRoot .tree-row[data-depth="4"] > .tree-marker { width: 4px;  height: 4px; }
 
 /* ===== o15  the LAST red dots, and real indentation at every level =====
    The dots that survived were never elements - they are ::before
@@ -5754,7 +5780,9 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
 #treeRoot .tree-row > .tree-caret {
   box-sizing: border-box;
   display: inline-flex; align-items: center; justify-content: center;
-  border: 1.5px solid #e5484d; border-radius: 2px;
+  /* 2px, matching .tree-marker above - see the note there. Both squares
+     move together or a leaf stops matching a parent. */
+  border: 2px solid #e5484d; border-radius: 2px;
   background: transparent; padding: 0;
   /* a <button> keeps a 16px line box unless the ceiling is pinned too - that is why
      these looked like rectangles before */
@@ -6696,7 +6724,7 @@ window.__rollHorizon = function () {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-11-09 17:56 c135 TEST</span>
+    <span id="buildStamp">build 2026-11-09 17:56 c136 TEST</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
