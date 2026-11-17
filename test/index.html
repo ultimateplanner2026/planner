@@ -5795,90 +5795,31 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
 #treeRoot .tree-row > .tree-marker::after,
 #treeRoot .tree-row > .tree-title::before { content: none !important; }
 
-/* ================================================= BOARD 30 CARD 3
-   Operator, 2026-11-13: "the red square needs to have another red square to
-   indicate it has a subtask".
+/* ================================================= BOARD 30 CARD 3 - REMOVED
+   2026-11-16, operator: "can you have the orginal thickness of the redquare
+   back, how i orginally have it, and remove the double square, I have to find
+   something else that looks classy".
 
-   MEASURED on the live tree before writing this (_marker_now.py) - the two
-   shapes were INDISTINGUISHABLE, which is exactly the complaint:
-       PARENT with subtasks   .tree-caret   16x16  1.5px solid rgb(229,72,77)
-       LEAF with none         .tree-marker  16x16  1.5px solid rgb(229,72,77)
-   A row that HAS children draws .tree-caret and hides .tree-marker (the rule
-   at ~5665); a leaf draws the marker. So the second square belongs on the
-   CARET, where it marks precisely the rows that have subtasks - no JavaScript
-   and no new element, so nothing can fall out of step with the tree.
+   The inner-square mark is GONE. The red marker is back to exactly what the
+   live planner draws - one 1.5px outline, nothing inside it, at every depth.
+   Verified by diffing every caret rule against app/index.html: no border,
+   size, radius or colour rule remains that the live planner does not have.
 
-   ::before, not ::after - the rule directly above blanks ::after on both
-   squares, and reusing it would be silently cancelled.
-
-   Sized in PERCENT so it follows every depth step (16/12/10/9/8/7px) without
-   a rule per depth. A fixed pixel inner square filled the 7px one completely
-   and read as a solid blob.
-
-   2026-11-13, operator: "the circle I want it to be be more closer to the
-   edge, talking about the inner circle", then "the inside line must be
-   thinner as well", then - shown C, H and I as separate pictures -
-   "i choose c".
-
-   OPTION C: 88% with a 0.5px line. MEASURED on the rendered page, not
-   calculated: gap 0.78px at the 16px marker, and the two outlines stay
-   distinct all the way down to the 7px one.
-
-   TWO THINGS I GOT WRONG HERE, both corrected by measuring:
-   1. An earlier version of this comment said 68% was the largest that leaves
-      a visible gap, and that past it the outlines touch. FALSE - I had done
-      arithmetic instead of measuring and forgotten that `box-sizing:
-      border-box` draws the outer border INSIDE its own 16px, which leaves
-      more room than I assumed. Nothing touches until 100%, where the gap is
-      exactly 0.
-   2. The line is 0.5px, and 0.75px would be identical: at these sizes Chrome
-      paints 1.25px and 1px the same, and everything from 0.9px down the same.
-      Two "different" options that render identically is a fake choice - the
-      picture gate refused a pair of byte-identical files, which is how this
-      was found.
-
-   Sized in PERCENT so it follows every depth step without a rule per depth. */
-#treeRoot .tree-row > .tree-caret::before {
-  content: '' !important;
-  display: block !important;
-  /* 2026-11-16, operator: "the inside sware needs to be thinner. and the
-     branch square needs to be in its orginal thickness."
-     MEASURED, and the two asks turned out to be ONE fix. At 88% the inner
-     square sits 0.24px from the wall on the 7px marker - sub-pixel, so the
-     browser fuses them into a single 2px band and the branch square reads
-     THICKER than it should. Scanned dead centre, the live planner's wall is
-     24 device px at EVERY depth; at 88% c133 painted 32 there.
-     80% is the largest size that puts the wall back to 24 everywhere while
-     keeping two distinct squares (_pct_ladder2.py sweeps 88/80/72/64/56/50).
-     The line stays 0.5px - the thinnest that paints at these sizes; 0.9px
-     down to 0.25px are all the same picture (_thin_ladder.py).
-     A WARNING FOR LATER: my first diagnosis of this was WRONG. Scanning the
-     marker off-centre caught the 2px border-radius bulging on the small
-     squares and reported the live wall as 26-29px, which made it look like
-     the wall itself had changed. It had not. Scan dead centre. */
-  width: 80% !important;
-  height: 80% !important;
-  box-sizing: border-box !important;
-  border: 0.5px solid rgb(229, 72, 77) !important;
-  border-radius: 1px !important;
-  background: transparent !important;
-  pointer-events: none !important;
-}
-/* 2026-11-16, operator: "remove the doube line from the main branch and for
-   the little branch make the line thinner for the inner line".
-   MAIN BRANCH = depth 0, the 16px markers. No inner square at all there, so a
-   top-level task shows ONE outline again. The sub-branches keep the mark,
-   which is where it earns its keep - a nested row is where you cannot tell a
-   parent from a leaf at a glance.
-   THINNER: measured the ladder (_thin_ladder.py) before choosing a number.
-   1px -> 16 device px; everything from 0.9px down to 0.25px paints the SAME
-   0.5px line, so 0.5px is the only thinner value that exists - finer numbers
-   are the same picture. It also stops the 7px marker fusing into one blob,
-   which 1px did. */
-#treeRoot .tree-row[data-depth="0"] > .tree-caret::before {
-  content: none !important;
-  display: none !important;
-}
+   WHY IT WAS ABANDONED, so it is not rebuilt by accident. The idea was sound -
+   a parent and a leaf were INDISTINGUISHABLE (both 16x16, both 1.5px solid
+   rgb(229,72,77)) and that was the real complaint. But a second outline inside
+   the first could never work at these sizes, measured not guessed:
+     - the markers run 16/12/10/9/8/7px, so the inner square's clear gap is
+       0.78px at the top and 0.24px at the bottom - sub-pixel, and the browser
+       fuses the two outlines into one thick band on the small ones
+     - pulling it in to 80% fixed the fusing but made the change invisible at
+       real size: the before/after screenshots came back BYTE-IDENTICAL
+     - the line had only one usable weight anyway (0.5px; everything from
+       0.9px down to 0.25px paints the same), so there was nothing left to tune
+   A mark that is either fused or invisible is not a mark. The replacement
+   should use a dimension the marker is not already spending: position, a
+   separate glyph, weight of the TITLE, or a shape other than a square.
+   Scripts kept: _thin_ladder.py, _pct_ladder2.py, _check_branches.py. */
 #treeRoot .tree-row[data-revealed] { opacity: 1 !important; }
 
 /* THE SIGNAL: a sub-branch holding something is underlined */
@@ -6755,7 +6696,7 @@ window.__rollHorizon = function () {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-11-09 17:56 c134 TEST</span>
+    <span id="buildStamp">build 2026-11-09 17:56 c135 TEST</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
