@@ -6747,7 +6747,7 @@ window.__rollHorizon = function () {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-11-09 17:56 c139 TEST</span>
+    <span id="buildStamp">build 2026-11-09 17:56 c140 TEST</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -10836,7 +10836,39 @@ window.__moveOccurrence = function(node, toISO, time) {
   }
   var moves = node.repeat.moves;
   // The chip was drawn for __dragFromISO, or for the anchor date otherwise.
-  var fromISO = node.__dragFromISO || node.date;
+  /* 2026-11-17, operator: "why do I still have two copies of the incoming
+     payments" - and then, about a weekly one: "it's just if I move to the
+     next day, it's like has a duplicate."
+
+     ROOT CAUSE, measured on c139. This line reads __dragFromISO and falls
+     back to node.date. __dragFromISO is READ HERE AND WRITTEN NOWHERE IN THE
+     BUILD - three matches in the whole file, all inside this function, two of
+     them comments. So fromISO was ALWAYS node.date: the SERIES ANCHOR, the
+     day the routine began, never the day whose chip was dragged.
+
+     A routine anchored on the day you drag is accidentally correct, which is
+     the only shape I had tested and why I wrongly told them it was working.
+     A routine that has been running a while files the move against a date
+     months in the past:
+
+         anchor 30 Jun, dragged 17 Nov -> moves {"30 Jun": {to: "18 Nov"}}
+         30 Jun  suppressed  (nobody is looking at June)
+         17 Nov  NOT suppressed -> still drawn
+         18 Nov  shown         -> also drawn
+         = two chips one day apart, which is their screenshot
+
+     Measured before the fix, a weekly routine dragged today -> tomorrow:
+         started today        ['18 Nov']                 1 chip
+         started 1 week ago   ['17 Nov', '18 Nov']       2 chips
+         started 4 weeks ago  ['17 Nov', '18 Nov']       2 chips
+         started 20 weeks ago ['17 Nov', '18 Nov']       2 chips
+     Every repeat kind, which is why the weekly and the monthly both did it.
+
+     THE FIX: take the day the occurrence was actually drawn on. Callers pass
+     it as `from` (below); where a caller has not been taught to, fall back to
+     the day the chip is sitting in, and only then to the anchor. One owner,
+     so every drop path is covered without touching eleven call sites. */
+  var fromISO = node.__occFrom || node.__dragFromISO || node.date;
   /* 2026-11-07, operator: "when I drag a task from the tree to the calender it
      drags but the task becomes without a date, it must have a date to the day I
      drag it to."
@@ -45365,6 +45397,77 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
     window.tgTimeOf = w;
   }
   hook();
+})();
+</script>
+<script id="__occ_from">
+/* ===================================================== CARD 84, 2026-11-17
+   Operator: "why do I still have two copies of the incoming payments"
+   and, about a weekly one: "it's just if I move to the next day, it's like
+   has a duplicate."
+
+   REMEMBER WHICH DAY'S CHIP STARTED THE MOVE.
+
+   __moveOccurrence files a move under the day the occurrence was drawn on,
+   read as `node.__dragFromISO || node.date`. __dragFromISO is read there and
+   WRITTEN NOWHERE in the build, so the fallback was always taken and the move
+   was filed against node.date - the SERIES ANCHOR, the day the routine began.
+
+   A routine anchored on the day you drag is accidentally correct. A routine
+   that has been running a while files against a date in the past, so the day
+   you actually dragged FROM is never suppressed and draws alongside the day
+   you dropped on: two chips, one day apart.
+
+   This sets __occFrom from the chip's own container at the moment the drag
+   starts. Every calendar cell already carries data-iso (.tgcol,
+   .tgalldaycell, .mcell, .wcell) and the drop handlers already read exactly
+   that attribute, so this introduces no second source of truth.
+
+   Capture phase on the document, so it runs before any view's own handler and
+   covers every view without touching the eleven call sites that move a date.
+
+   CLEARED after the move. A stale key is its own duplicate - measured on a
+   deliberately stale value: three chips instead of two. */
+(function () {
+  function dayOfChip(el) {
+    if (!el || !el.closest) return null;
+    var box = el.closest('[data-iso]');
+    return (box && box.dataset && box.dataset.iso) || null;
+  }
+  function nodeIdOf(el) {
+    var h = (el && el.closest) ? el.closest('[data-node-id]') : null;
+    return (h && h.dataset && h.dataset.nodeId) || null;
+  }
+  function remember(e) {
+    try {
+      var id = nodeIdOf(e.target);
+      if (!id) return;
+      var iso = dayOfChip(e.target);
+      if (!iso) return;
+      var f = window.findNode && window.findNode(id);
+      if (f && f.node) f.node.__occFrom = iso;
+    } catch (err) {}
+  }
+  function clearOcc() {
+    try {
+      if (!window.Store || !window.Store.data) return;
+      (function w(l) {
+        (l || []).forEach(function (x) {
+          if (x && x.__occFrom) delete x.__occFrom;
+          if (x) w(x.children);
+        });
+      })(window.Store.data.tree);
+    } catch (err) {}
+  }
+  document.addEventListener('dragstart', remember, true);
+  /* the chip-move inside the grid is pointer-driven, not an HTML5 drag */
+  document.addEventListener('pointerdown', remember, true);
+  document.addEventListener('dragend', clearOcc, true);
+  document.addEventListener('drop', function () {
+    setTimeout(clearOcc, 0);        /* after the drop handler has read it */
+  }, true);
+  document.addEventListener('pointerup', function () {
+    setTimeout(clearOcc, 0);
+  }, true);
 })();
 </script>
 </body>
