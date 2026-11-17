@@ -5796,19 +5796,42 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
   box-sizing: border-box !important; margin-left: 0 !important;
 }
 
-/* sizes: main branch clearly larger, then an even step down */
+/* sizes AND line weight per depth - OPTION B, 2026-11-16.
+   Operator: "i think the subtask should be smaller in relatin, it looks
+   chuncky" -> shown NOW / A / B / C as pictures -> "apply B to copy planner".
+
+   WHY BOTH NUMBERS MOVE TOGETHER. Chunkiness was never the size on its own:
+   it is the border as a FRACTION of the square. At a flat 2px the border was
+   12% of the 16px top-level square but 29% of the 7px one, which is why
+   going to 2px last turn made it obvious. Shrinking alone makes it WORSE -
+   a 5px square with a 2px border leaves a 1px hole and reads as a solid dot.
+   So each depth carries its own size and its own line weight:
+
+       depth   0     1     2     3     4     5
+       size   16    11     9     8     7     6   px
+       line    2   1.5     1     1     1     1   px
+       hole   12     8     7     6     5     4   px   (border-box)
+
+   The top-level square is untouched at 16px / 2px - that is what they
+   approved on the previous turn.
+
+   The border-width lives HERE, beside the size, deliberately. A separate
+   superseded block used to own border-width while these rules owned size,
+   and that split silently drew nested LEAF squares thinner than nested
+   PARENT squares for months (1px vs 1.5px at depth 3-4). One owner per
+   depth is what stops that recurring. */
 #treeRoot .tree-row[data-depth="0"] > .tree-caret,
-#treeRoot .tree-row[data-depth="0"] > .tree-marker { width:16px !important; height:16px !important; max-height:16px !important; min-width:16px !important; }
+#treeRoot .tree-row[data-depth="0"] > .tree-marker { width:16px !important; height:16px !important; max-height:16px !important; min-width:16px !important; border-width:2px !important; }
 #treeRoot .tree-row[data-depth="1"] > .tree-caret,
-#treeRoot .tree-row[data-depth="1"] > .tree-marker { width:12px !important; height:12px !important; max-height:12px !important; min-width:12px !important; }
+#treeRoot .tree-row[data-depth="1"] > .tree-marker { width:11px !important; height:11px !important; max-height:11px !important; min-width:11px !important; border-width:1.5px !important; }
 #treeRoot .tree-row[data-depth="2"] > .tree-caret,
-#treeRoot .tree-row[data-depth="2"] > .tree-marker { width:10px !important; height:10px !important; max-height:10px !important; min-width:10px !important; }
+#treeRoot .tree-row[data-depth="2"] > .tree-marker { width: 9px !important; height: 9px !important; max-height: 9px !important; min-width: 9px !important; border-width:1px !important; }
 #treeRoot .tree-row[data-depth="3"] > .tree-caret,
-#treeRoot .tree-row[data-depth="3"] > .tree-marker { width: 9px !important; height: 9px !important; max-height: 9px !important; min-width: 9px !important; }
+#treeRoot .tree-row[data-depth="3"] > .tree-marker { width: 8px !important; height: 8px !important; max-height: 8px !important; min-width: 8px !important; border-width:1px !important; }
 #treeRoot .tree-row[data-depth="4"] > .tree-caret,
-#treeRoot .tree-row[data-depth="4"] > .tree-marker { width: 8px !important; height: 8px !important; max-height: 8px !important; min-width: 8px !important; }
+#treeRoot .tree-row[data-depth="4"] > .tree-marker { width: 7px !important; height: 7px !important; max-height: 7px !important; min-width: 7px !important; border-width:1px !important; }
 #treeRoot .tree-row[data-depth="5"] > .tree-caret,
-#treeRoot .tree-row[data-depth="5"] > .tree-marker { width: 7px !important; height: 7px !important; max-height: 7px !important; min-width: 7px !important; }
+#treeRoot .tree-row[data-depth="5"] > .tree-marker { width: 6px !important; height: 6px !important; max-height: 6px !important; min-width: 6px !important; border-width:1px !important; }
 
 /* indent - measured to land the squares 12px apart */
 #treeRoot .tree-row { margin-left: 0 !important; padding-left: 0 !important; }
@@ -6724,7 +6747,7 @@ window.__rollHorizon = function () {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-11-09 17:56 c136 TEST</span>
+    <span id="buildStamp">build 2026-11-09 17:56 c137 TEST</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
