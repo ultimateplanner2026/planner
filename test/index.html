@@ -6747,7 +6747,7 @@ window.__rollHorizon = function () {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-11-09 17:56 c138 TEST</span>
+    <span id="buildStamp">build 2026-11-09 17:56 c139 TEST</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -16524,7 +16524,15 @@ function surfaceArrivals() {
       if (!iso) continue;
       if (!h.dataset.origLabel) h.dataset.origLabel = h.textContent;
       var r2 = window.relDay(iso);
-      h.textContent = r2 ? r2 : h.dataset.origLabel;
+      /* 2026-11-17, operator: "when I put it in the 19th in the weekly view it
+         doesn't go on the 19th it goes on the 17th". It did go on the 19th -
+         but this line REPLACED the date with the word, so the first three
+         columns of the week carried no number at all and the leftmost number
+         on screen was the 18th. The day number never leaves the header now;
+         the relative word is a prefix, not a replacement. */
+      var num = h.dataset.origLabel || '';
+      var dnum = (num.match(/(\d+)\s*$/) || [])[1] || '';
+      h.textContent = r2 ? (dnum ? (r2 + ' ' + dnum) : r2) : num;
     }
   }
   window.__relabelDays = relabel;
