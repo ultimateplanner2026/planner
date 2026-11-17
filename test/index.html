@@ -5844,10 +5844,25 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
   width: 88% !important;
   height: 88% !important;
   box-sizing: border-box !important;
-  border: 1px solid rgb(229, 72, 77) !important;
+  border: 0.5px solid rgb(229, 72, 77) !important;
   border-radius: 1px !important;
   background: transparent !important;
   pointer-events: none !important;
+}
+/* 2026-11-16, operator: "remove the doube line from the main branch and for
+   the little branch make the line thinner for the inner line".
+   MAIN BRANCH = depth 0, the 16px markers. No inner square at all there, so a
+   top-level task shows ONE outline again. The sub-branches keep the mark,
+   which is where it earns its keep - a nested row is where you cannot tell a
+   parent from a leaf at a glance.
+   THINNER: measured the ladder (_thin_ladder.py) before choosing a number.
+   1px -> 16 device px; everything from 0.9px down to 0.25px paints the SAME
+   0.5px line, so 0.5px is the only thinner value that exists - finer numbers
+   are the same picture. It also stops the 7px marker fusing into one blob,
+   which 1px did. */
+#treeRoot .tree-row[data-depth="0"] > .tree-caret::before {
+  content: none !important;
+  display: none !important;
 }
 #treeRoot .tree-row[data-revealed] { opacity: 1 !important; }
 
@@ -6725,7 +6740,7 @@ window.__rollHorizon = function () {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-11-09 17:56 c132 TEST</span>
+    <span id="buildStamp">build 2026-11-09 17:56 c133 TEST</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
