@@ -6675,7 +6675,7 @@ window.__rollHorizon = function () {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-11-17 20:35</span>
+    <span id="buildStamp">build 2026-11-18 00:32</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -10884,7 +10884,42 @@ window.__moveOccurrence = function(node, toISO, time) {
          on this day, and option A says the whole chip moves. */
     }
   }
-  if (fromISO === toISO) return true;
+  /* 2026-11-18, operator: item 4 "is not working" - dropping a task at a time
+     does not put it at that time, FOR A ROUTINE.
+
+     ROOT CAUSE, measured by trapping this function on the served build. Drop a
+     routine on a day it is ALREADY DUE and fromISO === toISO, so this returned
+     true - "handled" - having written NOTHING. The caller reads true and skips
+     its own `node.time = time`, so the time the drop computed is discarded.
+     The day was right, which is why it looked like only the time was ignored.
+
+         drop a weekly routine on its own due day at 2 PM
+         __moveOccurrence(node, '2026-11-18', '14:00') -> true
+         moves {}  ->  {}            nothing written
+         node.time: null             the 14:00 is gone
+         the chip redraws at 09:00   the untimed fallback
+
+     Measured on build 2026-11-17 20:35, every repeat kind - daily, weekly,
+     monthly - and on BOTH live and the copy, so it is not new. A routine due on
+     a DIFFERENT day was fine (it took the moves[] path, which does store time),
+     which is why a drop that also changes the day never showed this.
+
+     THE FIX: a same-day drop is a TIME CHANGE, not a move. Record the time and
+     keep returning true. Where the day already carries a move entry, the entry
+     owns the time (tgTimeOf prefers it); otherwise the node's own time is what
+     the rule's occurrences read, so set that. */
+  if (fromISO === toISO) {
+    if (t) {
+      var sameDayEntry = null;
+      for (var sk in moves) {
+        if (Object.prototype.hasOwnProperty.call(moves, sk) &&
+            moves[sk] && moves[sk].to === toISO) { sameDayEntry = sk; }
+      }
+      if (sameDayEntry !== null) { moves[sameDayEntry].time = t; }
+      else { node.time = t; }
+    }
+    return true;
+  }
   /* fromISO's OWN occurrence. It moves too when the rule generates that day -
      otherwise the chip splits and the leftover looks like a duplicate. When
      nothing was postponed onto this day, this is the ordinary single move. */
