@@ -6675,7 +6675,7 @@ window.__rollHorizon = function () {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-11-18 00:32</span>
+    <span id="buildStamp">build 2026-11-18 01:41</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -25229,6 +25229,22 @@ if (r.freq === 'yearly') {
     function refresh() {
       val.textContent = window.plannerRepeatSummary(node);
       body.style.display = node.repeat ? 'block' : 'none';
+      /* CARD 87, 2026-11-18: the Due Date row is hidden while Repeat is on.
+         This lives in refresh(), not in the click handler, because refresh()
+         runs on the FIRST draw too - so opening a task that is ALREADY
+         repeating hides the row immediately, not only when the bar is clicked.
+         One owner for both paths. */
+      /* `head` is created with createElement and refresh() runs during the
+         FIRST draw, before head is in the document - so head.closest('.modal')
+         is null then and the row was never hidden on open. Measured: opening an
+         already-repeating task still showed Due Date 2026-11-19. Query the
+         document for the open dialog's row instead, which does not depend on
+         this element being attached yet. */
+      try {
+        var drow_ = document.querySelector('.modal .ea-row-date')
+                 || document.querySelector('.ea-row-date');
+        if (drow_) drow_.style.display = node.repeat ? 'none' : '';
+      } catch (err) { }
     }
 
     head.addEventListener('click', function (e) {
@@ -25240,6 +25256,36 @@ if (r.freq === 'yearly') {
          not be reached and the bar became one-way: off stayed off.
          The state IS node.repeat. Toggle that, and nothing else. */
       node.repeat = node.repeat ? null : blank(node);
+      /* ============================================= 2026-11-18, CARD 87
+         Operator: "also routine must not have a date. all that inside the edit
+         selection of a task". Asked which of two readings, they first chose
+         "clear the date, keep the row" and I built that. Seeing it, they
+         corrected to the same shape as card 86: HIDE THE ROW.
+
+         A repeat rule decides when the item happens. A Due Date beside it is a
+         second, contradicting answer to the same question - and worse, on a
+         repeating item node.date is the SERIES ANCHOR, the field
+         __moveOccurrence spent three rounds learning never to write. A box that
+         reads "Due Date" and behaves as an anchor is a trap.
+
+         HIDING the row is refresh()'s job (above), so it covers opening an
+         item that already repeats. This handler only has to empty the field,
+         and it does that through the field's own input/change events - the
+         same path the backspace handler uses - so Save picks it up by reading
+         date.value exactly as it always has. Nothing is written to the node
+         here: this dialog's rule since 2026-09-12 is that only Save applies,
+         so CANCEL STILL CANCELS. */
+      if (node.repeat) {
+        try {
+          var dfield__ = document.querySelector('.modal .ea-row-date input')
+                      || document.querySelector('.ea-row-date input');
+          if (dfield__ && dfield__.value) {
+            dfield__.value = '';
+            dfield__.dispatchEvent(new Event('input',  { bubbles: true }));
+            dfield__.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+        } catch (err) { }
+      }
       draw();
     });
 
@@ -42679,9 +42725,38 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
     setTimeout(function () { email.focus(); }, 40);
   }
 
+  /* 2026-11-18, operator: "i drag activities to the calender in the weekly view
+     but its not showing in the calender" - and, decisively, "it worked great in
+     the copy planner".
+
+     ROOT CAUSE, found by DIFFING THE TWO SERVED BUILDS rather than by testing.
+     The only real difference between them is this gate:
+         live  GATE_ENABLED = true       copy  GATE_ENABLED = false
+     and the gate's CSS is
+         .gated > *:not(#loginGate){ pointer-events:none }
+     so while body.gated is set, THE WHOLE PAGE IGNORES THE MOUSE.
+
+     `open()` returned early when `gate` was already null, and the line that
+     clears the class sat INSIDE that guard. onAuthStateChanged fires on every
+     auth change, not once - a token refresh or a blink offline can run
+     build('signin') and open() out of order, and then the wall element is gone
+     while the class is still on the body. The planner looks completely normal:
+     tree drawn, calendar drawn, nothing blurred (the blur is on the same rule
+     but reads as `filter:none` once the overlay is gone) - and every drag does
+     nothing at all.
+
+     REPRODUCED on the live build before fixing: wall removed, class left set ->
+         drag events fired : NONE
+         date written      : none
+         chips on calendar : 0
+     which is exactly their report, and exactly why the copy never showed it.
+
+     THE FIX: clearing the class is unconditional. Removing the overlay is what
+     needs the guard, not un-freezing the page. Whatever order the auth events
+     arrive in, a signed-in planner is never left dead to the mouse. */
   function open() {
-    if (!gate) return;
-    gate.parentNode.removeChild(gate); gate = null;
+    if (gate && gate.parentNode) { gate.parentNode.removeChild(gate); }
+    gate = null;
     document.body.classList.remove('gated');
   }
 
@@ -45079,8 +45154,46 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
       row.classList.toggle('od-hit', isOverdue(n) && !(n && n.repeat));
 
       /* the date, inside the title so it flows after the words */
+      /* ============================================= 2026-11-18, CARD 86
+         Operator, first: "there is no need to have a date for past due date.
+         remove it". Asked which dates they meant: "the dates should only show
+         for future dates items, past due should not show, unless I click the
+         missed button inside the edit section". I built that - past hidden,
+         TODAY and future still printed - and showed it. Their correction:
+
+             "I don't want the heater to have a date, dates to show must be
+              only past due only when missed is clicked and future dates when
+              future dates is clicked"
+
+         ("heater to buy NOV 18" was the row due TODAY.) So the rule is not
+         "hide the past" at all. It is:
+
+             DEFAULT          no date on any row
+             Missed ON        past-due dates appear
+             Show future ON   future dates appear
+
+         A date is shown only while the switch that selects those items is on -
+         the date explains why a row is in the list, so it belongs to the view
+         that put it there. With both switches off nothing is dated, including
+         today, which is the row they named.
+
+         Both switches are this module's own state (S.missed, S.fut), the same
+         two the gear's menu items drive, so there is no second flag to keep in
+         step and the dates can never disagree with the list being shown.
+
+         TODAY is deliberately in neither bucket: not past, not future, so it
+         never prints. That is exactly what they asked for.
+
+         The span is REMOVED rather than hidden - a hidden one still occupies
+         the title for selection and copy, and this title is contentEditable,
+         so a leftover would be editable text inside their subtask name. */
       var ttl = row.querySelector('.ea-subtitle');
-      if (ttl && n.date) {
+      var today__ = (window.todayISO && window.todayISO()) || '';
+      var datePast   = !!(n && n.date && today__ && String(n.date) <  today__);
+      var dateFuture = !!(n && n.date && today__ && String(n.date) >  today__);
+      var showDate = (datePast && !!S.missed) || (dateFuture && !!S.fut);
+      var hideStaleDate = !showDate;
+      if (ttl && n.date && !hideStaleDate) {
         var tag = ttl.querySelector('.ea-subdate');
         if (!tag) {
           tag = document.createElement('span');
@@ -45091,6 +45204,11 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
         var d = window.parseISO ? window.parseISO(n.date) : null;
         var M = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
         tag.textContent = d ? (M[d.getMonth()] + ' ' + d.getDate()) : '';
+      } else if (ttl) {
+        /* past due with Missed off, or the date was cleared - take the old span
+           away, or toggling Missed back off would leave yesterday's date behind */
+        var stale = ttl.querySelector('.ea-subdate');
+        if (stale && stale.parentNode) stale.parentNode.removeChild(stale);
       }
 
       /* the pen, only when the subtask carries notes - as the tree does */
