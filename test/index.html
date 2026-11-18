@@ -6747,7 +6747,7 @@ window.__rollHorizon = function () {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-11-09 17:56 c141 TEST</span>
+    <span id="buildStamp">build 2026-11-17 20:35 TEST</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -45463,7 +45463,28 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
       var t = base.apply(this, arguments);
       if (t) return t;
       var n = entry && (entry.node || entry);
-      if (n && n.date && !n.done) return FALLBACK;
+      /* 2026-11-17 - A ROUTINE WITH NO DATE WAS DISAPPEARING.
+         This read `n.date && !n.done`, so an item carrying its OWN schedule -
+         a daily/weekly rule anchored by repeat.start, or "On specific dates" -
+         got no fallback hour. With the All-day row removed there was then
+         nowhere to draw it, and it vanished from the calendar completely.
+
+         MEASURED, same seed, a daily rule with date:null and repeat.start set:
+             live  scheduledOn=1  drawn 1 (an all-day chip)
+             c141  scheduledOn=1  drawn 0   <- gone
+
+         scheduledOn correctly said the routine belongs on that day; only the
+         drawing was lost. Caught by check_clear_date_removes_from_calendar,
+         which PASSES on live and failed here - a real regression of mine, not
+         a stale test, so it is fixed rather than updated.
+
+         The condition is now "the calendar says this belongs today", which is
+         what the fallback is actually for. An item with no date AND no repeat
+         rule still returns null and still draws nowhere - that is the 2026-11-05
+         behaviour the operator asked for ("it doesn't have a date, it should be
+         not showing in the calender") and it is unchanged. */
+      var carriesOwnSchedule = !!(n && n.repeat && (n.repeat.freq || n.repeat.dates));
+      if (n && (n.date || carriesOwnSchedule) && !n.done) return FALLBACK;
       return t;
     };
     w.__adHooked = true;
