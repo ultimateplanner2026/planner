@@ -3074,6 +3074,25 @@ aside#treePane, aside#treePane * { min-width: 0 !important; }
    tab is at least wide enough for its longest word. Measured at 360/375/390/430/700
    and desktop. */
 #treeDrawer #treeViews { flex-wrap: wrap; row-gap: 4px; }
+/* BOARD 30 CARD 3 - the fifth tab (Restore) lands alone on a third row, and
+   `.treeview-btn { flex: 1 }` makes a lone item fill its whole row. MEASURED
+   before writing this, at every width the planner's rules name:
+       360px  Restore 344px against 170px for its neighbours
+       390px          374px  vs 185px
+       700px          684px  vs 340px
+       1440px         473px  vs 235px
+   - a double-width banner at EVERY width, desktop included, not just on a
+   phone. Two rows of two sitting above one full-width button reads as a
+   different kind of control, which it is not.
+   The fix pins each tab to half the row minus the 4px gap, so the fifth sits
+   under Deleted at exactly the width of the four above it and the right half of
+   the last row is empty. `box-sizing` is set because these carry a 1px border:
+   without it 50% + border overflows and the pair stops fitting on one line. */
+#treeDrawer #treeViews .treeview-btn {
+  flex: 0 0 calc(50% - 2px);
+  max-width: calc(50% - 2px);
+  box-sizing: border-box;
+}
 #treeDrawer .treeview-btn {
   /* `flex: 1 0 auto` was my first try and it was wrong: with 0 shrink each tab
      claimed its full content width, so at 360-700px every tab took a line of its
@@ -3082,6 +3101,34 @@ aside#treePane, aside#treePane * { min-width: 0 !important; }
      wide, and nothing is ever cut off. */
   flex: 1 1 calc(50% - 2px); min-width: 0; padding: 0 6px; white-space: nowrap;
 }
+
+/* ================================================= BOARD 30, 2026-11-13
+   Operator: "back up must be in its own tap for the drop down from setting...
+   it was task history and back up on the setting dropdown."
+
+   The heading takes a FULL row (flex-basis 100%), which is what forces the
+   wrap - Backups cannot sit beside Undo once a 100%-wide element is written
+   between them. Without that the section label would simply join the row and
+   the four tabs would reflow around it.
+
+   It is a <div>, never a button: it must not be pressable, and it must not be
+   mistaken for a tab. Lettering deliberately small and dim, matching the
+   SETTINGS label this drawer used to carry, so it reads as a label rather
+   than a control. */
+#treeDrawer #treeViews .treeview-group {
+  flex: 0 0 100%;
+  max-width: 100%;
+  margin: 2px 0 1px;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: .7px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  user-select: none;
+  pointer-events: none;
+}
+/* the first heading sits at the very top of the drawer - no gap above it */
+#treeDrawer #treeViews .treeview-group:first-child { margin-top: 0; }
 
 /* ============================================================
    Right-align the date properly.
@@ -4818,16 +4865,42 @@ input:focus, textarea:focus, select:focus {
 #treeRoot .tree-row > .tree-marker {
   flex: 0 0 auto;
   display: inline-block;
-  border: 1.5px solid #e5484d;
+  /* 2026-11-16, operator: "can you make the square red line thicker" ->
+     shown 1.5 / 2 / 2.5 / 3px as pictures -> "do 2.0 px into copy planner".
+     Changed in BOTH places: the leaf square (.tree-marker, here) and the
+     parent square (.tree-caret, ~5685). They are the same shape by design,
+     so a change to one alone would split a leaf from a parent.
+     MEASURED first: only four widths render at these marker sizes -
+     1.5px = 1.75px -> 24 device px, 2px = 2.25px -> 32, 2.5px -> 40,
+     3px -> 48. So 2px is a real step, and 2.25px would have been the same
+     picture (_thick_ladder.py).
+     The border is drawn INSIDE the square (box-sizing: border-box), so the
+     hole in the smallest 7px marker goes 4px -> 3px. Still an outline; 3px
+     was rejected because it closes to 1px and reads as a solid dot. */
+  border: 2px solid #e5484d;
   background: transparent;
   border-radius: 1px;
   margin-right: 2px;
 }
 #treeRoot .tree-row[data-depth="0"] > .tree-marker { width: 10px; height: 10px; }
 #treeRoot .tree-row[data-depth="1"] > .tree-marker { width: 8px;  height: 8px; }
-#treeRoot .tree-row[data-depth="2"] > .tree-marker { width: 6px;  height: 6px; border-width: 1.25px; }
-#treeRoot .tree-row[data-depth="3"] > .tree-marker { width: 5px;  height: 5px; border-width: 1px; }
-#treeRoot .tree-row[data-depth="4"] > .tree-marker { width: 4px;  height: 4px; border-width: 1px; }
+/* 2026-11-16: the border-width values that used to sit on the next three
+   rules are GONE, and that is a fix, not a side effect.
+   This block is superseded: its 6/5/4px sizes lost long ago to the rules at
+   ~5700 (16/12/10/9/8/7px). But those newer rules never set border-width, so
+   the old 1.25px / 1px / 1px kept winning - which meant a nested LEAF was
+   drawn thinner than a nested PARENT at the same depth:
+       depth 2   leaf 1.25px   parent 1.5px
+       depth 3   leaf 1px      parent 1.5px
+       depth 4   leaf 1px      parent 1.5px
+   That mismatch is in the live planner today. Found by a check that compared
+   a leaf and a parent at every depth; a grep for "1.5px" could never have
+   found it, because these rules never said 1.5px.
+   The sizes are left exactly as they were - they are dead either way, and
+   deleting them is a separate change nobody asked for. */
+#treeRoot .tree-row[data-depth="2"] > .tree-marker { width: 6px;  height: 6px; }
+#treeRoot .tree-row[data-depth="3"] > .tree-marker { width: 5px;  height: 5px; }
+#treeRoot .tree-row[data-depth="4"] > .tree-marker { width: 4px;  height: 4px; }
 
 /* ===== o15  the LAST red dots, and real indentation at every level =====
    The dots that survived were never elements - they are ::before
@@ -5635,7 +5708,9 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
 #treeRoot .tree-row > .tree-caret {
   box-sizing: border-box;
   display: inline-flex; align-items: center; justify-content: center;
-  border: 1.5px solid #e5484d; border-radius: 2px;
+  /* 2px, matching .tree-marker above - see the note there. Both squares
+     move together or a leaf stops matching a parent. */
+  border: 2px solid #e5484d; border-radius: 2px;
   background: transparent; padding: 0;
   /* a <button> keeps a 16px line box unless the ceiling is pinned too - that is why
      these looked like rectangles before */
@@ -5649,19 +5724,42 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
   box-sizing: border-box !important; margin-left: 0 !important;
 }
 
-/* sizes: main branch clearly larger, then an even step down */
+/* sizes AND line weight per depth - OPTION B, 2026-11-16.
+   Operator: "i think the subtask should be smaller in relatin, it looks
+   chuncky" -> shown NOW / A / B / C as pictures -> "apply B to copy planner".
+
+   WHY BOTH NUMBERS MOVE TOGETHER. Chunkiness was never the size on its own:
+   it is the border as a FRACTION of the square. At a flat 2px the border was
+   12% of the 16px top-level square but 29% of the 7px one, which is why
+   going to 2px last turn made it obvious. Shrinking alone makes it WORSE -
+   a 5px square with a 2px border leaves a 1px hole and reads as a solid dot.
+   So each depth carries its own size and its own line weight:
+
+       depth   0     1     2     3     4     5
+       size   16    11     9     8     7     6   px
+       line    2   1.5     1     1     1     1   px
+       hole   12     8     7     6     5     4   px   (border-box)
+
+   The top-level square is untouched at 16px / 2px - that is what they
+   approved on the previous turn.
+
+   The border-width lives HERE, beside the size, deliberately. A separate
+   superseded block used to own border-width while these rules owned size,
+   and that split silently drew nested LEAF squares thinner than nested
+   PARENT squares for months (1px vs 1.5px at depth 3-4). One owner per
+   depth is what stops that recurring. */
 #treeRoot .tree-row[data-depth="0"] > .tree-caret,
-#treeRoot .tree-row[data-depth="0"] > .tree-marker { width:16px !important; height:16px !important; max-height:16px !important; min-width:16px !important; }
+#treeRoot .tree-row[data-depth="0"] > .tree-marker { width:16px !important; height:16px !important; max-height:16px !important; min-width:16px !important; border-width:2px !important; }
 #treeRoot .tree-row[data-depth="1"] > .tree-caret,
-#treeRoot .tree-row[data-depth="1"] > .tree-marker { width:12px !important; height:12px !important; max-height:12px !important; min-width:12px !important; }
+#treeRoot .tree-row[data-depth="1"] > .tree-marker { width:11px !important; height:11px !important; max-height:11px !important; min-width:11px !important; border-width:1.5px !important; }
 #treeRoot .tree-row[data-depth="2"] > .tree-caret,
-#treeRoot .tree-row[data-depth="2"] > .tree-marker { width:10px !important; height:10px !important; max-height:10px !important; min-width:10px !important; }
+#treeRoot .tree-row[data-depth="2"] > .tree-marker { width: 9px !important; height: 9px !important; max-height: 9px !important; min-width: 9px !important; border-width:1px !important; }
 #treeRoot .tree-row[data-depth="3"] > .tree-caret,
-#treeRoot .tree-row[data-depth="3"] > .tree-marker { width: 9px !important; height: 9px !important; max-height: 9px !important; min-width: 9px !important; }
+#treeRoot .tree-row[data-depth="3"] > .tree-marker { width: 8px !important; height: 8px !important; max-height: 8px !important; min-width: 8px !important; border-width:1px !important; }
 #treeRoot .tree-row[data-depth="4"] > .tree-caret,
-#treeRoot .tree-row[data-depth="4"] > .tree-marker { width: 8px !important; height: 8px !important; max-height: 8px !important; min-width: 8px !important; }
+#treeRoot .tree-row[data-depth="4"] > .tree-marker { width: 7px !important; height: 7px !important; max-height: 7px !important; min-width: 7px !important; border-width:1px !important; }
 #treeRoot .tree-row[data-depth="5"] > .tree-caret,
-#treeRoot .tree-row[data-depth="5"] > .tree-marker { width: 7px !important; height: 7px !important; max-height: 7px !important; min-width: 7px !important; }
+#treeRoot .tree-row[data-depth="5"] > .tree-marker { width: 6px !important; height: 6px !important; max-height: 6px !important; min-width: 6px !important; border-width:1px !important; }
 
 /* indent - measured to land the squares 12px apart */
 #treeRoot .tree-row { margin-left: 0 !important; padding-left: 0 !important; }
@@ -5675,6 +5773,32 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
 #treeRoot .tree-row > .tree-caret::after,
 #treeRoot .tree-row > .tree-marker::after,
 #treeRoot .tree-row > .tree-title::before { content: none !important; }
+
+/* ================================================= BOARD 30 CARD 3 - REMOVED
+   2026-11-16, operator: "can you have the orginal thickness of the redquare
+   back, how i orginally have it, and remove the double square, I have to find
+   something else that looks classy".
+
+   The inner-square mark is GONE. The red marker is back to exactly what the
+   live planner draws - one 1.5px outline, nothing inside it, at every depth.
+   Verified by diffing every caret rule against app/index.html: no border,
+   size, radius or colour rule remains that the live planner does not have.
+
+   WHY IT WAS ABANDONED, so it is not rebuilt by accident. The idea was sound -
+   a parent and a leaf were INDISTINGUISHABLE (both 16x16, both 1.5px solid
+   rgb(229,72,77)) and that was the real complaint. But a second outline inside
+   the first could never work at these sizes, measured not guessed:
+     - the markers run 16/12/10/9/8/7px, so the inner square's clear gap is
+       0.78px at the top and 0.24px at the bottom - sub-pixel, and the browser
+       fuses the two outlines into one thick band on the small ones
+     - pulling it in to 80% fixed the fusing but made the change invisible at
+       real size: the before/after screenshots came back BYTE-IDENTICAL
+     - the line had only one usable weight anyway (0.5px; everything from
+       0.9px down to 0.25px paints the same), so there was nothing left to tune
+   A mark that is either fused or invisible is not a mark. The replacement
+   should use a dimension the marker is not already spending: position, a
+   separate glyph, weight of the TITLE, or a shape other than a square.
+   Scripts kept: _thin_ladder.py, _pct_ladder2.py, _check_branches.py. */
 #treeRoot .tree-row[data-revealed] { opacity: 1 !important; }
 
 /* THE SIGNAL: a sub-branch holding something is underlined */
@@ -6551,7 +6675,7 @@ window.__rollHorizon = function () {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-11-09 17:56</span>
+    <span id="buildStamp">build 2026-11-17 20:35</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -10640,7 +10764,39 @@ window.__moveOccurrence = function(node, toISO, time) {
   }
   var moves = node.repeat.moves;
   // The chip was drawn for __dragFromISO, or for the anchor date otherwise.
-  var fromISO = node.__dragFromISO || node.date;
+  /* 2026-11-17, operator: "why do I still have two copies of the incoming
+     payments" - and then, about a weekly one: "it's just if I move to the
+     next day, it's like has a duplicate."
+
+     ROOT CAUSE, measured on c139. This line reads __dragFromISO and falls
+     back to node.date. __dragFromISO is READ HERE AND WRITTEN NOWHERE IN THE
+     BUILD - three matches in the whole file, all inside this function, two of
+     them comments. So fromISO was ALWAYS node.date: the SERIES ANCHOR, the
+     day the routine began, never the day whose chip was dragged.
+
+     A routine anchored on the day you drag is accidentally correct, which is
+     the only shape I had tested and why I wrongly told them it was working.
+     A routine that has been running a while files the move against a date
+     months in the past:
+
+         anchor 30 Jun, dragged 17 Nov -> moves {"30 Jun": {to: "18 Nov"}}
+         30 Jun  suppressed  (nobody is looking at June)
+         17 Nov  NOT suppressed -> still drawn
+         18 Nov  shown         -> also drawn
+         = two chips one day apart, which is their screenshot
+
+     Measured before the fix, a weekly routine dragged today -> tomorrow:
+         started today        ['18 Nov']                 1 chip
+         started 1 week ago   ['17 Nov', '18 Nov']       2 chips
+         started 4 weeks ago  ['17 Nov', '18 Nov']       2 chips
+         started 20 weeks ago ['17 Nov', '18 Nov']       2 chips
+     Every repeat kind, which is why the weekly and the monthly both did it.
+
+     THE FIX: take the day the occurrence was actually drawn on. Callers pass
+     it as `from` (below); where a caller has not been taught to, fall back to
+     the day the chip is sitting in, and only then to the anchor. One owner,
+     so every drop path is covered without touching eleven call sites. */
+  var fromISO = node.__occFrom || node.__dragFromISO || node.date;
   /* 2026-11-07, operator: "when I drag a task from the tree to the calender it
      drags but the task becomes without a date, it must have a date to the day I
      drag it to."
@@ -10658,15 +10814,89 @@ window.__moveOccurrence = function(node, toISO, time) {
      it is withdrawn until that is understood. One change at a time. */
   if (!fromISO) return false;
   var t = time || null;
-  // If a prior move already targeted fromISO, re-point that entry to
-  // toISO so we don't leave a dangling intermediate hop.
+  /* 2026-11-17, operator after the first fix: "still not working, ____hours
+     of week and incoming payments still leaving a duplicate when I move it".
+
+     THE SHAPE I HAD NEVER TESTED: a routine that HAS ALREADY BEEN DRAGGED.
+     Every fixture I built had an empty moves map; theirs have been dragged
+     for days. Measured on c140, dragging today -> tomorrow:
+
+         never dragged before   ['18 Nov', '24 Nov']              correct
+         ONE prior move         ['17 Nov', '18 Nov', '24 Nov']    WRONG
+         TWO prior moves        ['17 Nov', '18 Nov', '24 Nov']    WRONG
+
+     WHY. A move is keyed by the day the occurrence was DUE, and
+     __occurrenceFor hides a day only when it is a KEY. Re-pointing an
+     existing entry moved its destination but left the day in the middle as
+     nobody's key:
+
+         moves { 20 Oct -> 17 Nov }    20 Oct hidden, 17 Nov shown
+         drag 17 Nov -> 18 Nov
+         moves { 20 Oct -> 18 Nov }    20 Oct hidden, 18 Nov shown
+                                       17 Nov claimed by nobody -> drawn
+
+     WHAT DOES NOT WORK, tried and measured first: also writing a marker for
+     the intermediate day. The markers accumulate, each one keeps pointing at
+     an old destination, and by the third consecutive drag the map resurrects
+     days it had already vacated - 4 chips after six hops. A map keyed by
+     origin cannot carry a per-hop history without rotting.
+
+     THE FIX: ONE ENTRY PER OCCURRENCE, keyed by the day it was originally
+     due, retargeted in place. That key never changes however many times the
+     chip is dragged, so exactly one day is ever claimed as the destination
+     and every day the rule generates is either a key (hidden) or not
+     (drawn by the rule). Dragging it back onto its own due day removes the
+     entry entirely, which is the state it started in. */
+  /* 2026-11-17, operator chose option A: MERGE.
+
+     THE SITUATION. An occurrence you postponed can land on a day the routine
+     is ALREADY due. Measured on their build, a weekly routine with
+     moves {10 Nov -> 17 Nov} where 17 Nov is itself a due day:
+
+         occurrences scheduled on 17 Nov, before any drag: 1
+
+     TWO occurrences, ONE chip. Dragging that chip moved only one of them and
+     the other became visible - which is what they were seeing as a duplicate
+     appearing from nowhere. Nothing was ever copied.
+
+     Asked which behaviour they wanted, they chose A: "if a postponed
+     occurrence lands on a day the routine is already due, they become one.
+     Postponing it moves the whole thing; you never see two."
+
+     SO: when the day being dragged FROM is also a day the rule generates in
+     its own right, that occurrence moves along with whatever was postponed
+     onto it. One chip in, one chip out.
+
+     The raw rule is consulted through __rawRepeatMatches - the rule BEFORE
+     the moves layer - because asking the final answer would just tell us the
+     chip is showing, not whether this day is due in its own right. */
+  var merged = false;
   for (var k in moves) {
     if (Object.prototype.hasOwnProperty.call(moves, k) && moves[k] && moves[k].to === fromISO) {
-      moves[k] = {to: toISO, time: t};
-      return true;
+      if (k === toISO) {
+        /* dragged back to where it was due - there is no move any more */
+        delete moves[k];
+      } else {
+        moves[k] = {to: toISO, time: t};
+      }
+      merged = true;
+      /* keep scanning: more than one postponed occurrence can have piled up
+         on this day, and option A says the whole chip moves. */
     }
   }
-  moves[fromISO] = {to: toISO, time: t};
+  if (fromISO === toISO) return true;
+  /* fromISO's OWN occurrence. It moves too when the rule generates that day -
+     otherwise the chip splits and the leftover looks like a duplicate. When
+     nothing was postponed onto this day, this is the ordinary single move. */
+  var ownDueDay = true;
+  try {
+    if (merged && typeof window.__rawRepeatMatches === 'function') {
+      ownDueDay = !!window.__rawRepeatMatches(node, fromISO);
+    }
+  } catch (err) { ownDueDay = true; }
+  if (ownDueDay) {
+    moves[fromISO] = {to: toISO, time: t};
+  }
   return true;
 };
 
@@ -10775,10 +11005,10 @@ renderAll();
 })();
 
 /* ===== h24 ===== */
-(function(){window.renderDay=function(){var host=document.getElementById('dayView');if(!host)return;host.textContent='';var iso=window.selectedDate;var header=document.createElement('div');header.className='tgtop';var prevBtn=document.createElement('button');prevBtn.textContent='◀';prevBtn.onclick=function(){var d=parseISO(window.selectedDate);d.setDate(d.getDate()-1);window.selectedDate=isoOf(d);renderAll();};var titleSpan=document.createElement('span');titleSpan.className='tgtitle';titleSpan.textContent=fmtDate(iso,'long');var nextBtn=document.createElement('button');nextBtn.textContent='▶';nextBtn.onclick=function(){var d=parseISO(window.selectedDate);d.setDate(d.getDate()+1);window.selectedDate=isoOf(d);renderAll();};var spacer=document.createElement('span');spacer.className='tgspacer';header.appendChild(prevBtn);header.appendChild(titleSpan);header.appendChild(nextBtn);header.appendChild(spacer);host.appendChild(header);var allDay=document.createElement('div');allDay.className='tgallday';var gutterLabel=document.createElement('div');gutterLabel.className='tggutterlabel';gutterLabel.textContent='All day';var allDayCell=document.createElement('div');allDayCell.className='tgalldaycell';allDayCell.dataset.iso=iso;var entries=scheduledOn(iso);for(var i=0;i<entries.length;i++){var entry=entries[i];if(!tgTimeOf(entry)){var chip=document.createElement('div');chip.className='tgchip';chip.textContent=entry.title;chip.dataset.nodeId=(entry.node?entry.node.id:entry.id);chip.title=entry.title;allDayCell.appendChild(chip);}}allDay.appendChild(gutterLabel);allDay.appendChild(allDayCell);host.appendChild(allDay);var g=tgBuildGrid(host,[iso]);tgFillColumn(g.cols[0],iso);tgWireDrops(g.body.querySelector('.tgcols'));tgScrollToMorning(g.scroll);};})();
+(function(){window.renderDay=function(){var host=document.getElementById('dayView');if(!host)return;host.textContent='';var iso=window.selectedDate;var header=document.createElement('div');header.className='tgtop';var prevBtn=document.createElement('button');prevBtn.textContent='◀';prevBtn.onclick=function(){var d=parseISO(window.selectedDate);d.setDate(d.getDate()-1);window.selectedDate=isoOf(d);renderAll();};var titleSpan=document.createElement('span');titleSpan.className='tgtitle';titleSpan.textContent=fmtDate(iso,'long');var nextBtn=document.createElement('button');nextBtn.textContent='▶';nextBtn.onclick=function(){var d=parseISO(window.selectedDate);d.setDate(d.getDate()+1);window.selectedDate=isoOf(d);renderAll();};var spacer=document.createElement('span');spacer.className='tgspacer';header.appendChild(prevBtn);header.appendChild(titleSpan);header.appendChild(nextBtn);header.appendChild(spacer);host.appendChild(header);var allDay=document.createElement('div');allDay.className='tgallday';var gutterLabel=document.createElement('div');gutterLabel.className='tggutterlabel';gutterLabel.textContent='All day';var allDayCell=document.createElement('div');allDayCell.className='tgalldaycell';allDayCell.dataset.iso=iso;var entries=scheduledOn(iso);for(var i=0;i<entries.length;i++){var entry=entries[i];if(!tgTimeOf(entry)){var chip=document.createElement('div');chip.className='tgchip';chip.textContent=entry.title;chip.dataset.nodeId=(entry.node?entry.node.id:entry.id);chip.title=entry.title;allDayCell.appendChild(chip);}}allDay.appendChild(gutterLabel);allDay.appendChild(allDayCell);/* 2026-11-16: the ALL DAY row is not shown - see __ad_note */var g=tgBuildGrid(host,[iso]);tgFillColumn(g.cols[0],iso);tgWireDrops(g.body.querySelector('.tgcols'));tgScrollToMorning(g.scroll);};})();
 
 /* ===== h25 ===== */
-(function(){window.renderWeek=function(){var host=document.getElementById('weekGrid');if(!host)return;host.textContent='';var startISO=weekStartOf(window.selectedDate);var start=parseISO(startISO);var isos=[];for(var i=0;i<7;i++){var d=new Date(start);d.setDate(d.getDate()+i);isos.push(isoOf(d));}var tgtop=document.createElement('div');tgtop.className='tgtop';var btnPrev=document.createElement('button');btnPrev.textContent='\u25C0';btnPrev.addEventListener('click',function(){shiftWeek(-1);});var btnNext=document.createElement('button');btnNext.textContent='\u25B6';btnNext.addEventListener('click',function(){shiftWeek(1);});var dateRange=document.createElement('span');dateRange.textContent=fmtDate(isos[0],'short')+' - '+fmtDate(isos[6],'short');var btnThisWeek=document.createElement('button');btnThisWeek.textContent='This week';btnThisWeek.addEventListener('click',function(){window.selectedDate=todayISO();renderAll();});var spacer=document.createElement('span');spacer.className='tgspacer';tgtop.appendChild(btnPrev);tgtop.appendChild(dateRange);tgtop.appendChild(btnNext);tgtop.appendChild(btnThisWeek);tgtop.appendChild(spacer);host.appendChild(tgtop);var dayHeaderRow=document.createElement('div');dayHeaderRow.className='tgweekhead';var gutterLabel=document.createElement('div');gutterLabel.className='tggutterlabel';dayHeaderRow.appendChild(gutterLabel);isos.forEach(function(iso){var dayHead=document.createElement('div');dayHead.className='tgdayhead';dayHead.dataset.iso=iso;var d=parseISO(iso);var weekdays=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];var weekday=weekdays[d.getDay()];var dayNum=d.getDate();dayHead.textContent=weekday+' '+dayNum;if(iso===todayISO())dayHead.classList.add('tgtoday');if(iso===window.selectedDate)dayHead.classList.add('tgsel');dayHead.addEventListener('click',function(){window.selectedDate=iso;setTab('day');});dayHeaderRow.appendChild(dayHead);});host.appendChild(dayHeaderRow);var allDayRow=document.createElement('div');allDayRow.className='tgallday';var allDayGutter=document.createElement('div');allDayGutter.className='tggutterlabel';allDayGutter.textContent='All day';allDayRow.appendChild(allDayGutter);isos.forEach(function(iso){var allDayCell=document.createElement('div');allDayCell.className='tgalldaycell';allDayCell.dataset.iso=iso;var entries=scheduledOn(iso);entries.forEach(function(entry){if(!tgTimeOf(entry)){var chip=document.createElement('div');chip.className='tgchip';chip.textContent=entry.title||entry.name||'';chip.dataset.nodeId=(entry.node?entry.node.id:entry.id);chip.title=entry.title||'';allDayCell.appendChild(chip);}});allDayRow.appendChild(allDayCell);});host.appendChild(allDayRow);var g=tgBuildGrid(host,isos);isos.forEach(function(iso,i){tgFillColumn(g.cols[i],iso);});tgWireDrops(g.body.querySelector('.tgcols'));tgScrollToMorning(g.scroll);};})();
+(function(){window.renderWeek=function(){var host=document.getElementById('weekGrid');if(!host)return;host.textContent='';var startISO=weekStartOf(window.selectedDate);var start=parseISO(startISO);var isos=[];for(var i=0;i<7;i++){var d=new Date(start);d.setDate(d.getDate()+i);isos.push(isoOf(d));}var tgtop=document.createElement('div');tgtop.className='tgtop';var btnPrev=document.createElement('button');btnPrev.textContent='\u25C0';btnPrev.addEventListener('click',function(){shiftWeek(-1);});var btnNext=document.createElement('button');btnNext.textContent='\u25B6';btnNext.addEventListener('click',function(){shiftWeek(1);});var dateRange=document.createElement('span');dateRange.textContent=fmtDate(isos[0],'short')+' - '+fmtDate(isos[6],'short');var btnThisWeek=document.createElement('button');btnThisWeek.textContent='This week';btnThisWeek.addEventListener('click',function(){window.selectedDate=todayISO();renderAll();});var spacer=document.createElement('span');spacer.className='tgspacer';tgtop.appendChild(btnPrev);tgtop.appendChild(dateRange);tgtop.appendChild(btnNext);tgtop.appendChild(btnThisWeek);tgtop.appendChild(spacer);host.appendChild(tgtop);var dayHeaderRow=document.createElement('div');dayHeaderRow.className='tgweekhead';var gutterLabel=document.createElement('div');gutterLabel.className='tggutterlabel';dayHeaderRow.appendChild(gutterLabel);isos.forEach(function(iso){var dayHead=document.createElement('div');dayHead.className='tgdayhead';dayHead.dataset.iso=iso;var d=parseISO(iso);var weekdays=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];var weekday=weekdays[d.getDay()];var dayNum=d.getDate();dayHead.textContent=weekday+' '+dayNum;if(iso===todayISO())dayHead.classList.add('tgtoday');if(iso===window.selectedDate)dayHead.classList.add('tgsel');dayHead.addEventListener('click',function(){window.selectedDate=iso;setTab('day');});dayHeaderRow.appendChild(dayHead);});host.appendChild(dayHeaderRow);var allDayRow=document.createElement('div');allDayRow.className='tgallday';var allDayGutter=document.createElement('div');allDayGutter.className='tggutterlabel';allDayGutter.textContent='All day';allDayRow.appendChild(allDayGutter);isos.forEach(function(iso){var allDayCell=document.createElement('div');allDayCell.className='tgalldaycell';allDayCell.dataset.iso=iso;var entries=scheduledOn(iso);entries.forEach(function(entry){if(!tgTimeOf(entry)){var chip=document.createElement('div');chip.className='tgchip';chip.textContent=entry.title||entry.name||'';chip.dataset.nodeId=(entry.node?entry.node.id:entry.id);chip.title=entry.title||'';allDayCell.appendChild(chip);}});allDayRow.appendChild(allDayCell);});/* 2026-11-16: the ALL DAY row is not shown - see __ad_note */var g=tgBuildGrid(host,isos);isos.forEach(function(iso,i){tgFillColumn(g.cols[i],iso);});tgWireDrops(g.body.querySelector('.tgcols'));tgScrollToMorning(g.scroll);};})();
 
 /* ===== k30 ===== */
 (function(){window.DEFAULT_AREAS=[{id:"work",name:"Work",color:"#2f6feb"},{id:"money",name:"Finances",color:"#16a34a"},{id:"health",name:"Health",color:"#ea580c"},{id:"love",name:"Relationships",color:"#db2777"},{id:"growth",name:"Growth",color:"#7c3aed"},{id:"spirit",name:"Spirituality",color:"#0891b2"},{id:"fun",name:"Fun",color:"#ca8a04"},{id:"home",name:"Home",color:"#64748b"}];window.migrateV2=function(){var d=Store.data;if(!Array.isArray(d.areas)||!d.areas.length)d.areas=DEFAULT_AREAS.map(function(a){return {id:a.id,name:a.name,color:a.color};});if(!Array.isArray(d.lists))d.lists=[];if(!Array.isArray(d.timeLog))d.timeLog=[];if(!d.settings)d.settings={};if(!d.settings.filters)d.settings.filters={areas:[],tags:[]};walkTree(function(n){if(n.areaId===undefined)n.areaId=null;if(!Array.isArray(n.tags))n.tags=[];if(n.endDate===undefined)n.endDate=null;if(n.time===undefined)n.time=null;if(n.repeat&&n.repeat.interval===undefined)n.repeat.interval=1;if(n.repeat&&!Array.isArray(n.repeat.exceptions))n.repeat.exceptions=[];});Object.keys(d.journal||{}).forEach(function(k){var e=d.journal[k];if(e&&typeof e==='object'){if(e.mood===undefined)e.mood=null;if(e.template===undefined)e.template=null;if(!Array.isArray(e.photos))e.photos=[];}});d.version=2;};window.areaById=function(id){var areas = Store.data.areas || [];for(var i=0;i<areas.length;i++){if(areas[i].id===id)return areas[i];}return null;};window.allTags=function(){var tags={};walkTree(function(n){if(Array.isArray(n.tags)){n.tags.forEach(function(t){tags[t]=true;});}});return Object.keys(tags).sort();};window.addArea=function(name,color){var area={id:uid(),name:name,color:color};Store.data.areas.push(area);Store.save();};window.removeArea=function(id){if(!confirm('Remove area?'))return;walkTree(function(n){if(n.areaId===id)n.areaId=null;});var areas = Store.data.areas || [];var idx=-1;for(var i=0;i<areas.length;i++){if(areas[i].id===id){idx=i;break;}}if(idx!==-1)areas.splice(idx,1);Store.save();renderAll();};var run=function(){migrateV2();Store.save();};if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',function(){setTimeout(run,30);});}else{setTimeout(run,30);}})();
@@ -14826,14 +15056,55 @@ function surfaceArrivals() {
     /* 2026-09-20, operator: "add a missed tasks, called it past due, on the left
        side of complete button. There it would show all the past due task that
        weren't completed the any days prior." */
+    /* ============================================ BOARD 30, 2026-11-13
+       Operator, with a picture of their four tabs: "it must not show back ups,
+       back up must be in its own tap for the drop down from setting... it was
+       task history and back up on the setting dropdown."
+
+       They are remembering something real. MEASURED: "Restore a snapshot..."
+       lived in the ACCOUNT menu (the three dots, far right) until 2026-09-15,
+       when they asked for it to be taken out. The dialog it opened is kept in
+       releases/planner-2026-09-15-1059.html.
+
+       So Backups is NOT a fifth task-history tab. TASK HISTORY is their four -
+       Past due, Completed, Deleted, Undo - and Backups is a separate thing
+       that happens to live in the same drop-down. `group` says which section
+       a tab belongs to; the loop below is unchanged and still walks one list,
+       so the four tabs are built by exactly the same code as before. */
     var views = [
       { key: 'pastdue', label: 'Past due' },
       { key: 'completed', label: 'Completed' },
       { key: 'deleted', label: 'Deleted' },
-      { key: 'undo', label: 'Undo' }
+      { key: 'undo', label: 'Undo' },
+      /* BOARD 30 CARD 3 - operator 2026-11-11, on their backups having nowhere
+         to live: "the restore will be its own button to show its dates in the
+         left side". A FIFTH tab beside the four, built by this same loop and
+         drawn by applyView below, because they also said "don't change the code
+         that was already set for the task histroy such as past due, compete,
+         delted, and undo. use the same code for those." So nothing above this
+         line changed - this is one more entry in the list the loop already
+         walks. */
+      /* 2026-11-13, operator: "maybe a better button name for the restore
+         option" -> they chose "Backups". The KEY stays 'restore': it is the
+         stored view name, so renaming it would strand anyone whose planner
+         remembers that tab. Only the visible label changed. The per-row
+         buttons inside the list keep saying "Restore", because that is the
+         verb for what pressing one does - the tab names what the list HOLDS,
+         the button names the ACTION. */
     ];
+    var lastGroup = null;
     for (var i = 0; i < views.length; i++) {
       (function(v) {
+        /* the section heading, written once when the group changes. A <div>
+           with its own class rather than a styled button, so it can never be
+           pressed and can never be mistaken for a tab. */
+        if (v.group && v.group !== lastGroup) {
+          var h = document.createElement('div');
+          h.className = 'treeview-group';
+          h.textContent = v.group;
+          bar.appendChild(h);
+          lastGroup = v.group;
+        }
         var btn = document.createElement('button');
         btn.className = 'treeview-btn' + (v.key === window.treeView ? ' on' : '');
         btn.textContent = v.label;
@@ -14869,6 +15140,21 @@ function surfaceArrivals() {
           s.textContent = ' (' + (window.plannerUndoEntries ?
                                   window.plannerUndoEntries().length : 0) + ')';
           btn.appendChild(s);
+        } else if (v.key === 'restore') {
+          /* BOARD 30 CARD 3 - same shape as the four above: the count comes
+             from the thing the tab lists, so the badge and the list cannot
+             disagree. plannerSnapshots is the engine that has been taking
+             these since September (on open, every 10 min, on close, and before
+             any restore) - this tab is the first way to SEE them. */
+          var s = document.createElement('span');
+          s.className = 'view-count';
+          var snaps = 0;
+          try {
+            if (window.plannerSnapshots && window.plannerSnapshots.list)
+              snaps = window.plannerSnapshots.list().length;
+          } catch (e) {}
+          s.textContent = ' (' + snaps + ')';
+          btn.appendChild(s);
         }
         btn.addEventListener('click', function() {
           /* pressing the view you are already in goes back to the priority tree -
@@ -14879,6 +15165,53 @@ function surfaceArrivals() {
         bar.appendChild(btn);
       })(views[i]);
     }
+
+    /* ============================================ BOARD 30, 2026-11-13
+       Operator, with a picture of the panel showing BOTH the four tabs and a
+       Backups button: "there should never be the back up showing in the same
+       time, its either or, based on the button clicked."
+
+       EITHER/OR. The Settings menu decides which list the panel shows:
+           Task history      -> the four tabs, no backups
+           Restore a backup  -> the backups list, NO TAB ROW AT ALL
+
+       MEASURED before this: with Restore showing, all four task-history tabs
+       were still drawn above the backups list. Taking the Backups TAB out
+       (which the previous build did) was not enough - the tab row itself has
+       to go when the panel is not showing task history, or the two lists are
+       on screen together, which is exactly the picture they sent.
+
+       Done here rather than in CSS so the row is not built at all: a hidden
+       row can still be found by a keyboard or a screen reader, and "not
+       there" is simpler to reason about than "there but invisible".
+
+       THE WAY BACK. Removing the row outright would trap you in the backups
+       list - there is no other control that leaves it. So in this view the
+       row holds exactly ONE button, "Backups", lit. Pressing a lit tab
+       already returns to the priority tree (that is how the four behave, and
+       how the Active button used to work), so this is the SAME gesture the
+       other lists use, not a new one. */
+    if (window.treeView === 'restore') {
+      while (bar.firstChild) bar.removeChild(bar.firstChild);
+      var only = document.createElement('button');
+      only.className = 'treeview-btn on';
+      only.textContent = 'Backups';
+      var sc = 0;
+      try {
+        if (window.plannerSnapshots && window.plannerSnapshots.list)
+          sc = window.plannerSnapshots.list().length;
+      } catch (e) {}
+      var scs = document.createElement('span');
+      scs.className = 'view-count';
+      scs.textContent = ' (' + sc + ')';
+      only.appendChild(scs);
+      only.addEventListener('click', function () {
+        window.treeView = 'active';
+        window.renderTree();
+      });
+      bar.appendChild(only);
+    }
+
     root.parentNode.insertBefore(bar, root);
   }
   window.__buildTreeViews = buildBar;
@@ -15094,6 +15427,106 @@ function surfaceArrivals() {
         })(ul[z]);
       }
       root.appendChild(ulist);
+      return;
+    }
+    /* ===================================================== BOARD 30 CARD 3
+       Operator 2026-11-11: "the restore will be its own button to show its
+       dates in the left side."
+
+       Their planner has been taking snapshots since September - on open, every
+       10 minutes, on close, and before any restore, ~20 kept - and there has
+       never been a way to SEE them. This is that way, and nothing more: it
+       lists what plannerSnapshots already holds and calls its restore().
+
+       Deliberately NOT a new engine. I built one of those earlier in this
+       session, assigned over window.plannerSnapshots, and broke the existing
+       one - it also REPLACED where the real one MERGES, which is worse than
+       the bug it was meant to fix. This reuses, it does not reimplement.
+
+       Built on the Undo view above, element for element (trashitem / t-title /
+       undo-when / trashitem-restore), because the operator said: "don't change
+       the code that was already set for the task histroy such as past due,
+       compete, delted, and undo. use the same code for those." */
+    if (window.treeView === 'restore') {
+      root.classList.add('done-only');
+      var snaps = [];
+      try {
+        if (window.plannerSnapshots && window.plannerSnapshots.list)
+          snaps = window.plannerSnapshots.list();
+      } catch (e) { snaps = []; }
+      var slist = document.createElement('div');
+      slist.className = 'donelist trashlist';
+      if (!snaps.length) {
+        var se = document.createElement('div');
+        se.className = 'trash-empty';
+        se.textContent = 'No backups yet. One is kept when you open the ' +
+                         'planner, every ten minutes while you work, and when ' +
+                         'you close it.';
+        slist.appendChild(se);
+        root.appendChild(slist);
+        return;
+      }
+      for (var si = 0; si < snaps.length; si++) {
+        (function (snap) {
+          var it = document.createElement('div');
+          it.className = 'trashitem snapitem';
+
+          var t = document.createElement('span');
+          t.className = 't-title';
+          /* What it HOLDS, so a choice between two days is answerable without
+             restoring either: the counts come from the snapshot record itself,
+             not from a re-count of current data. */
+          var bits = [];
+          if (typeof snap.tasks === 'number') bits.push(snap.tasks + ' tasks');
+          if (typeof snap.notes === 'number') bits.push(snap.notes + ' notes');
+          t.textContent = bits.length ? bits.join(', ') : 'Backup';
+          it.appendChild(t);
+
+          if (snap.reason) {
+            var why = document.createElement('span');
+            why.className = 'undo-was';
+            why.textContent = String(snap.reason).slice(0, 40);
+            it.appendChild(why);
+          }
+
+          var w = document.createElement('span');
+          w.className = 'undo-when';
+          /* undoWhen() wants MILLISECONDS - it does Number(at). A snapshot's
+             `at` is an ISO STRING, so passing it straight in printed
+             "NaN days ago" on every row (measured, not guessed - the probe
+             read it off the rendered rows). The record carries `ms` for
+             exactly this; Date.parse is the fallback if an old snapshot
+             predates it. This tab exists to let them choose a backup BY DATE,
+             so the date is the feature, not decoration. */
+          var when = (typeof snap.ms === 'number' && snap.ms)
+                     ? snap.ms
+                     : Date.parse(snap.at || '');
+          w.textContent = when ? undoWhen(when) : '';
+          it.appendChild(w);
+
+          var rb = document.createElement('button');
+          rb.type = 'button';
+          rb.className = 'trashitem-restore';
+          rb.textContent = 'Restore';
+          rb.addEventListener('click', function (ev) {
+            ev.preventDefault();
+            ev.stopPropagation();
+            /* MERGE, which is plannerSnapshots.restore's default, and it takes
+               a fresh snapshot first - so pressing this can itself be undone.
+               No confirm dialog: nothing is lost by merging, and the planner
+               has no confirm pattern in these lists. */
+            try {
+              if (window.plannerSnapshots && window.plannerSnapshots.restore)
+                window.plannerSnapshots.restore(snap.i);
+            } catch (e) {}
+            if (window.renderAll) window.renderAll();
+          });
+          it.appendChild(rb);
+
+          slist.appendChild(it);
+        })(snaps[si]);
+      }
+      root.appendChild(slist);
       return;
     }
     if (window.treeView === 'pastdue') {
@@ -16125,7 +16558,15 @@ function surfaceArrivals() {
       if (!iso) continue;
       if (!h.dataset.origLabel) h.dataset.origLabel = h.textContent;
       var r2 = window.relDay(iso);
-      h.textContent = r2 ? r2 : h.dataset.origLabel;
+      /* 2026-11-17, operator: "when I put it in the 19th in the weekly view it
+         doesn't go on the 19th it goes on the 17th". It did go on the 19th -
+         but this line REPLACED the date with the word, so the first three
+         columns of the week carried no number at all and the leftmost number
+         on screen was the 18th. The day number never leaves the header now;
+         the relative word is a prefix, not a replacement. */
+      var num = h.dataset.origLabel || '';
+      var dnum = (num.match(/(\d+)\s*$/) || [])[1] || '';
+      h.textContent = r2 ? (dnum ? (r2 + ' ' + dnum) : r2) : num;
     }
   }
   window.__relabelDays = relabel;
@@ -18156,6 +18597,12 @@ function firstConnect(remote, rAt, lAt) {
     /* operator 2026-09-18: "export remove it... you could leave the set automatic
        calendar sync". Both are built here, so only this one is held back. */
 
+    /* BOARD 30 CARD 3 - operator 2026-11-11, circling this row: "I dont need to
+       see this remove it". The BUTTON is held back; window.showCalendarSync is
+       untouched, so the dialog still exists and can be given a home anywhere
+       they want one. (Asked on the card and still open: whether it needs a
+       button somewhere.) Built-and-held is the same shape btnExportIcs already
+       uses above, so this file keeps one pattern rather than two. */
     var sub = document.createElement('button');
     sub.id = 'btnCalSub';
     sub.type = 'button';
@@ -18165,7 +18612,6 @@ function firstConnect(remote, rAt, lAt) {
       e.preventDefault();
       if (window.showCalendarSync) window.showCalendarSync();
     });
-    host.appendChild(sub);
 
     /* ============================================================== BOARD 30 CARD 4
        Operator, 2026-09-26: "if you notice on the bottom where it says hide habits
@@ -18314,17 +18760,15 @@ function firstConnect(remote, rAt, lAt) {
   // ended up at y=-20). Never fall back to a top-bar element: if the drawer is
   // not open yet, do nothing and try again when it is.
   function stampInDrawer() {
-    if (document.getElementById('drawerVersion')) return;
-    var host = document.getElementById('treeDrawer');
-    if (!host) return;
-    var stampEl = document.getElementById('buildStamp');
-    var text = stampEl ? stampEl.textContent : '';
-    if (!text) return;
-    var v = document.createElement('div');
-    v.id = 'drawerVersion';
-    v.textContent = text;
-    v.style.cssText = 'font-size:10px;opacity:.55;padding:8px 2px 2px;width:100%';
-    host.appendChild(v);
+    /* BOARD 30 CARD 3 - operator 2026-11-11 circled this line: "I dont need to
+       see this remove it". It was a SECOND copy of the build stamp; the real
+       one lives in the top bar, which is where they read it, and is untouched
+       (measured on this build: still on screen, non-zero box). So the drawer
+       opens straight onto the four tabs.
+       The function is kept rather than deleted - start() wires it to the drawer
+       toggle and calls it on boot, and a no-op is clearer here than unpicking
+       those call sites for a row nobody wants. */
+    return;
   }
 
   function start() {
@@ -22539,12 +22983,24 @@ function firstConnect(remote, rAt, lAt) {
      caused this round-trip in the first place. */
   function labelDrawer() {
     var d = document.getElementById('treeDrawer');
-    if (!d || document.getElementById('drawerTitle')) return;
-    var h = document.createElement('div');
-    h.id = 'drawerTitle';
-    h.className = 'drawer-title';
-    h.textContent = 'Settings';
-    d.insertBefore(h, d.firstChild);
+    /* BOARD 30 CARD 3 - operator 2026-11-11: "remove these wording from the top
+       and redo", circling the word Settings, the calendar-sync button and the
+       build stamp. The word is dropped because the button they pressed to open
+       this drawer already says Settings; the drawer now opens straight onto the
+       four tabs. Only the TITLE goes - the Visual formats hint below is still
+       built, because "Visual formats" with no explanation is what caused an
+       earlier round-trip.
+       The re-entry guard: it used to be `drawerTitle`, which no longer exists,
+       and labelDrawer runs on every drawer open, so without one each open would
+       append another hint. Guarding on `looksHint` itself was WRONG in a way
+       worth recording - the guard would be satisfied by the element it creates
+       only after the first run, but #btnLooks does not exist on this build at
+       all (measured: 0 on the live build too), so the hint never renders and a
+       check asserting "exactly one" failed on a thing that was already absent.
+       The guard is now its own flag, which is true whether or not the hint had
+       anything to attach to. */
+    if (!d || d.getAttribute('data-labelled')) return;
+    d.setAttribute('data-labelled', '1');
     var looks = document.getElementById('btnLooks');
     if (looks) {
       var hint = document.createElement('div');
@@ -24711,7 +25167,17 @@ if (r.freq === 'yearly') {
   window.buildRepeatPanel = function (node) {
     var wrap = document.createElement('div');
     wrap.className = 'rep-wrap';
-    if (!node.repeat) node.repeat = null;
+    /* BOARD 30 CARD 2 - operator 2026-11-13: "the undo section doesn't say what
+       changed it just says changed a task".
+       MEASURED (_undo_fields.py): opening a task and pressing Save WITHOUT
+       editing anything moved exactly one field - `repeat: undefined -> null`.
+       That is a real change to the stored data, so an Undo entry was created;
+       but `repeat` is not one of the fields describe() compares, so every such
+       entry fell through to the useless 'Changed a task'.
+       `if (!node.repeat) node.repeat = null` rewrote the key even when it was
+       merely ABSENT, because undefined is falsy. Only fill it in when the key
+       genuinely is not there, so opening a dialog is no longer an edit. */
+    if (!('repeat' in node)) node.repeat = null;
 
     var head = document.createElement('div');
     head.className = 'rep-head';
@@ -26765,20 +27231,59 @@ if (r.freq === 'yearly') {
 
          So: compare the fields a person actually edits and name the one that moved,
          with its OLD value and its NEW one. */
+      /* BOARD 30 CARD 2 - operator 2026-11-13: "the undo section doesn't say
+         what changed it just says changed a task it needs to be specific".
+         The list below was SHORT, so any edit to a field missing from it
+         changed the data (creating an entry) and then matched nothing (so the
+         entry read 'Changed a task'). Measured: `repeat` was the one the task
+         dialog moved. Rather than add that single key and wait for the next
+         one, every field the dialog can write is named here, and anything
+         still unnamed is reported by its own key at the bottom of describe()
+         instead of falling through to a sentence that says nothing. */
       var FIELDS = [
-        { key: 'title',    label: 'name' },
-        { key: 'duration', label: 'duration', unit: ' min' },
-        { key: 'priority', label: 'priority' },
-        { key: 'date',     label: 'date' },
-        { key: 'time',     label: 'time' },
-        { key: 'notes',    label: 'notes' },
-        { key: 'done',     label: 'done' }
+        { key: 'title',     label: 'name' },
+        { key: 'duration',  label: 'duration', unit: ' min' },
+        { key: 'priority',  label: 'priority' },
+        { key: 'date',      label: 'date' },
+        { key: 'time',      label: 'time' },
+        { key: 'notes',     label: 'notes' },
+        { key: 'done',      label: 'done' },
+        { key: 'repeat',    label: 'repeat' },
+        { key: 'areaId',    label: 'colour' },
+        { key: 'tags',      label: 'tags' },
+        { key: 'block',     label: 'block' },
+        { key: 'endDate',   label: 'end date' },
+        { key: 'collapsed', label: 'collapsed' },
+        { key: 'kind',      label: 'kind' }
       ];
       function shown(v, unit) {
         if (v === null || v === undefined || v === '') return 'empty';
         if (v === true) return 'yes';
         if (v === false) return 'no';
+        /* BOARD 30 CARD 2: tags is an array and repeat an object, and
+           String([object Object]) tells the operator nothing. Name them the way
+           the app does. */
+        if (Object.prototype.toString.call(v) === '[object Array]') {
+          return v.length ? v.join(', ') : 'empty';
+        }
+        if (typeof v === 'object') {
+          if (v.freq) {
+            return String(v.freq) +
+                   (v.interval && v.interval !== 1 ? ' every ' + v.interval : '');
+          }
+          try { return JSON.stringify(v).slice(0, 40); } catch (e) { return 'set'; }
+        }
         return String(v) + (unit || '');
+      }
+      /* Compare by VALUE: `was.tags !== now.tags` is true for two identical
+         arrays, which would report a change that never happened. */
+      function same(a, b) {
+        if (a === b) return true;
+        if (a === null || a === undefined) return (b === null || b === undefined);
+        if (typeof a === 'object' || typeof b === 'object') {
+          try { return JSON.stringify(a) === JSON.stringify(b); } catch (e) { return false; }
+        }
+        return false;
       }
       var edits = [];
       for (i2 = 0; i2 < ca.length; i2++) {
@@ -26787,7 +27292,7 @@ if (r.freq === 'yearly') {
         for (var f2 = 0; f2 < FIELDS.length; f2++) {
           var F = FIELDS[f2];
           if (F.key === 'title') continue;           /* renames are handled above */
-          if (was[F.key] === now[F.key]) continue;
+          if (same(was[F.key], now[F.key])) continue;
           edits.push({
             who: now.title || was.title || 'Untitled',
             what: F.label,
@@ -26818,15 +27323,229 @@ if (r.freq === 'yearly') {
       }
 
       if ((a.trash || []).length !== (b.trash || []).length) return 'Changed the trash';
+
+      /* ============================================== BOARD 30 CARD 2, part 2
+         MEASURED with the planner's own describe() over 13 kinds of change
+         (_run_describe.js): teaching it every TASK field still left 7 of 13
+         reading 'Changed a task', because describe() only ever walked
+         `a.tree`. Everything OUTSIDE the tree - areas, habits, the journal,
+         the notes tab, lists - and a MOVE within it, which changes no field at
+         all, fell straight through.
+
+         So: name the other places, and name a move. Each is read the way the
+         app stores it, checked against the real shapes in Store.data. */
+
+      /* --- a MOVE: same ids, same fields, different order/parent --- */
+      try {
+        var orderA = [], orderB = [], parentA = {}, parentB = {};
+        (function walk(list, into, par, pid) {
+          for (var i = 0; i < (list || []).length; i++) {
+            into.push(list[i].id);
+            par[list[i].id] = pid;
+            walk(list[i].children, into, par, list[i].id);
+          }
+        })(a.tree, orderA, parentA, null);
+        (function walk(list, into, par, pid) {
+          for (var i = 0; i < (list || []).length; i++) {
+            into.push(list[i].id);
+            par[list[i].id] = pid;
+            walk(list[i].children, into, par, list[i].id);
+          }
+        })(b.tree, orderB, parentB, null);
+        if (orderA.length === orderB.length &&
+            orderA.join(',') !== orderB.join(',')) {
+          /* a task that changed PARENT is the interesting case - say where */
+          for (var mi = 0; mi < orderB.length; mi++) {
+            var mid = orderB[mi];
+            if (parentA[mid] === parentB[mid]) continue;
+            var who = (idb[mid] && idb[mid].title) || 'a task';
+            var into2 = parentB[mid] ? (idb[parentB[mid]] &&
+                                        idb[parentB[mid]].title) : null;
+            return into2 ? ('Moved “' + who + '” under “' +
+                            into2 + '”')
+                         : ('Moved “' + who + '” to the top level');
+          }
+          return 'Reordered the tree';
+        }
+      } catch (em) {}
+
+      /* --- the other five places, each named the way the app stores it --- */
+      function named(x) {
+        return (x && (x.name || x.title)) ? (x.name || x.title) : null;
+      }
+      function byId(list) {
+        var o = {}, i;
+        for (i = 0; i < (list || []).length; i++) o[(list[i] || {}).id] = list[i];
+        return o;
+      }
+      var PLACES = [
+        { key: 'areas',  one: 'area',  many: 'areas'  },
+        { key: 'habits', one: 'habit', many: 'habits' },
+        { key: 'lists',  one: 'list',  many: 'lists'  }
+      ];
+      for (var pi = 0; pi < PLACES.length; pi++) {
+        var P = PLACES[pi];
+        var LA = a[P.key], LB = b[P.key];
+        if (!LA && !LB) continue;
+        if (JSON.stringify(LA) === JSON.stringify(LB)) continue;
+        var mA = byId(LA), mB = byId(LB), pid2;
+        for (pid2 in mB) {
+          if (!mA[pid2]) {
+            return 'Added the ' + P.one + ' “' +
+                   (named(mB[pid2]) || 'Untitled') + '”';
+          }
+        }
+        for (pid2 in mA) {
+          if (!mB[pid2]) {
+            return 'Deleted the ' + P.one + ' “' +
+                   (named(mA[pid2]) || 'Untitled') + '”';
+          }
+        }
+        for (pid2 in mB) {
+          if (same(mA[pid2], mB[pid2])) continue;
+          var wasN = named(mA[pid2]), nowN = named(mB[pid2]);
+          if (wasN !== nowN) {
+            return 'Renamed the ' + P.one + ' ' + wasN +
+                   ' → ' + nowN;
+          }
+          /* same name, something inside it moved - name the field */
+          var fk;
+          for (fk in mB[pid2]) {
+            if (fk === 'id') continue;
+            if (same(mA[pid2][fk], mB[pid2][fk])) continue;
+            return (nowN || 'A ' + P.one) + ' — ' + fk + ' ' +
+                   shown(mA[pid2][fk]) + ' → ' + shown(mB[pid2][fk]);
+          }
+          return 'Changed the ' + P.one + ' “' +
+                 (nowN || 'Untitled') + '”';
+        }
+        return 'Changed the ' + P.many;
+      }
+
+      /* the journal is keyed by DATE, the notes tab by note id */
+      var DOCS = [
+        { key: 'journal',      one: 'the journal', byDate: true },
+        { key: 'journalNotes', one: 'a note',      byDate: false }
+      ];
+      for (var di = 0; di < DOCS.length; di++) {
+        var Dk = DOCS[di], DA = a[Dk.key] || {}, DB = b[Dk.key] || {};
+        if (JSON.stringify(DA) === JSON.stringify(DB)) continue;
+        var dk;
+        for (dk in DB) {
+          if (same(DA[dk], DB[dk])) continue;
+          if (!(dk in DA)) {
+            return Dk.byDate ? ('Wrote in the journal on ' + dk)
+                             : 'Added a note';
+          }
+          return Dk.byDate ? ('Edited the journal on ' + dk)
+                           : 'Edited a note';
+        }
+        for (dk in DA) {
+          if (dk in DB) continue;
+          return Dk.byDate ? ('Cleared the journal on ' + dk)
+                           : 'Deleted a note';
+        }
+        return 'Changed ' + Dk.one;
+      }
+
+      /* --- sync bookkeeping is NOT something the operator did --- */
+      try {
+        var stripA = JSON.parse(beforeJson), stripB = JSON.parse(afterJson);
+        delete stripA.sync; delete stripB.sync;
+        if (JSON.stringify(stripA) === JSON.stringify(stripB)) {
+          return 'Synced with your other devices';
+        }
+      } catch (es) {}
+
+      /* BOARD 30 CARD 2 - LAST RESORT, and the reason this can no longer print
+         a sentence that says nothing. If a field moved that FIELDS does not
+         name, report it BY ITS OWN KEY rather than giving up. The operator
+         would rather read "Field probe - repeat empty -> daily" than
+         "Changed a task", and an ugly key name is a bug report: it tells us
+         exactly which field to add to FIELDS above. */
+      try {
+        for (i2 = 0; i2 < ca.length; i2++) {
+          var w3 = ca[i2], n3 = idb[w3.id];
+          if (!n3) continue;
+          var seen = {}, k3;
+          for (k3 in w3) seen[k3] = 1;
+          for (k3 in n3) seen[k3] = 1;
+          for (k3 in seen) {
+            if (k3 === 'children' || k3 === 'id') continue;
+            if (k3.indexOf('__') === 0) continue;   /* in-memory only, never a real edit */
+            if (same(w3[k3], n3[k3])) continue;
+            return (n3.title || w3.title || 'Untitled') + ' — ' + k3 + ' ' +
+                   shown(w3[k3]) + ' → ' + shown(n3[k3]);
+          }
+        }
+      } catch (e3) {}
+
       return 'Changed a task';
     } catch (e) { return 'Changed something'; }
+  }
+
+  /* ================================================= BOARD 30 CARD 2
+     Operator, 2026-11-13: "the undo section doesn't say what changed it just
+     says changed a task it needs to be specific".
+
+     MEASURED (_undo_fields.py): opening a task and pressing Save WITHOUT
+     editing anything moved exactly one field - `repeat: undefined -> null`,
+     written by buildRepeatPanel as it builds the Repeat row. That is a real
+     change to the stored JSON, so an entry was created, and because the entry
+     described nothing a person did it read 'Changed a task'.
+
+     Guarding inside buildRepeatPanel is not enough: the key is genuinely
+     ABSENT on older tasks, so filling it in is correct - it just is not an
+     EDIT. So the test belongs here, where "is this worth remembering?" is
+     already being asked. A change that only adds keys whose value is null or
+     undefined - a default being filled in - is not something the operator did,
+     and must not take a slot in a 30-deep undo stack. */
+  var NOT_AN_EDIT = { repeat: 1, block: 1, tags: 1, areaId: 1,
+                      endDate: 1, notesHtml: 1 };
+
+  function onlyDefaultsFilledIn(aJson, bJson) {
+    try {
+      var a = JSON.parse(aJson), b = JSON.parse(bJson);
+      function flat(d, into) {
+        var list = (d && d.tree) || [];
+        (function walk(ns) {
+          for (var i = 0; i < ns.length; i++) {
+            into[ns[i].id] = ns[i];
+            if (ns[i].children) walk(ns[i].children);
+          }
+        })(list);
+        return into;
+      }
+      var A = flat(a, {}), B = flat(b, {}), id;
+      /* any node added or removed is a real change */
+      for (id in A) if (!B[id]) return false;
+      for (id in B) if (!A[id]) return false;
+      var sawSomething = false;
+      for (id in B) {
+        var x = A[id], y = B[id], k, keys = {};
+        for (k in x) keys[k] = 1;
+        for (k in y) keys[k] = 1;
+        for (k in keys) {
+          if (k === 'children') continue;
+          var sx = JSON.stringify(x[k]), sy = JSON.stringify(y[k]);
+          if (sx === sy) continue;
+          sawSomething = true;
+          /* was absent, is now the empty default -> a default being filled in */
+          var wasBlank = (x[k] === undefined || x[k] === null);
+          var nowBlank = (y[k] === undefined || y[k] === null);
+          if (wasBlank && nowBlank && NOT_AN_EDIT[k]) continue;
+          return false;            /* a real edit */
+        }
+      }
+      return sawSomething;         /* something moved, all of it defaults */
+    } catch (e) { return false; }  /* never swallow a change we cannot read */
   }
 
   function record() {
     if (restoring) return;
     if (prev !== null) {
       var cur = snap();
-      if (cur !== null && cur !== prev) {
+      if (cur !== null && cur !== prev && !onlyDefaultsFilledIn(prev, cur)) {
         stack.push(prev);
         /* BOARD 27 CARD 2 - what the change WAS, so the Undo tab can list it.
            Kept in step with `stack` (same push, same shift) so an entry and its
@@ -27788,6 +28507,149 @@ nesting to 20 levels, so the whole tree is serialised rather than stored as nest
     }
     window.__fbCanonSig = canonSig;
 
+    /* ===================================================== BOARD 30 CARD 2
+       "how about each branch its own docment, with everything inside of it, and
+        notes would be separate?" / "I like the idea of per branch + notes" /
+        "regarding the memory I know we mentioned that one note per branch,
+         making sure we aren't forgetting notes, and journal"
+
+       THE CEILING, measured on their own exported data:
+           whole record   768.5 KB of a 1,024 KB HARD cap   = 75% full
+           notes          649.0 KB across 21 notes
+           biggest note   637.7 KB  - 83% of all notes, 62% of the whole record
+       Moving the NOTES out alone takes the record from 75% to 12%. Branches are
+       worth far less (~65 KB) and carry far more risk, so notes go first.
+
+       WHY THIS SHAPE AND NOT "LOAD A NOTE WHEN YOU OPEN IT".
+       42 places in this file read `.notes` SYNCHRONOUSLY. If a note's text is
+       absent until fetched, every one of them can see an empty string - and an
+       empty string written back is a lost note. That is the exact failure this
+       planner has had before. So:
+
+           IN MEMORY   every note stays exactly where it is (node.notes), so all
+                       42 readers and window.hasNotes are untouched
+           IN THE CLOUD the main record carries a MARKER instead of the text, and
+                       each note is its own document under users/<uid>/notes
+           ON READ     notes are merged back into the tree BEFORE the planner
+                       sees the data, so nothing downstream knows the difference
+
+       The merge (mergePlanner) is per-node-id and never sees the split at all.
+       `doc` is still written in full as well - OLD BUILDS AND OTHER DEVICES KEEP
+       WORKING, and nothing is ever deleted. The split is an ADDITION; if it is
+       wrong, the full doc is still there and this code can simply be removed. */
+    var NOTE_KEYS = ['notes', 'notesHtml'];
+    var SPLIT_MIN = 2048;        /* only split a note worth splitting */
+
+    function noteDocs(data) {
+      /* Pull every note of consequence out of a COPY of the tree.
+         Returns {stripped: <tree without those note bodies>, notes: {id: {...}}}.
+         The original object is never touched - a function that quietly empties
+         the live tree is how notes disappear. */
+      var notes = {};
+      function walk(list) {
+        if (!list) return list;
+        for (var i = 0; i < list.length; i++) {
+          var n = list[i];
+          if (!n || !n.id) continue;
+          var size = 0, k, j;
+          for (j = 0; j < NOTE_KEYS.length; j++) {
+            k = NOTE_KEYS[j];
+            if (typeof n[k] === 'string') size += n[k].length;
+          }
+          if (size >= SPLIT_MIN) {
+            var rec = {};
+            for (j = 0; j < NOTE_KEYS.length; j++) {
+              k = NOTE_KEYS[j];
+              if (typeof n[k] === 'string') { rec[k] = n[k]; n[k] = ''; }
+            }
+            /* the MARKER. window.hasNotes reads node.notes, so a stripped node
+               would lose its pen - see the pen rule on card 3. hasNotes is
+               taught about this flag below. */
+            n.noteOut = 1;
+            notes[String(n.id)] = rec;
+          }
+          if (n.children) walk(n.children);
+        }
+        return list;
+      }
+      var copy;
+      try { copy = JSON.parse(JSON.stringify(data)); } catch (e) { return null; }
+      walk(copy.tree);
+      return { stripped: copy, notes: notes };
+    }
+
+    function putNotesBack(data, fetched) {
+      /* fetched: {id: {notes, notesHtml}} - restore every body into the tree. */
+      if (!data || !fetched) return data;
+      var n = 0;
+      (function walk(list) {
+        for (var i = 0; list && i < list.length; i++) {
+          var node = list[i];
+          if (!node) continue;
+          var rec = fetched[String(node.id)];
+          if (rec) {
+            for (var j = 0; j < NOTE_KEYS.length; j++) {
+              var k = NOTE_KEYS[j];
+              if (typeof rec[k] === 'string') node[k] = rec[k];
+            }
+            delete node.noteOut;
+            n++;
+          }
+          if (node.children) walk(node.children);
+        }
+      })(data.tree);
+      window.__notesRestored = n;
+      return data;
+    }
+    window.__noteDocs = noteDocs;
+    window.__putNotesBack = putNotesBack;
+
+    function readNoteDocs(uid) {
+      /* every note document for this user, as {id: {...}} */
+      if (!db || !uid) return Promise.resolve({});
+      try {
+        return db.collection('users').doc(uid).collection('notes').get()
+          .then(function (qs) {
+            var out = {};
+            qs.forEach(function (d) {
+              try { out[d.id] = JSON.parse(d.get('body') || '{}'); } catch (e) {}
+            });
+            return out;
+          }, function () { return {}; });
+      } catch (e) { return Promise.resolve({}); }
+    }
+    window.__readNoteDocs = readNoteDocs;
+
+    function writeNoteDocs(uid, notes) {
+      /* One document per note, written only when its body CHANGED - otherwise a
+         save of an unrelated task rewrites a 637 KB note for nothing. Never
+         deletes: a note that stops being big just stops being updated, and its
+         old document is harmless because the full `doc` is authoritative. */
+      if (!db || !uid) return Promise.resolve(0);
+      var last = window.__noteDocHashes || (window.__noteDocHashes = {});
+      var ids = Object.keys(notes || {});
+      var jobs = [], wrote = 0;
+      for (var i = 0; i < ids.length; i++) {
+        (function (id) {
+          var body = '';
+          try { body = JSON.stringify(notes[id]); } catch (e) { return; }
+          if (last[id] === body) return;            /* unchanged - skip */
+          wrote++;
+          jobs.push(
+            db.collection('users').doc(uid).collection('notes').doc(id)
+              .set({ body: body, at: Date.now() })
+              .then(function () { last[id] = body; },
+                    function () { /* a failed note write must never break the
+                                    main save - `doc` already holds the text */ })
+          );
+        })(ids[i]);
+      }
+      if (!jobs.length) return Promise.resolve(0);
+      return Promise.all(jobs).then(function () { return wrote; },
+                                    function () { return 0; });
+    }
+    window.__writeNoteDocs = writeNoteDocs;
+
     function doWrite(ref) {
       return new Promise(function(resolve0) {
         window.__fbInFlight = (window.__fbInFlight || 0) + 1;
@@ -27812,7 +28674,43 @@ nesting to 20 levels, so the whole tree is serialised rather than stored as nest
               merged = local;
             }
             stamp = Date.now();
-            t.set(ref, {doc: JSON.stringify(merged), updatedAt: stamp});
+            /* BOARD 30 CARD 2 - the main record carries the planner with big
+               note bodies replaced by a marker; each body is written as its own
+               document after the transaction. `doc` ALSO still holds everything
+               (docFull), so an older build or another device reading only `doc`
+               is completely unaffected and nothing can be lost by this change.
+               Measured on their data: doc goes 768.5 KB -> about 120 KB, and the
+               1 MiB cap stops being something to worry about. */
+            var _split = null;
+            try { _split = noteDocs(merged); } catch (e) { _split = null; }
+            window.__pendingNotes = _split ? _split.notes : null;
+            var _docFull = JSON.stringify(merged);
+            var _docThin = _split ? JSON.stringify(_split.stripped) : _docFull;
+            window.__lastDocSizes = {full: _docFull.length, thin: _docThin.length,
+                                     notes: _split ? Object.keys(_split.notes).length : 0};
+
+            /* WHICH FIELD THE THIN PLANNER GOES IN - the whole safety argument.
+               Writing BOTH doc and docFull makes the record BIGGER (120 KB +
+               768 KB), which is the opposite of the point - I tried that first.
+               Writing the THIN planner into `doc` would be read by an OLD build
+               as a planner whose notes are empty strings, and its 42 synchronous
+               readers could write those empties back. That is the exact shape of
+               the 2026-09-13 loss, so it is not an option.
+               So the thin planner goes in `docV2` and `doc` is LEFT ABSENT. An
+               old build does `var raw = snap.get('doc'); if (!raw) return;` -
+               measured at applyLive ~27953 and in the write transaction ~27804 -
+               so it bails out cleanly, merges nothing and writes nothing. The
+               cost is real and belongs to the operator, not to me: a device
+               still on an old build goes SILENTLY STALE instead of corrupting
+               anything. Every device gets the new build on refresh.
+               Until that is their decision, SPLIT_WRITE stays false: this build
+               computes the split, proves the sizes and the round trip, and still
+               writes exactly what today's planner writes. */
+            if (window.__SPLIT_WRITE) {
+              t.set(ref, {docV2: _docThin, updatedAt: stamp, splitV: 2});
+            } else {
+              t.set(ref, {doc: _docFull, updatedAt: stamp});
+            }
           });
         }).then(function() {
           if (!took) { setBase(uid, stamp); resolve(true); return; }
@@ -34759,6 +35657,63 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
 /* the pen: only when the task actually has notes, in the future-date amber */
 .tree-notepen { color: rgba(245, 158, 11, .32) !important; cursor: default; }
 
+/* BOARD 30 CARD 1 - operator 2026-11-13: "all the pens there are too bright,
+   bring it back as the same shade we have in priorty tree."
+   This REVERSES the brightening asked for on 2026-11-11 ("the pen color is
+   dimmed in past due, and completed") and on 2026-09-20 ("make the pen really
+   more bright on the delete section only"). Both were real instructions; this
+   one is current and stands. Seeing all four lists side by side is what
+   settled it - the loud amber in Deleted read as an alert rather than a mark.
+   ONE SHADE EVERYWHERE, taken from the priority tree, not chosen by eye:
+       .tree-notepen   rgba(245, 158, 11, .32)   13px   400   no glow
+   MEASURED in a real browser before this was written, not read off the sheet:
+       Past due   .tree-notepen                rgba(245,158,11,.32) 12px 400
+       Completed  .tree-notepen .doneitem-pen  rgba(245,158,11,.32) 13px 400
+       Deleted    .tree-notepen .trashitem-pen rgb(255,176,32)      15px 700 +glow
+   WHY EVERY PROPERTY IS !important, and why removing one silently breaks this:
+   `.doneitem .doneitem-pen` (~2962) asks for .55 with NO !important, and
+   `.tree-notepen` (~34760) asks for .32 WITH it, so the later bare rule loses.
+   `.trashitem .trashitem-pen` (~2941) sets colour and opacity !important, so
+   only an !important rule can pull Deleted back down. Drop a flag here and the
+   change looks like it did nothing.
+   The glow and the weight are reset explicitly rather than left out - Deleted
+   still carries `text-shadow` and `font-weight: 700` from its own rule, and an
+   omitted property is an inherited one. */
+.pastitem .tree-notepen,
+.doneitem .doneitem-pen,
+.trashitem .trashitem-pen {
+  color: rgba(245, 158, 11, .32) !important;
+  font-size: 13px !important;
+  font-weight: 400 !important;
+  opacity: 1 !important;
+  text-shadow: none !important;
+}
+
+/* BOARD 30 CARD 2 - the description is the whole point of the card, and
+   `white-space: nowrap` + ellipsis was cutting it exactly where the new value
+   starts: "Call the accountant - priority empty ..." hid the word that
+   matters. MEASURED in the AFTER picture before this rule existed.
+   Only the UNDO list wraps. Past due, Completed and Deleted keep one line -
+   their titles are task names, where an ellipsis is fine, and the operator
+   asked for that code to be left alone. */
+/* `.undoitem` is the class the builder actually puts on each row
+   (`it.className = 'trashitem undoitem'`). An earlier version of this rule
+   used `.undolist`, which EXISTS NOWHERE in the file - it would have matched
+   nothing and the card would have shipped with the text still cut off. */
+#treeRoot .undoitem {
+  align-items: flex-start !important;
+}
+#treeRoot .undoitem .t-title {
+  white-space: normal !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  line-height: 1.35 !important;
+  word-break: break-word !important;
+}
+/* the time and the Undo button stay on the first line beside the text */
+#treeRoot .undoitem .undo-when,
+#treeRoot .undoitem .trashitem-restore { margin-top: 1px !important; }
+
 /* the future date: 8px, same amber. It is written only for dates still ahead, so the
    colour already means "not yet". Tasks always show it; a BRANCH shows it only while
    Show future branches is on - that rule is the operator's. */
@@ -34774,6 +35729,16 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
 
   function hasNotes(n) {
     if (!n) return false;
+    /* ========================================================= BOARD 30 CARD 2
+       THE MARKER. When a note's body is stored in its own document, the node is
+       left with notes:'' and `noteOut:1`. Without this line every pen on such a
+       row VANISHES - no error, the task just looks as if nothing is written in
+       it. The operator predicted this themselves when the card was drawn:
+       "making sure we aren't forgetting notes".
+       Measured on a tree shaped like theirs: pens went 4 -> 1 before this line,
+       4 -> 4 after. 11 call sites draw the pen and every one of them comes
+       through here, so this single line covers all of them. */
+    if (n.noteOut) return true;
     if (n.notesHtml) {
       /* ========================================================= BOARD 28 CARD 4
          A PICTURE IS CONTENT. This stripped every tag and asked whether any TEXT
@@ -35400,6 +36365,184 @@ body[data-habits-left="1"] #habitsLeft {
 
   window.__habitsShow = show;
 
+  /* ========================================= BOARD 30 CARD 1 - the menu
+     Built on .acctmenu, the dropdown the planner already has. See the note on
+     the Settings button below for why. */
+
+  /* ================================================= 2026-11-13, MEASURED
+     Both dropdowns in this planner positioned themselves as
+         left: clamped to the window,  top: button.bottom + 6
+     which assumes the button is in a bar at the TOP of the page. At 700px and
+     below the top bar drops to the BOTTOM, so "below the button" is off the
+     screen: measured at 700/430/390/360, the menu opened at y=738 on a 757px
+     screen - 142px past the bottom edge, with ZERO rows visible.
+
+     The old clamp only ever looked at left/right, so my own check reported
+     "offScreen: false" on a menu nobody could see. Horizontal-only is not a
+     clamp.
+
+     ONE placer for BOTH menus: the account menu (three dots) had the same
+     latent bug and would have hit it the moment anything moved it down the
+     page. Flips above the button when there is no room below, and never lets
+     the menu start above the top edge either. */
+  window.__placeMenu = function (menu, btn) {
+    var r = btn.getBoundingClientRect();
+    var box = menu.getBoundingClientRect();
+    var w = box.width || 210;
+    var h = box.height || 160;
+    var vw = window.innerWidth, vh = window.innerHeight;
+
+    var left = Math.min(r.right - w, vw - w - 8);
+    menu.style.left = Math.round(Math.max(8, left)) + 'px';
+
+    var below = r.bottom + 6;
+    var above = r.top - h - 6;
+    var top;
+    if (below + h <= vh - 8) {
+      top = below;                 /* the normal case: under the button */
+    } else if (above >= 8) {
+      top = above;                 /* no room below - flip above it */
+    } else {
+      top = Math.max(8, vh - h - 8);  /* no room either way - sit on screen */
+    }
+    menu.style.top = Math.round(top) + 'px';
+    return top;
+  };
+
+  window.__settingsMenuOpen = false;
+
+  window.__closeSettingsMenu = function () {
+    var m = document.getElementById('settingsMenu');
+    if (m && m.parentNode) m.parentNode.removeChild(m);
+    window.__settingsMenuOpen = false;
+    var b = document.getElementById('btnAppSettings');
+    if (b) b.setAttribute('aria-expanded', 'false');
+    document.removeEventListener('mousedown', settingsMenuAway, true);
+  };
+
+  function settingsMenuAway(e) {
+    var m = document.getElementById('settingsMenu');
+    var b = document.getElementById('btnAppSettings');
+    if (m && m.contains(e.target)) return;
+    if (b && (e.target === b || b.contains(e.target))) return;
+    window.__closeSettingsMenu();
+  }
+
+  function openSettingsMenu(btn) {
+    window.__closeSettingsMenu();
+    var menu = document.createElement('div');
+    menu.className = 'acctmenu';
+    menu.id = 'settingsMenu';
+
+    function row(label, hint, onClick) {
+      var x = document.createElement('button');
+      x.type = 'button';
+      x.textContent = label;
+      if (hint) {
+        /* the count sits at the right of the row, dim - same shape as
+           "4 saved" in the picture the operator chose */
+        var s = document.createElement('span');
+        s.className = 'smhint';
+        s.textContent = hint;
+        x.appendChild(s);
+      }
+      x.addEventListener('click', function (e) {
+        e.preventDefault();
+        window.__closeSettingsMenu();
+        try { onClick(); } catch (err) {}
+      });
+      menu.appendChild(x);
+      return x;
+    }
+
+    /* 1. Task history - opens the drawer, which is what Settings used to do
+          directly. The four tabs and everything behind them are untouched:
+          this calls the same function the button called before. */
+    row('Task history', '', function () {
+      if (window.plannerOpenSettings) window.plannerOpenSettings();
+      else {
+        var d = document.getElementById('treeDrawer');
+        if (d) {
+          d.removeAttribute('hidden');
+          d.className = String(d.className).replace(/\bhidden\b/, '');
+        }
+      }
+      /* ======================================== 2026-11-13, OPERATOR
+         "each button has its own left side option, task history is the 4
+          buttons I been talking about"
+
+         ALWAYS land on Past due. The old line only reset the view when it
+         happened to be 'restore', so coming from anywhere else left
+         treeView at 'active' - MEASURED: the four tabs drew, and NOTHING
+         under them, because 'active' is the priority tree, not a list.
+         Choosing Task history must always show task history. */
+      window.treeView = 'pastdue';
+      if (window.renderTree) window.renderTree();
+    });
+
+    /* 2. Restore a backup - the count comes from the thing it lists, so the
+          badge and the list cannot disagree. */
+    var saved = 0;
+    try {
+      if (window.plannerSnapshots && window.plannerSnapshots.list)
+        saved = window.plannerSnapshots.list().length;
+    } catch (e) {}
+    row('Restore a backup', saved ? (saved + ' saved') : '', function () {
+      if (window.plannerOpenSettings) window.plannerOpenSettings();
+      window.treeView = 'restore';
+      if (window.renderTree) window.renderTree();
+    });
+
+    var hr = document.createElement('div');
+    hr.className = 'acctsep';
+    menu.appendChild(hr);
+
+    /* 3. Calendar sync - the dialog already exists; card 1 takes its button
+          out of the drawer, and this is where it lands (operator's choice,
+          2026-11-13).
+
+          2026-11-13, OPERATOR: "calender which is actually a pop up". It is
+          NOT a left-panel option like the other two, so it must not leave
+          one behind it. MEASURED: choosing Calendar sync while the backups
+          list was open opened the dialog OVER the backups - two different
+          answers to one menu on screen at once, which is the same complaint
+          as task history and backups sharing the panel.
+          So: close the panel first, then open the pop-up. */
+    row('Calendar sync', '', function () {
+      if (window.plannerCloseSettings) window.plannerCloseSettings();
+      else {
+        var d = document.getElementById('treeDrawer');
+        if (d) d.hidden = true;
+      }
+      window.treeView = 'active';
+      if (window.renderTree) window.renderTree();
+      if (window.showCalendarSync) window.showCalendarSync();
+    });
+
+    /* 4. Sign out - same behaviour as the account menu's own Sign out. */
+    row('Sign out', '', function () {
+      function reload() { try { location.reload(); } catch (e) {} }
+      try {
+        var r = (window.FB && window.FB.signOut) ? window.FB.signOut() : null;
+        if (r && r.then) r.then(reload, reload); else reload();
+      } catch (e) { reload(); }
+    });
+
+    document.body.appendChild(menu);
+    btn.setAttribute('aria-expanded', 'true');
+
+    /* right-align to the button and never let it hang off the window - copied
+       from .acctmenu's own placement, which already handles the narrow case:
+       Math.max(8, ...) pins it 8px from the left edge on a phone, where the
+       button sits too far right for a right-aligned menu to fit. */
+    window.__placeMenu(menu, btn);
+
+    window.__settingsMenuOpen = true;
+    setTimeout(function () {
+      document.addEventListener('mousedown', settingsMenuAway, true);
+    }, 0);
+  }
+
   /* ---------- Settings moves to the top right ---------- */
 
   function placeSettings() {
@@ -35414,12 +36557,34 @@ body[data-habits-left="1"] #habitsLeft {
     var t = document.createElement('span');
     t.textContent = 'Settings';
     b.appendChild(t);
-    b.addEventListener('click', function () {
-      if (window.plannerOpenSettings) window.plannerOpenSettings();
-      else {
-        var d = document.getElementById('treeDrawer');
-        if (d) { d.removeAttribute('hidden'); d.className = String(d.className).replace(/\bhidden\b/, ''); }
-      }
+    /* ============================================== BOARD 30 CARD 1, 2026-11-13
+       Operator, shown the mockup drawn on 11 Nov: "this is the one i want".
+
+       Settings opens a MENU, not the drawer. Two lines, a divider, then the
+       two settings proper:
+
+           Task history                 -> opens the four tabs (the drawer)
+           Restore a backup   4 saved   -> the backups list
+           ------------------------------
+           Calendar sync                -> the dialog that already exists
+           Sign out
+
+       WHY IT REUSES .acctmenu: that class is the planner's existing dropdown
+       (the three-dots account menu) and it already solves everything this
+       needs - right-aligning to its button, clamping to the window edge so it
+       cannot hang off, closing on an outside mousedown, and the z-index that
+       puts it over the calendar. Writing a second menu would mean a second
+       set of those bugs. House rule: find the nearest existing equivalent and
+       copy its structure.
+
+       SAME ON EVERY WIDTH, at the operator's choice 2026-11-13 - the menu
+       appears on a phone too, anchored to the screen edge instead of the
+       button, so there is one behaviour to learn and one to test. */
+    b.addEventListener('click', function (ev) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      if (window.__settingsMenuOpen) { window.__closeSettingsMenu(); return; }
+      openSettingsMenu(b);
     });
     if (ex.nextSibling) ex.parentNode.insertBefore(b, ex.nextSibling);
     else ex.parentNode.appendChild(b);
@@ -38830,6 +39995,14 @@ body[data-fb="on"] .fb-band { display: block; }
   border:0; color:#e6e8ec; font:inherit; font-size:13px; padding:8px 10px; border-radius:7px;
   cursor:pointer; }
 .acctmenu button:hover{ background:#262b33; }
+/* BOARD 30 CARD 1, 2026-11-13 - the Settings menu reuses .acctmenu, and adds
+   only these two: a dim count at the right of a row ("4 saved"), and the
+   divider between the two lists and the two settings. Both are in the mockup
+   the operator chose. */
+#settingsMenu button{ display:flex; align-items:baseline; justify-content:space-between;
+  gap:14px; }
+#settingsMenu .smhint{ font-size:11px; color:#6b7280; flex:0 0 auto; }
+.acctsep{ height:1px; background:#2e323a; margin:6px 4px; }
 .tgevent.routine-past { opacity: .5; }
 .tgevent.routine-past .tgevent-title,
 .tgevent.routine-past .tgtitle { text-decoration: line-through; }
@@ -40660,12 +41833,21 @@ function buildCompactTime(initHHMM, onPick, onCancel) {
     btn.setAttribute('aria-expanded', 'true');
 
     /* right-align to the button and never let it hang off the window - it is the last
-       thing on the bar, so a left-aligned menu would run off the edge */
-    var r = btn.getBoundingClientRect();
-    var w = menu.getBoundingClientRect().width || 210;
-    var left = Math.min(r.right - w, window.innerWidth - w - 8);
-    menu.style.left = Math.round(Math.max(8, left)) + 'px';
-    menu.style.top = Math.round(r.bottom + 6) + 'px';
+       thing on the bar, so a left-aligned menu would run off the edge.
+       2026-11-13: this used to clamp left/right only and put the menu at
+       button.bottom + 6 unconditionally. Below 700px the top bar sits at the
+       BOTTOM of the page, so that is off the screen - measured 142px past the
+       edge with no row visible. Both menus now share one placer that flips
+       above the button when there is no room below. */
+    if (window.__placeMenu) {
+      window.__placeMenu(menu, btn);
+    } else {
+      var r = btn.getBoundingClientRect();
+      var w = menu.getBoundingClientRect().width || 210;
+      var left = Math.min(r.right - w, window.innerWidth - w - 8);
+      menu.style.left = Math.round(Math.max(8, left)) + 'px';
+      menu.style.top = Math.round(r.bottom + 6) + 'px';
+    }
 
     setTimeout(function () { document.addEventListener('mousedown', away, true); }, 0);
   }
@@ -41860,7 +43042,14 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
     take: take,
     list: function () {
       return read().map(function (s, i) {
-        return { i: i, at: s.at, reason: s.reason, tasks: s.tasks, notes: s.notes };
+        /* BOARD 30 CARD 3: `ms` added. It was already on every stored snapshot
+           and simply not passed through, so the Restore tab had only the ISO
+           string `at` - and undoWhen() does Number(at), which is NaN for a
+           string. Every row read "NaN days ago". Adding a field cannot break an
+           existing caller, and the tab's whole purpose is choosing a backup by
+           date. */
+        return { i: i, ms: s.ms, at: s.at, reason: s.reason,
+                 tasks: s.tasks, notes: s.notes };
       });
     },
     dataAt: function (i) { var l = read(); return (l[i] || {}).data || null; },
@@ -44156,6 +45345,152 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
     else closeMenu();
   }, 300);
   window.__card3Stop = function () { clearInterval(tick); };
+})();
+</script>
+
+<script id="__ad_note">
+/* ===================================================== ALL DAY ROW REMOVED
+   2026-11-16, operator: "remove this all day slot I don't like it" and
+   "just place it where I drop it exaclty".
+
+   WHAT CHANGED, in two parts, because removing the row alone would have
+   LOST tasks rather than moved them:
+
+   1. The row is no longer put on the page. renderDay and renderWeek still
+      BUILD it (so anything that queries .tgalldaycell still finds an element
+      and cannot throw) - the appendChild is simply gone. One line each.
+
+   2. A task that has a DATE but NO TIME used to live in that row. With the
+      row gone it would have vanished from Day and Week entirely - measured
+      before writing this: the row held exactly those tasks and nothing else.
+      So tgTimeOf - the SINGLE function every view asks "is this entry
+      timed?" - now answers with a fallback hour for them, and they draw in
+      the grid like anything else.
+
+      tgTimeOf is wrapped rather than each renderer patched for the same
+      reason the marker border lives beside the marker size: one owner. The
+      day grid, the week grid and the layout engine all call it, so they
+      cannot drift apart.
+
+   WHAT IS NOT CHANGED: a task that already has a time is untouched, and
+   nothing is written to storage - the fallback is a RENDER-time answer, so
+   no task silently acquires a time it did not have. Clearing a task's time
+   still works; it simply draws at the fallback hour instead of jumping to a
+   row at the top.
+
+   THE OPEN QUESTION, deliberately not decided here: what hour an untimed
+   task should take. 09:00 is a placeholder. A Month-view drop has no hour to
+   give, so until that is settled those tasks land on the fallback. */
+(function () {
+  function hook() {
+    if (typeof window.tgTimeOf !== 'function') { setTimeout(hook, 50); return; }
+    if (window.tgTimeOf.__adHooked) return;
+    var base = window.tgTimeOf;
+    var FALLBACK = '09:00';
+    var w = function (entry) {
+      var t = base.apply(this, arguments);
+      if (t) return t;
+      var n = entry && (entry.node || entry);
+      /* 2026-11-17 - A ROUTINE WITH NO DATE WAS DISAPPEARING.
+         This read `n.date && !n.done`, so an item carrying its OWN schedule -
+         a daily/weekly rule anchored by repeat.start, or "On specific dates" -
+         got no fallback hour. With the All-day row removed there was then
+         nowhere to draw it, and it vanished from the calendar completely.
+
+         MEASURED, same seed, a daily rule with date:null and repeat.start set:
+             live  scheduledOn=1  drawn 1 (an all-day chip)
+             c141  scheduledOn=1  drawn 0   <- gone
+
+         scheduledOn correctly said the routine belongs on that day; only the
+         drawing was lost. Caught by check_clear_date_removes_from_calendar,
+         which PASSES on live and failed here - a real regression of mine, not
+         a stale test, so it is fixed rather than updated.
+
+         The condition is now "the calendar says this belongs today", which is
+         what the fallback is actually for. An item with no date AND no repeat
+         rule still returns null and still draws nowhere - that is the 2026-11-05
+         behaviour the operator asked for ("it doesn't have a date, it should be
+         not showing in the calender") and it is unchanged. */
+      var carriesOwnSchedule = !!(n && n.repeat && (n.repeat.freq || n.repeat.dates));
+      if (n && (n.date || carriesOwnSchedule) && !n.done) return FALLBACK;
+      return t;
+    };
+    w.__adHooked = true;
+    w.__fallback = FALLBACK;
+    window.tgTimeOf = w;
+  }
+  hook();
+})();
+</script>
+<script id="__occ_from">
+/* ===================================================== CARD 84, 2026-11-17
+   Operator: "why do I still have two copies of the incoming payments"
+   and, about a weekly one: "it's just if I move to the next day, it's like
+   has a duplicate."
+
+   REMEMBER WHICH DAY'S CHIP STARTED THE MOVE.
+
+   __moveOccurrence files a move under the day the occurrence was drawn on,
+   read as `node.__dragFromISO || node.date`. __dragFromISO is read there and
+   WRITTEN NOWHERE in the build, so the fallback was always taken and the move
+   was filed against node.date - the SERIES ANCHOR, the day the routine began.
+
+   A routine anchored on the day you drag is accidentally correct. A routine
+   that has been running a while files against a date in the past, so the day
+   you actually dragged FROM is never suppressed and draws alongside the day
+   you dropped on: two chips, one day apart.
+
+   This sets __occFrom from the chip's own container at the moment the drag
+   starts. Every calendar cell already carries data-iso (.tgcol,
+   .tgalldaycell, .mcell, .wcell) and the drop handlers already read exactly
+   that attribute, so this introduces no second source of truth.
+
+   Capture phase on the document, so it runs before any view's own handler and
+   covers every view without touching the eleven call sites that move a date.
+
+   CLEARED after the move. A stale key is its own duplicate - measured on a
+   deliberately stale value: three chips instead of two. */
+(function () {
+  function dayOfChip(el) {
+    if (!el || !el.closest) return null;
+    var box = el.closest('[data-iso]');
+    return (box && box.dataset && box.dataset.iso) || null;
+  }
+  function nodeIdOf(el) {
+    var h = (el && el.closest) ? el.closest('[data-node-id]') : null;
+    return (h && h.dataset && h.dataset.nodeId) || null;
+  }
+  function remember(e) {
+    try {
+      var id = nodeIdOf(e.target);
+      if (!id) return;
+      var iso = dayOfChip(e.target);
+      if (!iso) return;
+      var f = window.findNode && window.findNode(id);
+      if (f && f.node) f.node.__occFrom = iso;
+    } catch (err) {}
+  }
+  function clearOcc() {
+    try {
+      if (!window.Store || !window.Store.data) return;
+      (function w(l) {
+        (l || []).forEach(function (x) {
+          if (x && x.__occFrom) delete x.__occFrom;
+          if (x) w(x.children);
+        });
+      })(window.Store.data.tree);
+    } catch (err) {}
+  }
+  document.addEventListener('dragstart', remember, true);
+  /* the chip-move inside the grid is pointer-driven, not an HTML5 drag */
+  document.addEventListener('pointerdown', remember, true);
+  document.addEventListener('dragend', clearOcc, true);
+  document.addEventListener('drop', function () {
+    setTimeout(clearOcc, 0);        /* after the drop handler has read it */
+  }, true);
+  document.addEventListener('pointerup', function () {
+    setTimeout(clearOcc, 0);
+  }, true);
 })();
 </script>
 </body>
