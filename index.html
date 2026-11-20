@@ -6675,7 +6675,7 @@ window.__rollHorizon = function () {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-11-19 19:05</span>
+    <span id="buildStamp">build 2026-11-19 21:48</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -27072,15 +27072,30 @@ if (r.freq === 'yearly') {
     }
 
     function start() {
-        var el = document.getElementById('buildStamp');
-        MINE = el ? el.textContent.trim() : '';
-        if (!MINE) {
-            return;
-        }
-        setInterval(check, 60000);
-        setTimeout(check, 8000);
-        document.addEventListener('visibilitychange', check);
-        window.addEventListener('focus', check);
+        /* ============================================================ CARD 93
+           operator 2026-11-19: "it looks like i have two features, the yellow
+           things that pop up and another black one for intiating new a new
+           load, can you make it only one, the yellow one."
+
+           TWO notices were telling them the same thing. REPRODUCED before
+           changing anything - served a copy with a newer stamp and both
+           appeared together for ONE new build:
+               #staleBar        rgb(179,128,30)  yellow, across the bottom
+               .newbuild-pill   rgb(76,154,255)  blue,  bottom right
+           Each polls the build stamp on its own timer.
+
+           The yellow #staleBar stays (their choice). THIS module is the blue
+           pill, and it did one thing the bar does not: when a new build landed
+           and they were NOT typing it called location.reload() with no prompt
+           at all, and when they WERE typing it showed the pill and ran a
+           1.5s timer to reload the moment they stopped. Asked directly, they
+           chose to lose that too - a new build must never interrupt them, and
+           the page now loads only when they click the yellow bar's button.
+
+           Stopped at start() rather than deleting the module: this is the one
+           entry point, so nothing else can reach show(), startWaiter() or the
+           reload, and the code stays readable if they ever want it back. */
+        return;
     }
 
     if (document.readyState === 'loading') {
