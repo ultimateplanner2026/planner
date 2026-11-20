@@ -6675,7 +6675,7 @@ window.__rollHorizon = function () {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-11-19 21:48</span>
+    <span id="buildStamp">build 2026-11-19 22:34</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -18825,11 +18825,31 @@ function firstConnect(remote, rAt, lAt) {
     stampInDrawer();
     var tog = document.getElementById('btnTreeToggle');
     if (tog) tog.addEventListener('click', function () { setTimeout(stampInDrawer, 60); });
-    setTimeout(check, 4000);
-    setInterval(function () { if (!document.hidden) check(); }, EVERY);
-    document.addEventListener('visibilitychange', function () {
-      if (!document.hidden) check();
-    });
+    /* ================================================================ CARD 94
+       operator 2026-11-19: "so is the live updated to one pop up cuz i get two."
+
+       I WAS WRONG ON CARD 93 AND THEY WERE RIGHT. I found two notices, assumed
+       they were the two they meant, and shipped. There are THREE, and the one
+       I removed was not the one they were looking at:
+
+           #staleBar     yellow bar, bottom      - polls the page's build stamp
+           .newbuild-pill blue pill, bottom right - polls the stamp  (stopped, card 93)
+           #updateChip   DARK box, bottom centre - polls the GITHUB API
+
+       This module is #updateChip - the "black one" in their words. It is dark
+       (var(--surface,#222)) with a Reload button, and it never compared build
+       stamps at all: it asks api.github.com for the newest commit touching
+       index.html, which is why it kept appearing after every push and why
+       stopping the stamp-based pill did not silence it.
+
+       stampInDrawer() ABOVE is kept - it writes the build stamp into the
+       settings drawer and has nothing to do with the popup. Only the three
+       pollers that can reach chip() are stopped, so no timer, no visibility
+       handler, and no GitHub request. The yellow #staleBar is untouched and is
+       now the only notice.
+
+       Checked before stopping: chip() is reachable only from check(), and
+       check() only from these three lines. */
   }
 
   if (document.readyState === 'loading') {
