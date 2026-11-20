@@ -4733,7 +4733,31 @@ input:focus, textarea:focus, select:focus {
   padding-bottom: 58px;
 }
 :root[data-chrome="bottom"] #main { padding-bottom: 0 !important; }
-:root[data-chrome="bottom"] section#rightPane { padding-bottom: 0 !important; }
+/* ===================================================================== CARD 96
+   operator 2026-11-20, on their phone: the controls strip was visible but dead.
+
+   MEASURED with elementFromPoint on the live build at 393x852:
+       #bottomBar   779-852   h=73   (position:absolute in #treePane, z 100000)
+       #calTopbar   786-852   h=66
+       -> 66px of overlap, bar on top
+       Sync, Export, Settings, Import and the kebab all reported BLOCKED -
+       on screen, and every tap landed on the tab bar instead.
+
+   WHY: the bar is absolutely positioned inside #treePane, and #treePane
+   reserves 58px for it (the rule above). #rightPane holds the controls strip,
+   sits AFTER the tree in the column, and this line reserved NOTHING - so it
+   ran underneath.
+
+   58px was already wrong: the bar measures 73px, identically at 393, 375, 430
+   and 360 wide (measured on all four), because its padding and label grew after
+   that number was written. So the space reserved here is the REAL height plus
+   the phone's home-indicator inset, not a number that has already drifted once.
+
+   Proven live before editing this file: overlap 66 -> -1, and all five controls
+   go BLOCKED -> OK while Plan/Alarms/Habits stay reachable. */
+:root[data-chrome="bottom"] section#rightPane {
+  padding-bottom: calc(74px + env(safe-area-inset-bottom, 0px)) !important;
+}
 
 /* BUG 9 (operator) - the typing fix flickers.
    Restoring the caret after a redraw repaints the row, which reads as a flash.
@@ -6695,7 +6719,7 @@ window.__rollHorizon = function () {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-11-20 00:21</span>
+    <span id="buildStamp">build 2026-11-20 09:12</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
