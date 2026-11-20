@@ -6675,7 +6675,7 @@ window.__rollHorizon = function () {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-11-18 01:41</span>
+    <span id="buildStamp">build 2026-11-19 19:05</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -15278,7 +15278,22 @@ function surfaceArrivals() {
         var nid = row.getAttribute('data-id');
         var info = window.findNode(nid);
         if (!info || !info.node) continue;
-        if (info.node.done) {
+        /* ============================================================ CARD 91
+           operator 2026-11-19: "make a show completed tasks on tree".
+
+           MEASURED on the live build first, because I had assumed completed
+           branches were merely struck through: a finished branch carries an
+           INLINE display:none written right here, so it is fully hidden, and
+           its still-open CHILD stays visible (nothing is orphaned by this).
+
+           This loop is the one owner of that hiding - the Active view's own
+           rule - so the switch belongs here rather than in a second filter
+           fighting it ([[feedback_fix_the_owner_not_the_call_site]]). When
+           __doneShowing() is on, a completed branch is simply not hidden; the
+           existing data-viewhidden marker is still what gets cleared, so the
+           hide-future, tag and focus filters above are untouched. */
+        var showDone_ = !!(window.__doneShowing && window.__doneShowing());
+        if (info.node.done && !showDone_) {
           row.style.display = 'none';
           row.setAttribute('data-viewhidden', '1');
         } else if (row.hasAttribute('data-viewhidden')) {
@@ -34474,25 +34489,19 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
        real state, and shows how many branches are in focus, the way
        "Show future branches" shows its count. */
     (function () {
+      /* CARD 91: the numbers come off THIS line too. The operator said "don't
+         put a number on either" of the two numbered lines they were looking at,
+         and leaving a count on the line directly above them would keep exactly
+         the thing they asked to be rid of. Flagged in the reply, not decided
+         silently - the tick still says the switch is on, and the blue button
+         still names the focused branch. */
       var fid = window.__focusId;
       var n = Array.isArray(fid) ? fid.length : (fid ? 1 : 0);
       if (n > 0) {
-        if (n > 1) {
-          var cnt = document.createElement('span');
-          cnt.className = 'kids';
-          cnt.textContent = String(n);
-          b2.appendChild(cnt);
-        }
         var sp = document.createElement('span');
         sp.className = 'gearcheck';
         sp.textContent = '\u2713';
         b2.appendChild(sp);
-      } else if (window.__focusPick) {
-        /* mid-selection: say so, rather than showing nothing */
-        var pk = document.createElement('span');
-        pk.className = 'gearcount';
-        pk.textContent = String((window.__focusPending || []).length);
-        b2.appendChild(pk);
       }
     })();
     menuEl.appendChild(b2);
@@ -34503,6 +34512,18 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
     b3.textContent = 'Missed';
     /* 2026-09-04: the footer button is gone at the operator's request, so this line owns the
        toggle. The overdue module exposes the count and the switch. */
+    /* ================================================================ CARD 92
+       operator 2026-11-19: "you can show how many missed on like a number in
+       the drop down".
+
+       MISSED IS THE ONE LINE THAT KEEPS ITS NUMBER. Card 91 took every count
+       off; this puts back exactly one, because a count of what you have missed
+       is information you act on, while a count of future or completed items
+       was only decoration. Same 'gearcount' pill the line carried before, and
+       the same source - window.__odCount(), which the routines module hooks so
+       a repeating task that has come round again is not counted.
+
+       Still hidden at zero: "Missed 0" is noise, and the line already dims. */
     var n = (typeof window.__odCount === 'function') ? window.__odCount() : 0;
     if (n > 0) {
       var sp2 = document.createElement('span');
@@ -34527,16 +34548,33 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
     var b4 = document.createElement('button');
     b4.type = 'button';
     b4.className = 'gearitem';
-    b4.textContent = 'Show future branches';
-    if (typeof window.__futCount === 'function') {
-      var fc = window.__futCount();
-      if (fc > 0) {
-        var k = document.createElement('span');
-        k.className = 'kids';
-        k.textContent = String(fc);
-        b4.appendChild(k);
-      }
-    }
+    /* ============================================================== CARD 89
+       operator 2026-11-19: "for the wording, show future task is better for show
+       future branches? what do you think and other alternative would you like for
+       wording?"
+
+       COUNTED the real user-visible strings in this file rather than offering an
+       opinion (comments stripped, so only strings the operator can actually read):
+           'Show future tasks'      6     row menu, three-dots menu, Edit gear
+           'Hide future tasks'      5     the same menus' off state
+           'Show future branches'   1     THIS LINE, and nowhere else
+       So "tasks" had already won 11 to 1, and this was the last straggler - one
+       menu disagreeing with every other menu reads as a bug, not a distinction.
+       They chose to make it match ([[feedback_match_the_existing_behaviour_exactly]]).
+
+       CHECKED BEFORE RENAMING, because a text search is how a label rename breaks
+       something: twoWayHidden() matches the literal 'Show future tasks', but it
+       searches '.actmenu-item' inside the ROW's action menu, while this builds
+       '.gearitem' inside '.tree-gearmenu' - different class, different container,
+       so it cannot now pick up this line by mistake. Nothing else keys on the old
+       string; the other ten occurrences in this file are all comments.
+
+       The switch itself is untouched - same __futToggle, __futCount, __futShowing. */
+    b4.textContent = 'Show future tasks';
+    /* CARD 91, operator 2026-11-19: "don't put a number on either". The count
+       pill is gone from this line and from Missed below; the tick still says
+       whether the switch is on. The counting function is left in place - it is
+       not this card's to delete, and nothing else is changed by leaving it. */
     if (window.__futShowing && window.__futShowing()) {
       var ck = document.createElement('span');
       ck.className = 'gearcheck';
@@ -34550,6 +34588,31 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
       closeMenu();
     };
     menuEl.appendChild(b4);
+
+    /* ================================================================ CARD 91
+       operator 2026-11-19: "make a show completed tasks on tree".
+
+       Built exactly like b4 above - same element, same class, same tick span -
+       so the two read as one menu. No count, per the same instruction.
+       The toggle is __doneToggle, which flips one localStorage key and
+       re-renders; the Active view's own loop does the hiding. */
+    var b5 = document.createElement('button');
+    b5.type = 'button';
+    b5.className = 'gearitem';
+    b5.textContent = 'Show completed tasks';
+    if (window.__doneShowing && window.__doneShowing()) {
+      var ck5 = document.createElement('span');
+      ck5.className = 'gearcheck';
+      ck5.textContent = '✓';
+      b5.appendChild(ck5);
+    }
+    b5.onclick = function () {
+      if (typeof window.__doneToggle === 'function') {
+        window.__doneToggle();
+      }
+      closeMenu();
+    };
+    menuEl.appendChild(b5);
 
     /* ============================================================= BOARD 30, 2026-09-26
        Operator: the habits/routines switch belongs "within the priority tree setting",
@@ -34649,6 +34712,57 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
     bCon.onclick = function () { setAllCollapsed(true); closeMenu(); };
     menuEl.appendChild(bCon);
 
+    /* ============================================================== CARD 90
+       operator 2026-11-19: "remove new goal from tree its reducntant, so it
+       should be focus mode, the show future tasks, then show routines & habits,
+       the missed  then expand all then contract all ... these are the order for
+       both".
+
+       NEW GOAL IS A DUPLICATE. The toolbar already carries #btnAddGoal, and the
+       menu line did nothing but click it. CHECKED BEFORE REMOVING, because a
+       control that is hidden at some width would make the menu the only way in -
+       measured on the live build at six widths:
+           1440 700 430 390 375 360   ->  26x26, display:flex, reachable at ALL
+       so the blue + is always on screen and nothing is stranded.
+
+       THE ORDER, theirs: Focus mode, Show future tasks, Show routines & habits,
+       Missed, then the divider, Expand all, Contract all.
+
+       HOW: every item above is built and appended where it is constructed, and
+       moving 150 lines of construction to re-sequence them is how a working
+       handler gets detached from its button. appendChild on an element already
+       in the parent MOVES it, so re-appending in the wanted order re-sequences
+       the DOM without touching a single handler, count or tick. Items are
+       listed by variable, not by reading their text - a label search would pick
+       up the wrong line the moment wording changes (card 89 renamed one). */
+    (function () {
+      try {
+        var ordered = [b2, b4];          /* Focus mode, Show future tasks */
+        /* "Show routines & habits" is built by hrItem(), which appends straight
+           to menuEl and returns nothing, so it has no variable to name. Take it
+           from the DOM by identity - the only .gearitem that is none of the
+           named buttons and is not Expand/Contract. b5 is named, so it is
+           excluded here and placed deliberately below - otherwise it would be
+           swept in as "the unnamed one" and land before routines. */
+        var known = [b1, b2, b3, b4, b5, bExp, bCon];
+        var items = menuEl.querySelectorAll('.gearitem');
+        for (var i = 0; i < items.length; i++) {
+          if (known.indexOf(items[i]) === -1) ordered.push(items[i]);
+        }
+        ordered.push(b5);                 /* Show completed tasks - CARD 91,
+                                             same slot as the Edit menu's */
+        ordered.push(b3);                 /* Missed */
+        ordered.push(gsep);               /* the divider */
+        ordered.push(bExp, bCon);         /* Expand all, Contract all */
+        for (var j = 0; j < ordered.length; j++) {
+          if (ordered[j] && ordered[j].parentNode === menuEl) {
+            menuEl.appendChild(ordered[j]);   /* moves it, does not clone */
+          }
+        }
+        /* New goal leaves the menu entirely - the toolbar + is the one way in */
+        if (b1 && b1.parentNode) b1.parentNode.removeChild(b1);
+      } catch (e) { /* a reorder must never cost them the menu */ }
+    })();
 
     document.body.appendChild(menuEl);
     openMenu = menuEl;
@@ -35136,6 +35250,32 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
 
   window.__futShowing = function(){
     return showing();
+  };
+
+  /* ================================================================= CARD 91
+     operator 2026-11-19: "make a show completed tasks on tree".
+
+     Modelled on __hrShowing / __hrSetShowing directly below - plain
+     localStorage plus a re-render - rather than on __futShowing, whose paint()
+     does its own row walking. The hiding itself is NOT re-implemented here:
+     the Active view's loop already owns it and now asks __doneShowing()
+     ([[feedback_reuse_dont_reimplement]]).
+
+     Its own key, so it cannot disturb the future or habits switches, and it
+     survives a reload the way the other two do. */
+  window.__doneShowing = function(){
+    try {
+      return window.localStorage.getItem('planner.showCompletedBranches') === '1';
+    } catch(e){ return false; }
+  };
+  window.__doneSetShowing = function(v){
+    try {
+      window.localStorage.setItem('planner.showCompletedBranches', v ? '1' : '0');
+    } catch(e){}
+    if (window.renderAll) { try { window.renderAll(); } catch(e){} }
+  };
+  window.__doneToggle = function(){
+    window.__doneSetShowing(!window.__doneShowing());
   };
 
   /* BOARD 30 CARD 4 - "show habits / routines", its own switch */
@@ -45310,7 +45450,13 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
 
     /* CARD 52: pass null (not 0) so Missed keeps reading exactly as the tree's
        Missed does - dimmed and with no number - now that item() prints zeros. */
-    var missedItem = item('Missed', {count: over || null, tick: S.missed}, function () {
+    /* CARD 92, operator 2026-11-19: "you can show how many missed on like a
+       number in the drop down" - Missed keeps its count here too, so the two
+       menus still read the same. Show completed tasks below stays bare.
+       `over || null` not `over`: item() prints a 0 if it is handed one, and
+       "Missed 0" is the noise card 91 removed - the line dims instead. */
+    var missedItem = item('Missed', {count: over || null, tick: S.missed},
+      function () {
       if (over === 0 && !S.missed) return;   /* nothing to show - say nothing */
       S.missed = !S.missed; apply();
     });
@@ -45318,7 +45464,9 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
     if (missedItem && over === 0 && !S.missed) missedItem.disabled = true;
     /* CARD 52 WORDING, operator 2026-11-05: "i want the wording to be show future
        tasks instead of subtasks, and same thing in show completed tasks". */
-    item('Show future tasks', {tick: S.fut}, function () {
+    /* CARD 90 keeps a handle on this line so the reorder at the end of the menu
+       can move it by identity rather than by matching its text. */
+    var futItem = item('Show future tasks', {tick: S.fut}, function () {
       S.fut = !S.fut; if (window.__eaSetShowFuture) window.__eaSetShowFuture(S.fut);
       apply();
     });
@@ -45349,25 +45497,112 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
         doneN++;
       }
     }
-    var doneItem = item('Show completed tasks', {count: doneN, tick: S.done},
+    var doneItem = item('Show completed tasks', {tick: S.done},
       function () {
         if (doneN === 0 && !S.done) return;   /* nothing to show - say nothing */
         S.done = !S.done; apply();
       });
     /* dim at zero, the same way Missed and the tree's own lines do */
     if (doneItem && doneN === 0 && !S.done) doneItem.disabled = true;
-    item('Show routines & habits', {tick: S.hab}, function () {
+    var hrItem_ = item('Show routines & habits', {tick: S.hab}, function () {
       S.hab = !S.hab;
       /* drawLevel decides whether the row is BUILT, so this one needs a redraw -
          re-filtering cannot reveal a row that was never created. */
       if (window.__eaRedrawSubs) window.__eaRedrawSubs();
       apply();
     });
+    /* ============================================================== CARD 88
+       operator 2026-11-19: "can you add focus mode to the setting inside the
+       edit task section. and have it do the same function as the button on the
+       tree setting for focus mode".
+
+       WHAT THE TREE'S BUTTON DOES, read rather than remembered: it is a TWO
+       STAGE control. Click #btnFocus -> __focusPick = true and every branch
+       gets a red box; then you CLICK A BRANCH and __focusApply(id) narrows the
+       tree and the calendar to it. The tree's own gear line is a thin wrapper
+       that just clicks that button.
+
+       Copying that wrapper verbatim here would arm picking behind a modal that
+       covers the tree, so there would be nothing to click. Asked which reading
+       they wanted, the operator chose FOCUS THIS TASK: the item being edited
+       becomes the focused branch at once, no picking step.
+
+       It calls __focusApply / __focusClear - the focus module's own entry
+       points, the same two the tree's picking overlay calls when you click a
+       branch. Nothing about focus is re-implemented here, so this can never
+       drift from the button ([[feedback_reuse_dont_reimplement]]).
+
+       MEASURED on the live build before writing a line of this, via
+       data-focushidden (the attribute the focus filter sets):
+           no focus   P - s1 - s2 - Q - R      nothing hidden
+           focus P    P - s1 - s2 - Q:1 - R:1  the branch and its subtasks stay
+           focus Q    P:1 s1:1 s2:1 - Q - R:1  a different branch, P's all hide
+           cleared    everything back
+       and window.__ebCurrentId reads 'P' when editing the parent and 's1' when
+       editing a subtask, so focusing a subtask focuses that subtask.
+
+       The tick reads __focusId the same way the tree's gear item does - the
+       real state, not a flag of its own ([[feedback_two_lines_about_one_state]]). */
+    var focusItem = null;
+    (function () {
+      var cur = window.__ebCurrentId || null;
+      var fid = window.__focusId;
+      var on;
+      if (Array.isArray(fid)) {
+        on = !!(cur && fid.indexOf(cur) !== -1);
+      } else {
+        on = !!(cur && fid === cur);
+      }
+      /* Focus may be on a DIFFERENT branch than the one being edited. The line
+         still turns it off, because that is what the tree's button does when
+         anything is focused - it is one switch, not one per task. */
+      var anyFocus = Array.isArray(fid) ? fid.length > 0 : !!fid;
+      var fi = item('Focus mode', {tick: on}, function () {
+        try {
+          if (anyFocus) {
+            if (window.__focusClear) window.__focusClear();
+            /* focused elsewhere -> move focus here rather than just clearing,
+               so one click always ends with THIS task in focus */
+            if (!on && cur && window.__focusApply) window.__focusApply(cur);
+          } else if (cur && window.__focusApply) {
+            window.__focusApply(cur);
+          }
+        } catch (e) { /* never let this break the menu */ }
+      });
+      /* no id means nothing to focus - dim it, the way Missed and the tree's
+         own lines go dim when they have nothing to do */
+      if (fi && !cur) fi.disabled = true;
+      focusItem = fi;
+    })();
     var sep = document.createElement('div');
     sep.style.cssText = 'height:1px;background:var(--line,#2e323a);margin:6px 0';
     m.appendChild(sep);
-    item('Expand all', null, function () { setAll(true); });
-    item('Contract all', null, function () { setAll(false); });
+    var expItem = item('Expand all', null, function () { setAll(true); });
+    var conItem = item('Contract all', null, function () { setAll(false); });
+
+    /* ============================================================== CARD 90
+       operator 2026-11-19, the order, same in BOTH menus:
+           Focus mode / Show future tasks / Show routines & habits / Missed
+           -------- divider --------
+           Expand all / Contract all
+
+       SHOW COMPLETED TASKS is not in the order they listed, and it is a switch
+       this window already had (card 52, their own request). Dropping a control
+       because a list did not repeat it would be me deciding to remove a feature,
+       so it STAYS, kept next to the other two "Show ..." switches. Raised in the
+       reply for them to move or remove.
+
+       Moved by identity with appendChild, not rebuilt and not matched on text -
+       the same reasoning as the tree menu above. */
+    (function () {
+      try {
+        var order = [focusItem, futItem, hrItem_, doneItem, missedItem,
+                     sep, expItem, conItem];
+        for (var i = 0; i < order.length; i++) {
+          if (order[i] && order[i].parentNode === m) m.appendChild(order[i]);
+        }
+      } catch (e) { /* never cost them the menu over an ordering */ }
+    })();
 
     document.body.appendChild(m);
 
