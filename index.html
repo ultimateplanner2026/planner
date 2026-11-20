@@ -5314,6 +5314,26 @@ input:focus, textarea:focus, select:focus {
    Whenever the panel holds content, the panel is shown. */
 .rep-body:has(.sd-cal),
 .rep-body:has(.rep-freq) { display: block !important; }
+/* ===================================================================== CARD 95
+   operator 2026-11-19: "i don't want it to be expanded position".
+   MEASURED CAUSE: the rule directly above beats any inline style, so once the
+   body held a frequency dropdown the panel was pinned open - refresh() set
+   display:none and the browser ignored it. That rule is still needed (a month
+   grid inside a display:none panel renders at zero size and every click falls
+   through to the backdrop), so the closed state is expressed on the WRAPPER,
+   one level up, where the two cannot fight. */
+.rep-wrap.rep-shut > .rep-body { display: none !important; }
+/* the right half clears the repeat, so it has to look like a control - but
+   only while there IS something to clear (refresh() adds the class) */
+.rep-value.rep-clearable {
+  cursor: pointer; padding: 2px 8px; border-radius: 5px;
+  border: 1px solid transparent;
+}
+.rep-value.rep-clearable:hover {
+  border-color: var(--line, #333844);
+  background: var(--s-raised, #262a33);
+  color: #ffb4b7;
+}
 .sd-cal { display: block; }
 .sd-day { min-height: 30px; }
 
@@ -6675,7 +6695,7 @@ window.__rollHorizon = function () {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-11-19 22:34</span>
+    <span id="buildStamp">build 2026-11-20 00:21</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -25261,9 +25281,53 @@ if (r.freq === 'yearly') {
     var body = document.createElement('div');
     body.className = 'rep-body';
 
+    /* ================================================================ CARD 95
+       operator 2026-11-19: "the repeat set up, i don't want it to be expanded
+       position", then "I would like it to open with one click but not
+       automatcally make it daily, I would have to physically click daily for
+       that", then - correcting a first attempt that put a "Does not repeat"
+       row in the dropdown - "no, I don't want that button on the bottom where
+       it says it doesn't repeat, on the right side where it would say never,
+       it should say what kind of repeat if it applies", and "i would say
+       clicking on repeat would open it". Scope: the EDIT TASK view.
+
+       THE BAR HAS TWO HALVES, and they do different jobs:
+           [ Repeat ................ Every day ]
+             ^ opens / closes         ^ the state, click to clear
+
+       OPENING IS NOT CHOOSING, which needs a state the panel never had - open,
+       with nothing selected - because until now "is the panel open" and "does
+       this task repeat" were THE SAME BIT (node.repeat). That is why one click
+       used to set Daily instantly: it was the only way to make the controls
+       appear. panelOpen is that third state; node.repeat stays the single
+       source of truth for the schedule itself. */
+    var panelOpen = false;
+
     function refresh() {
       val.textContent = window.plannerRepeatSummary(node);
-      body.style.display = node.repeat ? 'block' : 'none';
+      /* CARD 95: the right half is a control when there is something to clear,
+         and plain text otherwise - so it never invites a click that does
+         nothing. plannerRepeatSummary already prints 'Every day', 'Every week',
+         '2 set dates' or 'Never', which is exactly what they asked the right
+         side to say; it is not re-implemented here. */
+      if (node.repeat) {
+        val.classList.add('rep-clearable');
+        val.title = 'Click to clear the repeat';
+      } else {
+        val.classList.remove('rep-clearable');
+        val.removeAttribute('title');
+      }
+      /* MEASURED CAUSE of "expanded position": two owners disagreed and the CSS
+         won. This line sets an inline display, but
+             .rep-body:has(.rep-freq){ display:block !important }
+         (added when a month grid rendered at zero size inside a hidden panel,
+         swallowing every click) beats any inline style - so once the body held
+         a frequency dropdown the panel could not be closed at all. That rule
+         still earns its place, so the closed state goes on the WRAPPER instead,
+         one level up, where the two cannot fight. */
+      if (panelOpen) { wrap.classList.remove('rep-shut'); }
+      else           { wrap.classList.add('rep-shut'); }
+      body.style.display = panelOpen ? 'block' : 'none';
       /* CARD 87, 2026-11-18: the Due Date row is hidden while Repeat is on.
          This lives in refresh(), not in the click handler, because refresh()
          runs on the FIRST draw too - so opening a task that is ALREADY
@@ -25290,7 +25354,24 @@ if (r.freq === 'yearly') {
          module shows the panel, or after a rebuild - the "turn it off" branch could
          not be reached and the bar became one-way: off stayed off.
          The state IS node.repeat. Toggle that, and nothing else. */
-      node.repeat = node.repeat ? null : blank(node);
+      /* ============================================= CARD 95, 2026-11-19
+         The bar no longer switches repeating on - a schedule is only ever set
+         by physically choosing a frequency in the dropdown. The two halves:
+
+           click the LABEL (anywhere but the value) -> open / close the drawer
+           click the VALUE while something is set   -> clear it back to Never
+
+         Clearing lives on the value because that is the half that SAYS what is
+         set - there is nothing to clear when it reads 'Never', and refresh()
+         only marks it clickable when there is something. */
+      var onValue = !!(e && e.target && e.target.closest
+                       && e.target.closest('.rep-value'));
+      if (onValue && node.repeat) {
+        node.repeat = null;
+        draw();     /* refresh() inside draw() restores the Due Date row */
+        return;
+      }
+      panelOpen = !panelOpen;
       /* ============================================= 2026-11-18, CARD 87
          Operator: "also routine must not have a date. all that inside the edit
          selection of a task". Asked which of two readings, they first chose
@@ -25326,24 +25407,71 @@ if (r.freq === 'yearly') {
 
     function draw() {
       body.textContent = '';
-      if (!node.repeat) { refresh(); return; }
-      var r = node.repeat;
+      /* ================================================================ CARD 95
+         This returned early whenever node.repeat was null, so the panel could
+         only ever be seen by a task that ALREADY repeated - which is why the
+         bar had to switch repeating on to show anything at all. Now a CLOSED
+         panel draws nothing (there is nothing to see), while an OPEN one with
+         no schedule yet draws the frequency dropdown on its own. */
+      if (!panelOpen) { refresh(); return; }
+
+      var r = node.repeat;   /* null until a frequency is actually chosen */
 
       var sel = document.createElement('select');
       sel.className = 'rep-freq';
       var i;
+      /* CARD 95, CORRECTED: no "Does not repeat" row. Operator: "I don't want
+         that button on the bottom where it says it doesn't repeat, on the
+         right side where it would say never, it should say what kind of repeat
+         if it applies." So the dropdown offers only real frequencies, the
+         right half of the bar reports the state, and clearing is a click on
+         that half.
+         Until something is picked the select shows a placeholder that is
+         disabled - it can be read but never chosen, so the only values this
+         control can write are genuine schedules. */
+      if (!r) {
+        var oNone = document.createElement('option');
+        oNone.value = '';
+        oNone.textContent = 'Choose how often…';
+        oNone.disabled = true;
+        oNone.selected = true;
+        sel.appendChild(oNone);
+      }
       for (i = 0; i < FREQS.length; i++) {
         var o = document.createElement('option');
         o.value = FREQS[i][0]; o.textContent = FREQS[i][1];
-        if (r.freq === FREQS[i][0]) o.selected = true;
+        if (r && r.freq === FREQS[i][0]) o.selected = true;
         sel.appendChild(o);
       }
       sel.addEventListener('change', function () {
+        if (!sel.value) return;          /* the placeholder cannot be chosen */
+        /* THE ONLY place a schedule begins - "I would have to physically click
+           daily for that". */
+        if (!node.repeat) {
+          node.repeat = blank(node);
+          /* CARD 87 still holds: a repeating item has no Due Date row, and the
+             field is emptied through its own input/change events so Save reads
+             it exactly as always and CANCEL STILL CANCELS. Moved here from the
+             bar's handler because this is now the moment repeating starts. */
+          try {
+            var dfield__ = document.querySelector('.modal .ea-row-date input')
+                        || document.querySelector('.ea-row-date input');
+            if (dfield__ && dfield__.value) {
+              dfield__.value = '';
+              dfield__.dispatchEvent(new Event('input',  { bubbles: true }));
+              dfield__.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+          } catch (err) { }
+        }
+        r = node.repeat;
         r.freq = sel.value;
         if (r.freq === 'periodic' && !r.everyN) { r.everyN = 1; r.unit = 'days'; }
         draw();
       });
       body.appendChild(sel);
+
+      /* nothing chosen yet - the dropdown IS the whole panel */
+      if (!r) { refresh(); return; }
 
       if (r.freq === 'periodic') {
         var num = document.createElement('input');
