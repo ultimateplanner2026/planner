@@ -25,10 +25,15 @@
        margin:8px 0 0;text-align:center}
  /* On a real phone the frame is pointless - show the planner edge to edge */
  @media (max-width:560px){
-   body{padding:0}
+   body{padding:0;overflow-x:hidden}
    .bar,.note{display:none}
-   .phone{border:0;border-radius:0;max-height:none;box-shadow:none}
-   .stage{width:100%}
+   /* MEASURED: at 412px the frame came out 500px wide - the iframe was 100% but
+      the wrapper kept its desktop width, so the page scrolled sideways. Clamp
+      every layer, not just the iframe. */
+   .stage{width:100%;max-width:100%}
+   .phone{border:0;border-radius:0;max-height:none;box-shadow:none;
+          width:100% !important;max-width:100%}
+   .phone iframe{width:100% !important;max-width:100%}
  }
 </style></head><body>
 <div class="bar">
@@ -46,7 +51,7 @@
   <iframe id="fr" src="../" title="Planner"></iframe>
 </div></div>
 <p class="note">This is the live planner, not a screenshot &mdash; sign in and use it.
-Build 2026-11-20 10:05</p>
+Build 2026-11-20 10:22</p>
 <script>
 (function(){
   var fr=document.getElementById('fr'), ph=document.getElementById('ph'),
@@ -54,10 +59,13 @@ Build 2026-11-20 10:05</p>
   function small(){ return window.matchMedia('(max-width:560px)').matches; }
   function apply(){
     if (small()){
-      /* a real phone IS the phone - fill it */
-      fr.style.width='100%';
-      fr.style.height=Math.max(320, window.innerHeight)+'px';
+      /* a real phone IS the phone - fill it edge to edge, and never wider than
+         the screen (measured: a stale wrapper width made it 500px at 412) */
       ph.style.width='100%';
+      ph.style.maxWidth='100%';
+      fr.style.width='100%';
+      fr.style.maxWidth='100%';
+      fr.style.height=Math.max(320, window.innerHeight)+'px';
       return;
     }
     var p=(sel.value||'412x776').split('x');
