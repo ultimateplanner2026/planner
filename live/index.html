@@ -1,0 +1,75 @@
+<!doctype html><html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Planner - phone view</title>
+<style>
+ *{box-sizing:border-box}
+ html,body{height:100%}
+ body{margin:0;background:#0d0f13;color:#e6e8ec;
+      font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+      display:flex;flex-direction:column;align-items:center;
+      padding:10px 10px calc(10px + env(safe-area-inset-bottom))}
+ .bar{width:100%;max-width:430px;display:flex;align-items:center;gap:8px;
+      margin:0 0 8px;flex-wrap:wrap}
+ .bar h1{font-size:14px;margin:0;font-weight:600;flex:1 1 auto}
+ select,.lnk{background:#16181c;border:1px solid #2b3039;color:#e6e8ec;
+      border-radius:8px;padding:8px 10px;font:inherit;font-size:12.5px}
+ .lnk{text-decoration:none;color:#4d8bff}
+ .stage{flex:1 1 auto;width:100%;display:flex;justify-content:center;
+        align-items:flex-start;min-height:0}
+ .phone{position:relative;border:10px solid #2b3039;border-radius:30px;
+        background:#000;overflow:hidden;box-shadow:0 10px 32px rgba(0,0,0,.55);
+        max-width:100%;max-height:100%}
+ .phone iframe{display:block;border:0;background:#16181c}
+ .note{width:100%;max-width:430px;color:#8b929e;font-size:11.5px;
+       margin:8px 0 0;text-align:center}
+ /* On a real phone the frame is pointless - show the planner edge to edge */
+ @media (max-width:560px){
+   body{padding:0}
+   .bar,.note{display:none}
+   .phone{border:0;border-radius:0;max-height:none;box-shadow:none}
+   .stage{width:100%}
+ }
+</style></head><body>
+<div class="bar">
+  <h1>Phone view &mdash; the real planner</h1>
+  <select id="size" aria-label="Phone size">
+    <option value="412x776">Pixel 8 &middot; 412&times;776</option>
+    <option value="360x712">Galaxy S &middot; 360&times;712</option>
+    <option value="412x824">Pixel XL &middot; 412&times;824</option>
+    <option value="360x640">Small &middot; 360&times;640</option>
+    <option value="393x852">iPhone 15 &middot; 393&times;852</option>
+  </select>
+  <a class="lnk" href="../" target="_blank" rel="noopener">open full</a>
+</div>
+<div class="stage"><div class="phone" id="ph">
+  <iframe id="fr" src="../" title="Planner"></iframe>
+</div></div>
+<p class="note">This is the live planner, not a screenshot &mdash; sign in and use it.
+Build 2026-11-20 10:05</p>
+<script>
+(function(){
+  var fr=document.getElementById('fr'), ph=document.getElementById('ph'),
+      sel=document.getElementById('size');
+  function small(){ return window.matchMedia('(max-width:560px)').matches; }
+  function apply(){
+    if (small()){
+      /* a real phone IS the phone - fill it */
+      fr.style.width='100%';
+      fr.style.height=Math.max(320, window.innerHeight)+'px';
+      ph.style.width='100%';
+      return;
+    }
+    var p=(sel.value||'412x776').split('x');
+    var w=parseInt(p[0],10)||412, h=parseInt(p[1],10)||776;
+    /* never taller than the space we have */
+    var room=Math.max(320, window.innerHeight-110);
+    if (h>room) h=room;
+    fr.style.width=w+'px'; fr.style.height=h+'px';
+    ph.style.width='auto';
+  }
+  sel.addEventListener('change', apply);
+  window.addEventListener('resize', apply);
+  apply();
+})();
+</script></body></html>
