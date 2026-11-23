@@ -6787,7 +6787,7 @@ window.__rollHorizon = function () {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-11-23 00:04</span>
+    <span id="buildStamp">build 2026-11-23 00:29</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -36728,7 +36728,15 @@ body[data-habits-left="1"] #habitsLeft {
     var PHONE = false;
     try { PHONE = window.matchMedia('(max-width: 700px)').matches; } catch (e) { }
     var defs = PHONE
-      ? [['day', 'Day'], ['plan', 'Plan'], ['alarms', 'Alarms'], ['habits', 'Habits']]
+      /* CARD 86, operator 2026-11-23: "instead of day tab, name it caledender
+         on the phone". The id stays 'day' - it is what data-bb, the CSS and
+         every check key on - only the LABEL changes. Renaming the id would
+         silently break body[data-bb="day"] and the tab would show nothing.
+         The calendar's OWN Day|Week|Month row (line ~6833) is a different
+         control and keeps its 'Day'.
+         MEASURED at 412/360/320px: "Calendar" is 56px in an 80-103px tab, so
+         it fits at every phone size with room to spare. */
+      ? [['day', 'Calendar'], ['plan', 'Plan'], ['alarms', 'Alarms'], ['habits', 'Habits']]
       : [['plan', 'Plan'], ['alarms', 'Alarms'], ['habits', 'Habits']];
     for (var i = 0; i < defs.length; i++) {
       (function (id, label) {
