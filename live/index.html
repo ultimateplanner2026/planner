@@ -2,76 +2,128 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Planner - phone view</title>
+<!--
+  2026-11-23, operator: "fix the phone view link its not looking how I see it on
+  my phone".
+
+  MEASURED, not guessed. The old page put the planner in an IFRAME and sized it
+  to 412px. The LAYOUT was right - probing the iframe's own document returned
+  innerWidth 412, data-chrome "bottom", all four tabs. But it also returned
+  gated:true, so what it showed was the SIGN-IN WALL, never their planner.
+
+  Root cause: a framed document gets PARTITIONED STORAGE in current browsers, so
+  the planner inside the frame cannot see the localStorage key ("planner.auth")
+  that keeps them signed in on the top-level page. Same origin, different
+  storage bucket. No amount of sizing fixes that - it is not a layout bug.
+
+  So this page stops framing the planner. On a PHONE it sends them straight to
+  the real planner, top-level, where their sign-in works. On a COMPUTER it keeps
+  a phone-shaped frame ONLY as a preview, and says plainly that it will ask for
+  a sign-in because it is framed.
+-->
 <style>
  *{box-sizing:border-box}
  html,body{height:100%}
  body{margin:0;background:#0d0f13;color:#e6e8ec;
-      font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+      font:14px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
       display:flex;flex-direction:column;align-items:center;
-      padding:10px 10px calc(10px + env(safe-area-inset-bottom))}
- .bar{width:100%;max-width:430px;display:flex;align-items:center;gap:8px;
-      margin:0 0 8px;flex-wrap:wrap}
- .bar h1{font-size:14px;margin:0;font-weight:600;flex:1 1 auto}
- select,.lnk{background:#16181c;border:1px solid #2b3039;color:#e6e8ec;
-      border-radius:8px;padding:8px 10px;font:inherit;font-size:12.5px}
- .lnk{text-decoration:none;color:#4d8bff}
- .stage{flex:1 1 auto;width:100%;display:flex;justify-content:center;
-        align-items:flex-start;min-height:0}
+      padding:14px 14px calc(14px + env(safe-area-inset-bottom))}
+ .wrap{width:100%;max-width:520px}
+ h1{font-size:17px;margin:0 0 4px;font-weight:650}
+ .sub{color:#8b929e;font-size:12.5px;margin:0 0 14px}
+ .go{display:block;text-align:center;text-decoration:none;
+     background:#2f6bd8;color:#fff;font-weight:650;font-size:15px;
+     border-radius:12px;padding:15px 16px;margin:0 0 10px}
+ .go small{display:block;font-weight:400;opacity:.85;font-size:12px;margin-top:3px}
+ .alt{display:block;text-align:center;text-decoration:none;color:#9fb6e8;
+      border:1px solid #2b3039;border-radius:10px;padding:11px;font-size:13px;
+      margin:0 0 14px;background:#16181c}
+ .why{border:1px solid #2b3039;background:#14171c;border-radius:10px;
+      padding:11px 13px;color:#9aa2ae;font-size:12px;margin:0 0 14px}
+ .why b{color:#e6e8ec}
+ .bar{display:flex;align-items:center;gap:8px;margin:0 0 10px;flex-wrap:wrap}
+ select{background:#16181c;border:1px solid #2b3039;color:#e6e8ec;
+        border-radius:8px;padding:8px 10px;font:inherit;font-size:12.5px}
+ .stage{display:flex;justify-content:center;width:100%}
  .phone{position:relative;border:10px solid #2b3039;border-radius:30px;
         background:#000;overflow:hidden;box-shadow:0 10px 32px rgba(0,0,0,.55);
-        max-width:100%;max-height:100%}
+        max-width:100%}
  .phone iframe{display:block;border:0;background:#16181c}
- .note{width:100%;max-width:430px;color:#8b929e;font-size:11.5px;
-       margin:8px 0 0;text-align:center}
- /* On a real phone the frame is pointless - show the planner edge to edge */
+ .stamp{color:#6b7280;font-size:11px;text-align:center;margin:12px 0 0}
+
+ /* ON A REAL PHONE: no frame, no preview, no explanation - just the way in.
+    Framing it here is what broke it, so the phone never sees an iframe. */
+ .phoneonly{display:none}
  @media (max-width:560px){
-   body{padding:0;overflow-x:hidden}
-   .bar,.note{display:none}
-   /* MEASURED: at 412px the frame came out 500px wide - the iframe was 100% but
-      the wrapper kept its desktop width, so the page scrolled sideways. Clamp
-      every layer, not just the iframe. */
-   .stage{width:100%;max-width:100%}
-   .phone{border:0;border-radius:0;max-height:none;box-shadow:none;
-          width:100% !important;max-width:100%}
-   .phone iframe{width:100% !important;max-width:100%}
+   .phoneonly{display:block}
+   .deskonly{display:none !important}
+   body{justify-content:center}
+   h1{font-size:19px}
  }
 </style></head><body>
-<div class="bar">
-  <h1>Phone view &mdash; the real planner</h1>
-  <select id="size" aria-label="Phone size">
-    <option value="412x776">Pixel 8 &middot; 412&times;776</option>
-    <option value="360x712">Galaxy S &middot; 360&times;712</option>
-    <option value="412x824">Pixel XL &middot; 412&times;824</option>
-    <option value="360x640">Small &middot; 360&times;640</option>
-    <option value="393x852">iPhone 15 &middot; 393&times;852</option>
-  </select>
-  <a class="lnk" href="../" target="_blank" rel="noopener">open full</a>
+<div class="wrap">
+
+  <h1>Your planner on this phone</h1>
+  <p class="sub">The real planner, signed in as you &mdash; not a preview.</p>
+
+  <a class="go" href="../">Open my planner
+    <small>stays signed in &middot; add to your home screen if you like</small></a>
+
+  <div class="phoneonly">
+    <div class="why">
+      <b>This is the same planner</b> as on your computer &mdash; one page that
+      lays itself out for whatever screen opens it. Under 700px wide it shows
+      the phone layout.
+    </div>
+  </div>
+
+  <div class="deskonly">
+    <a class="alt" href="../" target="_blank" rel="noopener">open the planner full size &rarr;</a>
+
+    <div class="why">
+      <b>Below is a preview at phone size</b>, for checking layout from a
+      computer. It will ask you to sign in: a page inside a frame gets its own
+      separate storage, so it cannot see the sign-in from the tab around it.
+      <b>On your actual phone that does not happen</b> &mdash; the button above
+      opens the planner directly and your sign-in carries over.
+    </div>
+
+    <div class="bar">
+      <select id="size" aria-label="Phone size">
+        <option value="412x776">Pixel 8 &middot; 412&times;776</option>
+        <option value="360x712">Galaxy S &middot; 360&times;712</option>
+        <option value="412x824">Pixel XL &middot; 412&times;824</option>
+        <option value="360x640">Small &middot; 360&times;640</option>
+        <option value="393x852">iPhone 15 &middot; 393&times;852</option>
+      </select>
+    </div>
+
+    <div class="stage"><div class="phone" id="ph">
+      <iframe id="fr" title="Planner preview at phone size"></iframe>
+    </div></div>
+  </div>
+
+  <p class="stamp" id="stamp">phone view 2026-11-23</p>
 </div>
-<div class="stage"><div class="phone" id="ph">
-  <iframe id="fr" src="../" title="Planner"></iframe>
-</div></div>
-<p class="note">This is the live planner, not a screenshot &mdash; sign in and use it.
-Build 2026-11-20 10:22</p>
+
 <script>
 (function(){
+  var small = window.matchMedia('(max-width:560px)').matches;
+
+  /* The iframe is a DESKTOP-ONLY preview. On a phone it is never created at
+     all - not merely hidden - so a real phone can never land in the framed,
+     storage-partitioned copy that caused this bug. */
+  if (small) return;
+
   var fr=document.getElementById('fr'), ph=document.getElementById('ph'),
       sel=document.getElementById('size');
-  function small(){ return window.matchMedia('(max-width:560px)').matches; }
+  if (!fr) return;
+  fr.src = '../';
+
   function apply(){
-    if (small()){
-      /* a real phone IS the phone - fill it edge to edge, and never wider than
-         the screen (measured: a stale wrapper width made it 500px at 412) */
-      ph.style.width='100%';
-      ph.style.maxWidth='100%';
-      fr.style.width='100%';
-      fr.style.maxWidth='100%';
-      fr.style.height=Math.max(320, window.innerHeight)+'px';
-      return;
-    }
     var p=(sel.value||'412x776').split('x');
     var w=parseInt(p[0],10)||412, h=parseInt(p[1],10)||776;
-    /* never taller than the space we have */
-    var room=Math.max(320, window.innerHeight-110);
+    var room=Math.max(320, window.innerHeight-120);
     if (h>room) h=room;
     fr.style.width=w+'px'; fr.style.height=h+'px';
     ph.style.width='auto';
