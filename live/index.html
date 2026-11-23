@@ -3,23 +3,19 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Planner - phone view</title>
 <!--
-  2026-11-23, operator: "fix the phone view link its not looking how I see it on
-  my phone".
+  2026-11-23, operator: "Now you have a lot of writing. Put that on the bottom.
+  Only thing I see is the drop down for depending on which phone."
 
-  MEASURED, not guessed. The old page put the planner in an IFRAME and sized it
-  to 412px. The LAYOUT was right - probing the iframe's own document returned
-  innerWidth 412, data-chrome "bottom", all four tabs. But it also returned
-  gated:true, so what it showed was the SIGN-IN WALL, never their planner.
+  So the page opens with the PICKER and the phone, nothing else. Every
+  explanation moved below the fold. Previously three paragraphs sat above the
+  thing they came to use.
 
-  Root cause: a framed document gets PARTITIONED STORAGE in current browsers, so
-  the planner inside the frame cannot see the localStorage key ("planner.auth")
-  that keeps them signed in on the top-level page. Same origin, different
-  storage bucket. No amount of sizing fixes that - it is not a layout bug.
-
-  So this page stops framing the planner. On a PHONE it sends them straight to
-  the real planner, top-level, where their sign-in works. On a COMPUTER it keeps
-  a phone-shaped frame ONLY as a preview, and says plainly that it will ask for
-  a sign-in because it is framed.
+  Earlier the same day: the page stopped FRAMING the planner on a phone.
+  MEASURED - probing the old iframe returned innerWidth 412, data-chrome
+  "bottom", all four tabs, and gated:TRUE. The layout was right; what it showed
+  was the SIGN-IN WALL. A framed document gets PARTITIONED STORAGE, so the
+  planner inside could not see the localStorage key (planner.auth) that keeps
+  them signed in on the top-level page. Same origin, different bucket.
 -->
 <style>
  *{box-sizing:border-box}
@@ -27,93 +23,81 @@
  body{margin:0;background:#0d0f13;color:#e6e8ec;
       font:14px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
       display:flex;flex-direction:column;align-items:center;
-      padding:14px 14px calc(14px + env(safe-area-inset-bottom))}
- .wrap{width:100%;max-width:520px}
- h1{font-size:17px;margin:0 0 4px;font-weight:650}
- .sub{color:#8b929e;font-size:12.5px;margin:0 0 14px}
- .go{display:block;text-align:center;text-decoration:none;
-     background:#2f6bd8;color:#fff;font-weight:650;font-size:15px;
-     border-radius:12px;padding:15px 16px;margin:0 0 10px}
- .go small{display:block;font-weight:400;opacity:.85;font-size:12px;margin-top:3px}
- .alt{display:block;text-align:center;text-decoration:none;color:#9fb6e8;
-      border:1px solid #2b3039;border-radius:10px;padding:11px;font-size:13px;
-      margin:0 0 14px;background:#16181c}
- .why{border:1px solid #2b3039;background:#14171c;border-radius:10px;
-      padding:11px 13px;color:#9aa2ae;font-size:12px;margin:0 0 14px}
- .why b{color:#e6e8ec}
- .bar{display:flex;align-items:center;gap:8px;margin:0 0 10px;flex-wrap:wrap}
+      padding:12px 12px calc(12px + env(safe-area-inset-bottom))}
+ .wrap{width:100%;max-width:560px;display:flex;flex-direction:column;
+       align-items:center}
+
+ /* THE CONTROL COMES FIRST - it is the only thing they said they use */
+ .bar{display:flex;align-items:center;gap:8px;margin:0 0 12px;flex-wrap:wrap;
+      justify-content:center;width:100%}
  select{background:#16181c;border:1px solid #2b3039;color:#e6e8ec;
-        border-radius:8px;padding:8px 10px;font:inherit;font-size:12.5px}
+        border-radius:9px;padding:9px 12px;font:inherit;font-size:13.5px}
+ .open{text-decoration:none;color:#9fb6e8;border:1px solid #2b3039;
+       background:#16181c;border-radius:9px;padding:9px 12px;font-size:13px}
+
  .stage{display:flex;justify-content:center;width:100%}
  .phone{position:relative;border:10px solid #2b3039;border-radius:30px;
         background:#000;overflow:hidden;box-shadow:0 10px 32px rgba(0,0,0,.55);
         max-width:100%}
  .phone iframe{display:block;border:0;background:#16181c}
- .stamp{color:#6b7280;font-size:11px;text-align:center;margin:12px 0 0}
 
- /* ON A REAL PHONE: no frame, no preview, no explanation - just the way in.
-    Framing it here is what broke it, so the phone never sees an iframe. */
- .phoneonly{display:none}
+ /* EVERYTHING ELSE LIVES DOWN HERE */
+ .foot{width:100%;max-width:560px;margin:22px 0 0;color:#8b929e;font-size:11.5px;
+       line-height:1.6;border-top:1px solid #1e222a;padding:12px 2px 0}
+ .foot b{color:#aab2bf;font-weight:600}
+ .foot p{margin:0 0 7px}
+
+ /* ON A REAL PHONE: no frame, no picker - just the way in.
+    Framing it is what broke it, so a phone never gets an iframe at all. */
+ .go{display:none}
  @media (max-width:560px){
-   .phoneonly{display:block}
-   .deskonly{display:none !important}
    body{justify-content:center}
-   h1{font-size:19px}
+   .bar,.stage{display:none}
+   .go{display:block;width:100%;text-align:center;text-decoration:none;
+       background:#2f6bd8;color:#fff;font-weight:650;font-size:16px;
+       border-radius:13px;padding:17px 16px}
+   .go small{display:block;font-weight:400;opacity:.85;font-size:12.5px;
+             margin-top:4px}
+   .foot{margin-top:26px}
  }
 </style></head><body>
 <div class="wrap">
 
-  <h1>Your planner on this phone</h1>
-  <p class="sub">The real planner, signed in as you &mdash; not a preview.</p>
-
   <a class="go" href="../">Open my planner
-    <small>stays signed in &middot; add to your home screen if you like</small></a>
+    <small>the real one, signed in as you</small></a>
 
-  <div class="phoneonly">
-    <div class="why">
-      <b>This is the same planner</b> as on your computer &mdash; one page that
-      lays itself out for whatever screen opens it. Under 700px wide it shows
-      the phone layout.
-    </div>
+  <div class="bar">
+    <select id="size" aria-label="Phone size">
+      <option value="412x776">Pixel 8 &middot; 412&times;776</option>
+      <option value="360x712">Galaxy S &middot; 360&times;712</option>
+      <option value="412x824">Pixel XL &middot; 412&times;824</option>
+      <option value="360x640">Small &middot; 360&times;640</option>
+      <option value="393x852">iPhone 15 &middot; 393&times;852</option>
+    </select>
+    <a class="open" href="../" target="_blank" rel="noopener">open full size &rarr;</a>
   </div>
 
-  <div class="deskonly">
-    <a class="alt" href="../" target="_blank" rel="noopener">open the planner full size &rarr;</a>
+  <div class="stage"><div class="phone" id="ph">
+    <iframe id="fr" title="Planner preview at phone size"></iframe>
+  </div></div>
 
-    <div class="why">
-      <b>Below is a preview at phone size</b>, for checking layout from a
-      computer. It will ask you to sign in: a page inside a frame gets its own
-      separate storage, so it cannot see the sign-in from the tab around it.
-      <b>On your actual phone that does not happen</b> &mdash; the button above
-      opens the planner directly and your sign-in carries over.
-    </div>
-
-    <div class="bar">
-      <select id="size" aria-label="Phone size">
-        <option value="412x776">Pixel 8 &middot; 412&times;776</option>
-        <option value="360x712">Galaxy S &middot; 360&times;712</option>
-        <option value="412x824">Pixel XL &middot; 412&times;824</option>
-        <option value="360x640">Small &middot; 360&times;640</option>
-        <option value="393x852">iPhone 15 &middot; 393&times;852</option>
-      </select>
-    </div>
-
-    <div class="stage"><div class="phone" id="ph">
-      <iframe id="fr" title="Planner preview at phone size"></iframe>
-    </div></div>
+  <div class="foot">
+    <p><b>This preview asks you to sign in.</b> A page inside a frame gets its
+    own separate storage, so it cannot see the sign-in from the tab around it.
+    On your actual phone that does not happen &mdash; opening the planner
+    directly keeps you signed in.</p>
+    <p><b>One planner, not two.</b> The same page lays itself out for whatever
+    screen opens it; under 700px wide it shows the phone layout.</p>
+    <p>phone view 2026-11-23</p>
   </div>
-
-  <p class="stamp" id="stamp">phone view 2026-11-23</p>
 </div>
 
 <script>
 (function(){
-  var small = window.matchMedia('(max-width:560px)').matches;
-
-  /* The iframe is a DESKTOP-ONLY preview. On a phone it is never created at
-     all - not merely hidden - so a real phone can never land in the framed,
-     storage-partitioned copy that caused this bug. */
-  if (small) return;
+  /* The iframe is a DESKTOP-ONLY preview. On a phone it is never created -
+     not merely hidden - so a real phone can never land in the framed,
+     storage-partitioned copy that caused the original bug. */
+  if (window.matchMedia('(max-width:560px)').matches) return;
 
   var fr=document.getElementById('fr'), ph=document.getElementById('ph'),
       sel=document.getElementById('size');
@@ -123,7 +107,7 @@
   function apply(){
     var p=(sel.value||'412x776').split('x');
     var w=parseInt(p[0],10)||412, h=parseInt(p[1],10)||776;
-    var room=Math.max(320, window.innerHeight-120);
+    var room=Math.max(320, window.innerHeight-150);
     if (h>room) h=room;
     fr.style.width=w+'px'; fr.style.height=h+'px';
     ph.style.width='auto';
