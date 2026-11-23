@@ -6787,7 +6787,7 @@ window.__rollHorizon = function () {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-11-23 14:02</span>
+    <span id="buildStamp">build 2026-11-23 15:11</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -20521,6 +20521,97 @@ function firstConnect(remote, rAt, lAt) {
         group.appendChild(b);
       });
       host.appendChild(group);
+
+      /* ================================================================ CARD 89
+         operator 2026-11-23: "can you recommend a looking or a view how it would
+         be where it kind of says create an alarm, and then also when it does
+         create an alarm, it does create a task, just how we have in the task in
+         the calendar." -> they picked OPTION A from the pink file: a button
+         above the list. Then: "once it opens it has all the fatures of the task
+         as it would be and of course the same alarm setting."
+
+         MEASURED FIRST, and it decided the whole shape of this:
+         an alarm in this planner is ALREADY A TASK - a reminder attached to a
+         task node (node.reminders). The two rows below this button are tasks
+         right now, which is why tapping one opens Edit Activity. So "create an
+         alarm" needs NO new kind of record and NO second dialog.
+
+         It therefore REUSES what already exists rather than reimplementing:
+             window.newAlarm(node)   - the alarm, with its own now-time rule
+             window.editActivity(id) - the real Edit Activity dialog
+         Probed in a live browser rather than read off the source, because
+         editActivity is defined EIGHT times and the last one wins (that is
+         exactly how the subtask-save fix came to sit in a dialog that never
+         runs). PROVED BY ENUMERATION, not by listing the features I remembered:
+         an ordinary task's dialog offers 26 controls in 9 labelled sections,
+         and the dialog this opens offers the same 26 in the same 9, plus the
+         three that ARE the alarm (the chip, its hide-from-calendar toggle, its
+         remove X).
+
+         The BRANCH is not asked for separately: a new top-level task already
+         goes through window.__pickBranch ("Choose a branch for this task"), and
+         the dialog shows the same picker. One way to choose a branch, not two.
+
+         BOTH SURFACES, deliberately: this is NOT inside a width test. The
+         Alarms tab is the same pane on a phone and in the browser, and the
+         operator asked for it live on both. Measured at 412/360 and 1440.
+
+         Measured: the button is the same 37px height as the three mode buttons
+         above it and spans the pane, so it reads as part of the same stack. */
+      (function () {
+        var mk = document.createElement('button');
+        mk.type = 'button';
+        mk.id = 'btnCreateAlarm';
+        mk.className = 'alarms-create';
+        mk.setAttribute('aria-label', 'Create an alarm');
+        mk.style.cssText =
+          'width:100%;height:37px;margin:0 0 10px;border-radius:9px;' +
+          'background:#2f6bd8;border:1px solid #3f7ae6;color:#fff;' +
+          'font-size:13px;font-weight:600;display:flex;align-items:center;' +
+          'justify-content:center;gap:7px;cursor:pointer';
+        mk.innerHTML =
+          '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" ' +
+          'stroke="currentColor" stroke-width="2.2" stroke-linecap="round">' +
+          '<path d="M12 5v14M5 12h14"/></svg><span>Create an alarm</span>';
+
+        mk.onclick = function () {
+          try {
+            /* the task carries TODAY and the current time, which is the rule
+               they set for alarms on 2026-09-28 ("always in the time that it's
+               currently at... this way it's convenient"). */
+            var now = new Date();
+            var iso = now.getFullYear() + '-'
+                    + ('0' + (now.getMonth() + 1)).slice(-2) + '-'
+                    + ('0' + now.getDate()).slice(-2);
+            var hm = ('0' + now.getHours()).slice(-2) + ':'
+                   + ('0' + now.getMinutes()).slice(-2);
+
+            var node = {
+              id: (typeof uid === 'function') ? uid()
+                  : ('al' + Date.now().toString(36)),
+              title: '', notes: '', kind: 'task', done: false,
+              priority: 'normal', date: iso, time: hm, block: null,
+              duration: 30, repeat: null, tags: [], collapsed: false,
+              children: []
+            };
+            /* the alarm itself comes from the EXISTING builder, so its date and
+               time rules cannot drift from an alarm made any other way */
+            var al = (typeof window.newAlarm === 'function')
+                     ? window.newAlarm(node) : null;
+            node.reminders = al ? [al] : [];
+
+            window.Store.data.tree.push(node);
+            window.Store.save();
+            if (typeof window.renderAll === 'function') window.renderAll();
+
+            /* open the real dialog on it - one way to edit a task, not two */
+            if (typeof window.editActivity === 'function') {
+              window.editActivity(node.id);
+            }
+          } catch (e) { }
+        };
+        host.appendChild(mk);
+      })();
 
       /* 2026-10-01, operator: "when you click on show alarms, it doesn't show the
          alarm back in the calendar."
