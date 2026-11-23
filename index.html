@@ -6787,7 +6787,7 @@ window.__rollHorizon = function () {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-11-20 11:48</span>
+    <span id="buildStamp">build 2026-11-23 00:04</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -36715,8 +36715,21 @@ body[data-habits-left="1"] #habitsLeft {
        Day goes FIRST and opens first: it is what you want when you pick the
        phone up. Plan keeps the whole screen for the tree, so nothing they
        already had gets smaller. */
-    var defs = [['day', 'Day'], ['plan', 'Plan'], ['alarms', 'Alarms'],
-                ['habits', 'Habits']];
+    /* ================================================================ CARD 85
+       operator 2026-11-22: "regarding the browser, yes, remove the day button".
+
+       So Day leaves the BROWSER and stays on the PHONE. Card 97's CSS was
+       already phone-only (it sits inside @media max-width:700px), but THIS list
+       is JavaScript and ran at every width - which is how the browser grew a
+       Day button beside the calendar's own Day | Week | Month | Journal row.
+
+       The width test uses the SAME breakpoint as that CSS, so the button and
+       its styling can never disagree about what a phone is. */
+    var PHONE = false;
+    try { PHONE = window.matchMedia('(max-width: 700px)').matches; } catch (e) { }
+    var defs = PHONE
+      ? [['day', 'Day'], ['plan', 'Plan'], ['alarms', 'Alarms'], ['habits', 'Habits']]
+      : [['plan', 'Plan'], ['alarms', 'Alarms'], ['habits', 'Habits']];
     for (var i = 0; i < defs.length; i++) {
       (function (id, label) {
         var b = document.createElement('button');
@@ -36747,8 +36760,10 @@ body[data-habits-left="1"] #habitsLeft {
        Only on the FIRST build, and only when nothing has chosen a tab yet - if
        they are already on Plan or Habits, a rebuild of the bar (it rebuilds on
        resize and on a 2s guard) must not yank them back to Day mid-use. */
+    /* CARD 85: and the Day-FIRST default is phone-only. On the browser it would
+       park the app on data-bb="day" with no Day button to come back from. */
     try {
-      if (!window.__dayFirstDone) {
+      if (PHONE && !window.__dayFirstDone) {
         window.__dayFirstDone = true;
         /* MEASURED by trapping every write to data-bb: this show('day') lands at
            +10ms, and then an OLDER bottom-bar module boots at +910ms and sets
@@ -36768,8 +36783,18 @@ body[data-habits-left="1"] #habitsLeft {
             window.__dayDefaultDone = true;
             return;
           }
+          /* CARD 85: data-bb alone was not enough to tell whether Day had
+             really won. MEASURED by trapping both: an OLDER bottom-bar module
+             (the one that boots at +910ms) calls its own show('plan'), which
+             lights the Plan BUTTON through classList, while the newer module
+             had already set data-bb="day". Result on the phone: the Day SCREEN
+             with PLAN lit up. The settle loop read only data-bb, saw 'day', and
+             stopped correcting. So the settled state is both things agreeing -
+             the screen AND the lit tab. */
           var cur = document.body.getAttribute('data-bb');
-          if (!cur || cur === 'plan') {
+          var lit = document.querySelector('#bottomBar [data-tab].on');
+          var litId = lit ? lit.getAttribute('data-tab') : '';
+          if (!cur || cur === 'plan' || (cur === 'day' && litId !== 'day')) {
             try { show('day'); } catch (err) { }
           }
         }, 250);
