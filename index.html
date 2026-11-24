@@ -4823,8 +4823,49 @@ input:focus, textarea:focus, select:focus {
 
    Proven live before editing this file: overlap 66 -> -1, and all five controls
    go BLOCKED -> OK while Plan/Alarms/Habits stay reachable. */
-:root[data-chrome="bottom"] section#rightPane {
-  padding-bottom: calc(74px + env(safe-area-inset-bottom, 0px)) !important;
+/* ===================================================================== CARD 92
+   operator 2026-11-24, with a screenshot of the Day calendar at ~1770x920:
+   "the bottom right of the calendar is a dead spot, it wasn't like that
+   before - fix it so that spot holds calendar view".
+
+   MEASURED on the live build (2026-11-24 17:38) before changing anything:
+       viewport      1770 x 920
+       #bottomBar    x 0..583    (absolute, inside #treePane)
+       #rightPane    x 587..1770
+       barCoversRightPane -> FALSE
+       .tgscroll bottom = 846, window 920  ->  a 74px dead strip,
+       and elementFromPoint across it returned bare section#rightPane.
+
+   WHY: the card 96 rule below reserves the bar's height in #rightPane so the
+   bar cannot cover the controls strip. That is RIGHT on a phone, where the bar
+   spans the full width and genuinely sits over the calendar column. It is
+   WRONG on a wide window, where the bar occupies only the left rail - there
+   the reservation steals 74px from the full width of the calendar and gives
+   back nothing.
+
+   Measured both ways, which is what makes this safe:
+       393 x 852  bar 0..393, pane 0..393   covers -> TRUE   keep the padding
+      1770 x 920  bar 0..583, pane 587..   covers -> FALSE  drop the padding
+
+   THE FIX: the reservation is scoped to the width where the bar is actually
+   full-width chrome. The phone keeps exactly the behaviour card 96 shipped;
+   the wide window gets its 74px of calendar back. Nothing else is touched -
+   this adds a media query around an existing rule and changes no value.
+
+   THE BREAKPOINT IS NOT INVENTED. My first attempt used 860px and the boundary
+   sweep caught it: at 861..1023 the bar STILL spans the full width
+   (covers=True) while the padding had already been dropped - which would have
+   put card 96's phone bug back on those widths. Measured on the live build,
+   the layout splits at exactly 900:
+       900   bar 0..900   pane 0..900     covers=TRUE
+       940   bar 0..309   pane 313..940   covers=FALSE
+   900px is also the app's own existing breakpoint (used by six other media
+   queries in this file), so this matches the layout instead of inventing a
+   second rule of its own. */
+@media (max-width: 900px) {
+  :root[data-chrome="bottom"] section#rightPane {
+    padding-bottom: calc(74px + env(safe-area-inset-bottom, 0px)) !important;
+  }
 }
 
 /* BUG 9 (operator) - the typing fix flickers.
@@ -6787,7 +6828,7 @@ window.__rollHorizon = function () {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-11-24 17:38</span>
+    <span id="buildStamp">build 2026-11-24 18:11</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
