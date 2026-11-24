@@ -6787,7 +6787,7 @@ window.__rollHorizon = function () {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-11-23 15:11</span>
+    <span id="buildStamp">build 2026-11-24 17:38</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -34178,7 +34178,17 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
       hide.className = 'alc-hide';
       hide.title = 'Keep this alarm off the calendar';
       hide.innerHTML = 'hide from<br>calendar';
-      if (alarm.hideFromCal) hide.setAttribute('data-on', '1');
+      /* ========================================================= CARD 91, 2026-11-23
+         Operator: "I had the feature in the task inside of it hide alerts from
+         calendar. When I click it, it's actually not working."
+
+         The button must light up from the state that DECIDES the hiding, which
+         is the task's own flag - not from this chip's alarm object, which may be
+         a dialog copy whose flag was never saved (see the handler below). Asking
+         the copy is why a hidden task reopened with the button looking OFF. */
+      if (alarm.hideFromCal || (node && node.__hideTask)) {
+        hide.setAttribute('data-on', '1');
+      }
 
       chip.appendChild(bell);
       chip.appendChild(body);
@@ -34195,9 +34205,59 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
              sets both: the alarm stays off the calendar AND the task does.
              Nothing is deleted - the task keeps its date, its alarm still
              rings, and pressing the button again brings it back. */
-          a.hideFromCal = !a.hideFromCal;
-          if (n) n.__hideTask = !!a.hideFromCal;
-          if (a.hideFromCal) h.setAttribute('data-on', '1');
+          /* ======================================================= CARD 91, 2026-11-23
+             WHY THIS WAS NOT WORKING, measured with a setter trap on the live
+             build rather than reasoned about:
+
+               the chip is drawn from `pending` - a DEEP COPY of the alarms taken
+               when the dialog opened (see patch(): `.map()` clones each one). So
+               `a` here was the COPY. The trap caught exactly one write:
+                   PENDING[0] <- true
+               and the node's own alarm was never touched:
+                   node.reminders[0].hideFromCal = (absent)
+                   node.__hideTask              = true
+                   n.reminders[0] === pending[0] -> FALSE
+
+             That split is the whole defect, and it made a ONE-WAY DOOR:
+               press hide  -> task leaves the calendar (__hideTask did land)
+               reopen      -> button read the copy's flag, absent, so it looked OFF
+               press again -> the fresh copy went false->true AGAIN, so
+                              __hideTask stayed TRUE and the task could never
+                              come back. Measured: calendar 1 -> 0 -> 0 -> 0.
+
+             This is the same class as the ✕ button's 2026-09-28 fix a few lines
+             below ("remove it from WHICHEVER list is being shown"); the hide
+             button was simply never given the same treatment.
+
+             THE FIX: resolve the alarm by id on the NODE and write the flag to
+             every copy of it, so the dialog's list and the saved list cannot
+             disagree. One decision, written everywhere it is read. */
+          var want = !(a.hideFromCal || (n && n.__hideTask));
+          var touched = [a];
+          try {
+            if (n && n.reminders && n.reminders.length) {
+              for (var ri = 0; ri < n.reminders.length; ri++) {
+                var cand = n.reminders[ri];
+                if (!cand) continue;
+                if (cand === a || (a.id && cand.id === a.id)) touched.push(cand);
+              }
+            }
+            if (window.__alPending && n && window.__editingId === n.id) {
+              var live = window.__alPending();
+              if (live && live.length) {
+                for (var pi = 0; pi < live.length; pi++) {
+                  var pc = live[pi];
+                  if (!pc) continue;
+                  if (pc === a || (a.id && pc.id === a.id)) touched.push(pc);
+                }
+              }
+            }
+          } catch (_h) {}
+          for (var ti = 0; ti < touched.length; ti++) {
+            touched[ti].hideFromCal = want;
+          }
+          if (n) n.__hideTask = want;
+          if (want) h.setAttribute('data-on', '1');
           else h.removeAttribute('data-on');
           if (window.Store) window.Store.save();
           if (window.renderAll) window.renderAll();
