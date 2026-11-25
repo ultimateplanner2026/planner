@@ -7084,7 +7084,7 @@ window.__rollHorizon = function () {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-11-25 16:40</span>
+    <span id="buildStamp">build 2026-11-25 18:20</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -25649,12 +25649,92 @@ function firstConnect(remote, rAt, lAt) {
     return false;
   };
 
+  /* ===================================================== CARD 107, 2026-11-25
+     Which occurrence does completing `iso` actually finish?
+
+     On an ordinary day, `iso` IS the occurrence. On a ROLLED-OVER row the item
+     is drawn on a later day, so the occurrence being finished is the one it
+     rolled FROM - and that is what the roll-over gate looks up.
+
+     `node.__rolledFrom` holds exactly that, but MEASURED: it is set while the
+     gate runs and CLEARED again by the next renderAll(), so by the time a click
+     reaches this function it is usually gone (measured: set to 2026-11-23 during
+     matches(), undefined after renderAll). `scheduledOn()` is no help either -
+     its entry carries instanceDate = the day being VIEWED (2026-11-25), not the
+     occurrence. So neither can be trusted; find the occurrence directly.
+
+     Same search the gate uses: walk back from `iso` to the most recent day the
+     base rule calls an occurrence. If `iso` is itself one, it is its own answer.
+     [[feedback_state_may_live_outside_the_object]] */
+  function occurrenceBehind(node, iso) {
+    try {
+      if (!node || !node.repeat || !node.repeat.freq || !iso) return iso;
+      if (node.__rolledFrom) return node.__rolledFrom;
+      var base = window.plannerRepeatMatchesBase || null;
+      var asks = function (d) {
+        /* the UNWRAPPED rule if we have it, else the public one: the wrappers
+           answer true on a rolled day too, which would return `iso` itself and
+           silently do nothing - so prefer the base. */
+        return base ? base(node, d) : window.plannerRepeatMatches(node, d);
+      };
+      if (asks(iso)) return iso;
+      var start = Date.parse(iso + 'T00:00:00Z');
+      if (isNaN(start)) return iso;
+      var LOOK = (node.repeat.freq === 'yearly') ? 400
+               : (node.repeat.freq === 'monthly') ? 120 : 60;
+      for (var b = 1; b <= LOOK; b++) {
+        var d = new Date(start - b * 86400000);
+        var probe = d.getUTCFullYear() + '-' +
+                    ('0' + (d.getUTCMonth() + 1)).slice(-2) + '-' +
+                    ('0' + d.getUTCDate()).slice(-2);
+        if (asks(probe)) return probe;
+      }
+    } catch (e) {}
+    return iso;
+  }
+
   window.plannerCompleteOccurrence = function (node, iso, done) {
     if (!node || !iso) return false;
     if (!node.doneDates) node.doneDates = [];
     var i = node.doneDates.indexOf(iso);
     if (done && i === -1) node.doneDates.push(iso);      // idempotent
     if (!done && i !== -1) node.doneDates.splice(i, 1);
+
+    /* ===================================================== CARD 107, 2026-11-25
+       Operator: "incoming payments I have it as repeat monthly, show again, i
+       pressed complete but it keep showing on the next day? its not suppose to
+       do that since Its complete."
+
+       ROOT CAUSE, measured on build 2026-11-25 16:40. TWO RECORDS OF ONE FACT:
+
+         Complete / the checkbox  -> plannerCompleteOccurrence -> node.doneDates[]
+         the calendar chip        -> setInstanceDone           -> node.repeatDone{}
+
+       and the ROLL-OVER GATE reads `node.repeatDone` ONLY:
+
+           var done = node.repeatDone || {};
+           if (done[probe]) { delete node.__rolledFrom; return false; }
+
+       So ticking it off the calendar stopped the roll and pressing Complete did
+       not. Proven on one fixture - a monthly due the 23rd, asked on the 25th:
+
+           nothing done                     -> shows today: true
+           plannerCompleteOccurrence(today) -> shows today: TRUE   <- their bug
+           plannerCompleteOccurrence(occ)   -> shows today: TRUE   <- right date,
+                                               wrong FIELD, still broken
+           setInstanceDone(occ)             -> shows today: false  <- gate works
+
+       This function already learned "one fact, both records" for habitLog /
+       routineLog in BOARD 30; repeatDone was never added to that list.
+       [[feedback_one_field_one_owner]] */
+    try {
+      if (node.repeat && node.repeat.freq) {
+        var occIso = occurrenceBehind(node, iso);
+        if (!node.repeatDone || typeof node.repeatDone !== 'object') node.repeatDone = {};
+        if (done) node.repeatDone[occIso] = true;
+        else delete node.repeatDone[occIso];
+      }
+    } catch (e) {}
 
     /* ============================================================= BOARD 30, 2026-09-26
        Operator: "the routine morning stretch, I marked it complete in the calendar and
@@ -27214,6 +27294,22 @@ if (r.freq === 'yearly') {
     if (p.length !== 3) return NaN;
     return Date.UTC(+p[0], +p[1] - 1, +p[2]) / 86400000;
   }
+
+  /* CARD 107, 2026-11-25: publish the UNWRAPPED rule AT DEFINITION TIME.
+     `base` here is the strict per-frequency matcher - a monthly answers true on
+     exactly ONE day a month. Completing a rolled-over row has to know WHICH
+     occurrence it finishes, and the public plannerRepeatMatches cannot say:
+     every wrapper above answers true on the rolled day too.
+
+     MEASURED why this line is here and not inside the function: publishing it
+     from inside the rollover branch made it depend on that branch having run.
+     On a freshly loaded page it was `undefined`, the search fell back to the
+     wrapped rule, and completing recorded the VIEWED day instead of the
+     occurrence - so the same click behaved differently depending on what had
+     been asked earlier in the session. Order-dependent, and green in a test that
+     happened to warm it up first.
+     [[feedback_dont_race_your_own_setup]] */
+  window.plannerRepeatMatchesBase = base;
 
   window.plannerRepeatMatches = function (node, iso) {
     /* 1. an occurrence MOVED to this date shows here, whatever the rule says */
