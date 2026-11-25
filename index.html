@@ -4898,7 +4898,23 @@ input:focus, textarea:focus, select:focus {
     flex-wrap: nowrap !important;
     align-items: center !important;
     gap: 3px !important;
-    padding: 6px 10px !important;
+    /* ===================================================================== CARD 99
+       Operator 2026-11-25: "on the plan section, the gear is above the line of
+       the iPhone in the settings. It needs to be a little bit lower... I'm
+       actually not able to click on the gear setting at all."
+
+       MEASURED on the live build at 412x772: the gear's box is at y=6, so its
+       top edge is 6px from the top of the SCREEN - underneath the iPhone's
+       status bar and notch, which is why a real finger never reaches it. A
+       headless browser has no notch, so elementFromPoint happily reported
+       "reaches the gear" - the measurement agreed while the phone did not.
+
+       The fix uses the pattern this file already uses twice,
+       `calc(Npx + env(safe-area-inset-top, 0px))`, rather than a hand-picked
+       margin: on a notched phone the row drops by the real inset, on anything
+       else env() is 0 and nothing moves. 10px base so there is a little room
+       even with no notch. */
+    padding: calc(10px + env(safe-area-inset-top, 0px)) 10px 6px !important;
     overflow: visible !important;
     flex: 0 0 auto !important;
     height: auto !important;
@@ -7068,7 +7084,7 @@ window.__rollHorizon = function () {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-11-25 13:48</span>
+    <span id="buildStamp">build 2026-11-25 14:09</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -37446,9 +37462,12 @@ body[data-habits-left="1"] #habitsLeft {
     if (id === 'alarms' && window.showAlarmsList) window.showAlarmsList();
   }
   /* ---------- 2026-09-18: Habits and Routines live in the LEFT pane ---------- */
+  /* CARD 99: see habitsLeft() - published at the end of this block. */
   function habitsLeft(on) {
     var pane = document.getElementById('treePane');
     if (!pane) return;
+    /* CARD 99: published below, so the Settings window can ask habits to stand
+       down properly instead of half-undoing its inline styles by hand. */
     var host = document.getElementById('habitsLeft');
     if (!host) {
       host = document.createElement('div');
@@ -37473,7 +37492,8 @@ body[data-habits-left="1"] #habitsLeft {
     view = document.getElementById('habitsView');
     if (view && view.parentNode !== host) host.appendChild(view);
     if (view) view.style.display = 'block';
-  }
+  }  try { window.__habitsLeft = habitsLeft; } catch (e) {}
+
   window.__habitsLeft = habitsLeft;
 
   window.__habitsShow = show;
@@ -47100,8 +47120,63 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
   }
 
   window.__openSettingsPane = function () {
+    /* ===================================================================== CARD 99
+       Operator 2026-11-25: "once I go to a different icon and click back on
+       setting, it brings back the habits setting inside of the setting."
+
+       MEASURED on the live build, their exact sequence (Setting -> Habits ->
+       Setting):
+           1. tap Setting   settingsVisible=TRUE
+           2. tap Habits    data-bb=habits
+           3. tap Setting   settingsVisible=FALSE, pane 0x0
+              style.display = "none"   <- stuck INLINE
+              data-habits-left = 1     <- habits never cleaned up
+
+       ROOT CAUSE, not the symptom: habitsLeft(on) hides every child of
+       #treePane with an INLINE `style.display='none'` -
+
+           pane.querySelectorAll('#treePane > *:not(#habitsLeft):not(#bottomBar)')
+
+       - and my settings pane is one of those children. An inline style beats
+       any stylesheet rule, so `body[data-bb="settings"] #settingsPane
+       { display:flex }` could never win. Leaving Habits is supposed to set it
+       back to '', but that only runs when habitsLeft(false) is called, and
+       tapping Setting never called it: data-habits-left stayed 1.
+
+       THE FIX: clear the inline style this pane owns, and tell the habits
+       module to stand down, before showing the window. Done here rather than by
+       adding !important to the CSS, because the real problem is that habits
+       thinks it is still on screen - leave that and the tree would come back
+       wrong too. */
+    try {
+      if (document.body.getAttribute('data-habits-left') === '1') {
+        if (typeof window.__habitsLeft === 'function') window.__habitsLeft(false);
+        else {
+          var host = document.getElementById('habitsLeft');
+          if (host) host.style.display = 'none';
+          var kids = document.querySelectorAll(
+            '#treePane > *:not(#habitsLeft):not(#bottomBar)');
+          for (var k = 0; k < kids.length; k++) kids[k].style.display = '';
+          document.body.setAttribute('data-habits-left', '0');
+        }
+      }
+    } catch (e) {}
+    var pane = document.getElementById('settingsPane');
+    if (pane) pane.style.display = '';   /* let the stylesheet decide */
     fill();
     document.body.setAttribute('data-bb', 'settings');
+    /* CARD 99: LIGHT THE RIGHT TAB. Setting data-bb alone leaves whichever tab
+       was lit before still lit - the render showed Habits highlighted while the
+       Settings window was on screen. The bar lights a tab by matching
+       `dataset.tab === id`, so do exactly that rather than inventing a second
+       way to mark the active tab. */
+    try {
+      var tabs = document.querySelectorAll('#bottomBar .bb-tab, #bottomBar [data-tab]');
+      for (var t = 0; t < tabs.length; t++) {
+        if (tabs[t].getAttribute('data-tab') === 'settings') tabs[t].classList.add('on');
+        else tabs[t].classList.remove('on');
+      }
+    } catch (e) {}
   };
 })();
 </script>
