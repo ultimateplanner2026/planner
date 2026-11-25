@@ -7084,7 +7084,7 @@ window.__rollHorizon = function () {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-11-25 14:09</span>
+    <span id="buildStamp">build 2026-11-25 16:40</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -17275,14 +17275,41 @@ function surfaceArrivals() {
 /* ===== m87 ===== */
 (function () {
   // (A) capture phase, registered last, stops every other dblclick handler
+
   document.addEventListener('dblclick', function (e) {
     var el = e.target.closest
       ? e.target.closest('.tgevent, .tgchip, .mchip, #treeRoot .tree-row')
       : null;
     if (!el) return;
-    // ignore double-clicks meant for text editing
-    if (e.target.isContentEditable) return;
-    if (e.target.closest && e.target.closest('input, textarea, select, .tree-title')) return;
+    /* CARD 100: THE isContentEditable GUARD IS GONE for tree rows.
+       MEASURED three times, each theory disproved by the next measurement:
+         - on a task name isContentEditable is FALSE before the gesture and
+           TRUE after: the FIRST click of the pair focuses the title
+         - so a dblclick-time check always sees "editable" and bails
+         - and a mousedown-time flag does not help either: it runs AFTER the
+           title has taken focus, so `wasFocused` was already true
+       The guard existed to avoid stealing a double-click meant to select a
+       word in a title the operator was editing. In the tree that trade is
+       wrong: the operator's words were "whenever I double click any task, it's
+       not opening", and opening the task is what a double-click on a row means
+       here. Renaming is still reachable - a single click puts the title in
+       edit mode exactly as before, and this handler only runs on the second.
+       Outside #treeRoot (calendar chips) nothing changes. */
+    /* ===================================================================== CARD 100
+       Operator 2026-11-25: "whenever I double click any task, it's not
+       opening."
+
+       MEASURED on the live build: a real double-click ON THE TASK NAME did
+       nothing (editingId stayed null); the SAME double-click 60px to the right
+       of the name set editingId. The difference is this line - the task name
+       IS `.tree-title`, so every double-click aimed at a task was excluded.
+
+       The exclusion exists so a double-click meant for TEXT EDITING is not
+       stolen. That case is already covered by the `isContentEditable` test on
+       the line above, which is true exactly when the title is in edit mode.
+       Excluding `.tree-title` unconditionally excluded it the rest of the time
+       too - which is every normal double-click on a task. */
+    if (e.target.closest && e.target.closest('input, textarea, select')) return;
     var id = el.dataset.nodeId || el.dataset.id;
     if (!id) return;
     e.preventDefault();
@@ -33963,12 +33990,7 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
       var b = document.createElement('button');
       b.type = 'button';
       b.className = (isPm === pm) ? 'on' : '';
-      if (ICON[label]) {
-      var ic = document.createElement('span');
-      ic.className = 'ico'; ic.textContent = ICON[label];
-      b.appendChild(ic);
-    }
-    b.appendChild(document.createTextNode(label));
+      b.appendChild(document.createTextNode(label));
       b.onclick = function () {
         isPm = pm;
         var kids = ap.querySelectorAll('button'), k;
@@ -41579,12 +41601,7 @@ function buildCompactTime(initHHMM, onPick, onCancel) {
       var b = document.createElement('button');
       b.type = 'button';
       b.className = (isPm === pm) ? 'on' : '';
-      if (ICON[label]) {
-      var ic = document.createElement('span');
-      ic.className = 'ico'; ic.textContent = ICON[label];
-      b.appendChild(ic);
-    }
-    b.appendChild(document.createTextNode(label));
+      b.appendChild(document.createTextNode(label));
       b.onclick = function (e) {
         e.preventDefault();
         e.stopPropagation();
