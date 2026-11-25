@@ -4868,6 +4868,246 @@ input:focus, textarea:focus, select:focus {
   }
 }
 
+/* ===================================================================== CARD 93
+   The Plan screen's controls on a phone: the ORIGINAL top row is left exactly
+   as it is, and the swept settings buttons sit on their OWN row underneath.
+
+   Operator 2026-11-24: "the original buttons on the top leave, the new setting
+   buttons put them under it" / "the up and down and dot, don't belong there".
+
+   MEASURED on the live build at 412x772 before any of this:
+       top row (.tree-toolbar)   y=31   Search, < Today-Nov 24 >, +, gear
+       bottom strip (#calTopbar) y=632  h=66  Sync, Export, Settings, Import, kebab
+       tree (#treeRoot)          y=78..631
+       tab bar (#bottomBar)      y=699..772   <- never moves
+
+   Phone only (<=900px, the width where this app's layout is one column and six
+   other media queries already switch). */
+@media (max-width: 900px) {
+
+  /* TWO ROWS. The toolbar wraps, and ::after forces the break between the two
+     groups. It also has to be allowed to GROW: it carries `flex: 0 0 47px`
+     from the one-row design, and with wrapping on, the second row was laid out
+     while the box stayed 47px - so the icons printed over the first task. The
+     geometry probe said treeRoot y=60 and looked correct; only the RENDER
+     showed the overlap. */
+  body[data-bb="plan"] aside#treePane > .tree-toolbar {
+    /* CARD 97: row 2 is empty now that every control on it is hidden, so the
+       toolbar goes back to ONE line and the branch list takes the space. */
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    gap: 3px !important;
+    padding: 6px 10px !important;
+    overflow: visible !important;
+    flex: 0 0 auto !important;
+    height: auto !important;
+    min-height: 0 !important;
+  }
+
+  /* Row 1 must hold its four controls on ONE line. MEASURED: at full size
+     Search(178) + date(110) + plus(26) + gear(30) + gaps > 412, so the gear
+     wrapped to a line of its own and the screen showed THREE rows. The date,
+     the + and the gear keep the sizes they have today; only SEARCH flexes,
+     because it is the one control with no fixed content. */
+  body[data-bb="plan"] aside#treePane .tree-toolbar .ps-wrap,
+  body[data-bb="plan"] aside#treePane .tree-toolbar #treeSearch {
+    flex: 1 1 60px !important;
+    min-width: 60px !important;
+    width: auto !important;
+  }
+  body[data-bb="plan"] aside#treePane .tree-toolbar .tree-datenav,
+  body[data-bb="plan"] aside#treePane .tree-toolbar #btnAddGoal,
+  body[data-bb="plan"] aside#treePane .tree-toolbar #treeGear {
+    flex: 0 0 auto !important;
+  }
+
+  /* THE SPLIT. Row 1 = the four controls the screen already has, in the order
+     it already has them. Row 2 = what the sweep brought down from the desktop
+     bar. ::after is a zero-height full-width item that forces the break and
+     adds nothing to the DOM. */
+  body[data-bb="plan"] .tree-toolbar #treeSearch    { order: 1 !important; }
+  body[data-bb="plan"] .tree-toolbar .tree-datenav  { order: 2 !important; }
+  body[data-bb="plan"] .tree-toolbar #btnAddGoal    { order: 3 !important; }
+  body[data-bb="plan"] .tree-toolbar #treeGear      { order: 4 !important; }
+
+  /* CARD 97: the row break is gone with the second row. */
+
+  body[data-bb="plan"] .tree-toolbar #syncPill      { order: 6 !important; }
+  body[data-bb="plan"] .tree-toolbar #btnExport     { order: 7 !important; }
+  body[data-bb="plan"] .tree-toolbar #btnImport     { order: 8 !important; }
+  body[data-bb="plan"] .tree-toolbar #btnAppSettings{ order: 9 !important; }
+  body[data-bb="plan"] .tree-toolbar #btnAccount    { order: 10 !important; }
+
+  /* the zero-width leftovers the sweep also brings (spacers, hidden sign-in
+     buttons) must not eat the gap between real controls */
+  body[data-bb="plan"] .tree-toolbar > .topbar-spacer,
+  body[data-bb="plan"] .tree-toolbar > .topbar-group:empty {
+    display: none !important;
+  }
+
+  /* icons only, on the NEW row's buttons. #btnAddGoal is an original top-row
+     control and keeps whatever it has today. */
+  body[data-bb="plan"] .tree-toolbar #btnExport > span,
+  body[data-bb="plan"] .tree-toolbar #btnImport > span,
+  body[data-bb="plan"] .tree-toolbar #btnAppSettings > span {
+    display: none !important;
+  }
+
+  body[data-bb="plan"] .tree-toolbar #btnExport,
+  body[data-bb="plan"] .tree-toolbar #btnImport,
+  body[data-bb="plan"] .tree-toolbar #btnAppSettings,
+  body[data-bb="plan"] .tree-toolbar #btnAccount {
+    flex: 0 0 auto !important;
+    width: 34px !important;
+    height: 34px !important;
+    min-width: 34px !important;
+    padding: 0 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  /* CARD 93: the sync dot, Export and Import come OFF the row.
+     HIDDEN, never removed from the DOM - the Settings menu's "Export data" /
+     "Import data" rows work by CLICKING these very buttons, and the status
+     line reads this pill's text. Delete them and both break.
+     position:absolute takes them out of the flex flow so they leave no gap,
+     while staying clickable by script. */
+  /* ===================================================================== CARD 97
+     Operator 2026-11-25, pointing at the second row: "the gear looking thing
+     under the search and the double points... remove these tabs from there and
+     put whatever's inside there inside the setting gear that's on the bottom
+     right."
+
+     MEASURED what each one opened before removing either:
+       the SUN (#btnAppSettings) -> Calendar, Task history, Restore a backup,
+            Export data, Import data, Calendar sync, Sign out
+            = exactly what the Setting TAB already opens, so it is a duplicate
+       the KEBAB (#btnAccount)   -> Sign in to sync, Sign out
+            "Sign in to sync" is NOT in the Setting menu, so it is carried over
+            below rather than lost
+       (the gear top-right is a DIFFERENT menu - Focus mode, Show future tasks
+        ... - and is part of the untouched top row.)
+
+     Both are HIDDEN, never removed from the DOM: the Setting tab's handler
+     clicks #btnAppSettings, and the menu's own rows click #btnExport /
+     #btnImport. Delete them and the Setting tab stops working. */
+  body[data-bb="plan"] .tree-toolbar #btnAppSettings,
+  body[data-bb="plan"] .tree-toolbar #btnAccount,
+  body[data-bb="plan"] .tree-toolbar #syncPill,
+  body[data-bb="plan"] .tree-toolbar #btnExport,
+  body[data-bb="plan"] .tree-toolbar #btnImport {
+    position: absolute !important;
+    width: 1px !important;
+    height: 1px !important;
+    min-width: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    overflow: hidden !important;
+  }
+
+  /* the strip the controls came from is now empty: collapse it so the branch
+     list grows into those 66px. The tab bar below is NOT touched. */
+  body[data-bb="plan"] section#rightPane > #calTopbar { display: none !important; }
+  body[data-bb="plan"] #treeRoot { flex: 1 1 auto !important; }
+}
+
+/* the Settings menu's new sync-status line and group headings */
+.acctmenu .smstatus {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  padding: 9px 13px 8px !important;
+  font-size: 12.5px !important;
+  color: #8a8f98 !important;
+}
+.acctmenu .smstatus::before {
+  content: '' !important;
+  width: 8px !important;
+  height: 8px !important;
+  border-radius: 50% !important;
+  background: #6b7280 !important;
+  flex: 0 0 auto !important;
+}
+.acctmenu .smstatus[data-state="ok"]::before,
+.acctmenu .smstatus[data-state="synced"]::before { background: #22c55e !important; }
+.acctmenu .smstatus[data-state="error"]::before  { background: #ef4444 !important; }
+.acctmenu .smstatus[data-state="busy"]::before   { background: #eab308 !important; }
+
+
+/* ===================================================================== CARD 98
+   A SETTINGS WINDOW, not a pop-up menu. Operator 2026-11-25: "the bottom right
+   setting, when I click it, is supposed to open a new window with all these
+   things."
+
+   Built on the app's OWN full-screen pane pattern (#habitsPane), measured
+   before writing a line of this: absolute inset 0, z-index 6, the bottom bar
+   forced to z-index 8 so there is always a way out, and a .hp-head bar at the
+   top. Copying it means this window scrolls, layers and closes exactly like
+   Habits already does. */
+#settingsPane {
+  position: absolute; left: 0; right: 0; top: 0; bottom: 0; z-index: 6;
+  background: var(--surface, #1c1f26); display: none; flex-direction: column;
+}
+body[data-bb="settings"] #settingsPane { display: flex; }
+body[data-bb="settings"] #treeRoot,
+body[data-bb="settings"] .tree-toolbar { visibility: hidden; }
+#settingsPane .sp-head {
+  display: flex; align-items: center; gap: 8px; padding: 11px 13px;
+  border-bottom: 1px solid var(--border, #2e323a); background: #20242c;
+  flex: 0 0 auto;
+}
+#settingsPane .sp-head .ttl { font-size: 15px; font-weight: 600; color: #e6e8ec; }
+#settingsPane .sp-head .pill {
+  margin-left: auto; display: flex; align-items: center; gap: 7px;
+  font-size: 11.5px; color: #8a8f98;
+}
+#settingsPane .sp-head .pill::before {
+  content: ''; width: 8px; height: 8px; border-radius: 50%;
+  background: #6b7280;
+}
+#settingsPane .sp-head .pill[data-state="ok"]::before { background: #22c55e; }
+#settingsPane .sp-head .pill[data-state="error"]::before { background: #ef4444; }
+#settingsPane .sp-body { flex: 1 1 auto; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+#settingsPane .sp-group { padding: 14px 13px 4px; font-size: 10.5px; font-weight: 700;
+  letter-spacing: .09em; text-transform: uppercase; color: #6b7280; }
+/* V2: CARDS. Each row is a raised card with a line of explanation under its
+   name, so nothing needs to be guessed from a two-word label. Costs height -
+   fewer rows fit on screen - and buys clarity. */
+#settingsPane .sp-body { padding: 4px 11px 14px; }
+/* DEPTH 4 - ICONS + LIFT. Depth from the shadow, but the real change is a
+   leading glyph on every card: a settings list reads as unfinished without
+   them, and an icon is faster to find than a word. Uses the planner's accent
+   for the glyph so it matches the tab icons. */
+#settingsPane .sp-row {
+  display: flex; align-items: center; width: 100%;
+  padding: 14px 15px; margin: 0 0 10px;
+  background: linear-gradient(180deg, #262a33 0%, #1f232a 100%);
+  border: 1px solid #333945; border-radius: 13px;
+  box-shadow: 0 4px 14px rgba(0,0,0,.38), inset 0 1px 0 rgba(255,255,255,.045);
+  color: #e6e8ec; font: inherit; font-size: 15.5px; text-align: left;
+  cursor: pointer; flex-wrap: wrap;
+}
+#settingsPane .sp-row:active { background: #262b34; }
+#settingsPane .sp-row .ico {
+  flex: 0 0 auto; width: 30px; height: 30px; margin-right: 12px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 9px; background: rgba(94,106,210,.14);
+  color: #7c8cf0; font-size: 15px;
+}
+#settingsPane .sp-row .sub { margin-left: 42px; }
+#settingsPane .sp-row .sub {
+  flex: 1 0 100%; color: #8a8f98; font-size: 12.5px; margin-top: 3px;
+}
+#settingsPane .sp-row:active { background: #22262e; }
+#settingsPane .sp-row .hint { margin-left: auto; color: #6b7280; font-size: 12.5px; }
+#settingsPane .sp-row .chev { margin-left: auto; color: #4b5563; font-size: 17px; }
+#settingsPane .sp-row .hint + .chev { margin-left: 9px; }
+#settingsPane .sp-row.danger { color: #f87171; }
+
 /* BUG 9 (operator) - the typing fix flickers.
    Restoring the caret after a redraw repaints the row, which reads as a flash.
    Suppress the row's transition/animation while a field inside it has focus. */
@@ -6828,7 +7068,7 @@ window.__rollHorizon = function () {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-11-24 18:11</span>
+    <span id="buildStamp">build 2026-11-25 13:48</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -33707,7 +33947,12 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
       var b = document.createElement('button');
       b.type = 'button';
       b.className = (isPm === pm) ? 'on' : '';
-      b.appendChild(document.createTextNode(label));
+      if (ICON[label]) {
+      var ic = document.createElement('span');
+      ic.className = 'ico'; ic.textContent = ICON[label];
+      b.appendChild(ic);
+    }
+    b.appendChild(document.createTextNode(label));
       b.onclick = function () {
         isPm = pm;
         var kids = ap.querySelectorAll('button'), k;
@@ -35159,6 +35404,34 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
     bCon.onclick = function () { setAllCollapsed(true); closeMenu(); };
     menuEl.appendChild(bCon);
 
+    /* ===================================================================== CARD 98
+       operator 2026-11-25: "opening the calendar button I want it to be in the
+       tree setting, from it from there."
+       So the way INTO the calendar lives on this gear, beside the other things
+       that change what you are looking at - not in Settings, which is about
+       your data and account. A divider separates it, because it is a different
+       kind of action: it leaves the tree.
+
+       It sets the view directly and redraws. It must NOT call show() or click a
+       tab - both re-enter the 500ms tab builder and LOCKED THE MAIN THREAD
+       three times on 2026-11-25. */
+    var bSep2 = document.createElement('div');
+    bSep2.className = 'gearsep';
+    menuEl.appendChild(bSep2);
+
+    var bCal = document.createElement('button');
+    bCal.type = 'button';
+    bCal.className = 'gearitem';
+    /* CARD 98, operator 2026-11-25: "should be called calendar view instead of
+       open the calendar" - and it goes FIRST in this list. */
+    bCal.textContent = 'Calendar view';
+    bCal.onclick = function () {
+      closeMenu();
+      document.body.setAttribute('data-bb', 'day');
+      if (window.renderAll) window.renderAll();
+    };
+    menuEl.appendChild(bCal);
+
     /* ============================================================== CARD 90
        operator 2026-11-19: "remove new goal from tree its reducntant, so it
        should be focus mode, the show future tasks, then show routines & habits,
@@ -35184,14 +35457,23 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
        up the wrong line the moment wording changes (card 89 renamed one). */
     (function () {
       try {
-        var ordered = [b2, b4];          /* Focus mode, Show future tasks */
+        /* CARD 98: Calendar view goes FIRST, on the operator's instruction, with
+           its divider UNDER it - it is the one entry that leaves the tree, so
+           it reads as its own thing at the top rather than trailing the
+           switches. */
+        var ordered = [bCal, bSep2, b2, b4];   /* Calendar view, --, Focus mode, Show future tasks */
         /* "Show routines & habits" is built by hrItem(), which appends straight
            to menuEl and returns nothing, so it has no variable to name. Take it
            from the DOM by identity - the only .gearitem that is none of the
            named buttons and is not Expand/Contract. b5 is named, so it is
            excluded here and placed deliberately below - otherwise it would be
            swept in as "the unnamed one" and land before routines. */
-        var known = [b1, b2, b3, b4, b5, bExp, bCon];
+        /* CARD 98: bCal and bSep2 are NAMED here deliberately. The sweep
+           below adopts "the only .gearitem that is none of the named buttons"
+           as Show routines & habits - so an unnamed new item is stolen into
+           that slot. MEASURED: Open the calendar appeared 4th in the list,
+           between routines and completed, until it was named. */
+        var known = [b1, b2, b3, b4, b5, bExp, bCon, bCal, bSep2];
         var items = menuEl.querySelectorAll('.gearitem');
         for (var i = 0; i < items.length; i++) {
           if (known.indexOf(items[i]) === -1) ordered.push(items[i]);
@@ -35201,6 +35483,7 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
         ordered.push(b3);                 /* Missed */
         ordered.push(gsep);               /* the divider */
         ordered.push(bExp, bCon);         /* Expand all, Contract all */
+        /* CARD 98: Calendar view and its divider are placed FIRST, above. */
         for (var j = 0; j < ordered.length; j++) {
           if (ordered[j] && ordered[j].parentNode === menuEl) {
             menuEl.appendChild(ordered[j]);   /* moves it, does not clone */
@@ -35308,12 +35591,23 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
       rightPane.insertBefore(calTopbar, rightPane.firstChild);
     }
 
+    var onPhone = window.innerWidth <= 900;
+    var target = calTopbar;
+    if (onPhone) { var tt=document.querySelector('.tree-toolbar'); if (tt) target=tt; }
     var kids = Array.prototype.slice.call(topbar.children);
     for (var j = 0; j < kids.length; j++) {
       var kid = kids[j];
       if (kid.id === 'buildStamp') continue;
-      if (calTopbar.contains(kid)) continue;
-      calTopbar.appendChild(kid);
+      if (target.contains(kid)) continue;
+      target.appendChild(kid);
+    }
+    if (onPhone && target !== calTopbar) {
+      var parked = Array.prototype.slice.call(calTopbar.children);
+      for (var k = 0; k < parked.length; k++) {
+        var pk = parked[k];
+        if (pk.id === 'buildStamp') continue;
+        target.appendChild(pk);
+      }
     }
 
     /* the version must stay on screen, top right (operator, 2026-08-20, and the regression suite
@@ -36871,9 +37165,22 @@ body[data-habits-left="1"] #habitsLeft {
             + '<path d="M8.2 3.6v3.6M15.8 3.6v3.6M3.6 10.4h16.8" ' + g + '/>'
             + '<path d="M8.6 14.8h6.8" ' + b + '/>';
     } else if (kind === 'gear') {
+      /* CARD 96: Plan's frame + a blue gear at size 4 (0.70).
+
+         THE FRAME IS TAB-ONLY. svg('gear') has TWO callers: the new Setting
+         TAB and the existing #btnAppSettings button on the control row.
+         Putting the rect in the shared function gave that row button a white
+         box it never had - visible in the render, invisible to every
+         measurement I took. So the frame is drawn under a 'gearframed' kind
+         that only the tab asks for; the row button keeps the plain gear. */
       inner = '<circle cx="12" cy="12" r="3.1" ' + g + '/>'
             + '<path d="M12 3.4v2.2M12 18.4v2.2M5.2 5.2l1.6 1.6M17.2 17.2l1.6 1.6'
             + 'M3.4 12h2.2M18.4 12h2.2M5.2 18.8l1.6-1.6M17.2 6.8l1.6-1.6" ' + g + '/>';
+    } else if (kind === 'gearframed') {
+      var bThin = b.replace('stroke-width="2.2"', 'stroke-width="1.7"');
+      inner = '<rect x="3.6" y="3.6" width="16.8" height="16.8" rx="4.4" ' + g + '/>'
+            + '<circle cx="12" cy="12" r="1.89" ' + bThin + '/>'
+            + '<path d="M12 7.24 V8.36M12 15.64 V16.76M7.24 12 H8.36M15.64 12 H16.76M8.6 8.6 L9.42 9.42M14.58 14.58 L15.4 15.4M8.6 15.4 L9.42 14.58M14.58 9.42 L15.4 8.6" ' + bThin + '/>';
     }
     /* 2026-09-26, operator: "I want the icons to be this big on the browser" -
        pointing at the phone layout, where they read larger. The size is set in
@@ -36961,7 +37268,7 @@ body[data-habits-left="1"] #habitsLeft {
          control and keeps its 'Day'.
          MEASURED at 412/360/320px: "Calendar" is 56px in an 80-103px tab, so
          it fits at every phone size with room to spare. */
-      ? [['day', 'Calendar'], ['plan', 'Plan'], ['alarms', 'Alarms'], ['habits', 'Habits']]
+      ? [['plan', 'Plan'], ['alarms', 'Alarms'], ['habits', 'Habits'], ['settings', 'Setting']]
       : [['plan', 'Plan'], ['alarms', 'Alarms'], ['habits', 'Habits']];
     for (var i = 0; i < defs.length; i++) {
       (function (id, label) {
@@ -36971,7 +37278,8 @@ body[data-habits-left="1"] #habitsLeft {
         var ic = document.createElement('span');
         ic.innerHTML = svg(id === 'habits' ? 'habit'
                           : (id === 'alarms' ? 'alarm'
-                          : (id === 'day' ? 'day' : 'plan')));
+                          : (id === 'settings' ? 'gearframed'
+                          : (id === 'day' ? 'day' : 'plan'))));
         var lb = document.createElement('span');
         lb.textContent = label;
         b.appendChild(ic);
@@ -36981,6 +37289,13 @@ body[data-habits-left="1"] #habitsLeft {
         b.addEventListener('mouseout',  function () { b.className = b.className.replace(/\s*hovering/, ''); });
         b.addEventListener('click', function (e) {
           e.preventDefault();
+          if (id === 'settings') {
+            /* CARD 98: a WINDOW, not a pop-up menu. */
+            if (window.__openSettingsPane) { window.__openSettingsPane(); return; }
+            var sb = document.getElementById('btnAppSettings');
+            if (sb) sb.click();
+            return;
+          }
           show(id);
         });
         bar.appendChild(b);
@@ -36996,7 +37311,7 @@ body[data-habits-left="1"] #habitsLeft {
     /* CARD 85: and the Day-FIRST default is phone-only. On the browser it would
        park the app on data-bb="day" with no Day button to come back from. */
     try {
-      if (PHONE && !window.__dayFirstDone) {
+      if (false && PHONE && !window.__dayFirstDone) {
         window.__dayFirstDone = true;
         /* MEASURED by trapping every write to data-bb: this show('day') lands at
            +10ms, and then an OLDER bottom-bar module boots at +910ms and sets
@@ -37253,6 +37568,47 @@ body[data-habits-left="1"] #habitsLeft {
       return x;
     }
 
+    /* ===================================================================== CARD 97
+       THE ORDER, operator 2026-11-25: "it would have task history on the top,
+       restore a backup, and the rest do it in a way that makes sense."
+
+       So: the two they named first, then everything else grouped by WHAT KIND
+       of thing it is, with the sign-out furthest from an accidental tap.
+
+           ● Sync off            status, not a control
+           ---------------------------------
+           Task history          <- their #1
+           Restore a backup      <- their #2
+           ---------------------------------
+           Calendar              a VIEW, not a setting
+           ---------------------------------
+           Export data           moving data in and out
+           Import data
+           ---------------------------------
+           Calendar sync         account + connections, least used
+           Sign in to sync
+           Sign out
+
+       The sync DOT is a status LINE here because the operator took it off the
+       control row ("the up and down and dot, don't belong there"). It reads
+       the real pill's text, so there is one source of truth. */
+    (function () {
+      var st = document.createElement('div');
+      st.className = 'smstatus';
+      var pill = document.getElementById('syncPill');
+      var txt = 'Sync off', state = 'local';
+      if (pill) {
+        txt = (pill.textContent || '').trim() || txt;
+        state = pill.getAttribute('data-state') || state;
+      }
+      st.setAttribute('data-state', state);
+      st.textContent = txt;
+      menu.appendChild(st);
+      var hr0 = document.createElement('div');
+      hr0.className = 'acctsep';
+      menu.appendChild(hr0);
+    })();
+
     /* 1. Task history - opens the drawer, which is what Settings used to do
           directly. The four tabs and everything behind them are untouched:
           this calls the same function the button called before. */
@@ -37291,6 +37647,45 @@ body[data-habits-left="1"] #habitsLeft {
       if (window.renderTree) window.renderTree();
     });
 
+    /* ---- group 2: CALENDAR, a view rather than a setting -------------------
+       CARD 95: the Calendar tab left the bottom bar and the operator said "I
+       will put the calendar tap in the setting on the priority tree". This is
+       the ONLY remaining way into Day / Week / Month / Journal on a phone.
+       It sets the view directly and redraws - it must not click a tab or call
+       show(), both of which re-enter the 500ms tab builder and LOCKED THE MAIN
+       THREAD three times on 2026-11-25. */
+    (function () {
+      var phone = false;
+      try { phone = window.matchMedia('(max-width: 700px)').matches; } catch (e) {}
+      if (!phone) return;
+      var hrA = document.createElement('div');
+      hrA.className = 'acctsep';
+      menu.appendChild(hrA);
+      row('Calendar', '', function () {
+        document.body.setAttribute('data-bb', 'day');
+        if (window.renderAll) window.renderAll();
+      });
+    })();
+
+    var hrB = document.createElement('div');
+    hrB.className = 'acctsep';
+    menu.appendChild(hrB);
+
+    /* ---- group 3: moving your data in and out -----------------------------
+       CARD 93: Export and Import as WORDS - the operator asked for the arrows
+       not to come along. Checked BEFORE removing the buttons from the row:
+       this menu held only Task history, Restore a backup, Calendar sync and
+       Sign out, so Export/Import were reachable NOWHERE else. Each row clicks
+       the real button, so there is one implementation. */
+    row('Export data', '', function () {
+      var b = document.getElementById('btnExport');
+      if (b) b.click();
+    });
+    row('Import data', '', function () {
+      var b = document.getElementById('btnImport');
+      if (b) b.click();
+    });
+
     var hr = document.createElement('div');
     hr.className = 'acctsep';
     menu.appendChild(hr);
@@ -37317,6 +37712,42 @@ body[data-habits-left="1"] #habitsLeft {
       if (window.showCalendarSync) window.showCalendarSync();
     });
 
+    /* ---- group 4: account + connections, least used, furthest from a tap ---
+       CARD 97: "Sign in to sync" and WHO you are signed in as are CARRIED OVER
+       from the kebab (#btnAccount) that just left the row. MEASURED before
+       removing it: that menu held exactly those plus Sign out, and neither the
+       identity line nor Sign in to sync exists in any other menu on the phone.
+
+       MY FIRST ATTEMPT GRABBED THE WRONG BUTTON. I reached for #btnSignIn and
+       used its label - which is "Calendar feed", a hidden retired control, so
+       the menu grew a row that had nothing to do with signing in. Copied from
+       the kebab's own code instead: ask window.FB who is signed in, show the
+       row only when nobody is, and click #btnCloudAuth. */
+    (function () {
+      var email = '';
+      try { email = (window.FB && window.FB.on && window.FB.on())
+                    ? (window.FB.user() || '') : ''; } catch (e) {}
+      /* ONE status line, not two. The render showed "Sync off" at the top and
+         "Not signed in" lower down - the same fact twice, each with its own
+         dot. The top line already carries the sync state, so the identity only
+         speaks when there IS an identity. */
+      if (email) {
+        var who = document.createElement('div');
+        who.className = 'smstatus';
+        who.setAttribute('data-state', 'ok');
+        who.textContent = 'Signed in as ' + email;
+        menu.appendChild(who);
+      }
+      if (!email) {
+        row('Sign in to sync', '', function () {
+          var b = document.getElementById('btnCloudAuth')
+               || document.getElementById('btnSignIn');
+          if (b) { b.click(); return; }
+          if (window.toast) window.toast('Sign-in is not available right now.', 'err');
+        });
+      }
+    })();
+
     /* 4. Sign out - same behaviour as the account menu's own Sign out. */
     row('Sign out', '', function () {
       function reload() { try { location.reload(); } catch (e) {} }
@@ -37333,7 +37764,42 @@ body[data-habits-left="1"] #habitsLeft {
        from .acctmenu's own placement, which already handles the narrow case:
        Math.max(8, ...) pins it 8px from the left edge on a phone, where the
        button sits too far right for a right-aligned menu to fit. */
-    window.__placeMenu(menu, btn);
+    /* ===================================================================== CARD 97
+       ANCHOR THE MENU TO WHAT THE OPERATOR PRESSED.
+       The menu is placed relative to `btn` - and on a phone `btn` is now
+       #btnAppSettings, which card 97 shrank to 1x1 and parked at the top-left
+       of the toolbar. So the menu opened in the top-left corner, nowhere near
+       the Setting tab at the bottom-right that they actually tapped.
+       MEASURED in the render: menu at (22,86) while the Setting tab sits at
+       (309,704). Anchor to the tab when the tab is what opened it. */
+    var anchor = btn;
+    try {
+      var tab = document.querySelector('#bottomBar [data-tab="settings"]');
+      if (tab) {
+        var tr = tab.getBoundingClientRect();
+        var br = btn ? btn.getBoundingClientRect() : null;
+        /* the real button is hidden (1x1) whenever the tab is the way in */
+        if (tr.width > 8 && (!br || br.width < 8)) anchor = tab;
+      }
+    } catch (e) {}
+    window.__placeMenu(menu, anchor);
+
+    /* and it must open UPWARD from a bottom tab, not off the bottom of the
+       screen. __placeMenu assumes a control near the top. */
+    try {
+      if (anchor !== btn) {
+        var mr = menu.getBoundingClientRect();
+        var ar = anchor.getBoundingClientRect();
+        var top = ar.top - mr.height - 8;
+        if (top < 8) top = 8;
+        menu.style.top = Math.round(top) + 'px';
+        var left = ar.left + ar.width - mr.width;
+        if (left < 8) left = 8;
+        if (left + mr.width > window.innerWidth - 8)
+          left = window.innerWidth - 8 - mr.width;
+        menu.style.left = Math.round(Math.max(8, left)) + 'px';
+      }
+    } catch (e) {}
 
     window.__settingsMenuOpen = true;
     setTimeout(function () {
@@ -41093,7 +41559,12 @@ function buildCompactTime(initHHMM, onPick, onCancel) {
       var b = document.createElement('button');
       b.type = 'button';
       b.className = (isPm === pm) ? 'on' : '';
-      b.appendChild(document.createTextNode(label));
+      if (ICON[label]) {
+      var ic = document.createElement('span');
+      ic.className = 'ico'; ic.textContent = ICON[label];
+      b.appendChild(ic);
+    }
+    b.appendChild(document.createTextNode(label));
       b.onclick = function (e) {
         e.preventDefault();
         e.stopPropagation();
@@ -46456,6 +46927,182 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
   document.addEventListener('pointerup', function () {
     setTimeout(clearOcc, 0);
   }, true);
+})();
+</script>
+
+<script>
+/* CARD 98: the Settings WINDOW. Rows call the very same handlers the menu
+   called, so there is one implementation of every action. */
+(function () {
+  if (window.__settingsPaneInstalled) return;
+  window.__settingsPaneInstalled = true;
+
+  var ICON = {
+    'Task history': '\u21BA',
+    'Restore a backup': '\u2912',
+    'Open the calendar': '\u25A6',
+    'Send to phone calendar': '\u21C4',
+    'Export data': '\u2913',
+    'Import data': '\u2912',
+    'Sign in to sync': '\u25CF',
+    'Sign out': '\u23FB'
+  };
+
+  var SUB = {
+    'Task history': 'Past due, completed and deleted tasks',
+    'Restore a backup': 'Go back to an earlier version of your planner',
+    'Open the calendar': 'Day, week, month and journal views',
+    'Send to phone calendar': 'Your alarms appear in the iPhone Calendar app',
+    'Export data': 'Save everything to a file',
+    'Import data': 'Load a file back in',
+    'Sign in to sync': 'Keep your planner on every device',
+    'Sign out': 'End this session on this device'
+  };
+
+  function click(id) {
+    var b = document.getElementById(id);
+    if (b) b.click();
+  }
+
+  function build() {
+    var host = document.getElementById('treePane');
+    if (!host) return null;
+    var pane = document.getElementById('settingsPane');
+    if (pane) return pane;
+    pane = document.createElement('div');
+    pane.id = 'settingsPane';
+
+    var head = document.createElement('div');
+    head.className = 'sp-head';
+    var ttl = document.createElement('span');
+    ttl.className = 'ttl';
+    ttl.textContent = 'Settings';
+    var pill = document.createElement('span');
+    pill.className = 'pill';
+    head.appendChild(ttl); head.appendChild(pill);
+
+    var body = document.createElement('div');
+    body.className = 'sp-body';
+    pane.appendChild(head); pane.appendChild(body);
+    host.appendChild(pane);
+    pane.__pill = pill; pane.__body = body;
+    return pane;
+  }
+
+  function group(body, label) {
+    var g = document.createElement('div');
+    g.className = 'sp-group';
+    g.textContent = label;
+    body.appendChild(g);
+  }
+
+  function row(body, label, hint, onClick, danger) {
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'sp-row' + (danger ? ' danger' : '');
+    if (ICON[label]) {
+      var ic = document.createElement('span');
+      ic.className = 'ico'; ic.textContent = ICON[label];
+      b.appendChild(ic);
+    }
+    b.appendChild(document.createTextNode(label));
+    if (hint) {
+      var h = document.createElement('span');
+      h.className = 'hint'; h.textContent = hint;
+      b.appendChild(h);
+    }
+    var c = document.createElement('span');
+    c.className = 'chev'; c.textContent = '\u203A';
+    b.appendChild(c);
+    if (SUB[label]) {
+      var sb2 = document.createElement('span');
+      sb2.className = 'sub'; sb2.textContent = SUB[label];
+      b.appendChild(sb2);
+    }
+    b.addEventListener('click', function (e) { e.preventDefault(); onClick(); });
+    body.appendChild(b);
+    return b;
+  }
+
+  function fill() {
+    var pane = build();
+    if (!pane) return;
+    var body = pane.__body;
+    body.innerHTML = '';
+
+    /* sync state in the header, where a window puts its status */
+    var pill = pane.__pill;
+    var sp = document.getElementById('syncPill');
+    pill.textContent = sp ? ((sp.textContent || '').trim() || 'Sync off') : 'Sync off';
+    pill.setAttribute('data-state', sp ? (sp.getAttribute('data-state') || 'local') : 'local');
+
+    var saved = 0;
+    try {
+      if (window.plannerSnapshots && window.plannerSnapshots.list)
+        saved = window.plannerSnapshots.list().length;
+    } catch (e) {}
+
+        group(body, 'Your work');
+    row(body, 'Task history', '', function () {
+      document.body.setAttribute('data-bb', 'plan');
+      if (window.plannerOpenSettings) window.plannerOpenSettings();
+      window.treeView = 'pastdue';
+      if (window.renderTree) window.renderTree();
+    });
+    row(body, 'Restore a backup', saved ? (saved + ' saved') : '', function () {
+      document.body.setAttribute('data-bb', 'plan');
+      if (window.plannerOpenSettings) window.plannerOpenSettings();
+      window.treeView = 'restore';
+      if (window.renderTree) window.renderTree();
+    });
+
+    group(body, 'Calendar');
+    /* CARD 98, operator 2026-11-25: "why is there calendar and calendar sync?
+       What's the difference there?" - a fair question, because the names did
+       not answer it. MEASURED from the code: this one switches the app to the
+       Day/Week/Month/Journal views; 'Calendar sync' hands out a subscription
+       address so the PHONE'S OWN calendar app receives the alarms ("Subscribe
+       once and your alarms keep arriving on their own"). Two unrelated jobs
+       sharing one word. Renamed so the list answers the question itself. */
+    /* CARD 98: "Open the calendar" MOVED OUT of this window to the TREE GEAR,
+       on the operator's instruction 2026-11-25 ("I want it to be in the tree
+       setting"). It is a place to go, not a setting. What stays under Calendar
+       here is the one thing that really is a setting: handing your alarms to
+       the phone's own calendar app. */
+    row(body, 'Send to phone calendar', '', function () {
+      document.body.setAttribute('data-bb', 'plan');
+      if (window.plannerCloseSettings) window.plannerCloseSettings();
+      window.treeView = 'active';
+      if (window.renderTree) window.renderTree();
+      if (window.showCalendarSync) window.showCalendarSync();
+    });
+
+    group(body, 'Your data');
+    row(body, 'Export data', '', function () { click('btnExport'); });
+    row(body, 'Import data', '', function () { click('btnImport'); });
+
+    group(body, 'Account');
+    var email = '';
+    try { email = (window.FB && window.FB.on && window.FB.on())
+                  ? (window.FB.user() || '') : ''; } catch (e) {}
+    if (email) {
+      row(body, 'Signed in as ' + email, '', function () {});
+    } else {
+      row(body, 'Sign in to sync', '', function () { click('btnCloudAuth'); });
+    }
+    row(body, 'Sign out', '', function () {
+      function reload() { try { location.reload(); } catch (e) {} }
+      try {
+        var r = (window.FB && window.FB.signOut) ? window.FB.signOut() : null;
+        if (r && r.then) r.then(reload, reload); else reload();
+      } catch (e) { reload(); }
+    }, true);
+  }
+
+  window.__openSettingsPane = function () {
+    fill();
+    document.body.setAttribute('data-bb', 'settings');
+  };
 })();
 </script>
 </body>
