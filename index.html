@@ -5069,7 +5069,35 @@ input:focus, textarea:focus, select:focus {
   background: var(--surface, #1c1f26); display: none; flex-direction: column;
 }
 body[data-bb="settings"] #settingsPane { display: flex; }
-body[data-bb="settings"] #treeRoot,
+/* ===================================================== CARD 109, 2026-11-25
+   Operator: "the delete button is no longer working".
+
+   ROOT CAUSE, traced not guessed. This rule hid #treeRoot whenever the phone
+   Settings window was open (shipped 2026-11-25 13:48 with that window). But
+   Task history builds the Completed and Deleted LISTS INSIDE #treeRoot - the
+   comment at the `display:none` rule a few lines down even says so:
+
+       "The exception: Completed and Deleted build their list INSIDE #treeRoot,
+        so when #treeRoot carries .done-only it is the list, not the tree"
+
+   That exception was written for `display`, and never applied to `visibility`.
+   So Settings > Task history > Deleted showed a list whose every row, Restore
+   and Delete button computed to visibility:hidden - present, sized, and
+   unclickable. Measured on build 18:20:
+
+       BUTTON.trashitem-restore  computedVis=hidden  inlineVis=""
+       DIV.trashitem             computedVis=hidden
+       DIV.trashlist             computedVis=hidden
+       DIV#treeRoot.done-only    computedVis=hidden   <- the owner
+       ASIDE#treePane            computedVis=visible
+
+   A real pointer press on Restore did nothing and the item stayed in the bin.
+
+   THE FIX: hide the tree's ROWS, not the container the bin lives in - the same
+   exception `display` already makes. `.done-only` means "this is the list, not
+   the tree", so it must stay visible.
+   [[feedback_a_sibling_pane_hides_every_child]] [[feedback_zero_size_means_check_the_parent]] */
+body[data-bb="settings"] #treeRoot:not(.done-only),
 body[data-bb="settings"] .tree-toolbar { visibility: hidden; }
 #settingsPane .sp-head {
   display: flex; align-items: center; gap: 8px; padding: 11px 13px;
@@ -7084,7 +7112,7 @@ window.__rollHorizon = function () {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-11-25 18:20</span>
+    <span id="buildStamp">build 2026-11-25 19:12</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -37145,7 +37173,11 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
 /* and the bar always sits above it, whatever else happens */
 #treePane > #bottomBar { z-index: 8 !important; }
 body[data-bb="habits"] #habitsPane { display: flex; }
-body[data-bb="habits"] #treeRoot, body[data-bb="habits"] .tree-toolbar { visibility: hidden; }
+/* CARD 109: the same exception as the settings rule above - a .done-only
+   #treeRoot IS the Completed/Deleted list, not the tree, so hiding it hides
+   the bin. Fixed in both places at once rather than leaving a twin. */
+body[data-bb="habits"] #treeRoot:not(.done-only),
+body[data-bb="habits"] .tree-toolbar { visibility: hidden; }
 #habitsPane .hp-head {
   display: flex; align-items: center; gap: 8px; padding: 9px 11px;
   border-bottom: 1px solid var(--border, #2e323a); background: #20242c; flex: 0 0 auto;
@@ -45364,6 +45396,51 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
       tree.push(host);
     }
     if (!host.children) host.children = [];
+
+    /* ===================================================== CARD 108, 2026-11-25
+       Operator: "why must million dollar routine ecercise is doublicate?"
+
+       ROOT CAUSE, measured on build 2026-11-25 18:20. This function used to look
+       for the routine's task ONLY as a child of the Routines host folder, and
+       ONLY by `rec.id`. For a routine created FROM AN EXISTING TASK neither is
+       true: the real task keeps its own id and lives wherever the operator put
+       it, and the record points at it through `rec.fromTask`. So the search
+       missed, and the `else` below CREATED A SECOND NODE with the same title.
+
+       Reproduced end to end:
+         1. task "Million dollar routine exercise" under /Health      1 node
+         2. + routines record {fromTask: task.id, id: <new uid>}      1 node
+         3. open it from the Routines tab                             2 NODES
+              /Health/Million dollar routine exercise          (the real one)
+              /Health/Routines/Million dollar routine exercise (the copy)
+         4. the copy draws its own chip every day -> 5 chips became 10
+
+       The copy hides in a sub-branch, so the TREE looks right and only the
+       CALENDAR shows it twice.
+
+       AND DELETING THE COPY WAS NOT ENOUGH - measured: with the copy removed,
+       reopening the routine made another one, because the lookup still missed.
+       That is why the fix has to come first.
+
+       `fromTask` is the link every other surface already uses (the habit log,
+       the Completed list, syncTracker). Resolve it HERE too, wherever the node
+       lives, and only fall through to creating one when there is genuinely no
+       task behind the record. [[feedback_one_field_one_owner]] */
+    if (rec.fromTask && typeof window.findNode === 'function') {
+      try {
+        var linked = window.findNode(rec.fromTask);
+        if (linked && linked.node) return linked.node;
+      } catch (e) {}
+    }
+    /* the record's own id may ALSO name a real node anywhere in the tree - a
+       routine created from the tab lives under the host, but one that has since
+       been dragged elsewhere must not be duplicated either. */
+    if (rec.id && typeof window.findNode === 'function') {
+      try {
+        var byId = window.findNode(rec.id);
+        if (byId && byId.node) return byId.node;
+      } catch (e) {}
+    }
     for (i = 0; i < host.children.length; i++) {
       if (host.children[i] && host.children[i].id === rec.id) return host.children[i];
     }
