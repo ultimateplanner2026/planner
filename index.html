@@ -2927,6 +2927,17 @@ aside#treePane, aside#treePane * { min-width: 0 !important; }
   border: 1px solid var(--danger);
 }
 .del-emptyall:hover { background: #2b2f38; }
+/* CARD 111: "Show more" at the foot of the Deleted list. Same geometry as
+   .del-emptyall above (the existing control in this spot) so the two line up,
+   but NEUTRAL colouring - showing more rows is not a destructive action and
+   must not wear the danger red that Empty deleted items wears. */
+.del-showmore {
+  display: block; width: calc(100% - 16px); margin: 10px 8px 4px;
+  padding: 9px 12px; border-radius: 7px; font-size: 12.5px; cursor: pointer;
+  background: var(--surface); color: var(--text);
+  border: 1px solid var(--border);
+}
+.del-showmore:hover { background: #2b2f38; }
 .past-when { flex: 0 0 auto; margin-left: auto; font-size: 11px; color: #f0a04b; white-space: nowrap; }
 .pastitem { cursor: pointer; }
 .pastitem:hover { background: #2b2f38; }
@@ -7112,7 +7123,7 @@ window.__rollHorizon = function () {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-11-25 21:00</span>
+    <span id="buildStamp">build 2026-11-25 21:20</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -15703,6 +15714,15 @@ function surfaceArrivals() {
     if (stale) stale.remove();
     var staleDone = root.querySelector('.donelist');
     if (staleDone) staleDone.remove();
+    /* CARD 111: the FOOT BUTTONS were never cleared here, only the lists.
+       MEASURED on the paged build: pressing "Show more" rebuilt the list to
+       30 rows while the OLD button stayed in the DOM still reading
+       "20 left" - and a second, correct one was appended below it. The
+       pre-existing "Empty deleted items" button had the same leak; it was
+       invisible only because its text never changed. Both are cleared now,
+       by the same rule that already clears the lists. */
+    var staleFoot = root.querySelectorAll('.del-showmore, .del-emptyall');
+    for (var sf = 0; sf < staleFoot.length; sf++) staleFoot[sf].remove();
     root.classList.remove('done-only');
     var rows = root.querySelectorAll('.tree-row');
 
@@ -16127,9 +16147,43 @@ function surfaceArrivals() {
       return tb - ta;
     });
     if (t.length === 0) return;
+    /* ============================================================= CARD 111
+       Operator 2026-11-25, with a picture of 35 items: "its not fixed the
+       deleted box still has a scroll."
+
+       MEASURED why it cannot simply be removed: the list is 1445px and the
+       pane it lives in is 860px, at EVERY width (phone 430 and desktop
+       1280/1440 all overflow by 616-675px). The pane already fills the
+       window - `wastedBelowList` is 0-1px - and the app shell cannot
+       page-scroll (`body` is overflow-y:hidden, height pinned), so there is
+       no room to reclaim from anywhere.
+
+       Fitting all 35 would need each row at 17.6px; the text alone is ~17px.
+       Not viable.
+
+       So the list SHOWS A PAGE AT A TIME, and a "Show more" button adds the
+       next page.
+
+       PAGE SIZE IS 15, MEASURED - not calculated. My first attempt used 20
+       from arithmetic on the pane height and it overflowed by 132px, because
+       the arithmetic forgot the two buttons at the foot: the list itself is
+       846px at 20 rows, plus a 37px Show-more and a 37px Empty-deleted. The
+       real budget is rootClientH 820 minus those 74px, so 17 rows is the
+       ceiling (17 x 35 + 16 x 6 + 32 padding = 723px). 15 leaves margin for
+       the shorter phones measured at 844px tall.
+
+       Nothing is hidden from them - the button says exactly how many are
+       left. __delShown survives a re-render, so pressing Restore or Delete
+       does not snap the list back to the first page. */
+    var PAGE = 15;
+    if (typeof window.__delShown !== 'number' || window.__delShown < PAGE) {
+      window.__delShown = PAGE;
+    }
+    if (window.__delShown > t.length) window.__delShown = Math.max(PAGE, t.length);
+    var shown = Math.min(window.__delShown, t.length);
     var list = document.createElement('div');
     list.className = 'trashlist';
-    for (var i = 0; i < t.length; i++) {
+    for (var i = 0; i < shown; i++) {
       var e = t[i];
       if (!e.node) continue;
       var item = document.createElement('div');
@@ -16180,6 +16234,24 @@ function surfaceArrivals() {
       list.appendChild(item);
     }
     root.appendChild(list);
+    /* CARD 111: the "Show more" button, built the same way as the Empty
+       button below it - same place (a child of root, under the list), same
+       plain <button>, so there is one pattern for a control at the foot of
+       this list and not two. It names how many are left, because a button
+       that just says "more" hides the size of what it is hiding. */
+    if (t.length > shown) {
+      var moreBtn = document.createElement('button');
+      moreBtn.type = 'button';
+      moreBtn.className = 'del-showmore';
+      moreBtn.textContent = 'Show ' + Math.min(PAGE, t.length - shown) +
+        ' more (' + (t.length - shown) + ' left)';
+      moreBtn.addEventListener('click', function (ev) {
+        ev.preventDefault();
+        window.__delShown = (window.__delShown || PAGE) + PAGE;
+        applyView();
+      });
+      root.appendChild(moreBtn);
+    }
     /* 2026-09-20, operator: "The empty deleted button must be inside the deleted
        section in the priority tree." It lived in the Settings drawer, away from the
        list it empties. It sits at the foot of that list now, and reuses the existing
