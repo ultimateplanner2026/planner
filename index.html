@@ -201,7 +201,7 @@ img, svg { display: block; max-width: 100%; }
   --text-dim:    #a1a1aa;
   --accent:      #60a5fa;
   --accent-soft: #1e3a5f;
-  --danger:      #f87171;
+  --danger:      #d96a6a;
   --ok:          #4ade80;
   --warn:        #fbbf24;
 
@@ -234,7 +234,7 @@ img, svg { display: block; max-width: 100%; }
     --text-dim:    #a1a1aa;
     --accent:      #60a5fa;
     --accent-soft: #1e3a8a;
-    --danger:      #f87171;
+    --danger:      #d96a6a;
     --ok:          #4ade80;
     --warn:        #fbbf24;
     --shadow:      0 1px 2px rgba(0,0,0,.4), 0 4px 12px rgba(0,0,0,.5);
@@ -254,7 +254,7 @@ img, svg { display: block; max-width: 100%; }
   --text-dim:    #9aa1ab;
   --accent:      #4d8bff;
   --accent-soft: #1e2a3f;
-  --danger:      #ef4444;
+  --danger:      #d96a6a;
   --ok:          #10b981;
   --warn:        #f59e0b;
   --shadow:      0 1px 2px rgba(0,0,0,.4), 0 4px 12px rgba(0,0,0,.5);
@@ -268,7 +268,7 @@ img, svg { display: block; max-width: 100%; }
   --text-dim:    #a1a1aa;
   --accent:      #60a5fa;
   --accent-soft: #1e3a8a;
-  --danger:      #f87171;
+  --danger:      #d96a6a;
   --ok:          #4ade80;
   --warn:        #fbbf24;
   --shadow:      0 1px 2px rgba(0,0,0,.4), 0 4px 12px rgba(0,0,0,.5);
@@ -1692,7 +1692,7 @@ section#rightPane {
    and no data-theme attribute was set. Measured element by element rather than guessed.
    One theme now, and it is dark, so the bare :root carries the dark values. The light set is
    still available under [data-theme="light"] below. */
-:root{--bg:#16181c;--surface:#1d2025;--surface-2:#24272e;--border:#2e323a;--text:#e6e8ec;--text-dim:#9aa1ab;--accent:#4d8bff;--accent-soft:#1e2a3f;--radius:6px;--warn:#f59e0b;--ok:#10b981;--danger:#ef4444}
+:root{--bg:#16181c;--surface:#1d2025;--surface-2:#24272e;--border:#2e323a;--text:#e6e8ec;--text-dim:#9aa1ab;--accent:#4d8bff;--accent-soft:#1e2a3f;--radius:6px;--warn:#f59e0b;--ok:#10b981;--danger:#d96a6a}
 @media(prefers-color-scheme:dark){:root{--bg:#16181c;--surface:#1d2025;--surface-2:#24272e;--border:#2e323a;--text:#e6e8ec;--text-dim:#9aa1ab;--accent:#4d8bff;--accent-soft:#1e2a3f}}
 :root[data-theme="dark"]{--bg:#16181c;--surface:#1d2025;--surface-2:#24272e;--border:#2e323a;--text:#e6e8ec;--text-dim:#9aa1ab;--accent:#4d8bff;--accent-soft:#1e2a3f}
 /* 2026-09-18: the second light palette, also dark now - this is the one that turned the top bar and the tab row white. */
@@ -3407,12 +3407,12 @@ aside#treePane, aside#treePane * { min-width: 0 !important; }
    button belongs on the confirmation, not beside the Save you press all day. */
 .modal-btn-dangerline {
   background: transparent;
-  border: 1px solid rgba(248, 113, 113, .55);
-  color: var(--danger, #f87171);
+  border: 1px solid rgba(217, 106, 106, .55);
+  color: var(--danger, #d96a6a);
 }
 .modal-btn-dangerline:hover {
-  background: rgba(248, 113, 113, .12);
-  border-color: var(--danger, #f87171);
+  background: rgba(217, 106, 106, .12);
+  border-color: var(--danger, #d96a6a);
 }
 .modal-footer > .modal-btn-dangerline:first-child { margin-right: auto; }
 .modal:has(.del-list) .modal-body, .modal:has(.del-warn) .modal-body {
@@ -3436,7 +3436,18 @@ aside#treePane, aside#treePane * { min-width: 0 !important; }
    inside a box whose width is decided elsewhere always overflows at some size
    (the same shape as the month min-width that clipped the day numbers). Below
    420px they share the room instead. */
-@media (max-width: 420px) {
+/* CARD 112: this rule was already the right fix - it just fired too late.
+   MEASURED on live 21:20 at 430px wide (a common phone): the footer gets
+   x=66..364 (298px) while three 112px buttons plus two 8px gaps need 368px,
+   so the FIRST button was pushed to x=-4 and its left edge was cut off by
+   the dialog. min-width:112px blocks the shrink that flex:0 1 auto would
+   otherwise do.
+
+   The breakpoint was 420px; the clipping happens at 430. Raised to 560px,
+   which is above every phone width measured (360/375/390/430) and still
+   below any desktop window - so the buttons share the room exactly when
+   they would otherwise overflow, and nothing changes on a wide screen. */
+@media (max-width: 560px) {
   .modal-footer { gap: 6px; }
   .modal-footer .modal-btn {
     min-width: 0;
@@ -5161,7 +5172,7 @@ body[data-bb="settings"] .tree-toolbar { visibility: hidden; }
 #settingsPane .sp-row .hint { margin-left: auto; color: #6b7280; font-size: 12.5px; }
 #settingsPane .sp-row .chev { margin-left: auto; color: #4b5563; font-size: 17px; }
 #settingsPane .sp-row .hint + .chev { margin-left: 9px; }
-#settingsPane .sp-row.danger { color: #f87171; }
+#settingsPane .sp-row.danger { color: #d96a6a; }
 
 /* BUG 9 (operator) - the typing fix flickers.
    Restoring the caret after a redraw repaints the row, which reads as a flash.
@@ -5305,7 +5316,7 @@ body[data-bb="settings"] .tree-toolbar { visibility: hidden; }
      The border is drawn INSIDE the square (box-sizing: border-box), so the
      hole in the smallest 7px marker goes 4px -> 3px. Still an outline; 3px
      was rejected because it closes to 1px and reads as a solid dot. */
-  border: 2px solid #e5484d;
+  border: 2px solid #d96a6a;
   background: transparent;
   border-radius: 1px;
   margin-right: 2px;
@@ -6158,7 +6169,7 @@ input[type="time"]::-webkit-datetime-edit-text { color: var(--t-3, #6b7280); }
   display: inline-flex; align-items: center; justify-content: center;
   /* 2px, matching .tree-marker above - see the note there. Both squares
      move together or a leaf stops matching a parent. */
-  border: 2px solid #e5484d; border-radius: 2px;
+  border: 2px solid #d96a6a; border-radius: 2px;
   background: transparent; padding: 0;
   /* a <button> keeps a 16px line box unless the ceiling is pinned too - that is why
      these looked like rectangles before */
@@ -6809,12 +6820,12 @@ html:root #treeRoot .tree-row:not([data-depth="0"]){ height:32px !important; min
    overdue. Pressed state is a solid fill, not an outline - it is the only sign the tree is filtered. */
 #treeFooter .overdue-btn{
   border:1px solid #7f1d1d; border-radius:8px; background:transparent;
-  color:#f87171; font:inherit; font-size:12px; line-height:1;
+  color:#d96a6a; font:inherit; font-size:12px; line-height:1;
   padding:6px 10px; min-height:28px; cursor:pointer;
 }
-#treeFooter .overdue-btn:hover{ background:rgba(248,113,113,.12) }
+#treeFooter .overdue-btn:hover{ background:rgba(217,106,106,.12) }
 #treeFooter .overdue-btn.is-on{
-  background:#f87171; border-color:#f87171; color:#1b1f25; font-weight:600;
+  background:#d96a6a; border-color:#d96a6a; color:#1b1f25; font-weight:600;
 }
 #treeFooter .overdue-btn:disabled{ opacity:.45; cursor:default; background:transparent; color:#9aa1ab; border-color:#3a4049 }
 #treeFooter{ justify-content:flex-end }
@@ -6827,8 +6838,8 @@ html:root #treeRoot .tree-row:not([data-depth="0"]){ height:32px !important; min
 #treeRoot.overdue-only .tree-row.od-hit,
 #treeRoot.overdue-only .tree-row.od-anc{ display:flex !important; }
 /* past due shows red ONLY while the button is on */
-#treeRoot.overdue-only .tree-row.od-hit .tree-title{ color:#f87171 !important; }
-#treeRoot.overdue-only .tree-row.od-hit .tree-datechip{ color:#f87171 !important; }
+#treeRoot.overdue-only .tree-row.od-hit .tree-title{ color:#d96a6a !important; }
+#treeRoot.overdue-only .tree-row.od-hit .tree-datechip{ color:#d96a6a !important; }
 
 /* --- the priority tree toolbar is one row, Sep 04 --- */
 /* search on the left and WIDE, the date nav just right of it (left of centre, not centred), the
@@ -6907,7 +6918,7 @@ body[data-newbranch="1"] #treeFilters{
 }
 .tree-gearmenu .gearitem:hover{ background:#343a43 }
 .tree-gearmenu .gearcheck{ margin-left:auto; color:#a8c7de; font-weight:600 }
-.tree-gearmenu .gearcount{ margin-left:auto; color:#f87171; font-weight:600 }
+.tree-gearmenu .gearcount{ margin-left:auto; color:#d96a6a; font-weight:600 }
 /* CARD 52, 2026-11-05. A disabled gear line was styled EXACTLY like a live one -
    MEASURED: color rgb(233,236,241) and opacity 1 on both, because nothing in this
    file ever styled .gearitem:disabled. So "Missed" has been shipping as a line
@@ -7123,7 +7134,7 @@ window.__rollHorizon = function () {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-11-25 21:20</span>
+    <span id="buildStamp">build 2026-11-25 22:45</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -22854,7 +22865,7 @@ function firstConnect(remote, rAt, lAt) {
     function line(label, value, good) {
       var d = document.createElement('div');
       d.textContent = (good === true ? '✓ ' : (good === false ? '✗ ' : '• ')) + label + ': ' + value;
-      if (good === false) d.style.color = 'var(--danger,#e55)';
+      if (good === false) d.style.color = 'var(--danger, #d96a6a)';
       if (good === true) d.style.color = 'var(--ok,#5b5)';
       out.appendChild(d);
     }
@@ -36116,8 +36127,8 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
         + '<button class="modal-btn" data-act="stay" style="flex:1 1 auto">Stay signed in</button>'
         + '</div>'
         + '<button class="modal-btn" data-act="force" style="width:100%;margin-top:8px;'
-        + 'background:transparent;border:1px solid var(--danger,#f87171);'
-        + 'color:var(--danger,#f87171)">Sign out anyway \u2014 I accept losing this</button>';
+        + 'background:transparent;border:1px solid var(--danger, #d96a6a);'
+        + 'color:var(--danger, #d96a6a)">Sign out anyway \u2014 I accept losing this</button>';
       back.appendChild(box);
       host.appendChild(back);
       function close() { if (back.parentNode) back.parentNode.removeChild(back); }
@@ -36132,7 +36143,7 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
           window.__flushCloud().then(function (ok) {
             if (ok === true) { close(); resolve(proceed()); return; }
             b.disabled = false; b.textContent = 'Retry';
-            b.style.borderColor = 'var(--danger,#f87171)';
+            b.style.borderColor = 'var(--danger, #d96a6a)';
           }, function () {
             b.disabled = false; b.textContent = 'Retry';
           });
@@ -36442,7 +36453,7 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
   min-width:0; flex:1 1 auto; }
 /* the remove button is never what gets truncated */
 .ps-x{ color:#6b7280; cursor:pointer; font-size:11px; line-height:1; flex:0 0 auto; }
-.ps-x:hover{ color:var(--danger,#f87171); }
+.ps-x:hover{ color:var(--danger, #d96a6a); }
 .ps-menu{
   position:absolute; top:100%; left:0; right:0; margin-top:6px; z-index:9999;
   background:var(--surface-2,#24272e); border:1px solid var(--border); border-radius:8px;
@@ -37144,7 +37155,7 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
 .trashitem button.danger,
 .trashitem-purge {
   font-size: 11px;
-  color: var(--danger, #e06c75);
+  color: var(--danger, #d96a6a);
   background: transparent;
   border: none;
   border-radius: 5px;
@@ -37159,7 +37170,7 @@ window.openReminderPicker = function (anchorEl, initDate, initTime, onSet) {
 .trashitem button.danger:hover,
 .trashitem-purge:hover {
   background: var(--surface-2, #24272e);
-  color: var(--danger, #e06c75);
+  color: var(--danger, #d96a6a);
 }
 .trashitem .done-undo:hover,
 .pastitem .done-undo:hover,
@@ -38975,7 +38986,7 @@ body[data-fb="on"] .fb-band { display: block; }
 .fb-foot { display: flex; gap: 8px; margin-top: 11px; }
 .fb-foot button { flex: 1; height: 28px; border-radius: 6px; font-size: 12px; cursor: pointer;
   background: #24272e; border: 1px solid #2e323a; color: #e6e8ec; }
-.fb-foot button.del { color: #f87171; border-color: rgba(248,113,113,.5); background: transparent; }
+.fb-foot button.del { color: #d96a6a; border-color: rgba(217,106,106,.5); background: transparent; }
 .fb-scope { width: 236px; }
 .fb-scope-note { font-size: 11px; color: #6b7280; line-height: 1.4; }
 .fb-scope-foot { flex-direction: column; gap: 6px; }
@@ -46561,8 +46572,8 @@ aside#treePane { position: relative !important; padding-bottom: 60px !important;
       '.ea-subpen{color:rgba(245,158,11,.32);font-size:13px;margin-right:8px;' +
       ' cursor:default;opacity:1}' +
       /* a missed row reads red, title and date */
-      '.ea-subs.od-only .ea-subrow.od-hit .ea-subtitle{color:#f87171 !important}' +
-      '.ea-subs.od-only .ea-subrow.od-hit .ea-subdate{color:#f87171 !important}' +
+      '.ea-subs.od-only .ea-subrow.od-hit .ea-subtitle{color:#d96a6a !important}' +
+      '.ea-subs.od-only .ea-subrow.od-hit .ea-subdate{color:#d96a6a !important}' +
       '.ea-subs.od-only .ea-subrow:not(.od-hit){display:none !important}' +
       /* the gear */
       /* CARD 50: the add button, styled from the tree's own toolbar button so the
