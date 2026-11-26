@@ -7134,7 +7134,7 @@ window.__rollHorizon = function () {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-11-25 22:45</span>
+    <span id="buildStamp">build 2026-11-25 23:45</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -14595,6 +14595,45 @@ function surfaceArrivals() {
           dots.addEventListener('click', function (e) {
             e.preventDefault(); e.stopPropagation();
             if (typeof window.__openActMenu !== 'function') return;
+            /* ========================================================= CARD 113
+               Operator 2026-11-25: "when I click the three dots inside the edit
+               for the delete button, and i fully go through delting the subtask,
+               it exits out also of the task, it shouldn't do that".
+
+               REPRODUCED with real pointer input, and the owner found by trapping
+               Element.remove rather than by reading code:
+
+                   confirmDelete (16643) -> showModal (10530)
+                   showModal removes EVERY existing .modal-backdrop first
+
+               That is deliberate - "One dialog at a time. Opening a second used
+               to stack them, so edits went into whichever was underneath and Save
+               appeared not to close anything." So the confirm box evicts the Edit
+               Activity window, and after the delete nothing brings it back.
+
+               The rule stays. What was missing is that THIS menu knew the editor
+               was open and never said so. We record the task being edited here,
+               and __doDelete reopens it once the delete is done. Recorded on the
+               ⋮ click, not inside the shared delete, because the tree's own rows
+               use that same delete and must keep closing nothing. */
+            /* `__editingId` is what the Edit window actually sets - MEASURED by
+               diffing window before and after opening it. My first attempt used
+               `__eaOpenId`, which does not exist anywhere in this file, so the
+               line would have been silently inert. */
+            try {
+              /* The flag records BOTH the task being edited and the exact
+                 subtask this ⋮ belongs to.
+
+                 MEASURED why the subtask id is needed: with only the task id,
+                 opening this menu and picking Cancel left the flag set, and a
+                 LATER delete from the priority tree reopened an editor they
+                 never asked for (blast-radius line 4 failed on exactly that).
+                 __doDelete now reopens only when the id being deleted IS this
+                 subtask, so every other delete in the app is untouched and no
+                 stale flag can survive into one. */
+              window.__eaReopenAfterDelete = window.__editingId
+                ? { task: window.__editingId, sub: child.id } : null;
+            } catch (_) {}
             var r = dots.getBoundingClientRect();
             /* MEASURED on the demo: the menu opened 335px LEFT and 410px ABOVE this
                button. The -160 was mine, and the builder repositioned it anyway. */
@@ -16650,6 +16689,39 @@ function surfaceArrivals() {
   window.__doDelete = function (id) {
           window.trashNode(id);
           if (window.toast) window.toast('Moved to Deleted', 'ok');
+          /* CARD 113: if this delete came from the ⋮ of a SUBTASK inside the
+             Edit Activity window, that window was evicted by the confirm box
+             (showModal allows one dialog at a time - see the note on the ⋮
+             handler). Put it back on the task they were editing.
+
+             Guarded three ways, because this same __doDelete runs for every
+             delete in the app and must stay a no-op for all of them:
+               - only when the ⋮ handler set the flag,
+               - never when they deleted the task they were editing itself
+                 (reopening a trashed task would be nonsense),
+               - only if that task is still findable.
+             The flag is cleared first, so a later unrelated delete cannot
+             inherit it. Deferred a tick so this delete's own re-render
+             finishes before the editor reopens over it. */
+          var back = window.__eaReopenAfterDelete;
+          window.__eaReopenAfterDelete = null;
+          /* Reopen ONLY when this delete is the very subtask whose ⋮ set the
+             flag. `back.sub === id` is what makes every other delete in the
+             app - a tree row, a calendar chip, a stale flag left by a menu
+             they cancelled - fall straight through. */
+          if (back && back.sub === id && back.task !== id
+              && typeof window.editActivity === 'function') {
+            try {
+              var still = window.findNode && window.findNode(back.task);
+              if (still && still.node) {
+                setTimeout(function () {
+                  /* read editActivity at CALL time: it is redefined 8 times in
+                     this file and the last definition wins. */
+                  try { window.editActivity(back.task); } catch (_) {}
+                }, 0);
+              }
+            } catch (_) {}
+          }
   };
 
   function step2(id, count) {
