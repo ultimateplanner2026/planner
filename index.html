@@ -7112,7 +7112,7 @@ window.__rollHorizon = function () {
       </button>
       <span id="lblMonth" class="month-label">Month</span>
     </div>
-    <span id="buildStamp">build 2026-11-25 19:12</span>
+    <span id="buildStamp">build 2026-11-25 21:00</span>
     <div class="topbar-spacer"></div>
     <span id="syncPill" class="sync-pill" data-state="local" title="Sync status">Local</span>
     <!-- 2026-09-12: the operator asked for a bar that carries only what they use. The
@@ -16101,7 +16101,31 @@ function surfaceArrivals() {
     // .tree-row.overdue's !important, so three overdue branches stayed on
     // screen above the deleted list. The class on the tree wins.
     root.classList.add('done-only');
-    var t = trash();
+    /* ============================================================= CARD 110
+       Operator 2026-11-25: "the deleted things must be in order."
+
+       MEASURED on live 19:12 with 35 items: the list came out in the raw
+       order things were pushed into the trash array - "3 days ago, 6, 8, 9,
+       14, 21, 20, 26, 26, 26, 22, 28..." - which is not sorted in either
+       direction. So the task they deleted a minute ago could be anywhere.
+
+       NEWEST FIRST, so the thing just deleted is the first row - that is
+       what makes the scrollbar bearable on a 35-item list (measured: 20 of
+       35 rows fit the 857px the phone gives this pane, and the app shell
+       cannot page-scroll, so the list keeps its own scroller).
+
+       SORTS A COPY, never the stored array. Nothing reads the trash by
+       index (checked: restoreFromTrash, purgeFromTrash and emptyTrash all
+       look up by node id), but reordering their stored data to change a
+       display order would be a write where a read will do. An entry with no
+       deletedAt sorts to the bottom rather than throwing the order out. */
+    var t = trash().slice().sort(function (a, b) {
+      var ta = a && a.deletedAt ? Date.parse(a.deletedAt) : 0;
+      var tb = b && b.deletedAt ? Date.parse(b.deletedAt) : 0;
+      if (isNaN(ta)) ta = 0;
+      if (isNaN(tb)) tb = 0;
+      return tb - ta;
+    });
     if (t.length === 0) return;
     var list = document.createElement('div');
     list.className = 'trashlist';
